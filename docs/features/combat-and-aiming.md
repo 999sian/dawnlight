@@ -64,8 +64,8 @@ eleven current presented bone poses, including custom outfits. Each strand is
 an independent curved ribbon: there is no enclosing surface or geometry between
 neighbouring strands. Bends travel upward at 20 game units per second, with
 independent phases, heights, widths and opacity across the body. Eight strands
-per body part double the previous population; maximum width is four times the
-previous limit while the thinnest wisps retain their original width. Width also
+per body part double the previous population; maximum width is eight times the
+original limit while the thinnest wisps retain their original width. Width also
 undulates along the rising curve. Roots sit inside the approximate limb volume
 without a transparent base gap; scene depth hides the buried section. Soft
 transparent sides and tapered tips keep the strands fine; opacity detail flows

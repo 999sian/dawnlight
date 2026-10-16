@@ -49,7 +49,7 @@ int main() {
         assert(a[last].opacity==0);
         for (unsigned r=0;r<kSegments;++r) {
             const auto v=first+r*6;
-            assert(length(a[v].world-a[v+1].world)<=27.201f);
+            assert(length(a[v].world-a[v+1].world)<=54.401f);
             assert(a[v].field.x==-1 && a[v+1].field.x==1);
             if (r+1<kSegments) assert(length(a[v+2].world-a[v+6].world)==0);
         }

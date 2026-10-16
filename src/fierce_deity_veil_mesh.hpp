@@ -190,9 +190,9 @@ inline void build(const std::array<Pose,kJoints.size()>& poses, const Pose& root
             const float height=(part==2 ? 58.0f : part<2 ? 46.0f : 32.0f)*
                                (0.45f+variation(variant,1)*1.05f);
             // Keep fine wisps while allowing the broadest strands to reach
-            // four times the former 3.4-unit half-width.
+            // eight times the original 3.4-unit half-width.
             const float widthVariation=variation(variant,2);
-            const float halfWidth=0.55f+widthVariation*widthVariation*13.05f;
+            const float halfWidth=0.55f+widthVariation*widthVariation*26.65f;
             const float density=(0.35f+variation(variant,3)*0.65f)*life_opacity(life.age);
             std::array<Vec3,kSegments+1> centers{};
             std::array<std::array<Vertex,2>,kSegments+1> strip{};
