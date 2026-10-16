@@ -84,16 +84,16 @@ void tick_eye_glow(daAlink_c* link, JPAResourceManager* resources) {
         return;
     }
     const csXyz upright(0, 0, 0);
-    const cXyz scale(0.06f, 0.06f, 0.06f);
+    const cXyz scale(0.12f, 0.12f, 0.12f);
     for (size_t i = 0; i < s_darkFlame.eyeKeys.size(); ++i) {
         // Native human eye center is (12, -8, 0) in head space. Separate the
-        // eyes along local Z and move slightly forward to clear the face.
+        // eyes along local Z and move four units forward to clear the face.
         // Resolve the live head matrix each tick, including after outfit swaps.
         const float side = i == 0 ? -3.5f : 3.5f;
         const cXyz position(
-            head[0][3] + head[0][0] * 13.0f - head[0][1] * 8.0f + head[0][2] * side,
-            head[1][3] + head[1][0] * 13.0f - head[1][1] * 8.0f + head[1][2] * side,
-            head[2][3] + head[2][0] * 13.0f - head[2][1] * 8.0f + head[2][2] * side);
+            head[0][3] + head[0][0] * 16.0f - head[0][1] * 8.0f + head[0][2] * side,
+            head[1][3] + head[1][0] * 16.0f - head[1][1] * 8.0f + head[1][2] * side,
+            head[2][3] + head[2][0] * 16.0f - head[2][1] * 8.0f + head[2][2] * side);
         auto* emitter = link->setEmitter(&s_darkFlame.eyeKeys[i], kEyeGlowEffect,
                                          &position, &upright);
         if (emitter == nullptr) continue;
@@ -102,7 +102,7 @@ void tick_eye_glow(daAlink_c* link, JPAResourceManager* resources) {
         emitter->setGlobalPrmColor(kDarkLinkEyeRed[0], kDarkLinkEyeRed[1], kDarkLinkEyeRed[2]);
         emitter->setGlobalEnvColor(kDarkLinkEyeRed[0], kDarkLinkEyeRed[1], kDarkLinkEyeRed[2]);
         // A small, low-opacity glow, not a rising flame or a light trail.
-        emitter->setGlobalAlpha(32);
+        emitter->setGlobalAlpha(80);
         emitter->setRate(0.17f);
         emitter->setRateStep(0);
         emitter->setLifeTime(12);
@@ -228,7 +228,7 @@ void tick_dark_flame(daAlink_c* link, bool enabled) {
         emitter->setLocalRotation(localRotation);
         emitter->setLocalScale(unit);
         emitter->setDirection(up);
-        emitter->setDirectionalSpeed(0.77f); // 30% slower upward drift.
+        emitter->setDirectionalSpeed(0.50f);
         emitter->setAwayFromCenterSpeed(0.0f);
         emitter->setAwayFromAxisSpeed(0.0f);
         emitter->setRandomDirectionSpeed(0.25f);

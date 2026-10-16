@@ -9,6 +9,9 @@ void after_flame_shape_setup(ModContext*, void* args, void*, void*) {
     if (owns_eye_glow(work->mpEmtr)) {
         // Faint additive halo, still occluded by the face/scene depth buffer.
         GXSetBlendMode(GX_BM_BLEND, GX_BL_SRCALPHA, GX_BL_ONE, GX_LO_COPY);
+        // A native fire alpha cutoff can discard the entire dim halo. Preserve
+        // its soft edges by accepting every nonzero alpha, only for our eyes.
+        GXSetAlphaCompare(GX_GREATER, 0, GX_AOP_AND, GX_ALWAYS, 0);
         GXSetZMode(GX_TRUE, GX_LEQUAL, GX_FALSE);
         return;
     } else if (owns_dark_flame(work->mpEmtr)) {
@@ -30,4 +33,8 @@ void after_flame_resource_draw(ModContext*, void* args, void*, void*) {
     GXSetBlendMode(shape->getBlendMode(), shape->getBlendSrc(),
                    shape->getBlendDst(), shape->getLogicOp());
     GXSetZMode(shape->getZEnable(), shape->getZCmp(), shape->getZUpd());
+    if (owns_eye_glow(emitter)) {
+        GXSetAlphaCompare(shape->getAlphaCmp0(), shape->getAlphaRef0(), shape->getAlphaOp(),
+                          shape->getAlphaCmp1(), shape->getAlphaRef1());
+    }
 }

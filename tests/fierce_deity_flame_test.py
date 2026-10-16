@@ -100,6 +100,9 @@ unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
 '''
 draw_fixture = r'''
 constexpr int GX_BM_BLEND=1,GX_BL_ZERO=0,GX_BL_INVSRCALPHA=2,GX_LO_COPY=3,GX_FALSE=0,GX_BL_SRCALPHA=8,GX_BL_ONE=9,GX_TRUE=1,GX_LEQUAL=10;
+constexpr int GX_GREATER=11,GX_AOP_AND=12,GX_ALWAYS=13;
+std::array<int,5> alphaCompare{};
+void GXSetAlphaCompare(int a,int b,int c,int d,int e){alphaCompare={a,b,c,d,e};}
 std::array<int,4> blend{};std::array<int,3> depth{};unsigned gxWrites=0;
 void GXSetBlendMode(int a,int b,int c,int d){blend={a,b,c,d};++gxWrites;}
 void GXSetZMode(int a,int b,int c){depth={a,b,c};++gxWrites;}
@@ -107,7 +110,9 @@ struct JPABaseShape {
     int getBlendMode(){return 1;}int getBlendSrc(){return 4;}
     int getBlendDst(){return 5;}int getLogicOp(){return 6;}
     int getZEnable(){return 1;}int getZCmp(){return 7;}int getZUpd(){return 1;}
-    void nativeSetup(){GXSetBlendMode(1,4,5,6);GXSetZMode(1,7,1);}
+    int getAlphaCmp0(){return GX_GREATER;}int getAlphaRef0(){return 128;}
+    int getAlphaOp(){return GX_AOP_AND;}int getAlphaCmp1(){return GX_ALWAYS;}int getAlphaRef1(){return 0;}
+    void nativeSetup(){GXSetBlendMode(1,4,5,6);GXSetZMode(1,7,1);GXSetAlphaCompare(GX_GREATER,128,GX_AOP_AND,GX_ALWAYS,0);}
 };
 struct JPAResource {JPABaseShape shape;JPABaseShape* getBsp(){return &shape;}};
 
@@ -230,11 +235,11 @@ int main() {
     for(unsigned i=0;i<2;++i){
         auto* e=dComIfGp_particle_getEmitter(eyeKeys[i]);
         assert(e&&e->effect==0x3ad&&e->continuous);
-        assert(e->pos.x==53&&e->pos.y==112&&e->pos.z==(i==0?-3.5f:3.5f));
-        assert(e->scale.x==0.06f&&e->scale.y==0.06f&&e->scale.z==0.06f);
+        assert(e->pos.x==56&&e->pos.y==112&&e->pos.z==(i==0?-3.5f:3.5f));
+        assert(e->scale.x==0.12f&&e->scale.y==0.12f&&e->scale.z==0.12f);
         assert((e->prm==std::array<int,3>{255,28,20}&&e->env==e->prm));
         assert(!owns_dark_flame(e)&&owns_eye_glow(e));
-        assert(e->alpha==32&&e->life==12&&e->rate*e->life<3);
+        assert(e->alpha==80&&e->life==12&&e->rate*e->life<3);
         // Glow particles stay on the eye, with neither body shell placement nor rising motion.
         JPAEmitterWorkData eyeWork{e};JPABaseParticle p;p.mLocalPosition={1,2,3};
         void* initArgs[]={&p,&eyeWork};after_flame_particle_init(nullptr,initArgs,nullptr,nullptr);
@@ -243,11 +248,17 @@ int main() {
         assert(p.mVelocity.y==0&&p.mVelType0.x==0&&p.mVelType1.y==0&&p.mVelType2.z==0);
         JPAResource resource;void* args[]={&resource.shape,&eyeWork};
         resource.shape.nativeSetup();const auto originalBlend=blend;const auto originalDepth=depth;
+        const auto originalAlpha=alphaCompare;
+        assert(e->alpha<originalAlpha[1]); // the native cutoff can hide the entire halo
         after_flame_shape_setup(nullptr,args,nullptr,nullptr);
+        assert((alphaCompare==std::array<int,5>{GX_GREATER,0,GX_AOP_AND,GX_ALWAYS,0}));
+        // Batch setup may replay shape state; the low-alpha override must survive.
+        resource.shape.nativeSetup();after_flame_shape_setup(nullptr,args,nullptr,nullptr);
+        assert(alphaCompare[1]==0);
         assert((blend==std::array<int,4>{GX_BM_BLEND,GX_BL_SRCALPHA,GX_BL_ONE,GX_LO_COPY}));
         assert((depth==std::array<int,3>{GX_TRUE,GX_LEQUAL,GX_FALSE}));
         void* drawArgs[]={&resource,&eyeWork,e};after_flame_resource_draw(nullptr,drawArgs,nullptr,nullptr);
-        assert(blend==originalBlend&&depth==originalDepth);
+        assert(blend==originalBlend&&depth==originalDepth&&alphaCompare==originalAlpha);
     }
     for(int i=0;i<100;++i)tick_dark_flame(&link,true);
     assert(allocations==old+2&&eyeKeys==s_darkFlame.eyeKeys);
@@ -257,9 +268,9 @@ int main() {
     tick_dark_flame(&link,true);
     assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.x==36.5f);
     assert(dComIfGp_particle_getEmitter(eyeKeys[1])->pos.x==43.5f);
-    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.z==-13);
+    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.z==-16);
     link.mpLinkModel=&replacement;tick_dark_flame(&link,true);
-    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.x==39);
+    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.x==48);
     assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.z==-10.5f);
     for(auto other:{FierceDeityTint::White,FierceDeityTint::Gold,FierceDeityTint::None}){
         tint=other;tick_dark_flame(&link,true);
