@@ -1044,6 +1044,10 @@ ModResult build_dark_link_tab(ModContext* ctx, UiWindowHandle, UiElementHandle l
     {
         return MOD_ERROR;
     }
+    if (add_toggle(ctx, left, "Aura", dark_link_aura_config_var(),
+            "Show the flowing aura around Dark Link, including the Collection preview. "
+            "Eye glow remains enabled independently; Magic Armor has no eye glow.",
+            fierce_deity_visual_disabled) != MOD_OK) return MOD_ERROR;
     if (add_select(ctx, left, "Dark Link Activation", fierce_deity_activation_config_var(),
             kFierceDeityActivationOptions, std::size(kFierceDeityActivationOptions),
             "Activate at full power with a charged Spin Attack, R+Z, R+A (default), L3, or R3. "

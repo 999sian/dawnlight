@@ -2,6 +2,8 @@
 #include "dual_wield.hpp"
 #include "service_imports.hpp"
 #include "fierce_deity_wipe.hpp"
+#include "fierce_deity_eye_bloom.hpp"
+#include "fierce_deity_veil.hpp"
 
 #include "d/actor/d_a_alink.h"
 #include "JSystem/J3DGraphBase/J3DMaterial.h"
@@ -12,6 +14,7 @@
 #include "JSystem/JKernel/JKRExpHeap.h"
 #include "JSystem/JKernel/JKRSolidHeap.h"
 #include "JSystem/JParticle/JPAEmitter.h"
+#include "JSystem/JParticle/JPAEmitterManager.h"
 #include "JSystem/JParticle/JPAResource.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_particle_name.h"
@@ -55,6 +58,7 @@ struct DrawScope {
     J3DShapePacket* packet = nullptr;
     J3DMatPacket* materialPacket = nullptr;
     bool applied = false;
+    bool eyeGlow = false;
     FierceDeityTint tint = FierceDeityTint::None;
     bool warp = false;
     bool inverse = false;
@@ -272,7 +276,8 @@ public:
         xf(0x1009, 2); // XF number of color channels
         xf(0x100B, rgba({64, 64, 64, ambientAlpha}));
         const GXColor eyeColor = tint == FierceDeityTint::Gold ? GXColor{255,255,255,materialAlpha} :
-            tint == FierceDeityTint::White ? GXColor{255,176,24,materialAlpha} : GXColor{255,28,20,materialAlpha};
+            tint == FierceDeityTint::White ? GXColor{255,176,24,materialAlpha} :
+            GXColor{255,28,20,materialAlpha};
         const GXColor bodyColor = tint == FierceDeityTint::Gold ? GXColor{210,145,24,materialAlpha} :
             tint == FierceDeityTint::White ? GXColor{240,240,240,materialAlpha} : GXColor{8,9,11,materialAlpha};
         xf(0x100D, rgba(eye ? eyeColor : bodyColor));
@@ -281,6 +286,13 @@ public:
         // Preserve the native ALPHA1 control and cutout transparency.
         xf(0x100F, (1u << 10) | (u32(GX_DF_CLAMP) << 7) |
                      ((eye || tint == FierceDeityTint::White) ? 0u : (1u << 1) | (1u << 2)));
+    }
+    void eye_mask() {
+        // Offscreen only: premultiply by native eye alpha into transparent black
+        // and record depth. Scene alpha and the global destination-alpha/fog
+        // registers remain untouched; the material DL restores blend/depth.
+        masked_bp(0x41, 0xFE3u, 1u | (4u << 8)); // SRCALPHA + ZERO; retain write masks
+        masked_bp(0x40, 0x1Fu, 1u | (3u << 1) | (1u << 4));
     }
     void specular_lighting(FierceDeityTint tint, u8 ambientAlpha0, u8 materialAlpha0,
                            u8 ambientAlpha1, u8 materialAlpha1) {
@@ -463,6 +475,7 @@ HookAction before_shape_draw(ModContext*, void* args, void*, void*) {
     const auto* color = material->getMatColor(1);
     const u8 ambientAlpha = ambient != nullptr ? ambient->a : 255;
     const u8 materialAlpha = color != nullptr ? color->a : 255;
+    scope.eyeGlow = eye && scope.tint != FierceDeityTint::None && !scope.warp;
     // Only borrow light0 when the actual batch material reloads it in its DL.
     // Replaying that DL in restore_draw_state restores the light as well as
     // both color channels. Materials without a restorable light use diffuse.
@@ -499,8 +512,13 @@ HookAction before_shape_draw(ModContext*, void* args, void*, void*) {
     } else {
         // Eyes use the full self-lit COLOR1, without sampling iris RGB. Native
         // alpha remains in APREV, so eyelids/cutouts and warp masks still work.
+        // Boost red-eye emission only. GX clamps the final RGB to its normal
+        // color range, so this is not an HDR/bloom pass or an alpha increase.
+        const auto emissionScale = eye && scope.tint == FierceDeityTint::Dark ?
+            GX_CS_SCALE_2 : GX_CS_SCALE_1;
         effect.stage(count, GX_TEXCOORD_NULL, GX_TEXMAP_NULL, identity, identity,
-                     GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC);
+                     GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC,
+                     GX_TEV_ADD, emissionScale);
         next = count + 1;
     }
     }
@@ -531,6 +549,29 @@ HookAction before_primitive_draw(ModContext*, void*, void*, void*) {
     projection.post_matrix(scope.warpCoord, matrix);
     projection.submit();
     return HOOK_CONTINUE;
+}
+
+void after_eye_primitive_draw(ModContext*, void* args, void*, void*) {
+    if (s_drawDepth == 0 || s_drawDepth > s_drawScopes.size()) return;
+    auto& scope = s_drawScopes[s_drawDepth - 1];
+    if (!scope.applied || !scope.eyeGlow || scope.packet == nullptr) return;
+    auto* primitive = mods::arg<const J3DShapeDraw*>(args, 0);
+    if (primitive == nullptr || primitive->getDisplayList() == nullptr ||
+        primitive->getDisplayListSize() == 0) return;
+
+    if (!begin_eye_bloom_capture()) return;
+    DarkDisplayList mask;
+    mask.eye_mask();
+    if (mask.submit()) {
+        // Capture the exact primitive once. Projection, skinning and UVs are
+        // unchanged; no shifted copies or additional geometry enter the scene.
+        GXCallDisplayList(primitive->getDisplayList(), primitive->getDisplayListSize());
+    }
+    end_eye_bloom_capture();
+    // Restore the material and reapply Dark Link before the next primitive.
+    restore_draw_state(scope);
+    void* shapeArgs[]{scope.packet->getShape()};
+    before_shape_draw(nullptr, shapeArgs, nullptr, nullptr);
 }
 
 void after_player_draw(ModContext*, void* args, void*, void*) {
@@ -607,6 +648,7 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         (result = mods::hook::add_pre<FierceShapeDrawHook>(svc_hook, before_shape_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FierceShapeDrawHook>(svc_hook, after_shape_draw)) != MOD_OK ||
         (result = mods::hook::add_pre<FiercePrimitiveDrawHook>(svc_hook, before_primitive_draw)) != MOD_OK ||
+        (result = mods::hook::add_post<FiercePrimitiveDrawHook>(svc_hook, after_eye_primitive_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FierceWarpParticleCalcHook>(svc_hook, after_warp_particle_calc)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentUpdateHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentEntryHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
@@ -614,6 +656,8 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         (result = mods::hook::add_post<FiercePlayerDrawHook>(svc_hook, after_player_draw)) != MOD_OK) {
         return mods::set_error(error, result, "failed to install Dawnlight Dark Link visual hooks");
     }
+    initialize_eye_bloom();
+    initialize_dark_veil();
     return MOD_OK;
 }
 

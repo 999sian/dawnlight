@@ -58,6 +58,66 @@ without stored charge start empty; Boss Rush charge is kept separate.
 | White | Current outfit: white texels become black; black and colored texels become white. Amber iris/pupils and black sclera. |
 | Gold | Current outfit with warm golden shading/specular highlights and fully white glowing eyes. |
 
+**Aura** (On by default) toggles only the flowing body effect, independently of
+eye bloom. Both effects also render on Link in the Collection screen, using its
+preview camera and pose with a separate motion history.
+
+| Visual | Aura | Eye bloom |
+| --- | --- | --- |
+| Magic Armor | Black | None |
+| Dark / Dark Magic | Black | Red |
+| White | White | Amber, matching the iris/pupil |
+| Gold | Gold | White |
+
+While Dark Link is active and Aura is On, up to 88 smoke strands rise from the animated torso,
+neck, shoulders, arms and legs with any selected visual. Their roots follow
+eleven current presented bone poses, including custom outfits. Each strand is
+an independent curved ribbon: there is no enclosing surface or geometry between
+neighbouring strands. Bends travel upward at 20 game units per second, with
+independent phases, heights, widths and opacity across the body. Eight strands
+per body part double the previous population; maximum width is eight times the
+original limit while the thinnest wisps retain their original width. Width also
+undulates along the rising curve. Roots sit inside the approximate limb volume
+without a transparent base gap; scene depth hides the buried section. Soft
+transparent sides and tapered tips keep the strands fine; opacity detail flows
+upward with the curves.
+Their narrow cross-sections face the camera to remain visible from the side.
+Each ribbon uses a shared transverse direction and ordered projected rows,
+preventing wide bends from folding into dark, star-shaped triangle overlaps.
+Roots slide along and around each limb, following its presented position and
+rotation while attached. Actual world displacement drives a 0.10-second travel
+response, so the trail scales with running and sprinting speed independently
+of the sprint provider. Limb motion has separate 0.12–0.24 second responses and
+a 28-unit bound; it no longer caps the running trail. The combined trail has a
+512-unit emergency bound. New strands inherit the current travel inclination,
+and attached strands settle smoothly after stopping. Each has a staggered 3.2–6 second
+lifecycle: fade in, wander along the body, detach, drift upward in world space
+with a little inherited momentum, then fade away. A replacement appears at a
+new body position with fresh width, height and opacity variation. Detached
+strands retain their release inclination until they fade, no longer following
+Link or his limb rotations; their inherited drift scales with movement too.
+The bounded pool needs
+no particle assets or unbounded emission history.
+The veil fades in over 0.2 seconds and clears on deactivation, hidden/dead/wolf
+states, events, scene changes and outfit reloads. Teleports and long frame gaps
+reset its movement history. It draws after the world translucent lists, with
+scene-depth occlusion and no depth, alpha or normal writes. It uses no new assets.
+
+Dark and Dark Magic render the eye surfaces themselves as self-lit red with a 2x
+emission multiplier, independent of room lighting and preserving eyelid/cutout alpha.
+RGB output still clamps to the renderer's normal color range. Selective bloom
+captures the actual skinned eye pixels with their native alpha into an offscreen
+mask. Scene-depth testing removes hidden pixels before a separable Gaussian blur
+adds a soft spill in the captured eye color (red, amber or white) around the visible
+eye surface. Magic Armor keeps its native eyes without bloom. Bloom brightness fluctuates
+gently by at most 12% with a continuous, frame-rate-independent signal shared by
+both eyes. The sharp eye surface remains steady. There are no halo sprites,
+projection offsets or enlarged eye meshes. The composite preserves scene alpha,
+depth and normal attachments; global bloom and lantern lighting are unchanged.
+Captures are bounded to eight eye primitive groups per scene and discarded at
+scene/frame boundaries. During warp transitions or without the graphics service,
+only the masked self-lit eye surface is drawn.
+
 **Dark Link Activation**, below the visual selector, offers **Spin Attack**
 (charged), **R+Z**, **R+A** (default), **L3**, or **R3**. Activation requires a full meter unless **Free Transform** is enabled. With
 either R shortcut, hold R and then press Z or A, just like native R+Y Quick

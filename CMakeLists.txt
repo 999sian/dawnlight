@@ -136,6 +136,8 @@ add_mod(dawnlight_mod
         src/fierce_deity_hud.cpp
         src/kh2_hud_compat.cpp
         src/fierce_deity_visual.cpp
+        src/fierce_deity_eye_bloom.cpp
+        src/fierce_deity_veil.cpp
         src/great_spin_projectile.cpp
         src/item_integrity.cpp
         src/item_slot_hooks.cpp

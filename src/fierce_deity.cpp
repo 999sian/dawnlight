@@ -1,4 +1,6 @@
 #include "fierce_deity.hpp"
+#include "fierce_deity_eye_bloom.hpp"
+#include "fierce_deity_veil.hpp"
 
 #include "combat_meter.hpp"
 #include "fierce_deity_hud.hpp"
@@ -190,6 +192,7 @@ void restore_equipment_selection() {
 }
 
 void deactivate(daAlink_c*, bool clearMeter) {
+    stop_dark_veil();
     // A pending preload has not touched Link. An already installed cosmetic
     // outfit is restored by service_model_swap at the next safe player update.
     const bool wasActive = s_state.active;
@@ -201,6 +204,7 @@ void deactivate(daAlink_c*, bool clearMeter) {
 }
 
 void reset_for_link(daAlink_c* link) {
+    stop_dark_veil();
     clear_kh2_drive();
     // The previous player may belong to another save. Never restore its clothes
     // into the current save; equipment restoration belongs to its deletion hook.
@@ -600,11 +604,16 @@ void after_player_execute(ModContext*, void* args, void*, void*) {
     if (!s_state.modelReloadFrame && !menu_or_pause_active()) {
         fierce_deity_transition_tick(link);
     }
-    if (!fierce_deity_enabled()) return;
+    if (!fierce_deity_enabled()) {
+        stop_dark_veil();
+        return;
+    }
     if (!s_state.modelReloadFrame) {
         update_spin_activation(link);
     }
     update_drain(link);
+    tick_dark_veil(link, s_state.active && !s_state.modelReloadFrame &&
+        s_state.modelSwapState == ModelSwapState::None && !menu_or_pause_active());
 }
 
 HookAction before_magic_armor_ability(ModContext*, void*, void* retval, void*) {
@@ -746,6 +755,9 @@ ModResult initialize_fierce_deity(ModError* error) {
 }
 
 void shutdown_fierce_deity() {
+    shutdown_eye_bloom();
+    shutdown_dark_veil();
+    stop_dark_veil();
     s_damageSamples.clear();
     clear_kh2_drive();
     if (s_saveObserver != 0 && svc_save != nullptr) {

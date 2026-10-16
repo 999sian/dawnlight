@@ -73,7 +73,34 @@ void decode_state() {
     auto color=[](u32 v) { return GXColor{u8(v>>24),u8(v>>16),u8(v>>8),u8(v)}; };
     gpuAmbient=color(xf[0x100B]); gpuMaterial=color(xf[0x100D]);
 }
+std::array<float,6> viewport{0,0,640,480,0,1};
+std::array<float,7> projection{0,1,0,1,0,-1,-1};
+void GXGetViewportv(float* out){std::copy(viewport.begin(),viewport.end(),out);}
+void GXGetProjectionv(float* out){std::copy(projection.begin(),projection.end(),out);}
+void GXSetProjectionv(const float* p){std::copy(p,p+7,projection.begin());}
+alignas(32) std::array<u8,32> eyePrimitive{};
+struct J3DShapeDraw {
+    u8* getDisplayList() const {return eyePrimitive.data();}
+    u32 getDisplayListSize() const {return eyePrimitive.size();}
+};
+unsigned eyeReplays=0, captureEnds=0, captureWriteMask=0;
+bool captureAvailable=true, capturing=false;
+bool begin_eye_bloom_capture(){
+    if(!captureAvailable) return false;
+    assert(!capturing); captureWriteMask=bp[0x41]&24; capturing=true; return true;
+}
+void end_eye_bloom_capture(){assert(capturing); capturing=false; ++captureEnds;}
 void GXCallDisplayList(const void* data, u32 size) {
+    if(data==eyePrimitive.data()) {
+        assert(size==32&&eyeReplays==0&&capturing); ++eyeReplays;
+        assert(gpuMaterial.r==255 && ((gpuMaterial.g==28 && gpuMaterial.b==20) ||
+            (gpuMaterial.g==176 && gpuMaterial.b==24) || (gpuMaterial.g==255 && gpuMaterial.b==255)));
+        assert((bp[0x41]&0xFE3)==1025); // premultiplied mask, unchanged write masks
+        assert((bp[0x41]&24)==captureWriteMask);
+        assert((bp[0x40]&0x1F)==23); // LEQUAL with depth writes, offscreen only
+        assert((gpuStages[3].alpha==std::array<int,4>{GX_CA_ZERO,GX_CA_ZERO,GX_CA_ZERO,GX_CA_APREV}));
+        return;
+    }
     assert(size%32==0 && reinterpret_cast<uintptr_t>(data)%32==0);
     const auto* bytes=static_cast<const u8*>(data);
     unsigned offset=0;
@@ -443,6 +470,20 @@ int main() {
         player.data.materials.name=name;
         draw_begin(p);
         assert(gpuCount==4 && gpuMaterial.r==255 && gpuMaterial.g==28 && gpuMaterial.b==20);
+        assert(gpuStages[3].scale==GX_CS_SCALE_2); // double red-eye emission, not alpha
+        // One exact offscreen capture, with the native projection and alpha;
+        // all changes are undone before the next scene primitive.
+        const auto eyeBP=bp;const auto eyeXF=xf;const auto savedProjection=projection;
+        J3DShapeDraw primitive;void* primitiveArgs[]={&primitive};eyeReplays=0;
+        const auto ends=captureEnds;
+        after_eye_primitive_draw(nullptr,primitiveArgs,nullptr,nullptr);
+        assert(eyeReplays==1&&captureEnds==ends+1&&!capturing);
+        assert(projection==savedProjection&&bp==eyeBP&&xf==eyeXF);
+        captureAvailable=false;eyeReplays=0;
+        after_eye_primitive_draw(nullptr,primitiveArgs,nullptr,nullptr);
+        assert(eyeReplays==0&&captureEnds==ends+1&&!capturing);
+        assert(projection==savedProjection&&bp==eyeBP&&xf==eyeXF);
+        captureAvailable=true;
         assert((xf[0x100F] & 2)==0); // COLOR1 lighting disabled: emissive in dark rooms
         assert(gpuMaterial.a==93 && gpuAmbient.a==61);
         for(unsigned i=0x603;i<=0x60F;++i) assert(xf[i]==nativeXF[i]);
@@ -451,6 +492,19 @@ int main() {
         for(int alpha : {0,93,255}) assert(warp_alpha(3,alpha,0)==alpha);
         draw_end(); assert(bp==nativeBP && xf==nativeXF);
     }
+    // White's amber iris pixels and Gold's white eyes also enter the bloom
+    // mask, while untinted Magic Armor has no eye capture at all.
+    for(auto tint : {FierceDeityTint::White,FierceDeityTint::Gold,FierceDeityTint::None}) {
+        palette=tint;
+        draw_begin(p);
+        if(tint==FierceDeityTint::White) assert(gpuMaterial.r==255 && gpuMaterial.g==176 && gpuMaterial.b==24);
+        if(tint==FierceDeityTint::Gold) assert(gpuMaterial.r==255 && gpuMaterial.g==255 && gpuMaterial.b==255);
+        J3DShapeDraw primitive;void* args[]={&primitive};eyeReplays=0;
+        after_eye_primitive_draw(nullptr,args,nullptr,nullptr);
+        assert(eyeReplays==(tint==FierceDeityTint::None ? 0u:1u));
+        draw_end(); assert(bp==nativeBP && xf==nativeXF);
+    }
+    palette=FierceDeityTint::Dark;
     // Named replacement eyes no longer depend on native texture names or
     // spare red/blue swap tables; the full surface uses only one extra stage.
     player.data.textures.name="custom_eye_texture";
@@ -582,6 +636,8 @@ int main() {
         draw_begin(p);
         assert(gpuCount==4+(invert ? 3 : 1));
         assert(eye_coverage(3,0,0)==1 && eye_coverage(3,1,1)==1);
+        {J3DShapeDraw primitive;void* args[]={&primitive};eyeReplays=0;
+         after_eye_primitive_draw(nullptr,args,nullptr,nullptr);assert(eyeReplays==0);}
         for(int alpha : {0,93,255}) for(int mask=0;mask<256;++mask)
             assert(warp_alpha(3,alpha,mask)==((invert ? mask!=255 : mask==255) ? alpha : 0));
         draw_end();assert(bp==nativeBP && xf==nativeXF);
@@ -674,6 +730,9 @@ int main() {
     draw_end();assert(bp==nativeBP && xf==nativeXF);
     player.data.materials.name="al_eyeballR_m";
     draw_begin(p);assert(gpuCount==4 && gpuMaterial.r==255 && gpuMaterial.g==255 && gpuMaterial.b==255);
+    assert(gpuStages[3].scale==GX_CS_SCALE_1); // Gold does not get the red-eye boost
+    {J3DShapeDraw primitive;void* args[]={&primitive};eyeReplays=0;
+     after_eye_primitive_draw(nullptr,args,nullptr,nullptr);assert(eyeReplays==1);}
     assert(!(xf[0x100F]&2) && eye_coverage(3,0,0)==1);draw_end();
     // White's three-stage path fits through stage 16, then safely falls back.
     palette=FierceDeityTint::White;

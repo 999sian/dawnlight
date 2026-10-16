@@ -187,6 +187,9 @@ void fierce_deity_transition_tint(daAlink_c*, FierceDeityTint, FierceDeityTint, 
 void fierce_deity_transition_commit(daAlink_c*) {}
 void fierce_deity_transition_tick(daAlink_c*) {}
 void fierce_deity_transition_cancel(daAlink_c*) {}
+unsigned auraStops=0; bool auraActive=false;
+void stop_dark_veil() { ++auraStops; auraActive=false; }
+void tick_dark_veil(daAlink_c*, bool enabled) { auraActive=enabled; }
 void clear_kh2_drive() {}
 int spinUpdates = 0, drainUpdates = 0;
 void update_spin_activation(daAlink_c*) { ++spinUpdates; }
@@ -274,6 +277,7 @@ void start(daAlink_c& link, u8 clothes = tunic) {
 }
 void finish(daAlink_c& link) {
     deactivate(&link, true);
+    assert(!auraActive);
     ticks(link);
     assert(!s_preload.archive && !s_state.modelSwapped && !s_state.active);
     assert(same_archive(link.mArcName, outfit_archive(savedClothes)));
@@ -382,6 +386,12 @@ int main() {
     }
 
     // Unsafe native contexts defer the cosmetic transaction without pausing Link.
+    start(link); activate(&link); ticks(link); assert(auraActive);
+    paused=true; tick(link); assert(!auraActive);
+    paused=false; tick(link); assert(auraActive);
+    enabled=false; tick(link); assert(!auraActive);
+    enabled=true; finish(link);
+
     for (bool* flag : {&link.event, &link.special, &link.riding, &paused}) {
         start(link); activate(&link); *flag = true;
         ticks(link); assert(loads == 0 && link.replacements == 0);
