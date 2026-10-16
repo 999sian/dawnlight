@@ -228,7 +228,7 @@ void tick_dark_flame(daAlink_c* link, bool enabled) {
         emitter->setLocalRotation(localRotation);
         emitter->setLocalScale(unit);
         emitter->setDirection(up);
-        emitter->setDirectionalSpeed(1.1f);
+        emitter->setDirectionalSpeed(0.77f); // 30% slower upward drift.
         emitter->setAwayFromCenterSpeed(0.0f);
         emitter->setAwayFromAxisSpeed(0.0f);
         emitter->setRandomDirectionSpeed(0.25f);
