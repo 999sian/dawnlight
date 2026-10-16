@@ -81,6 +81,12 @@ jobs:
         if: matrix.platform == 'linux-x86_64'
         run: python3 tests/z_item_provider_guard_test.py
 
+      - name: Test Fire Arrows item and HUD compatibility
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          python3 tests/fire_arrow_compat_test.py
+          python3 tests/item_combo_routing_test.py
+
       - name: Test Bullet Time gyro compatibility
         if: matrix.platform == 'linux-x86_64'
         run: python3 tests/bullet_time_gyro_compat_test.py
@@ -201,6 +207,10 @@ jobs:
                    -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-28)
           fi
           cmake -B build "${args[@]}"
+
+      - name: Test native item-ring combine input ownership
+        if: matrix.platform == 'linux-x86_64'
+        run: python3 tests/ring_native_combine_test.py --dusklight-dir dusklight
 
       - name: Test TE Collection service adapter
         if: matrix.platform == 'linux-x86_64'
