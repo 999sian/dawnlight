@@ -125,6 +125,8 @@ bool dark_link_free_transform();
 ConfigVarHandle dark_link_free_transform_config_var();
 FierceDeityVisual fierce_deity_visual();
 ConfigVarHandle fierce_deity_visual_config_var();
+bool dark_link_aura_enabled();
+ConfigVarHandle dark_link_aura_config_var();
 enum class FierceDeityActivation : int { SpinAttack = 0, RZ = 1, RA = 2, L3 = 3, R3 = 4 };
 FierceDeityActivation fierce_deity_activation();
 int dark_link_setting(DarkLinkSetting setting);

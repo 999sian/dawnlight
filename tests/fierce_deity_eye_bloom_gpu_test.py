@@ -44,7 +44,7 @@ def group(pipeline, entries):
 horizontal_group = group(horizontal, [(4, a.create_view()), (5, b.create_view())])
 sampler = device.create_sampler(min_filter='linear', mag_filter='linear')
 
-def run(reversed_z=False, alpha=255, hidden=False, intensity=1.0):
+def run(reversed_z=False, alpha=255, hidden=False, intensity=1.0, tint=(255,56,40)):
     parameters = device.create_buffer_with_data(data=struct.pack('<4f', intensity, 0, 0, 0),
         usage=wgpu.BufferUsage.UNIFORM)
     render_group = group(render, [(6, b.create_view()), (7, sampler),
@@ -56,7 +56,7 @@ def run(reversed_z=False, alpha=255, hidden=False, intensity=1.0):
         for x in list(range(12, 24)) + list(range(44, 56)):
             i = y*width+x
             # Native mask draw uses SRCALPHA/ZERO with alpha writes disabled.
-            pixels[i*4:i*4+4] = [round(c*alpha/255) for c in (255, 56, 40)] + [0]
+            pixels[i*4:i*4+4] = [round(c*alpha/255) for c in tint] + [0]
             depth[i] = 0.5
             # Right eye occluded; left eye visible unless the whole head is hidden.
             scene[i] = 0.2 if x >= 44 or hidden else 0.5
@@ -107,4 +107,10 @@ for intensity in (0.88, 1.12):
     flicker = run(intensity=intensity)
     assert abs(red(flicker, 18, 22)/red(normal, 18, 22) - intensity) < 0.002
     assert red(flicker, 48, 22) == 0, 'flicker revealed a hidden eye'
-print('Eye bloom GPU: flicker intensity, real soft spill, occlusion, alpha, reversed Z and odd dimensions passed')
+for tint in ((255,176,24),(255,255,255)):
+    colored=run(tint=tint)
+    i=(22*width+18)*4
+    for channel in (1,2):
+        assert abs(colored[i+channel]/colored[i]-tint[channel]/255)<0.005, 'eye bloom changed its input hue'
+    assert red(colored,48,22)==0
+print('Eye bloom GPU: amber/white hues, flicker intensity, real soft spill, occlusion, alpha, reversed Z and odd dimensions passed')

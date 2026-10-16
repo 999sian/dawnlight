@@ -219,6 +219,11 @@ void composite(ModContext*, const GfxStageContext*, void*) {
 }
 } // namespace
 
+void begin_collection_eye_bloom() {
+    sMasks={}; sMaskCount=0; sScene=true;
+}
+void end_collection_eye_bloom() { composite(nullptr,nullptr,nullptr); }
+
 bool begin_eye_bloom_capture() {
     if (!sScene || !sDraw || !sCompute || sCapturing || sMaskCount == sMasks.size()) return false;
     auto* mode = mDoMch_render_c::getRenderModeObj();

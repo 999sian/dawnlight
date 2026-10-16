@@ -16,9 +16,6 @@
 #include "JSystem/JParticle/JPAEmitter.h"
 #include "JSystem/JParticle/JPAEmitterManager.h"
 #include "JSystem/JParticle/JPAResource.h"
-#include "JSystem/JParticle/JPAResourceManager.h"
-#include "JSystem/JParticle/JPABaseShape.h"
-#include "JSystem/JParticle/JPAParticle.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_particle_name.h"
 #include "Z2AudioLib/Z2SeMgr.h"
@@ -39,9 +36,6 @@
 namespace dawnlight {
 namespace {
 
-#include "fierce_deity_flame.inc"
-#include "fierce_deity_flame_draw.inc"
-
 // Draw-local implementation of the selectable body and eye appearances. Do not
 // patch shared BMD materials: another actor (including Dark Link) can use them.
 // Apply GX state only after the native material/differed display lists, and replay
@@ -52,10 +46,6 @@ DEFINE_HOOK(&J3DShapePacket::drawFast, FierceShapePacketFastHook);
 DEFINE_HOOK(&J3DShape::drawFast, FierceShapeDrawHook);
 DEFINE_HOOK(&J3DShapeDraw::draw, FiercePrimitiveDrawHook);
 DEFINE_HOOK(&JPAResource::calc, FierceWarpParticleCalcHook);
-DEFINE_HOOK(&JPABaseShape::setGX, FierceFlameShapeSetupHook);
-DEFINE_HOOK(&JPAResource::draw, FierceFlameResourceDrawHook);
-DEFINE_HOOK(&JPABaseParticle::init_p, FierceFlameParticleInitHook);
-DEFINE_HOOK(&JPAResource::calc_p, FierceFlameParticleCalcHook);
 DEFINE_HOOK(&mDoExt_modelUpdateDL, FierceEquipmentUpdateHook);
 DEFINE_HOOK(&mDoExt_modelEntryDL, FierceEquipmentEntryHook);
 #if defined(__APPLE__)
@@ -485,7 +475,7 @@ HookAction before_shape_draw(ModContext*, void* args, void*, void*) {
     const auto* color = material->getMatColor(1);
     const u8 ambientAlpha = ambient != nullptr ? ambient->a : 255;
     const u8 materialAlpha = color != nullptr ? color->a : 255;
-    scope.eyeGlow = eye && scope.tint == FierceDeityTint::Dark && !scope.warp;
+    scope.eyeGlow = eye && scope.tint != FierceDeityTint::None && !scope.warp;
     // Only borrow light0 when the actual batch material reloads it in its DL.
     // Replaying that DL in restore_draw_state restores the light as well as
     // both color channels. Materials without a restorable light use diffuse.
@@ -596,12 +586,6 @@ void after_player_draw(ModContext*, void* args, void*, void*) {
 
 bool fierce_deity_transition_busy() { return s_transition.owner != nullptr; }
 
-void fierce_deity_flame_tick(daAlink_c* link, bool enabled) {
-    if constexpr (kUseLegacyDarkFlames) tick_dark_flame(link, enabled);
-    else tick_dark_veil(link, enabled);
-}
-void fierce_deity_flame_stop() { stop_dark_flame(); stop_dark_veil(); }
-
 void fierce_deity_transition_prepare(daAlink_c* link, FierceDeityTint fromTint, FierceDeityTint toTint, bool entering) {
     prepare_transition(link, fromTint, toTint, entering);
 }
@@ -666,10 +650,6 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         (result = mods::hook::add_pre<FiercePrimitiveDrawHook>(svc_hook, before_primitive_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FiercePrimitiveDrawHook>(svc_hook, after_eye_primitive_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FierceWarpParticleCalcHook>(svc_hook, after_warp_particle_calc)) != MOD_OK ||
-        (kUseLegacyDarkFlames && (result = mods::hook::add_post<FierceFlameShapeSetupHook>(svc_hook, after_flame_shape_setup)) != MOD_OK) ||
-        (kUseLegacyDarkFlames && (result = mods::hook::add_post<FierceFlameResourceDrawHook>(svc_hook, after_flame_resource_draw)) != MOD_OK) ||
-        (kUseLegacyDarkFlames && (result = mods::hook::add_post<FierceFlameParticleInitHook>(svc_hook, after_flame_particle_init)) != MOD_OK) ||
-        (kUseLegacyDarkFlames && (result = mods::hook::add_post<FierceFlameParticleCalcHook>(svc_hook, after_flame_particle_calc)) != MOD_OK) ||
         (result = mods::hook::add_pre<FierceEquipmentUpdateHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentEntryHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FiercePlayerDrawHook>(svc_hook, before_player_draw)) != MOD_OK ||

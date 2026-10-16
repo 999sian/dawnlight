@@ -12,14 +12,15 @@ usage=wgpu.TextureUsage
 blend={'color':{'src_factor':'src-alpha','dst_factor':'one-minus-src-alpha','operation':'add'},
        'alpha':{'src_factor':'zero','dst_factor':'one','operation':'add'}}
 
-def run(phase=0, opacity=1, hidden=False, reversed_z=False, samples=1):
+def run(phase=0, opacity=1, hidden=False, reversed_z=False, samples=1, tint=(0,0,0)):
     color=device.create_texture(size=size,format='rgba8unorm',usage=usage.RENDER_ATTACHMENT|usage.COPY_SRC)
     normal=device.create_texture(size=size,format='rgba8unorm',usage=usage.RENDER_ATTACHMENT|usage.COPY_SRC)
     depth=device.create_texture(size=size,format='depth32float',sample_count=samples,usage=usage.RENDER_ATTACHMENT)
     pipeline=device.create_render_pipeline(layout='auto', vertex={'module':module,'entry_point':'vs','buffers':[
-        {'array_stride':32,'attributes':[{'format':'float32x4','offset':0,'shader_location':0},
+        {'array_stride':44,'attributes':[{'format':'float32x4','offset':0,'shader_location':0},
             {'format':'float32x3','offset':16,'shader_location':1},
-            {'format':'float32','offset':28,'shader_location':2}]}]},
+            {'format':'float32','offset':28,'shader_location':2},
+            {'format':'float32x3','offset':32,'shader_location':3}]}]},
         primitive={'topology':'triangle-list','cull_mode':'none'},
         depth_stencil={'format':'depth32float','depth_write_enabled':False,
             'depth_compare':'greater-equal' if reversed_z else 'less-equal'},
@@ -28,8 +29,8 @@ def run(phase=0, opacity=1, hidden=False, reversed_z=False, samples=1):
             {'format':'rgba8unorm','write_mask':0}]})
     values=[]
     for x,y in [(-1,-1),(3,-1),(-1,3)]:
-        values.extend([x,y,0.5,1,x*3,y*3-phase,0.75,opacity])
-    vertices=device.create_buffer_with_data(data=struct.pack('<24f',*values),usage=wgpu.BufferUsage.VERTEX)
+        values.extend([x,y,0.5,1,x*3,y*3-phase,0.75,opacity,*tint])
+    vertices=device.create_buffer_with_data(data=struct.pack('<33f',*values),usage=wgpu.BufferUsage.VERTEX)
     encoder=device.create_command_encoder()
     attachments=[]
     for target,clear in [(color,(0.8,0.7,0.6,0.375)),(normal,(0.2,0.4,0.6,0.8))]:
@@ -66,4 +67,9 @@ assert run(hidden=True)==clear,'veil drew through an occluder'
 assert run(reversed_z=True)==visible
 assert run(hidden=True,reversed_z=True)==clear
 assert run(samples=4)!=clear
-print('Dark veil GPU: animated density, transparent fade, depth occlusion, reversed Z, MSAA, scene alpha and normal preservation passed')
+white=run(tint=(1,1,1));gold=run(tint=(1,0.68,0.09))
+i=(32*64+32)*4
+assert all(white[i+c]>clear[i+c] for c in range(3)), 'white aura did not brighten all channels'
+assert gold[i]>clear[i] and gold[i+2]<clear[i+2], 'gold aura has the wrong color'
+assert run(tint=(1,1,1),hidden=True)==clear
+print('Dark veil GPU: palette colors, animated density, transparent fade, depth occlusion, reversed Z, MSAA, scene alpha and normal preservation passed')

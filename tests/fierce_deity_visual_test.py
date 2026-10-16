@@ -93,7 +93,8 @@ void end_eye_bloom_capture(){assert(capturing); capturing=false; ++captureEnds;}
 void GXCallDisplayList(const void* data, u32 size) {
     if(data==eyePrimitive.data()) {
         assert(size==32&&eyeReplays==0&&capturing); ++eyeReplays;
-        assert(gpuMaterial.r==255&&gpuMaterial.g==28&&gpuMaterial.b==20);
+        assert(gpuMaterial.r==255 && ((gpuMaterial.g==28 && gpuMaterial.b==20) ||
+            (gpuMaterial.g==176 && gpuMaterial.b==24) || (gpuMaterial.g==255 && gpuMaterial.b==255)));
         assert((bp[0x41]&0xFE3)==1025); // premultiplied mask, unchanged write masks
         assert((bp[0x41]&24)==captureWriteMask);
         assert((bp[0x40]&0x1F)==23); // LEQUAL with depth writes, offscreen only
@@ -491,6 +492,19 @@ int main() {
         for(int alpha : {0,93,255}) assert(warp_alpha(3,alpha,0)==alpha);
         draw_end(); assert(bp==nativeBP && xf==nativeXF);
     }
+    // White's amber iris pixels and Gold's white eyes also enter the bloom
+    // mask, while untinted Magic Armor has no eye capture at all.
+    for(auto tint : {FierceDeityTint::White,FierceDeityTint::Gold,FierceDeityTint::None}) {
+        palette=tint;
+        draw_begin(p);
+        if(tint==FierceDeityTint::White) assert(gpuMaterial.r==255 && gpuMaterial.g==176 && gpuMaterial.b==24);
+        if(tint==FierceDeityTint::Gold) assert(gpuMaterial.r==255 && gpuMaterial.g==255 && gpuMaterial.b==255);
+        J3DShapeDraw primitive;void* args[]={&primitive};eyeReplays=0;
+        after_eye_primitive_draw(nullptr,args,nullptr,nullptr);
+        assert(eyeReplays==(tint==FierceDeityTint::None ? 0u:1u));
+        draw_end(); assert(bp==nativeBP && xf==nativeXF);
+    }
+    palette=FierceDeityTint::Dark;
     // Named replacement eyes no longer depend on native texture names or
     // spare red/blue swap tables; the full surface uses only one extra stage.
     player.data.textures.name="custom_eye_texture";
@@ -718,7 +732,7 @@ int main() {
     draw_begin(p);assert(gpuCount==4 && gpuMaterial.r==255 && gpuMaterial.g==255 && gpuMaterial.b==255);
     assert(gpuStages[3].scale==GX_CS_SCALE_1); // Gold does not get the red-eye boost
     {J3DShapeDraw primitive;void* args[]={&primitive};eyeReplays=0;
-     after_eye_primitive_draw(nullptr,args,nullptr,nullptr);assert(eyeReplays==0);}
+     after_eye_primitive_draw(nullptr,args,nullptr,nullptr);assert(eyeReplays==1);}
     assert(!(xf[0x100F]&2) && eye_coverage(3,0,0)==1);draw_end();
     // White's three-stage path fits through stage 16, then safely falls back.
     palette=FierceDeityTint::White;

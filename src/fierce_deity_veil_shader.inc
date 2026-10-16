@@ -4,11 +4,12 @@ struct VertexOutput {
     @builtin(position) position: vec4f,
     @location(0) field: vec3f,
     @location(1) opacity: f32,
+    @location(2) color: vec3f,
 }
 @vertex fn vs(@location(0) position: vec4f, @location(1) field: vec3f,
-              @location(2) opacity: f32) -> VertexOutput {
+              @location(2) opacity: f32, @location(3) color: vec3f) -> VertexOutput {
     var out: VertexOutput;
-    out.position=position; out.field=field; out.opacity=opacity;
+    out.position=position; out.field=field; out.opacity=opacity; out.color=color;
     return out;
 }
 fn hash(p: vec3f) -> f32 {
@@ -33,6 +34,6 @@ fn noise(p: vec3f) -> f32 {
     let seed=input.field.z;
     let detail=noise(vec3f(flow*0.65,seed*1.71,0.3));
     let alpha=0.72*input.opacity*edge*(0.58+0.42*detail);
-    return vec4f(0.0,0.0,0.0,alpha);
+    return vec4f(input.color,alpha);
 }
 )wgsl"

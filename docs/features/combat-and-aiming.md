@@ -58,7 +58,18 @@ without stored charge start empty; Boss Rush charge is kept separate.
 | White | Current outfit: white texels become black; black and colored texels become white. Amber iris/pupils and black sclera. |
 | Gold | Current outfit with warm golden shading/specular highlights and fully white glowing eyes. |
 
-While Dark Link is active, up to 88 black smoke strands rise from the animated torso,
+**Aura** (On by default) toggles only the flowing body effect, independently of
+eye bloom. Both effects also render on Link in the Collection screen, using its
+preview camera and pose with a separate motion history.
+
+| Visual | Aura | Eye bloom |
+| --- | --- | --- |
+| Magic Armor | Black | None |
+| Dark / Dark Magic | Black | Red |
+| White | White | Amber, matching the iris/pupil |
+| Gold | Gold | White |
+
+While Dark Link is active and Aura is On, up to 88 smoke strands rise from the animated torso,
 neck, shoulders, arms and legs with any selected visual. Their roots follow
 eleven current presented bone poses, including custom outfits. Each strand is
 an independent curved ribbon: there is no enclosing surface or geometry between
@@ -92,18 +103,13 @@ states, events, scene changes and outfit reloads. Teleports and long frame gaps
 reset its movement history. It draws after the world translucent lists, with
 scene-depth occlusion and no depth, alpha or normal writes. It uses no new assets.
 
-The previous FIRE02 body flames are **preserved but disabled**, including their
-attachment, lifetime, velocity and black-blending hooks. To restore them, set
-`kUseLegacyDarkFlames = true` in `src/fierce_deity_veil.hpp` and rebuild. This
-switch disables the veil and re-enables the old particle hooks/emission; the two
-effects do not run together. Eye bloom is independent of this switch.
-
 Dark and Dark Magic render the eye surfaces themselves as self-lit red with a 2x
 emission multiplier, independent of room lighting and preserving eyelid/cutout alpha.
 RGB output still clamps to the renderer's normal color range. Selective bloom
 captures the actual skinned eye pixels with their native alpha into an offscreen
 mask. Scene-depth testing removes hidden pixels before a separable Gaussian blur
-adds a soft red spill around the visible eye surface. Its brightness fluctuates
+adds a soft spill in the captured eye color (red, amber or white) around the visible
+eye surface. Magic Armor keeps its native eyes without bloom. Bloom brightness fluctuates
 gently by at most 12% with a continuous, frame-rate-independent signal shared by
 both eyes. The sharp eye surface remains steady. There are no halo sprites,
 projection offsets or enlarged eye meshes. The composite preserves scene alpha,
@@ -111,10 +117,6 @@ depth and normal attachments; global bloom and lantern lighting are unchanged.
 Captures are bounded to eight eye primitive groups per scene and discarded at
 scene/frame boundaries. During warp transitions or without the graphics service,
 only the masked self-lit eye surface is drawn.
-For the disabled legacy effect, body-flame vertical movement is held at 0.50 units per simulation
-step after native force/drag calculation. Particles live for 99 steps to preserve
-the original nominal ascent distance (1.10 x 45 = 0.50 x 99); the emission rate
-is unchanged, so more particles coexist. Native texture animation is unchanged.
 
 **Dark Link Activation**, below the visual selector, offers **Spin Attack**
 (charged), **R+Z**, **R+A** (default), **L3**, or **R3**. Activation requires a full meter unless **Free Transform** is enabled. With

@@ -18,8 +18,6 @@ void fierce_deity_touch_button(uint32_t button, bool pressed);
 bool fierce_deity_dark_visual_active();
 ModResult initialize_fierce_deity_visual(ModError* error);
 bool fierce_deity_model_reload_active();
-void fierce_deity_flame_tick(daAlink_c*, bool enabled);
-void fierce_deity_flame_stop();
 
 // Called only at the native player-update boundary; never changes gameplay.
 bool fierce_deity_transition_busy();

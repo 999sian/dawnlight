@@ -52,6 +52,7 @@ ConfigVarHandle s_flurryRush = 0;
 ConfigVarHandle s_fierceDeity = 0;
 ConfigVarHandle s_darkLinkFreeTransform = 0;
 ConfigVarHandle s_fierceDeityVisual = 0;
+ConfigVarHandle s_darkLinkAura = 0;
 ConfigVarHandle s_fierceDeityActivation = 0;
 std::array<ConfigVarHandle, kDarkLinkSettings.size()> s_darkLinkSettings{};
 ConfigVarHandle s_greatSpinProjectile = 0;
@@ -977,6 +978,7 @@ ModResult register_config(ModError* error) {
         register_bool("fierce-deity", false, s_fierceDeity) != MOD_OK ||
         register_bool("dark-link-free-transform", false, s_darkLinkFreeTransform) != MOD_OK ||
         register_int("fierce-deity-visual", 1, s_fierceDeityVisual) != MOD_OK ||
+        register_bool("dark-link-aura", true, s_darkLinkAura) != MOD_OK ||
         register_int("fierce-deity-activation", 2, s_fierceDeityActivation) != MOD_OK ||
         register_bool("great-spin-projectile", true, s_greatSpinProjectile) != MOD_OK ||
         register_bool("arrow-modes", true, s_arrowModes) != MOD_OK ||
@@ -1334,6 +1336,8 @@ FierceDeityVisual fierce_deity_visual() {
 }
 
 ConfigVarHandle fierce_deity_visual_config_var() { return s_fierceDeityVisual; }
+bool dark_link_aura_enabled() { return get_bool(s_darkLinkAura, true); }
+ConfigVarHandle dark_link_aura_config_var() { return s_darkLinkAura; }
 
 int dark_link_setting(DarkLinkSetting setting) {
     const auto& desc = kDarkLinkSettings[static_cast<size_t>(setting)];
