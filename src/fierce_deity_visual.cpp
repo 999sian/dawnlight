@@ -66,6 +66,8 @@ struct DrawScope {
     J3DShapePacket* packet = nullptr;
     J3DMatPacket* materialPacket = nullptr;
     bool applied = false;
+    bool eyeGlow = false;
+    u8 eyeAlpha = 255;
     FierceDeityTint tint = FierceDeityTint::None;
     bool warp = false;
     bool inverse = false;
@@ -294,6 +296,15 @@ public:
         xf(0x100F, (1u << 10) | (u32(GX_DF_CLAMP) << 7) |
                      ((eye || tint == FierceDeityTint::White) ? 0u : (1u << 1) | (1u << 2)));
     }
+    void eye_glow(u8 materialAlpha) {
+        // Weak additive copies of the actual eye mesh, retaining its native
+        // alpha/cutouts. Only color is dimmed; no extra texture or billboard.
+        xf(0x100D, rgba({16, 2, 1, materialAlpha}));
+        // Blend: SRCALPHA + ONE, color writes on, alpha writes off, no logic/subtract.
+        masked_bp(0x41, 0xFFBu, 1u | (1u << 3) | (1u << 5) | (4u << 8));
+        // Depth test LEQUAL, no depth writes. Occluders remain authoritative.
+        masked_bp(0x40, 0x1Fu, 1u | (3u << 1));
+    }
     void specular_lighting(FierceDeityTint tint, u8 ambientAlpha0, u8 materialAlpha0,
                            u8 ambientAlpha1, u8 materialAlpha1) {
         xf(0x1009, 2);
@@ -475,6 +486,8 @@ HookAction before_shape_draw(ModContext*, void* args, void*, void*) {
     const auto* color = material->getMatColor(1);
     const u8 ambientAlpha = ambient != nullptr ? ambient->a : 255;
     const u8 materialAlpha = color != nullptr ? color->a : 255;
+    scope.eyeGlow = eye && scope.tint == FierceDeityTint::Dark && !scope.warp;
+    scope.eyeAlpha = materialAlpha;
     // Only borrow light0 when the actual batch material reloads it in its DL.
     // Replaying that DL in restore_draw_state restores the light as well as
     // both color channels. Materials without a restorable light use diffuse.
@@ -548,6 +561,50 @@ HookAction before_primitive_draw(ModContext*, void*, void*, void*) {
     projection.post_matrix(scope.warpCoord, matrix);
     projection.submit();
     return HOOK_CONTINUE;
+}
+
+void after_eye_primitive_draw(ModContext*, void* args, void*, void*) {
+    if (s_drawDepth == 0 || s_drawDepth > s_drawScopes.size()) return;
+    auto& scope = s_drawScopes[s_drawDepth - 1];
+    if (!scope.applied || !scope.eyeGlow || scope.packet == nullptr) return;
+    auto* primitive = mods::arg<const J3DShapeDraw*>(args, 0);
+    if (primitive == nullptr || primitive->getDisplayList() == nullptr ||
+        primitive->getDisplayListSize() == 0) return;
+
+    std::array<float, 6> viewport{};
+    std::array<float, 7> projection{};
+    GXGetViewportv(viewport.data());
+    GXGetProjectionv(projection.data());
+    if (!(viewport[2] > 0.0f && viewport[3] > 0.0f)) return;
+
+    DarkDisplayList glow;
+    glow.eye_glow(scope.eyeAlpha);
+    if (!glow.submit()) return;
+    // Four subpixel taps create a narrow rim from the real skinned eye shape.
+    // Reuse current matrices, UVs and native alpha so blinking/cutouts follow
+    // the source geometry. Do not enlarge a world-space sprite near the face.
+    constexpr std::array<std::array<float, 2>, 4> taps{{
+        {-0.75f, 0.0f}, {0.75f, 0.0f}, {0.0f, -0.75f}, {0.0f, 0.75f},
+    }};
+    for (const auto& tap : taps) {
+        auto shifted = projection;
+        const float dx = 2.0f * tap[0] / viewport[2];
+        const float dy = 2.0f * tap[1] / viewport[3];
+        // GX packs perspective M02/M12 or orthographic M03/M13 in [2]/[4].
+        const float sign = projection[0] == 0.0f ? -1.0f : 1.0f;
+        shifted[2] += sign * dx;
+        shifted[4] -= sign * dy;
+        GXSetProjectionv(shifted.data());
+        // Direct primitive replay avoids re-entering the draw hook. No model,
+        // material, vertex-buffer or display-list pointers survive this call.
+        GXCallDisplayList(primitive->getDisplayList(), primitive->getDisplayListSize());
+    }
+    GXSetProjectionv(projection.data());
+    // Restore the native material then reapply the normal eye shader for the
+    // next primitive group. Do not leave additive blending or dim colors active.
+    restore_draw_state(scope);
+    void* shapeArgs[]{scope.packet->getShape()};
+    before_shape_draw(nullptr, shapeArgs, nullptr, nullptr);
 }
 
 void after_player_draw(ModContext*, void* args, void*, void*) {
@@ -627,6 +684,7 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         (result = mods::hook::add_pre<FierceShapeDrawHook>(svc_hook, before_shape_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FierceShapeDrawHook>(svc_hook, after_shape_draw)) != MOD_OK ||
         (result = mods::hook::add_pre<FiercePrimitiveDrawHook>(svc_hook, before_primitive_draw)) != MOD_OK ||
+        (result = mods::hook::add_post<FiercePrimitiveDrawHook>(svc_hook, after_eye_primitive_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FierceWarpParticleCalcHook>(svc_hook, after_warp_particle_calc)) != MOD_OK ||
         (result = mods::hook::add_post<FierceFlameShapeSetupHook>(svc_hook, after_flame_shape_setup)) != MOD_OK ||
         (result = mods::hook::add_post<FierceFlameResourceDrawHook>(svc_hook, after_flame_resource_draw)) != MOD_OK ||

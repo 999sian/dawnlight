@@ -66,12 +66,12 @@ change interrupts it. The effect uses the native FIRE02 flame without its separa
 Only Dark Link’s emitters use black alpha blending; ordinary fires remain unchanged.
 Dark and Dark Magic render the eye surfaces themselves as self-lit red with a 2x
 emission multiplier, independent of room lighting and preserving eyelid/cutout alpha.
-RGB output still clamps to the renderer's normal color range. Each red eye also
-uses the native FAIRY01_GLOW aura (0x730), the visible body halo used by
-[Fairy Companion](https://github.com/AgustinFuac/fairy-companion/blob/master/src/ma_fairy_companion.cpp),
-at 20% scale and alpha 140 with red primary/environment colors.
-It follows the head with no trail, fire-glow substitute or sparkles. The shared
-lantern/world-light channel is not modified, so the fairy and lantern can coexist.
+RGB output still clamps to the renderer's normal color range. A narrow additive
+rim is drawn from the actual animated eye geometry and its native alpha mask.
+There are no fairy/halo sprites in front of the eyes. The four weak subpixel
+copies retain depth testing, do not write depth, and restore projection/material
+state immediately. During warp transitions, only the masked self-lit eye surface
+is drawn. The shared lantern/world-light channel is not modified.
 Body-flame vertical movement is held at 0.50 units per simulation
 step after native force/drag calculation. Particles live for 99 steps to preserve
 the original nominal ascent distance (1.10 x 45 = 0.50 x 99); the emission rate

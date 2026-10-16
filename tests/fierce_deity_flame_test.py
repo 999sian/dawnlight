@@ -12,11 +12,7 @@ using u8=unsigned char; using u16=unsigned short; using u32=unsigned;
 using s16=short;
 namespace JGeometry { template<class T> struct TVec3 { T x,y,z; TVec3(T x,T y,T z):x(x),y(y),z(z){} }; }
 using fpc_ProcID=unsigned; constexpr unsigned fpcM_ERROR_PROCESS_ID_e=~0u;
-constexpr u16 ID_ZF_J_FIRE02_FIRE=0x3af,ID_ZF_J_FAIRY01_GLOW=0x730;
-struct GXColor {u8 r,g,b,a;};
-enum class FierceDeityTint {None,Dark,White,Gold};
-FierceDeityTint tint=FierceDeityTint::None;
-FierceDeityTint fierce_deity_displayed_tint(){return tint;}
+constexpr u16 ID_ZF_J_FIRE02_FIRE=0x3af;
 using Mtx=float[3][4]; using MtxP=float(*)[4];
 struct cXyz { void set(float a,float b,float c){x=a;y=b;z=c;} float x,y,z; cXyz(float x=0,float y=0,float z=0):x(x),y(y),z(z){} };
 struct csXyz { short x,y,z; csXyz(short x,short y,short z):x(x),y(y),z(z){} };
@@ -29,7 +25,6 @@ struct Model {
 struct JPABaseEmitter {
     bool stopped=false,hidden=false,cleared=false,continuous=false;
     u32 id=0; unsigned updates=0; cXyz pos,dir,scale;
-    GXColor prm{},env{};u16 effect=0;
     float rate=0,speed=0,random=0,psx=0,psy=0; int life=0,alpha=0;
     void stopCreateParticle(){stopped=true;}
     void stopDrawParticle(){hidden=true;}
@@ -55,17 +50,11 @@ struct JPABaseEmitter {
 };
 struct ModContext {};
 namespace mods { template<class T> T arg(void* args,int i){return static_cast<T>(static_cast<void**>(args)[i]);} }
-struct JPABaseParticle {cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};s16 mLifeTime=7;
-    cXyz mVelType0{1,2,3},mVelType1{1,2,3},mVelType2{1,2,3};
-    unsigned status=0;void setStatus(unsigned flags){status|=flags;}
-};
+struct JPABaseParticle {cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};s16 mLifeTime=7;};
 struct JPAEmitterWorkData {JPABaseEmitter* mpEmtr=nullptr;cXyz mPublicScale{1,1,1};};
 std::array<JPABaseEmitter,256> emitters{};
 unsigned allocations=0,lookups=0; bool spawnFails=false,controllerAlive=true;
-struct JPAResourceManager {bool available=true,eyes=true;
-    void* getResource(u16 id){assert(id==0x3af||id==0x730);return available&&(id!=0x730||eyes)?this:nullptr;}
-} resources;
-using Resources=JPAResourceManager;
+struct Resources { bool available=true; void* getResource(u16 id){assert(id==0x3af);return available?this:nullptr;} } resources;
 struct JPAEmitterManager { Resources* res=&resources; Resources* getResourceManager(u8 i){assert(i==0);return res;} } manager1,manager2;
 JPAEmitterManager* currentManager=&manager1;
 struct dPa_control_c { static JPAEmitterManager* getEmitterManager(){return currentManager;} };
@@ -78,9 +67,7 @@ JPABaseEmitter* dComIfGp_particle_getEmitter(u32 key) {
 struct daAlink_c {
     unsigned id=1; Model* mpLinkModel=nullptr;
     bool hidden=false,wolf=false,dead=false,event=false,scene=false;
-    int mClothesChangeWaitTimer=0,tevStr=0;
-    unsigned field_0x30b4=4;
-    MtxP getHeadMtx(){return mpLinkModel->getAnmMtx(field_0x30b4);}
+    int mClothesChangeWaitTimer=0;
     bool checkPlayerNoDraw(){return hidden;} bool checkWolf(){return wolf;}
     bool checkDeadHP(){return dead;} bool checkEventRun(){return event;}
     bool checkSceneChangeAreaStart(){return scene;}
@@ -93,17 +80,6 @@ struct daAlink_c {
     }
 };
 unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
-u32 dComIfGp_particle_set(u32 key,u16 effect,const cXyz* pos,const int* tev,
-    const csXyz* rot,const cXyz* scale,u8 alpha,void* cb,int room,
-    const GXColor* prm,const GXColor* env,const cXyz* particleScale){
-    assert(effect==0x730&&tev&&rot&&scale&&prm&&env&&alpha==140);
-    assert(!cb&&room==-1&&!particleScale);
-    if(spawnFails)return 0;
-    auto* e=key?dComIfGp_particle_getEmitter(key):nullptr;
-    if(!e){assert(allocations<emitters.size());e=&emitters[allocations++];key=e->id=100+allocations;}
-    e->pos=*pos;e->scale=*scale;e->prm=*prm;e->env=*env;e->alpha=alpha;e->effect=effect;
-    ++e->updates;return key;
-}
 '''
 draw_fixture = r'''
 constexpr int GX_BM_BLEND=1,GX_BL_ZERO=0,GX_BL_INVSRCALPHA=2,GX_LO_COPY=3,GX_FALSE=0;
@@ -250,44 +226,6 @@ int main() {
     resources.available=true;spawnFails=true;old=allocations;
     tick_dark_flame(&link,true);assert((allocations==old&&s_darkFlame.keys==std::array<u32,count>{}));
     spawnFails=false;tick_dark_flame(&link,true);assert(allocations==old+count);
-    // Match Fairy Companion's native 0x730 aura and explicit color path.
-    link.mpLinkModel=&model;tint=FierceDeityTint::Dark;old=allocations;
-    tick_dark_flame(&link,true);assert(allocations==old+2);
-    auto eyes=s_darkFlame.eyeKeys;
-    for(unsigned i=0;i<2;++i){
-        auto* e=dComIfGp_particle_getEmitter(eyes[i]);assert(e&&e->effect==0x730);
-        assert(e->pos.x==54&&e->pos.y==112&&e->pos.z==(i==0?-3.5f:3.5f));
-        assert(e->scale.x==0.2f&&e->scale.y==0.2f&&e->scale.z==0.2f&&e->alpha==140);
-        assert(e->prm.r==255&&e->prm.g==28&&e->prm.b==20&&e->env.r==255&&e->env.g==28&&e->env.b==20);
-        assert(owns_eye_aura(e)&&!owns_dark_flame(e));
-        JPAEmitterWorkData w{e};JPABaseParticle p;p.mOffsetPosition=e->pos;
-        void* initArgs[]={&p,&w};after_flame_particle_init(nullptr,initArgs,nullptr,nullptr);
-        assert(p.status==0x60&&p.mLocalPosition.x==0&&p.mVelocity.y==0&&p.mVelType1.y==0);
-        assert(p.mPosition.x==e->pos.x&&p.mLifeTime==7); // preserve native aura lifetime
-        void* calcArgs[]={nullptr,&w,&p};after_flame_particle_calc(nullptr,calcArgs,nullptr,nullptr);
-        assert(p.mVelocity.y==0); // no body-flame ascent
-        JPAResource res;void* setup[]={&res.shape,&w};void* draw[]={&res,&w,e};
-        auto writes=gxWrites;after_flame_shape_setup(nullptr,setup,nullptr,nullptr);
-        after_flame_resource_draw(nullptr,draw,nullptr,nullptr);assert(gxWrites==writes);
-    }
-    for(int i=0;i<100;++i)tick_dark_flame(&link,true);
-    assert(allocations==old+2&&eyes==s_darkFlame.eyeKeys);
-    model.pose[4][0][0]=0;model.pose[4][2][2]=0;model.pose[4][0][2]=1;model.pose[4][2][0]=-1;
-    tick_dark_flame(&link,true);
-    assert(dComIfGp_particle_getEmitter(eyes[0])->pos.x==36.5f&&dComIfGp_particle_getEmitter(eyes[0])->pos.z==-14);
-    link.mpLinkModel=&replacement;tick_dark_flame(&link,true);
-    assert(dComIfGp_particle_getEmitter(eyes[0])->pos.x==42); // current outfit pose
-    tint=FierceDeityTint::White;tick_dark_flame(&link,true);
-    for(auto key:eyes)assert(dComIfGp_particle_getEmitter(key)->cleared);
-    assert((s_darkFlame.eyeKeys==std::array<u32,2>{}));
-    tint=FierceDeityTint::Dark;resources.eyes=false;old=allocations;
-    tick_dark_flame(&link,true);assert(allocations==old&&s_darkFlame.keys[0]!=0);
-    resources.eyes=true;link.field_0x30b4=25;tick_dark_flame(&link,true);assert(allocations==old);
-    link.field_0x30b4=4;spawnFails=true;tick_dark_flame(&link,true);assert(allocations==old);
-    spawnFails=false;tick_dark_flame(&link,true);eyes=s_darkFlame.eyeKeys;
-    link.hidden=true;tick_dark_flame(&link,true);link.hidden=false;
-    for(auto key:eyes){auto* e=dComIfGp_particle_getEmitter(key);assert(e->cleared&&e->hidden&&e->stopped);}
-    assert(!s_darkFlame.owner);
     // Expired generation keys are harmless on cleanup.
     for(auto& e:emitters)e.id=0;
     stop_dark_flame();tick_dark_flame(nullptr,true);assert(!s_darkFlame.owner);
