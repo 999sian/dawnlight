@@ -58,8 +58,8 @@ without stored charge start empty; Boss Rush charge is kept separate.
 | White | Current outfit: white texels become black; black and colored texels become white. Amber iris/pupils and black sclera. |
 | Gold | Current outfit with warm golden shading/specular highlights and fully white glowing eyes. |
 
-While Dark Link is active, soft black smoke rises from the animated upper body
-with any selected visual. It follows the current outfit, including custom models,
+While Dark Link is active, soft black smoke rises from the animated torso, neck,
+shoulders, arms and legs with any selected visual. It follows the current outfit, including custom models,
 and is cleared when the transformation ends, Link is hidden, or an outfit/scene
 change interrupts it. The effect reuses native smoke particles without sparks.
 

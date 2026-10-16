@@ -16,9 +16,9 @@ constexpr u16 ID_ZI_J_ARWB_SMOKE_A=0x1df;
 using Mtx=float[3][4]; using MtxP=float(*)[4];
 struct cXyz { float x,y,z; cXyz(float x=0,float y=0,float z=0):x(x),y(y),z(z){} };
 struct csXyz { short x,y,z; csXyz(short x,short y,short z):x(x),y(y),z(z){} };
-struct ModelData { unsigned joints=4; unsigned getJointNum(){return joints;} };
+struct ModelData { unsigned joints=25; unsigned getJointNum(){return joints;} };
 struct Model {
-    ModelData data; Mtx pose[4]{};
+    ModelData data; Mtx pose[25]{};
     ModelData* getModelData(){return &data;}
     MtxP getAnmMtx(unsigned i){assert(i<data.joints);return pose[i];}
 };
@@ -48,7 +48,7 @@ struct JPABaseEmitter {
     void setLifeTime(int n){life=n;}
     void setGlobalParticleScale(float x,float y){psx=x;psy=y;}
 };
-std::array<JPABaseEmitter,100> emitters{};
+std::array<JPABaseEmitter,256> emitters{};
 unsigned allocations=0,lookups=0; bool spawnFails=false,controllerAlive=true;
 struct Resources { bool available=true; void* getResource(u16 id){assert(id==0x1df);return available?this:nullptr;} } resources;
 struct JPAEmitterManager { Resources* res=&resources; Resources* getResourceManager(u8 i){assert(i==0);return res;} } manager1,manager2;
@@ -80,23 +80,31 @@ unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
 checks = r'''
 int main() {
     Model model; daAlink_c link; link.mpLinkModel=&model;
-    for(int j=1;j<=3;++j){model.pose[j][0][3]=10*j;model.pose[j][1][3]=30*j;}
+    constexpr std::array<unsigned,11> expectedJoints{1,2,3,7,8,12,13,18,19,23,24};
+    constexpr auto count=expectedJoints.size();
+    for(unsigned j=0;j<25;++j){model.pose[j][0][3]=10*j;model.pose[j][1][3]=30*j;}
     tick_dark_smoke(&link,false);assert(allocations==0);
-    tick_dark_smoke(&link,true);assert(allocations==3);
+    tick_dark_smoke(&link,true);assert(allocations==count);
     const auto keys=s_darkSmoke.keys;
-    for(unsigned i=0;i<3;++i){
-        auto& e=emitters[i];assert(e.pos.x==10*(i+1)&&e.pos.y==30*(i+1));
+    for(unsigned i=0;i<count;++i){
+        auto& e=emitters[i];assert(e.pos.x==10*expectedJoints[i]&&e.pos.y==30*expectedJoints[i]);
         assert(e.continuous&&e.dir.x==0&&e.dir.y==1&&e.dir.z==0);
-        assert(e.speed>e.random&&e.rate<0.5f&&e.life<=45&&e.alpha<200);
+        assert(e.speed>e.random&&e.rate*e.life*count<=60.0f&&e.life<=45&&e.alpha<200);
     }
     for(int tick=0;tick<100;++tick) tick_dark_smoke(&link,true);
-    assert(allocations==3&&s_darkSmoke.keys==keys); // bounded, not a new burst each frame
+    assert(allocations==count&&s_darkSmoke.keys==keys); // bounded, not a new burst each frame
     model.pose[2][0][3]=900;tick_dark_smoke(&link,true);assert(emitters[1].pos.x==900);
+    // Limbs move independently of the torso: smoke must follow each bone.
+    model.pose[8][0][3]=-123; model.pose[24][2][3]=456;
+    tick_dark_smoke(&link,true);
+    assert(emitters[4].pos.x==-123&&emitters[10].pos.z==456);
+    assert(emitters[1].pos.x==900);
     Model replacement;replacement.pose[2][1][3]=777;
+    replacement.pose[13][1][3]=333;replacement.pose[19][0][3]=-444;
     link.mpLinkModel=&replacement;tick_dark_smoke(&link,true);
-    assert(emitters[1].pos.y==777); // read new outfit, no retained model matrices
+    assert(emitters[1].pos.y==777&&emitters[6].pos.y==333&&emitters[8].pos.x==-444); // read new outfit, no retained model matrices
     tick_dark_smoke(&link,false);
-    for(unsigned i=0;i<3;++i)assert(emitters[i].stopped&&emitters[i].hidden&&emitters[i].cleared);
+    for(unsigned i=0;i<count;++i)assert(emitters[i].stopped&&emitters[i].hidden&&emitters[i].cleared);
     assert(s_darkSmoke.owner==nullptr);
     stop_dark_smoke(); // idempotent
     // No effects on hidden Link, wolf, death, cutscenes, warps, or clothes loads.
@@ -106,13 +114,13 @@ int main() {
         *flag=false;
     }
     link.mClothesChangeWaitTimer=1;tick_dark_smoke(&link,true);assert(!s_darkSmoke.owner);
-    link.mClothesChangeWaitTimer=0;replacement.data.joints=3;
-    tick_dark_smoke(&link,true);assert(!s_darkSmoke.owner);replacement.data.joints=4;
+    link.mClothesChangeWaitTimer=0;replacement.data.joints=24;
+    tick_dark_smoke(&link,true);assert(!s_darkSmoke.owner);replacement.data.joints=25;
     link.mpLinkModel=nullptr;tick_dark_smoke(&link,true);assert(!s_darkSmoke.owner);
     link.mpLinkModel=&replacement;
     tick_dark_smoke(&link,true);auto old=allocations;++link.id;
-    tick_dark_smoke(&link,true);assert(allocations==old+3); // actor address reuse
-    for(unsigned i=old-3;i<old;++i)assert(emitters[i].cleared);
+    tick_dark_smoke(&link,true);assert(allocations==old+count); // actor address reuse
+    for(unsigned i=old-count;i<old;++i)assert(emitters[i].cleared);
     // A replaced manager must never receive old handles, even if IDs repeat.
     auto calls=lookups;currentManager=&manager2;stop_dark_smoke();assert(lookups==calls);
     tick_dark_smoke(&link,true);controllerAlive=false;calls=lookups;
@@ -121,8 +129,8 @@ int main() {
     currentManager=&manager1;manager1.res=nullptr;tick_dark_smoke(&link,true);assert(!s_darkSmoke.owner);
     manager1.res=&resources;resources.available=false;tick_dark_smoke(&link,true);assert(!s_darkSmoke.owner);
     resources.available=true;spawnFails=true;old=allocations;
-    tick_dark_smoke(&link,true);assert((allocations==old&&s_darkSmoke.keys==std::array<u32,3>{}));
-    spawnFails=false;tick_dark_smoke(&link,true);assert(allocations==old+3);
+    tick_dark_smoke(&link,true);assert((allocations==old&&s_darkSmoke.keys==std::array<u32,count>{}));
+    spawnFails=false;tick_dark_smoke(&link,true);assert(allocations==old+count);
     // Expired generation keys are harmless on cleanup.
     for(auto& e:emitters)e.id=0;
     stop_dark_smoke();tick_dark_smoke(nullptr,true);assert(!s_darkSmoke.owner);

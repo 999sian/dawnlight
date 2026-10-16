@@ -2,9 +2,12 @@
 // Use the resident bomb-fuse smoke, without its separate spark emitter. Only
 // emitter instances are modified; the shared particle resource stays native.
 constexpr u16 kDarkSmokeEffect = ID_ZI_J_ARWB_SMOKE_A;
-constexpr std::array<u16, 3> kDarkSmokeJoints{1, 2, 3};
+// Human skeleton: spine/neck, left shoulder/elbow, right shoulder/elbow,
+// left thigh/knee and right thigh/knee. Limb emitters follow their own bones
+// during attacks, running and jumping instead of clustering at the torso.
+constexpr std::array<u16, 11> kDarkSmokeJoints{1, 2, 3, 7, 8, 12, 13, 18, 19, 23, 24};
 struct DarkSmokeState {
-    std::array<u32, 3> keys{};
+    std::array<u32, kDarkSmokeJoints.size()> keys{};
     daAlink_c* owner = nullptr;
     fpc_ProcID ownerId = fpcM_ERROR_PROCESS_ID_e;
     JPAEmitterManager* manager = nullptr;
@@ -83,7 +86,9 @@ void tick_dark_smoke(daAlink_c* link, bool enabled) {
         emitter->setRandomDirectionSpeed(0.25f);
         emitter->setSpread(0.12f);
         emitter->setVolumeSize(12);
-        emitter->setRate(0.28f);
+        // Spread the smoke across the body without multiplying its density by
+        // the number of new attachment points (about 60 live particles total).
+        emitter->setRate(0.12f);
         emitter->setRateStep(0);
         emitter->setLifeTime(45);
         emitter->setGlobalParticleScale(0.65f, 0.85f);
