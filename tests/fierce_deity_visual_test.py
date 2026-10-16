@@ -745,7 +745,8 @@ int main() {
 with tempfile.TemporaryDirectory() as temp:
     cpp = Path(temp) / 'visual.cpp'
     exe = Path(temp) / 'visual'
-    cpp.write_text(fixture + dual_owner + callbacks + checks)
+    cpp.write_text((root / 'src/fierce_deity_colors.hpp').read_text().replace('#pragma once', '') +
+                   '\nusing dawnlight::kDarkLinkEyeRed;\n' + fixture + dual_owner + callbacks + checks)
     subprocess.run(['g++', '-std=c++20', '-Wall', '-Wextra', '-Werror',
                     '-fsanitize=address,undefined', str(cpp), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)

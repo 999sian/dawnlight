@@ -2,6 +2,7 @@
 // Use the resident FIRE02 flame, without its separate glow/spark emitters. Only
 // emitter instances are modified; the shared particle resource stays native.
 constexpr u16 kDarkFlameEffect = ID_ZF_J_FIRE02_FIRE;
+constexpr u16 kEyeFlameEffect = ID_ZI_J_KANTERA_FIRE;
 // Human skeleton: spine/neck, left shoulder/elbow, right shoulder/elbow,
 // left thigh/knee and right thigh/knee. Limb emitters follow their own bones
 // during attacks, running and jumping instead of clustering at the torso.
@@ -16,6 +17,7 @@ constexpr std::array<std::array<float, 3>, 11> kDarkFlameSurfaces{{
 }};
 struct DarkFlameState {
     std::array<u32, kDarkFlameJoints.size()> keys{};
+    std::array<u32, 2> eyeKeys{};
     // Copy the current bone axes, never retain pointers into an outfit's model.
     std::array<std::array<std::array<float, 3>, 3>, kDarkFlameJoints.size()> axes{};
     std::array<u32, kDarkFlameJoints.size()> samples{};
@@ -39,6 +41,60 @@ size_t dark_flame_index(JPABaseEmitter* emitter) {
 
 bool owns_dark_flame(JPABaseEmitter* emitter) {
     return dark_flame_index(emitter) < kDarkFlameJoints.size();
+}
+
+void stop_eye_flame() {
+    auto* manager = dPa_control_c::getEmitterManager();
+    if (g_dComIfG_gameInfo.play.getParticle() != nullptr && manager != nullptr &&
+        manager == s_darkFlame.manager) {
+        for (u32 key : s_darkFlame.eyeKeys) {
+            if (key == 0) continue;
+            if (auto* emitter = dComIfGp_particle_getEmitter(key)) {
+                emitter->stopCreateParticle();
+                emitter->stopDrawParticle();
+                emitter->deleteAllParticle();
+            }
+        }
+    }
+    s_darkFlame.eyeKeys = {};
+}
+
+void tick_eye_flame(daAlink_c* link, JPAResourceManager* resources) {
+    // Only the red-eyed Dark / Dark Magic appearances get red eye flames.
+    // The native lantern's common effect needs neither an equipped lantern nor oil.
+    if (fierce_deity_displayed_tint() != FierceDeityTint::Dark ||
+        resources->getResource(kEyeFlameEffect) == nullptr ||
+        link->field_0x30b4 >= link->mpLinkModel->getModelData()->getJointNum()) {
+        stop_eye_flame();
+        return;
+    }
+    MtxP head = link->getHeadMtx();
+    if (head == nullptr) {
+        stop_eye_flame();
+        return;
+    }
+    const csXyz upright(0, 0, 0);
+    const cXyz scale(0.6f, 0.6f, 0.6f);
+    for (size_t i = 0; i < s_darkFlame.eyeKeys.size(); ++i) {
+        // Native human eye center is (12, -8, 0) in head space. Separate the
+        // eyes along local Z and move slightly forward to clear the face.
+        // Resolve the live head matrix each tick, including after outfit swaps.
+        const float side = i == 0 ? -3.5f : 3.5f;
+        const cXyz position(
+            head[0][3] + head[0][0] * 13.0f - head[0][1] * 8.0f + head[0][2] * side,
+            head[1][3] + head[1][0] * 13.0f - head[1][1] * 8.0f + head[1][2] * side,
+            head[2][3] + head[2][0] * 13.0f - head[2][1] * 8.0f + head[2][2] * side);
+        auto* emitter = link->setEmitter(&s_darkFlame.eyeKeys[i], kEyeFlameEffect,
+                                         &position, &upright);
+        if (emitter == nullptr) continue;
+        emitter->becomeContinuousParticle();
+        emitter->setGlobalScale(scale);
+        emitter->setGlobalPrmColor(kDarkLinkEyeRed[0], kDarkLinkEyeRed[1], kDarkLinkEyeRed[2]);
+        emitter->setGlobalEnvColor(kDarkLinkEyeRed[0], kDarkLinkEyeRed[1], kDarkLinkEyeRed[2]);
+        // Keep the lantern's native flame animation, alpha and emission timing.
+        // Separate ownership keeps these emitters out of the black body-flame
+        // blend and surface-placement hooks, and leaves ordinary lanterns alone.
+    }
 }
 
 void after_flame_particle_init(ModContext*, void* args, void*, void*) {
@@ -75,6 +131,7 @@ void after_flame_particle_init(ModContext*, void* args, void*, void*) {
 }
 
 void stop_dark_flame() {
+    stop_eye_flame();
     auto* manager = dPa_control_c::getEmitterManager();
     if (g_dComIfG_gameInfo.play.getParticle() != nullptr && manager != nullptr &&
         manager == s_darkFlame.manager) {
@@ -156,4 +213,5 @@ void tick_dark_flame(daAlink_c* link, bool enabled) {
         emitter->setLifeTime(45);
         emitter->setGlobalParticleScale(0.25f, 0.4f);
     }
+    tick_eye_flame(link, resources);
 }

@@ -1,4 +1,5 @@
 #include "fierce_deity.hpp"
+#include "fierce_deity_colors.hpp"
 #include "dual_wield.hpp"
 #include "service_imports.hpp"
 #include "fierce_deity_wipe.hpp"
@@ -282,7 +283,8 @@ public:
         xf(0x1009, 2); // XF number of color channels
         xf(0x100B, rgba({64, 64, 64, ambientAlpha}));
         const GXColor eyeColor = tint == FierceDeityTint::Gold ? GXColor{255,255,255,materialAlpha} :
-            tint == FierceDeityTint::White ? GXColor{255,176,24,materialAlpha} : GXColor{255,28,20,materialAlpha};
+            tint == FierceDeityTint::White ? GXColor{255,176,24,materialAlpha} :
+            GXColor{kDarkLinkEyeRed[0],kDarkLinkEyeRed[1],kDarkLinkEyeRed[2],materialAlpha};
         const GXColor bodyColor = tint == FierceDeityTint::Gold ? GXColor{210,145,24,materialAlpha} :
             tint == FierceDeityTint::White ? GXColor{240,240,240,materialAlpha} : GXColor{8,9,11,materialAlpha};
         xf(0x100D, rgba(eye ? eyeColor : bodyColor));

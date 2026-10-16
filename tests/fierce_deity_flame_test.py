@@ -13,6 +13,10 @@ using s16=short;
 namespace JGeometry { template<class T> struct TVec3 { T x,y,z; TVec3(T x,T y,T z):x(x),y(y),z(z){} }; }
 using fpc_ProcID=unsigned; constexpr unsigned fpcM_ERROR_PROCESS_ID_e=~0u;
 constexpr u16 ID_ZF_J_FIRE02_FIRE=0x3af;
+constexpr u16 ID_ZI_J_KANTERA_FIRE=0x2bc;
+enum class FierceDeityTint {None,Dark,White,Gold};
+FierceDeityTint tint=FierceDeityTint::None;
+FierceDeityTint fierce_deity_displayed_tint(){return tint;}
 using Mtx=float[3][4]; using MtxP=float(*)[4];
 struct cXyz { void set(float a,float b,float c){x=a;y=b;z=c;} float x,y,z; cXyz(float x=0,float y=0,float z=0):x(x),y(y),z(z){} };
 struct csXyz { short x,y,z; csXyz(short x,short y,short z):x(x),y(y),z(z){} };
@@ -25,13 +29,15 @@ struct Model {
 struct JPABaseEmitter {
     bool stopped=false,hidden=false,cleared=false,continuous=false;
     u32 id=0; unsigned updates=0; cXyz pos,dir,scale;
+    u16 effect=0; std::array<int,3> prm{},env{};
     float rate=0,speed=0,random=0,psx=0,psy=0; int life=0,alpha=0;
     void stopCreateParticle(){stopped=true;}
     void stopDrawParticle(){hidden=true;}
     void deleteAllParticle(){cleared=true;}
     void becomeContinuousParticle(){continuous=true;}
-    void setGlobalPrmColor(int r,int g,int b){assert(r==0&&g==0&&b==0);}
-    void setGlobalEnvColor(int r,int g,int b){assert(r==0&&g==0&&b==0);}
+    void setGlobalPrmColor(int r,int g,int b){prm={r,g,b};}
+    void setGlobalEnvColor(int r,int g,int b){env={r,g,b};}
+    void setGlobalScale(const cXyz& s){scale=s;psx=s.x;psy=s.y;}
     void setGlobalAlpha(int a){alpha=a;}
     void setLocalTranslation(const cXyz& p){assert(p.x==0&&p.y==0&&p.z==0);}
     void setLocalRotation(const JGeometry::TVec3<s16>& p){assert(p.x==0&&p.y==0&&p.z==0);}
@@ -54,7 +60,11 @@ struct JPABaseParticle {cXyz mLocalPosition, mOffsetPosition, mPosition, mVeloci
 struct JPAEmitterWorkData {JPABaseEmitter* mpEmtr=nullptr;cXyz mPublicScale{1,1,1};};
 std::array<JPABaseEmitter,256> emitters{};
 unsigned allocations=0,lookups=0; bool spawnFails=false,controllerAlive=true;
-struct Resources { bool available=true; void* getResource(u16 id){assert(id==0x3af);return available?this:nullptr;} } resources;
+struct JPAResourceManager {
+    bool available=true,eyeAvailable=true;
+    void* getResource(u16 id){assert(id==0x3af||id==0x2bc);return available&&(id!=0x2bc||eyeAvailable)?this:nullptr;}
+} resources;
+using Resources=JPAResourceManager;
 struct JPAEmitterManager { Resources* res=&resources; Resources* getResourceManager(u8 i){assert(i==0);return res;} } manager1,manager2;
 JPAEmitterManager* currentManager=&manager1;
 struct dPa_control_c { static JPAEmitterManager* getEmitterManager(){return currentManager;} };
@@ -68,15 +78,17 @@ struct daAlink_c {
     unsigned id=1; Model* mpLinkModel=nullptr;
     bool hidden=false,wolf=false,dead=false,event=false,scene=false;
     int mClothesChangeWaitTimer=0;
+    unsigned field_0x30b4=4; bool missingHead=false;
+    MtxP getHeadMtx(){return missingHead?nullptr:mpLinkModel->getAnmMtx(field_0x30b4);}
     bool checkPlayerNoDraw(){return hidden;} bool checkWolf(){return wolf;}
     bool checkDeadHP(){return dead;} bool checkEventRun(){return event;}
     bool checkSceneChangeAreaStart(){return scene;}
     JPABaseEmitter* setEmitter(u32* key,u16 effect,const cXyz* pos,const csXyz* rot) {
-        assert(effect==0x3af&&rot->x==0&&rot->y==0&&rot->z==0);
+        assert((effect==0x3af||effect==0x2bc)&&rot->x==0&&rot->y==0&&rot->z==0);
         if(spawnFails){*key=0;return nullptr;}
         auto* e=*key?dComIfGp_particle_getEmitter(*key):nullptr;
         if(!e){assert(allocations<emitters.size());e=&emitters[allocations++];*key=e->id=100+allocations;}
-        e->pos=*pos;++e->updates;return e;
+        e->effect=effect;e->pos=*pos;++e->updates;return e;
     }
 };
 unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
@@ -158,6 +170,7 @@ int main() {
     for(unsigned i=0;i<count;++i){
         auto& e=emitters[i];assert(e.pos.x==10*expectedJoints[i]&&e.pos.y==30*expectedJoints[i]);
         assert(e.continuous&&e.dir.x==0&&e.dir.y==1&&e.dir.z==0);
+        assert((e.prm==std::array<int,3>{0,0,0}&&e.env==e.prm));
         assert(e.speed>e.random&&e.rate*e.life*count<=90.0f&&e.life<=45&&e.alpha<200);
     }
     for(int tick=0;tick<100;++tick) tick_dark_flame(&link,true);
@@ -205,6 +218,51 @@ int main() {
     resources.available=true;spawnFails=true;old=allocations;
     tick_dark_flame(&link,true);assert((allocations==old&&s_darkFlame.keys==std::array<u32,count>{}));
     spawnFails=false;tick_dark_flame(&link,true);assert(allocations==old+count);
+    // Two small native lantern flames at independently positioned eyes.
+    link.mpLinkModel=&model;tint=FierceDeityTint::Dark;old=allocations;
+    tick_dark_flame(&link,true);assert(allocations==old+2);
+    auto eyeKeys=s_darkFlame.eyeKeys;
+    for(unsigned i=0;i<2;++i){
+        auto* e=dComIfGp_particle_getEmitter(eyeKeys[i]);
+        assert(e&&e->effect==0x2bc&&e->continuous);
+        assert(e->pos.x==53&&e->pos.y==112&&e->pos.z==(i==0?-3.5f:3.5f));
+        assert(e->scale.x==0.6f&&e->scale.y==0.6f&&e->scale.z==0.6f);
+        assert((e->prm==std::array<int,3>{255,28,20}&&e->env==e->prm));
+        assert(!owns_dark_flame(e));
+        // Red eyes must never inherit the body shell placement or black blend.
+        JPAEmitterWorkData eyeWork{e};JPABaseParticle p;p.mLocalPosition={1,2,3};
+        void* initArgs[]={&p,&eyeWork};after_flame_particle_init(nullptr,initArgs,nullptr,nullptr);
+        assert(p.mLocalPosition.x==1&&p.mLocalPosition.y==2&&p.mLocalPosition.z==3);
+        JPABaseShape shape;void* args[]={&shape,&eyeWork};auto writes=gxWrites;
+        after_flame_shape_setup(nullptr,args,nullptr,nullptr);assert(gxWrites==writes);
+    }
+    for(int i=0;i<100;++i)tick_dark_flame(&link,true);
+    assert(allocations==old+2&&eyeKeys==s_darkFlame.eyeKeys);
+    // Rotate the head 90 degrees: the two eyes follow head-local Z, not world X.
+    model.pose[4][0][0]=0;model.pose[4][2][2]=0;
+    model.pose[4][0][2]=1;model.pose[4][2][0]=-1;
+    tick_dark_flame(&link,true);
+    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.x==36.5f);
+    assert(dComIfGp_particle_getEmitter(eyeKeys[1])->pos.x==43.5f);
+    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.z==-13);
+    link.mpLinkModel=&replacement;tick_dark_flame(&link,true);
+    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.x==39);
+    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.z==-10.5f);
+    for(auto other:{FierceDeityTint::White,FierceDeityTint::Gold,FierceDeityTint::None}){
+        tint=other;tick_dark_flame(&link,true);
+        assert((s_darkFlame.eyeKeys==std::array<u32,2>{}));
+    }
+    for(auto key:eyeKeys)assert(dComIfGp_particle_getEmitter(key)->cleared);
+    tint=FierceDeityTint::Dark;resources.eyeAvailable=false;old=allocations;
+    tick_dark_flame(&link,true);assert(allocations==old&&s_darkFlame.keys[0]!=0);
+    resources.eyeAvailable=true;link.field_0x30b4=25;
+    tick_dark_flame(&link,true);assert(allocations==old);
+    link.field_0x30b4=4;link.missingHead=true;
+    tick_dark_flame(&link,true);assert(allocations==old);link.missingHead=false;
+    tick_dark_flame(&link,true);eyeKeys=s_darkFlame.eyeKeys;
+    link.hidden=true;tick_dark_flame(&link,true);link.hidden=false;
+    for(auto key:eyeKeys){auto* e=dComIfGp_particle_getEmitter(key);assert(e->cleared&&e->hidden&&e->stopped);}
+    assert(!s_darkFlame.owner);
     // Expired generation keys are harmless on cleanup.
     for(auto& e:emitters)e.id=0;
     stop_dark_flame();tick_dark_flame(nullptr,true);assert(!s_darkFlame.owner);
@@ -212,7 +270,8 @@ int main() {
 '''
 with tempfile.TemporaryDirectory(prefix='dawnlight-dark-flame-') as temp:
     cpp, exe = Path(temp)/'test.cpp', Path(temp)/'test'
-    cpp.write_text(fixture + (root/'src/fierce_deity_flame.inc').read_text() + draw_fixture +
+    cpp.write_text((root/'src/fierce_deity_colors.hpp').read_text().replace('#pragma once','') +
+                   '\nusing dawnlight::kDarkLinkEyeRed;\n' + fixture + (root/'src/fierce_deity_flame.inc').read_text() + draw_fixture +
                    (root/'src/fierce_deity_flame_draw.inc').read_text() + draw_checks + checks)
     subprocess.run(['c++', '-std=c++20', '-Wall', '-Wextra', '-Werror',
                     str(cpp), '-o', str(exe)], check=True)

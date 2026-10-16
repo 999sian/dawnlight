@@ -64,6 +64,10 @@ with particle births spread around each body segment and along its length.
 It is cleared when the transformation ends, Link is hidden, or an outfit/scene
 change interrupts it. The effect uses the native FIRE02 flame without its separate glow or sparks.
 Only Dark Link’s emitters use black alpha blending; ordinary fires remain unchanged.
+Dark and Dark Magic also have a small red flame at each eye, following the current
+head pose. These reuse the native lantern flame at 60% scale, tinted with the same
+red as the eyes. They require neither an equipped lantern nor lantern oil.
+White, Gold and the untinted Magic Armor appearance do not receive red eye flames.
 
 **Dark Link Activation**, below the visual selector, offers **Spin Attack**
 (charged), **R+Z**, **R+A** (default), **L3**, or **R3**. Activation requires a full meter unless **Free Transform** is enabled. With
