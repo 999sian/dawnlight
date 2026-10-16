@@ -5,15 +5,24 @@
 void after_flame_shape_setup(ModContext*, void* args, void*, void*) {
     auto* work = mods::arg<JPAEmitterWorkData*>(args, 1);
     auto* shape = mods::arg<JPABaseShape*>(args, 0);
-    if (work == nullptr || shape == nullptr || !owns_dark_flame(work->mpEmtr)) return;
-    GXSetBlendMode(GX_BM_BLEND, GX_BL_ZERO, GX_BL_INVSRCALPHA, GX_LO_COPY);
+    if (work == nullptr || shape == nullptr) return;
+    if (owns_eye_glow(work->mpEmtr)) {
+        // Faint additive halo, still occluded by the face/scene depth buffer.
+        GXSetBlendMode(GX_BM_BLEND, GX_BL_SRCALPHA, GX_BL_ONE, GX_LO_COPY);
+        GXSetZMode(GX_TRUE, GX_LEQUAL, GX_FALSE);
+        return;
+    } else if (owns_dark_flame(work->mpEmtr)) {
+        GXSetBlendMode(GX_BM_BLEND, GX_BL_ZERO, GX_BL_INVSRCALPHA, GX_LO_COPY);
+    } else {
+        return;
+    }
     GXSetZMode(shape->getZEnable(), shape->getZCmp(), GX_FALSE);
 }
 
 void after_flame_resource_draw(ModContext*, void* args, void*, void*) {
     auto* emitter = mods::arg<JPABaseEmitter*>(args, 2);
     auto* resource = mods::arg<JPAResource*>(args, 0);
-    if (resource == nullptr || !owns_dark_flame(emitter)) return;
+    if (resource == nullptr || (!owns_dark_flame(emitter) && !owns_eye_glow(emitter))) return;
     // Restore the native state this draw would have left behind. Never modify
     // shared JPA resources: ordinary FIRE02 emitters retain their original fire.
     auto* shape = resource->getBsp();

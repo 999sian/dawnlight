@@ -13,7 +13,7 @@ using s16=short;
 namespace JGeometry { template<class T> struct TVec3 { T x,y,z; TVec3(T x,T y,T z):x(x),y(y),z(z){} }; }
 using fpc_ProcID=unsigned; constexpr unsigned fpcM_ERROR_PROCESS_ID_e=~0u;
 constexpr u16 ID_ZF_J_FIRE02_FIRE=0x3af;
-constexpr u16 ID_ZI_J_KANTERA_FIRE=0x2bc;
+constexpr u16 ID_ZF_J_FIRE00_GLOW=0x3ad;
 enum class FierceDeityTint {None,Dark,White,Gold};
 FierceDeityTint tint=FierceDeityTint::None;
 FierceDeityTint fierce_deity_displayed_tint(){return tint;}
@@ -56,13 +56,18 @@ struct JPABaseEmitter {
 };
 struct ModContext {};
 namespace mods { template<class T> T arg(void* args,int i){return static_cast<T>(static_cast<void**>(args)[i]);} }
-struct JPABaseParticle {cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};};
+struct JPABaseParticle {
+    cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};
+    cXyz mVelType0{1,2,3},mVelType1{1,2,3},mVelType2{1,2,3};
+    int mLifeTime=0;unsigned status=0;
+    void setStatus(unsigned flags){status|=flags;}
+};
 struct JPAEmitterWorkData {JPABaseEmitter* mpEmtr=nullptr;cXyz mPublicScale{1,1,1};};
 std::array<JPABaseEmitter,256> emitters{};
 unsigned allocations=0,lookups=0; bool spawnFails=false,controllerAlive=true;
 struct JPAResourceManager {
     bool available=true,eyeAvailable=true;
-    void* getResource(u16 id){assert(id==0x3af||id==0x2bc);return available&&(id!=0x2bc||eyeAvailable)?this:nullptr;}
+    void* getResource(u16 id){assert(id==0x3af||id==0x3ad);return available&&(id!=0x3ad||eyeAvailable)?this:nullptr;}
 } resources;
 using Resources=JPAResourceManager;
 struct JPAEmitterManager { Resources* res=&resources; Resources* getResourceManager(u8 i){assert(i==0);return res;} } manager1,manager2;
@@ -84,7 +89,7 @@ struct daAlink_c {
     bool checkDeadHP(){return dead;} bool checkEventRun(){return event;}
     bool checkSceneChangeAreaStart(){return scene;}
     JPABaseEmitter* setEmitter(u32* key,u16 effect,const cXyz* pos,const csXyz* rot) {
-        assert((effect==0x3af||effect==0x2bc)&&rot->x==0&&rot->y==0&&rot->z==0);
+        assert((effect==0x3af||effect==0x3ad)&&rot->x==0&&rot->y==0&&rot->z==0);
         if(spawnFails){*key=0;return nullptr;}
         auto* e=*key?dComIfGp_particle_getEmitter(*key):nullptr;
         if(!e){assert(allocations<emitters.size());e=&emitters[allocations++];*key=e->id=100+allocations;}
@@ -94,7 +99,7 @@ struct daAlink_c {
 unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
 '''
 draw_fixture = r'''
-constexpr int GX_BM_BLEND=1,GX_BL_ZERO=0,GX_BL_INVSRCALPHA=2,GX_LO_COPY=3,GX_FALSE=0;
+constexpr int GX_BM_BLEND=1,GX_BL_ZERO=0,GX_BL_INVSRCALPHA=2,GX_LO_COPY=3,GX_FALSE=0,GX_BL_SRCALPHA=8,GX_BL_ONE=9,GX_TRUE=1,GX_LEQUAL=10;
 std::array<int,4> blend{};std::array<int,3> depth{};unsigned gxWrites=0;
 void GXSetBlendMode(int a,int b,int c,int d){blend={a,b,c,d};++gxWrites;}
 void GXSetZMode(int a,int b,int c){depth={a,b,c};++gxWrites;}
@@ -218,23 +223,31 @@ int main() {
     resources.available=true;spawnFails=true;old=allocations;
     tick_dark_flame(&link,true);assert((allocations==old&&s_darkFlame.keys==std::array<u32,count>{}));
     spawnFails=false;tick_dark_flame(&link,true);assert(allocations==old+count);
-    // Two small native lantern flames at independently positioned eyes.
+    // Two faint native glow halos at independently positioned eyes.
     link.mpLinkModel=&model;tint=FierceDeityTint::Dark;old=allocations;
     tick_dark_flame(&link,true);assert(allocations==old+2);
     auto eyeKeys=s_darkFlame.eyeKeys;
     for(unsigned i=0;i<2;++i){
         auto* e=dComIfGp_particle_getEmitter(eyeKeys[i]);
-        assert(e&&e->effect==0x2bc&&e->continuous);
+        assert(e&&e->effect==0x3ad&&e->continuous);
         assert(e->pos.x==53&&e->pos.y==112&&e->pos.z==(i==0?-3.5f:3.5f));
-        assert(e->scale.x==0.6f&&e->scale.y==0.6f&&e->scale.z==0.6f);
+        assert(e->scale.x==0.06f&&e->scale.y==0.06f&&e->scale.z==0.06f);
         assert((e->prm==std::array<int,3>{255,28,20}&&e->env==e->prm));
-        assert(!owns_dark_flame(e));
-        // Red eyes must never inherit the body shell placement or black blend.
+        assert(!owns_dark_flame(e)&&owns_eye_glow(e));
+        assert(e->alpha==32&&e->life==12&&e->rate*e->life<3);
+        // Glow particles stay on the eye, with neither body shell placement nor rising motion.
         JPAEmitterWorkData eyeWork{e};JPABaseParticle p;p.mLocalPosition={1,2,3};
         void* initArgs[]={&p,&eyeWork};after_flame_particle_init(nullptr,initArgs,nullptr,nullptr);
-        assert(p.mLocalPosition.x==1&&p.mLocalPosition.y==2&&p.mLocalPosition.z==3);
-        JPABaseShape shape;void* args[]={&shape,&eyeWork};auto writes=gxWrites;
-        after_flame_shape_setup(nullptr,args,nullptr,nullptr);assert(gxWrites==writes);
+        assert(p.mLocalPosition.x==0&&p.mLocalPosition.y==0&&p.mLocalPosition.z==0);
+        assert(p.status==0x60&&p.mLifeTime==12);
+        assert(p.mVelocity.y==0&&p.mVelType0.x==0&&p.mVelType1.y==0&&p.mVelType2.z==0);
+        JPAResource resource;void* args[]={&resource.shape,&eyeWork};
+        resource.shape.nativeSetup();const auto originalBlend=blend;const auto originalDepth=depth;
+        after_flame_shape_setup(nullptr,args,nullptr,nullptr);
+        assert((blend==std::array<int,4>{GX_BM_BLEND,GX_BL_SRCALPHA,GX_BL_ONE,GX_LO_COPY}));
+        assert((depth==std::array<int,3>{GX_TRUE,GX_LEQUAL,GX_FALSE}));
+        void* drawArgs[]={&resource,&eyeWork,e};after_flame_resource_draw(nullptr,drawArgs,nullptr,nullptr);
+        assert(blend==originalBlend&&depth==originalDepth);
     }
     for(int i=0;i<100;++i)tick_dark_flame(&link,true);
     assert(allocations==old+2&&eyeKeys==s_darkFlame.eyeKeys);
@@ -276,4 +289,4 @@ with tempfile.TemporaryDirectory(prefix='dawnlight-dark-flame-') as temp:
     subprocess.run(['c++', '-std=c++20', '-Wall', '-Wextra', '-Werror',
                     str(cpp), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
-print('Dark Link flame: pose attachment, full-circumference birth placement, bounded emitters, black blending, draw-state isolation, teardown and missing resources passed')
+print('Dark Link flame: pose attachment, full-circumference birth placement, bounded emitters, black blending, faint pinned eye glow, draw-state isolation, teardown and missing resources passed')
