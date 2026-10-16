@@ -60,7 +60,8 @@ without stored charge start empty; Boss Rush charge is kept separate.
 
 While Dark Link is active, black flames rise from the animated torso, neck,
 shoulders, arms and legs with any selected visual. It follows the current outfit, including custom models,
-and is cleared when the transformation ends, Link is hidden, or an outfit/scene
+with particle births spread around each body segment and along its length.
+It is cleared when the transformation ends, Link is hidden, or an outfit/scene
 change interrupts it. The effect uses the native FIRE02 flame without its separate glow or sparks.
 Only Dark Link’s emitters use black alpha blending; ordinary fires remain unchanged.
 

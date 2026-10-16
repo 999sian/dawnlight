@@ -14,7 +14,7 @@ namespace JGeometry { template<class T> struct TVec3 { T x,y,z; TVec3(T x,T y,T 
 using fpc_ProcID=unsigned; constexpr unsigned fpcM_ERROR_PROCESS_ID_e=~0u;
 constexpr u16 ID_ZF_J_FIRE02_FIRE=0x3af;
 using Mtx=float[3][4]; using MtxP=float(*)[4];
-struct cXyz { float x,y,z; cXyz(float x=0,float y=0,float z=0):x(x),y(y),z(z){} };
+struct cXyz { void set(float a,float b,float c){x=a;y=b;z=c;} float x,y,z; cXyz(float x=0,float y=0,float z=0):x(x),y(y),z(z){} };
 struct csXyz { short x,y,z; csXyz(short x,short y,short z):x(x),y(y),z(z){} };
 struct ModelData { unsigned joints=25; unsigned getJointNum(){return joints;} };
 struct Model {
@@ -48,6 +48,10 @@ struct JPABaseEmitter {
     void setLifeTime(int n){life=n;}
     void setGlobalParticleScale(float x,float y){psx=x;psy=y;}
 };
+struct ModContext {};
+namespace mods { template<class T> T arg(void* args,int i){return static_cast<T>(static_cast<void**>(args)[i]);} }
+struct JPABaseParticle {cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};};
+struct JPAEmitterWorkData {JPABaseEmitter* mpEmtr=nullptr;cXyz mPublicScale{1,1,1};};
 std::array<JPABaseEmitter,256> emitters{};
 unsigned allocations=0,lookups=0; bool spawnFails=false,controllerAlive=true;
 struct Resources { bool available=true; void* getResource(u16 id){assert(id==0x3af);return available?this:nullptr;} } resources;
@@ -78,8 +82,6 @@ struct daAlink_c {
 unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
 '''
 draw_fixture = r'''
-struct ModContext {};
-namespace mods { template<class T> T arg(void* args,int i){return static_cast<T>(static_cast<void**>(args)[i]);} }
 constexpr int GX_BM_BLEND=1,GX_BL_ZERO=0,GX_BL_INVSRCALPHA=2,GX_LO_COPY=3,GX_FALSE=0;
 std::array<int,4> blend{};std::array<int,3> depth{};unsigned gxWrites=0;
 void GXSetBlendMode(int a,int b,int c,int d){blend={a,b,c,d};++gxWrites;}
@@ -91,7 +93,7 @@ struct JPABaseShape {
     void nativeSetup(){GXSetBlendMode(1,4,5,6);GXSetZMode(1,7,1);}
 };
 struct JPAResource {JPABaseShape shape;JPABaseShape* getBsp(){return &shape;}};
-struct JPAEmitterWorkData {JPABaseEmitter* mpEmtr=nullptr;};
+
 '''
 draw_checks = r'''
 void check_flame_drawing(JPABaseEmitter* own) {
@@ -120,10 +122,38 @@ int main() {
     Model model; daAlink_c link; link.mpLinkModel=&model;
     constexpr std::array<unsigned,11> expectedJoints{1,2,3,7,8,12,13,18,19,23,24};
     constexpr auto count=expectedJoints.size();
-    for(unsigned j=0;j<25;++j){model.pose[j][0][3]=10*j;model.pose[j][1][3]=30*j;}
+    for(unsigned j=0;j<25;++j){model.pose[j][0][3]=10*j;model.pose[j][1][3]=30*j;
+        for(unsigned axis=0;axis<3;++axis)model.pose[j][axis][axis]=1;}
     tick_dark_flame(&link,false);assert(allocations==0);
     tick_dark_flame(&link,true);assert(allocations==count);
     check_flame_drawing(&emitters[0]);
+    // Births cover both sides AND front/back, outside each segment's centerline.
+    for(unsigned i=0;i<count;++i){
+        JPAEmitterWorkData work{&emitters[i]};JPABaseParticle p;
+        p.mOffsetPosition=emitters[i].pos;void* args[]={&p,&work};
+        bool positiveY=false,negativeY=false,positiveZ=false,negativeZ=false;
+        for(int birth=0;birth<4;++birth){
+            after_flame_particle_init(nullptr,args,nullptr,nullptr);
+            positiveY|=p.mLocalPosition.y>0;negativeY|=p.mLocalPosition.y<0;
+            positiveZ|=p.mLocalPosition.z>0;negativeZ|=p.mLocalPosition.z<0;
+            assert(p.mPosition.x==p.mOffsetPosition.x+p.mLocalPosition.x);
+            assert(p.mPosition.y==p.mOffsetPosition.y+p.mLocalPosition.y);
+            assert(p.mPosition.z==p.mOffsetPosition.z+p.mLocalPosition.z);
+            assert(p.mVelocity.x==0&&p.mVelocity.y==1.1f&&p.mVelocity.z==0);
+        }
+        assert(positiveY&&negativeY&&positiveZ&&negativeZ);
+    }
+    // Rotation and scale of the actual pose affect the shell, not its rise velocity.
+    auto& arm=model.pose[8];arm[0][0]=0;arm[1][1]=0;arm[0][1]=-2;arm[1][0]=2;
+    tick_dark_flame(&link,true);
+    JPAEmitterWorkData armWork{&emitters[4]};JPABaseParticle armParticle;
+    void* armArgs[]={&armParticle,&armWork};s_darkFlame.samples[4]=0;
+    after_flame_particle_init(nullptr,armArgs,nullptr,nullptr);
+    assert(armParticle.mLocalPosition.x==-16&&armParticle.mLocalPosition.y==26);
+    // Foreign fire particles are untouched even when the resource is identical.
+    JPABaseEmitter foreign;armWork.mpEmtr=&foreign;armParticle.mLocalPosition={1,2,3};
+    after_flame_particle_init(nullptr,armArgs,nullptr,nullptr);
+    assert(armParticle.mLocalPosition.x==1&&armParticle.mLocalPosition.y==2&&armParticle.mLocalPosition.z==3);
     const auto keys=s_darkFlame.keys;
     for(unsigned i=0;i<count;++i){
         auto& e=emitters[i];assert(e.pos.x==10*expectedJoints[i]&&e.pos.y==30*expectedJoints[i]);
@@ -138,10 +168,15 @@ int main() {
     tick_dark_flame(&link,true);
     assert(emitters[4].pos.x==-123&&emitters[10].pos.z==456);
     assert(emitters[1].pos.x==900);
-    Model replacement;replacement.pose[2][1][3]=777;
+    Model replacement;
+    for(auto& bone:replacement.pose)for(int axis=0;axis<3;++axis)bone[axis][axis]=3;
+    replacement.pose[2][1][3]=777;
     replacement.pose[13][1][3]=333;replacement.pose[19][0][3]=-444;
     link.mpLinkModel=&replacement;tick_dark_flame(&link,true);
     assert(emitters[1].pos.y==777&&emitters[6].pos.y==333&&emitters[8].pos.x==-444); // read new outfit, no retained model matrices
+    armWork.mpEmtr=&emitters[4];s_darkFlame.samples[4]=0;
+    after_flame_particle_init(nullptr,armArgs,nullptr,nullptr);
+    assert(armParticle.mLocalPosition.x==39&&armParticle.mLocalPosition.y==24);
     tick_dark_flame(&link,false);
     for(unsigned i=0;i<count;++i)assert(emitters[i].stopped&&emitters[i].hidden&&emitters[i].cleared);
     assert(s_darkFlame.owner==nullptr);
@@ -182,4 +217,4 @@ with tempfile.TemporaryDirectory(prefix='dawnlight-dark-flame-') as temp:
     subprocess.run(['c++', '-std=c++20', '-Wall', '-Wextra', '-Werror',
                     str(cpp), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
-print('Dark Link flame: pose attachment, bounded emitters, black blending, draw-state isolation, teardown and missing resources passed')
+print('Dark Link flame: pose attachment, full-circumference birth placement, bounded emitters, black blending, draw-state isolation, teardown and missing resources passed')

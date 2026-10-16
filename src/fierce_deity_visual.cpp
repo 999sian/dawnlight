@@ -16,6 +16,7 @@
 #include "JSystem/JParticle/JPAResource.h"
 #include "JSystem/JParticle/JPAResourceManager.h"
 #include "JSystem/JParticle/JPABaseShape.h"
+#include "JSystem/JParticle/JPAParticle.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_particle_name.h"
 #include "Z2AudioLib/Z2SeMgr.h"
@@ -51,6 +52,7 @@ DEFINE_HOOK(&J3DShapeDraw::draw, FiercePrimitiveDrawHook);
 DEFINE_HOOK(&JPAResource::calc, FierceWarpParticleCalcHook);
 DEFINE_HOOK(&JPABaseShape::setGX, FierceFlameShapeSetupHook);
 DEFINE_HOOK(&JPAResource::draw, FierceFlameResourceDrawHook);
+DEFINE_HOOK(&JPABaseParticle::init_p, FierceFlameParticleInitHook);
 DEFINE_HOOK(&mDoExt_modelUpdateDL, FierceEquipmentUpdateHook);
 DEFINE_HOOK(&mDoExt_modelEntryDL, FierceEquipmentEntryHook);
 #if defined(__APPLE__)
@@ -621,6 +623,7 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         (result = mods::hook::add_post<FierceWarpParticleCalcHook>(svc_hook, after_warp_particle_calc)) != MOD_OK ||
         (result = mods::hook::add_post<FierceFlameShapeSetupHook>(svc_hook, after_flame_shape_setup)) != MOD_OK ||
         (result = mods::hook::add_post<FierceFlameResourceDrawHook>(svc_hook, after_flame_resource_draw)) != MOD_OK ||
+        (result = mods::hook::add_post<FierceFlameParticleInitHook>(svc_hook, after_flame_particle_init)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentUpdateHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentEntryHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FiercePlayerDrawHook>(svc_hook, before_player_draw)) != MOD_OK ||
