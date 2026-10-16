@@ -74,13 +74,18 @@ Their narrow cross-sections face the camera to remain visible from the side.
 Each ribbon uses a shared transverse direction and ordered projected rows,
 preventing wide bends from folding into dark, star-shaped triangle overlaps.
 Roots slide along and around each limb, following its presented position and
-rotation while attached. Visible middle and upper sections trail running and
-limb movement by at most 28 game units, with independent 0.12–0.24 second response
-times, settling smoothly after stopping. Each strand has a staggered 3.2–6 second
+rotation while attached. Actual world displacement drives a 0.10-second travel
+response, so the trail scales with running and sprinting speed independently
+of the sprint provider. Limb motion has separate 0.12–0.24 second responses and
+a 28-unit bound; it no longer caps the running trail. The combined trail has a
+512-unit emergency bound. New strands inherit the current travel inclination,
+and attached strands settle smoothly after stopping. Each has a staggered 3.2–6 second
 lifecycle: fade in, wander along the body, detach, drift upward in world space
 with a little inherited momentum, then fade away. A replacement appears at a
 new body position with fresh width, height and opacity variation. Detached
-strands no longer follow Link or his limb rotations. The bounded pool needs
+strands retain their release inclination until they fade, no longer following
+Link or his limb rotations; their inherited drift scales with movement too.
+The bounded pool needs
 no particle assets or unbounded emission history.
 The veil fades in over 0.2 seconds and clears on deactivation, hidden/dead/wolf
 states, events, scene changes and outfit reloads. Teleports and long frame gaps

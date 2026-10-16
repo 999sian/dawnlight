@@ -96,8 +96,8 @@ inline Vec3 outward_at(const Pose& pose,unsigned part,unsigned strand,float seco
 }
 
 struct Motion {
-    Vec3 previousRoot{};
-    StrandOffsets previous{}, lag{}, base{}, velocity{}, outward{};
+    Vec3 previousRoot{}, travelLag{};
+    StrandOffsets previous{}, localLag{}, lag{}, base{}, velocity{}, outward{};
     std::array<unsigned,kJoints.size()*kStrands> generation{};
     std::array<bool,kJoints.size()*kStrands> released{};
     bool ready=false;
@@ -107,33 +107,49 @@ struct Motion {
         for (const auto& p:poses) if (!finite(p)) { reset(); return; }
         const bool restart=!ready || !std::isfinite(dt) || dt<=0 || dt>0.25f ||
                            length(root-previousRoot)>120;
+        const auto rootDelta=root-previousRoot;
+        constexpr float travelResponse=0.10f;
+        if (restart) travelLag={};
+        else {
+            const float blend=-std::expm1(-dt/travelResponse);
+            // World displacement per second, independent of sprint provider and
+            // render rate. Keep sprint translation outside the small limb cap.
+            travelLag=limited(travelLag*(1-blend)-rootDelta*(travelResponse*blend/dt),384.0f);
+        }
         for (unsigned part=0;part<poses.size();++part) {
             for (unsigned strand=0;strand<kStrands;++strand) {
                 const unsigned i=part*kStrands+strand;
                 const auto life=lifecycle(i,seconds);
                 const auto current=anchor(poses[part],part,strand,seconds);
                 const auto delta=current-previous[i];
+                const auto localDelta=delta-rootDelta;
+                const float tau=0.12f+0.12f*variation(i,5);
                 const bool fresh=restart || generation[i]!=life.generation || length(delta)>100;
                 if (fresh) {
-                    lag[i]={}; base[i]=current; velocity[i]={}; released[i]=false;
+                    localLag[i]={}; lag[i]=travelLag*(tau/0.18f);
+                    base[i]=current; velocity[i]={}; released[i]=false;
                     outward[i]=outward_at(poses[part],part,strand,seconds);
                 } else if (!released[i]) {
-                    const float tau=0.12f+0.12f*variation(i,5);
                     const float blend=-std::expm1(-dt/tau);
                     // Exact first-order follower for a linearly moving anchor.
-                    // Includes actor translation, limb rotation and root sliding.
-                    lag[i]=limited(lag[i]*(1-blend)-delta*(tau*blend/dt),28.0f);
+                    // Bound limb swings separately; translation remains speed
+                    // proportional throughout normal running and sprinting.
+                    localLag[i]=limited(localLag[i]*(1-blend)-localDelta*(tau*blend/dt),28.0f);
+                    lag[i]=limited(travelLag*(tau/0.18f)+localLag[i],512.0f);
                     base[i]=current;
                     outward[i]=outward_at(poses[part],part,strand,seconds);
                 } else {
                     // Detached smoke stays in world space, rising and drifting
                     // with a little inherited momentum instead of chasing Link.
                     base[i]=base[i]+velocity[i]*dt;
-                    lag[i]=lag[i]*std::exp(-dt/0.3f);
+                    // Keep the world-space inclination captured on release.
+                    // Do not straighten detached smoke or turn it with Link.
                 }
                 if (!released[i] && life.age>=0.62f) {
                     released[i]=true;
-                    const auto momentum=fresh ? Vec3{}:limited(delta*(0.18f/dt),12.0f);
+                    const auto bodyMomentum=travelLag*(-0.18f/travelResponse);
+                    auto momentum=limited(bodyMomentum+(fresh ? Vec3{}:localDelta*(0.18f/dt)),120.0f);
+                    momentum.y=std::max(momentum.y,-8.0f); // retain upward buoyancy while falling
                     velocity[i]=momentum+outward[i]*3+Vec3{0,12,0};
                 }
                 previous[i]=current; generation[i]=life.generation;

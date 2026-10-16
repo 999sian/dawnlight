@@ -88,9 +88,9 @@ int main() {
         moved=pose;
         for (auto& p:moved) p[0][3]+=f*2;
         motion.update(moved,{float(f*2),0,0},1.0f/60,attached);
-        assert(length(motion.lag[0])<=28.001f && motion.lag[0].x<0);
+        assert(length(motion.lag[0])<=512.001f && motion.lag[0].x<0);
     }
-    assert(motion.lag[0].x<-10); // visible run follow-through
+    assert(motion.lag[0].x<-5); // visible run follow-through
     const auto lagBeforeStop=motion.lag[0];
     motion.update(moved,{240,0,0},1.0f/60,attached);
     assert(motion.lag[0].x<0 && length(motion.lag[0])<length(lagBeforeStop));
@@ -115,19 +115,52 @@ int main() {
     const unsigned first=4*kStrands*kSegments*6, mid=first+12*6;
     assert(length((a[first].world+a[first+1].world-b[first].world-b[first+1].world)*0.5f)<0.0001f);
     assert(length((a[mid].world+a[mid+1].world-b[mid].world-b[mid+1].world)*0.5f)>1);
-    auto simulate=[&](unsigned fps) {
+    auto simulate=[&](unsigned fps,float speed=60) {
         Motion m;
         const float start=time_at(0,0.1f);
         m.update(pose,{},1.0f/fps,start);
         for (unsigned f=1;f<=fps;++f) {
             auto running=pose;
-            const float x=60.0f*f/fps;
+            const float x=speed*f/fps;
             for (auto& p:running) p[0][3]+=x;
             m.update(running,{x,0,0},1.0f/fps,start+float(f)/fps);
         }
         return m.lag[0];
     };
     assert(length(simulate(30)-simulate(144))<0.01);
+    const auto walking=simulate(60,180), running=simulate(60,540), sprinting=simulate(60,1620);
+    assert(std::abs(running.x/walking.x-3)<0.04f);
+    assert(std::abs(sprinting.x/running.x-3)<0.04f);
+    assert(length(simulate(30,1620)-simulate(144,1620))<0.02f);
+    // New strands inherit the current running trail instead of starting upright.
+    Motion movingSmoke;
+    const float birth=time_at(0,0.001f,2);
+    const float begin=birth-1;
+    auto sprintPose=pose;
+    for(unsigned step=0;step<=60;++step) {
+        const float x=step*10.0f;
+        sprintPose=pose; for(auto& p:sprintPose) p[0][3]+=x;
+        movingSmoke.update(sprintPose,{x,0,0},1.0f/60,begin+step/60.0f);
+    }
+    assert(!movingSmoke.released[0] && movingSmoke.lag[0].x<-30);
+    // A released sprint wisp keeps its tilt even while Link turns back.
+    movingSmoke.reset();
+    const float detach=time_at(0,0.62f)+0.001f;
+    for(unsigned step=0;step<=60;++step) {
+        const float x=step*10.0f;
+        sprintPose=pose; for(auto& p:sprintPose) p[0][3]+=x;
+        movingSmoke.update(sprintPose,{x,0,0},1.0f/60,detach-1+step/60.0f);
+    }
+    assert(movingSmoke.released[0]);
+    const auto tilt=movingSmoke.lag[0], drift=movingSmoke.velocity[0], releasedAt=movingSmoke.base[0];
+    assert(tilt.x<-30 && drift.x>30);
+    for(unsigned step=1;step<=30;++step) {
+        const float x=600-step*10.0f;
+        sprintPose=pose; for(auto& p:sprintPose) p[0][3]+=x;
+        movingSmoke.update(sprintPose,{x,0,0},1.0f/60,detach+step/60.0f);
+        assert(length(movingSmoke.lag[0]-tilt)<0.001f);
+    }
+    assert(length(movingSmoke.base[0]-releasedAt-drift*0.5f)<0.01f);
     // Release into world space, fade out, then respawn on the current body.
     motion.reset();
     float release=time_at(0,0.62f)+0.001f;
@@ -165,7 +198,7 @@ int main() {
             const float time=frame*0.13f;
             Motion stress;
             stress.update(pose,{},0,time);
-            for (auto& lag:stress.lag) lag={15,-20,12};
+            for (auto& lag:stress.lag) lag=frame%2 ? Vec3{15,-20,12}:Vec3{-360,-20,120};
             build(pose,root,eye,stress,time,1,b);
             for (unsigned v=0;v<b.size();v+=3) {
                 const auto p=b[v].world,q=b[v+1].world,r=b[v+2].world;
