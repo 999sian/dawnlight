@@ -68,6 +68,10 @@ jobs:
           python3 tests/cave_randomizer_poe_test.py
           python3 tests/cave_randomizer_stalhound_test.py
 
+      - name: Test enemy HP scaling
+        if: matrix.platform == 'linux-x86_64'
+        run: python3 tests/enemy_scaling_test.py
+
       - name: Test Cave enemy slow motion and spawner
         if: matrix.platform == 'linux-x86_64'
         run: |

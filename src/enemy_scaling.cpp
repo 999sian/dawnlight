@@ -6,6 +6,8 @@
 #include "SSystem/SComponent/c_phase.h"
 #include "d/d_com_inf_game.h"
 #include "f_op/f_op_actor.h"
+#include "f_op/f_op_actor_mng.h"
+#include "f_pc/f_pc_name.h"
 #include "mods/hook.hpp"
 #include "mods/service.hpp"
 #include "mods/svc/hook.h"
@@ -33,6 +35,12 @@ void on_actor_create_post(ModContext*, void* args, void* retval, void*) {
 
     auto* actor = static_cast<fopAc_ac_c*>(mods::arg<void*>(args, 0));
     if (actor == nullptr || actor->group != fopAc_ENEMY_e) {
+        return;
+    }
+
+    // Diababa's side-head HP is a scripted bomb-hit/phase counter. Keep its
+    // native values for both manual and NG+ scaling so phase one stays native.
+    if (fopAcM_GetName(actor) == fpcNm_B_BH_e) {
         return;
     }
 
