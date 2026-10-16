@@ -58,12 +58,14 @@ without stored charge start empty; Boss Rush charge is kept separate.
 | White | Current outfit: white texels become black; black and colored texels become white. Amber iris/pupils and black sclera. |
 | Gold | Current outfit with warm golden shading/specular highlights and fully white glowing eyes. |
 
-While Dark Link is active, up to 44 black smoke strands rise from the animated torso,
+While Dark Link is active, up to 88 black smoke strands rise from the animated torso,
 neck, shoulders, arms and legs with any selected visual. Their roots follow
 eleven current presented bone poses, including custom outfits. Each strand is
 an independent curved ribbon: there is no enclosing surface or geometry between
 neighbouring strands. Bends travel upward at 20 game units per second, with
-independent phases, heights, widths and opacity across the body. Width also
+independent phases, heights, widths and opacity across the body. Eight strands
+per body part double the previous population; maximum width is four times the
+previous limit while the thinnest wisps retain their original width. Width also
 undulates along the rising curve. Roots sit inside the approximate limb volume
 without a transparent base gap; scene depth hides the buried section. Soft
 transparent sides and tapered tips keep the strands fine; opacity detail flows

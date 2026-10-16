@@ -38,7 +38,7 @@ inline constexpr std::array<Vec3,11> kSurfaces{{
     {28,4,4},{26,3,3},{28,4,4},{26,3,3},
     {35,6,6},{40,4,4},{35,6,6},{40,4,4},
 }};
-inline constexpr unsigned kStrands=4, kSegments=24;
+inline constexpr unsigned kStrands=8, kSegments=24;
 inline constexpr unsigned kVertexCount=kJoints.size()*kStrands*kSegments*6;
 inline constexpr float kRiseSpeed=20.0f;
 struct Vertex { Vec3 world, field; float opacity; };
@@ -163,7 +163,10 @@ inline void build(const std::array<Pose,kJoints.size()>& poses, const Pose& root
             const auto lag=motion.ready ? motion.lag[index]:Vec3{};
             const float height=(part==2 ? 58.0f : part<2 ? 46.0f : 32.0f)*
                                (0.45f+variation(variant,1)*1.05f);
-            const float halfWidth=0.55f+variation(variant,2)*2.85f;
+            // Keep fine wisps while allowing the broadest strands to reach
+            // four times the former 3.4-unit half-width.
+            const float widthVariation=variation(variant,2);
+            const float halfWidth=0.55f+widthVariation*widthVariation*13.05f;
             const float density=(0.35f+variation(variant,3)*0.65f)*life_opacity(life.age);
             std::array<Vec3,kSegments+1> centers{};
             std::array<std::array<Vertex,2>,kSegments+1> strip{};
