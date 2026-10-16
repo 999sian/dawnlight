@@ -2,6 +2,7 @@
 // Use the resident FIRE02 flame, without its separate glow/spark emitters. Only
 // emitter instances are modified; the shared particle resource stays native.
 constexpr u16 kDarkFlameEffect = ID_ZF_J_FIRE02_FIRE;
+constexpr u16 kEyeAuraEffect = ID_ZF_J_FAIRY01_GLOW;
 constexpr float kDarkFlameRiseSpeed = 0.50f;
 // Preserve the original nominal travel distance: 1.10 * 45 = 0.50 * 99.
 constexpr s16 kDarkFlameLifeTime = 99;
@@ -19,6 +20,7 @@ constexpr std::array<std::array<float, 3>, 11> kDarkFlameSurfaces{{
 }};
 struct DarkFlameState {
     std::array<u32, kDarkFlameJoints.size()> keys{};
+    std::array<u32, 2> eyeKeys{};
     // Copy the current bone axes, never retain pointers into an outfit's model.
     std::array<std::array<std::array<float, 3>, 3>, kDarkFlameJoints.size()> axes{};
     std::array<u32, kDarkFlameJoints.size()> samples{};
@@ -44,10 +46,81 @@ bool owns_dark_flame(JPABaseEmitter* emitter) {
     return dark_flame_index(emitter) < kDarkFlameJoints.size();
 }
 
+// Fairy Companion uses this native body aura (0x730), separately from its
+// trail/sparkles and shared lantern light. Use only the aura at the eyes.
+bool owns_eye_aura(JPABaseEmitter* emitter) {
+    if (emitter == nullptr || s_darkFlame.owner == nullptr ||
+        g_dComIfG_gameInfo.play.getParticle() == nullptr ||
+        dPa_control_c::getEmitterManager() == nullptr ||
+        dPa_control_c::getEmitterManager() != s_darkFlame.manager) return false;
+    for (u32 key : s_darkFlame.eyeKeys)
+        if (key != 0 && dComIfGp_particle_getEmitter(key) == emitter) return true;
+    return false;
+}
+
+void stop_eye_aura() {
+    auto* manager = dPa_control_c::getEmitterManager();
+    if (g_dComIfG_gameInfo.play.getParticle() != nullptr && manager != nullptr &&
+        manager == s_darkFlame.manager) {
+        for (u32 key : s_darkFlame.eyeKeys) {
+            if (key == 0) continue;
+            if (auto* emitter = dComIfGp_particle_getEmitter(key)) {
+                emitter->stopCreateParticle();
+                emitter->stopDrawParticle();
+                emitter->deleteAllParticle();
+            }
+        }
+    }
+    s_darkFlame.eyeKeys = {};
+}
+
+void tick_eye_aura(daAlink_c* link, JPAResourceManager* resources) {
+    if (fierce_deity_displayed_tint() != FierceDeityTint::Dark ||
+        resources->getResource(kEyeAuraEffect) == nullptr ||
+        link->field_0x30b4 >= link->mpLinkModel->getModelData()->getJointNum()) {
+        stop_eye_aura();
+        return;
+    }
+    MtxP head = link->getHeadMtx();
+    if (head == nullptr) {
+        stop_eye_aura();
+        return;
+    }
+    const csXyz upright(0, 0, 0);
+    const cXyz scale(0.20f, 0.20f, 0.20f);
+    const GXColor red{255, 28, 20, 255};
+    for (size_t i = 0; i < s_darkFlame.eyeKeys.size(); ++i) {
+        // Native human eye center (12,-8,0), separated on head-local Z.
+        // The small forward offset keeps the aura outside the eye surface.
+        const float side = i == 0 ? -3.5f : 3.5f;
+        const cXyz position(
+            head[0][3] + head[0][0] * 14.0f - head[0][1] * 8.0f + head[0][2] * side,
+            head[1][3] + head[1][0] * 14.0f - head[1][1] * 8.0f + head[1][2] * side,
+            head[2][3] + head[2][0] * 14.0f - head[2][1] * 8.0f + head[2][2] * side);
+        // Match the fairy's aura path: explicit primary/environment color and
+        // alpha 140, not the FIRE00 glow or an override of native blending.
+        s_darkFlame.eyeKeys[i] = dComIfGp_particle_set(s_darkFlame.eyeKeys[i],
+            kEyeAuraEffect, &position, &link->tevStr, &upright, &scale, 140,
+            nullptr, -1, &red, &red, nullptr);
+    }
+}
+
 void after_flame_particle_init(ModContext*, void* args, void*, void*) {
     auto* work = mods::arg<JPAEmitterWorkData*>(args, 1);
     auto* particle = mods::arg<JPABaseParticle*>(args, 0);
     if (work == nullptr || particle == nullptr) return;
+    if (owns_eye_aura(work->mpEmtr)) {
+        // Keep the native fairy aura's appearance and animation, but anchor it
+        // to the eye instead of leaving a trail during head/player movement.
+        particle->setStatus(0x20 | 0x40); // follow emitter, skip force fields
+        particle->mLocalPosition.set(0, 0, 0);
+        particle->mPosition = particle->mOffsetPosition;
+        particle->mVelocity.set(0, 0, 0);
+        particle->mVelType0.set(0, 0, 0);
+        particle->mVelType1.set(0, 0, 0);
+        particle->mVelType2.set(0, 0, 0);
+        return;
+    }
     const size_t i = dark_flame_index(work->mpEmtr);
     if (i == kDarkFlameJoints.size()) return;
     // Apply to the actual birth as native lifetime keys/randomization can
@@ -92,6 +165,7 @@ void after_flame_particle_calc(ModContext*, void* args, void*, void*) {
 }
 
 void stop_dark_flame() {
+    stop_eye_aura();
     auto* manager = dPa_control_c::getEmitterManager();
     if (g_dComIfG_gameInfo.play.getParticle() != nullptr && manager != nullptr &&
         manager == s_darkFlame.manager) {
@@ -173,4 +247,5 @@ void tick_dark_flame(daAlink_c* link, bool enabled) {
         emitter->setLifeTime(kDarkFlameLifeTime);
         emitter->setGlobalParticleScale(0.25f, 0.4f);
     }
+    tick_eye_aura(link, resources);
 }
