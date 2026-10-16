@@ -83,15 +83,20 @@ struct J3DShapeDraw {
     u8* getDisplayList() const {return eyePrimitive.data();}
     u32 getDisplayListSize() const {return eyePrimitive.size();}
 };
-unsigned eyeReplays=0;
-std::array<std::array<float,7>,4> replayProjections{};
+unsigned eyeReplays=0, captureEnds=0, captureWriteMask=0;
+bool captureAvailable=true, capturing=false;
+bool begin_eye_bloom_capture(){
+    if(!captureAvailable) return false;
+    assert(!capturing); captureWriteMask=bp[0x41]&24; capturing=true; return true;
+}
+void end_eye_bloom_capture(){assert(capturing); capturing=false; ++captureEnds;}
 void GXCallDisplayList(const void* data, u32 size) {
     if(data==eyePrimitive.data()) {
-        assert(size==32&&eyeReplays<4);
-        replayProjections[eyeReplays++]=projection;
-        assert(gpuMaterial.r==16&&gpuMaterial.g==2&&gpuMaterial.b==1);
-        assert((bp[0x41]&0xFFB)==(1u|8u|32u|1024u)); // additive, no alpha writes
-        assert((bp[0x40]&0x1F)==7); // LEQUAL, no depth writes
+        assert(size==32&&eyeReplays==0&&capturing); ++eyeReplays;
+        assert(gpuMaterial.r==255&&gpuMaterial.g==28&&gpuMaterial.b==20);
+        assert((bp[0x41]&0xFE3)==1025); // premultiplied mask, unchanged write masks
+        assert((bp[0x41]&24)==captureWriteMask);
+        assert((bp[0x40]&0x1F)==23); // LEQUAL with depth writes, offscreen only
         assert((gpuStages[3].alpha==std::array<int,4>{GX_CA_ZERO,GX_CA_ZERO,GX_CA_ZERO,GX_CA_APREV}));
         return;
     }
@@ -465,25 +470,19 @@ int main() {
         draw_begin(p);
         assert(gpuCount==4 && gpuMaterial.r==255 && gpuMaterial.g==28 && gpuMaterial.b==20);
         assert(gpuStages[3].scale==GX_CS_SCALE_2); // double red-eye emission, not alpha
-        // Glow replays the actual eye primitive, with no aura sprite/model.
+        // One exact offscreen capture, with the native projection and alpha;
+        // all changes are undone before the next scene primitive.
         const auto eyeBP=bp;const auto eyeXF=xf;const auto savedProjection=projection;
         J3DShapeDraw primitive;void* primitiveArgs[]={&primitive};eyeReplays=0;
+        const auto ends=captureEnds;
         after_eye_primitive_draw(nullptr,primitiveArgs,nullptr,nullptr);
-        assert(eyeReplays==4&&projection==savedProjection&&bp==eyeBP&&xf==eyeXF);
-        assert(replayProjections[0][2]>savedProjection[2]);
-        assert(replayProjections[1][2]<savedProjection[2]);
-        assert(replayProjections[2][4]<savedProjection[4]);
-        assert(replayProjections[3][4]>savedProjection[4]);
-        for(const auto& projected:replayProjections)
-            assert(projected[0]==savedProjection[0]&&projected[5]==savedProjection[5]&&projected[6]==savedProjection[6]);
-        // Orthographic menus need the opposite translation sign.
-        projection[0]=1;const auto ortho=projection;eyeReplays=0;
+        assert(eyeReplays==1&&captureEnds==ends+1&&!capturing);
+        assert(projection==savedProjection&&bp==eyeBP&&xf==eyeXF);
+        captureAvailable=false;eyeReplays=0;
         after_eye_primitive_draw(nullptr,primitiveArgs,nullptr,nullptr);
-        assert(eyeReplays==4&&projection==ortho&&replayProjections[0][2]<ortho[2]);
-        projection=savedProjection;
-        auto savedWidth=viewport[2];viewport[2]=0;eyeReplays=0;
-        after_eye_primitive_draw(nullptr,primitiveArgs,nullptr,nullptr);
-        assert(eyeReplays==0&&projection==savedProjection);viewport[2]=savedWidth;
+        assert(eyeReplays==0&&captureEnds==ends+1&&!capturing);
+        assert(projection==savedProjection&&bp==eyeBP&&xf==eyeXF);
+        captureAvailable=true;
         assert((xf[0x100F] & 2)==0); // COLOR1 lighting disabled: emissive in dark rooms
         assert(gpuMaterial.a==93 && gpuAmbient.a==61);
         for(unsigned i=0x603;i<=0x60F;++i) assert(xf[i]==nativeXF[i]);
