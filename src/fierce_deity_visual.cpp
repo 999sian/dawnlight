@@ -12,7 +12,9 @@
 #include "JSystem/JKernel/JKRExpHeap.h"
 #include "JSystem/JKernel/JKRSolidHeap.h"
 #include "JSystem/JParticle/JPAEmitter.h"
+#include "JSystem/JParticle/JPAEmitterManager.h"
 #include "JSystem/JParticle/JPAResource.h"
+#include "JSystem/JParticle/JPAResourceManager.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_particle_name.h"
 #include "Z2AudioLib/Z2SeMgr.h"
@@ -32,6 +34,8 @@
 
 namespace dawnlight {
 namespace {
+
+#include "fierce_deity_smoke.inc"
 
 // Draw-local implementation of the selectable body and eye appearances. Do not
 // patch shared BMD materials: another actor (including Dark Link) can use them.
@@ -544,6 +548,9 @@ void after_player_draw(ModContext*, void* args, void*, void*) {
 } // namespace
 
 bool fierce_deity_transition_busy() { return s_transition.owner != nullptr; }
+
+void fierce_deity_smoke_tick(daAlink_c* link, bool enabled) { tick_dark_smoke(link, enabled); }
+void fierce_deity_smoke_stop() { stop_dark_smoke(); }
 
 void fierce_deity_transition_prepare(daAlink_c* link, FierceDeityTint fromTint, FierceDeityTint toTint, bool entering) {
     prepare_transition(link, fromTint, toTint, entering);

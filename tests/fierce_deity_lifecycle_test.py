@@ -187,6 +187,9 @@ void fierce_deity_transition_tint(daAlink_c*, FierceDeityTint, FierceDeityTint, 
 void fierce_deity_transition_commit(daAlink_c*) {}
 void fierce_deity_transition_tick(daAlink_c*) {}
 void fierce_deity_transition_cancel(daAlink_c*) {}
+unsigned smokeStops=0; bool smokeActive=false;
+void fierce_deity_smoke_stop() { ++smokeStops; smokeActive=false; }
+void fierce_deity_smoke_tick(daAlink_c*, bool enabled) { smokeActive=enabled; }
 void clear_kh2_drive() {}
 int spinUpdates = 0, drainUpdates = 0;
 void update_spin_activation(daAlink_c*) { ++spinUpdates; }
@@ -274,6 +277,7 @@ void start(daAlink_c& link, u8 clothes = tunic) {
 }
 void finish(daAlink_c& link) {
     deactivate(&link, true);
+    assert(!smokeActive);
     ticks(link);
     assert(!s_preload.archive && !s_state.modelSwapped && !s_state.active);
     assert(same_archive(link.mArcName, outfit_archive(savedClothes)));
@@ -382,6 +386,12 @@ int main() {
     }
 
     // Unsafe native contexts defer the cosmetic transaction without pausing Link.
+    start(link); activate(&link); ticks(link); assert(smokeActive);
+    paused=true; tick(link); assert(!smokeActive);
+    paused=false; tick(link); assert(smokeActive);
+    enabled=false; tick(link); assert(!smokeActive);
+    enabled=true; finish(link);
+
     for (bool* flag : {&link.event, &link.special, &link.riding, &paused}) {
         start(link); activate(&link); *flag = true;
         ticks(link); assert(loads == 0 && link.replacements == 0);
