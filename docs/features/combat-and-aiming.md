@@ -71,6 +71,8 @@ without a transparent base gap; scene depth hides the buried section. Soft
 transparent sides and tapered tips keep the strands fine; opacity detail flows
 upward with the curves.
 Their narrow cross-sections face the camera to remain visible from the side.
+Each ribbon uses a shared transverse direction and ordered projected rows,
+preventing wide bends from folding into dark, star-shaped triangle overlaps.
 Roots slide along and around each limb, following its presented position and
 rotation while attached. Visible middle and upper sections trail running and
 limb movement by at most 28 game units, with independent 0.12–0.24 second response

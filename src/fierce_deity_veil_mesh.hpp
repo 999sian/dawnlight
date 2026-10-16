@@ -143,6 +143,32 @@ struct Motion {
     }
 };
 
+inline Vec3 stabilize_ribbon(std::array<Vec3,kSegments+1>& centers,Vec3 eye) {
+    const auto base=centers.front();
+    const auto view=normalized(eye-base);
+    const float distance=std::max(1.0f,length(eye-base));
+    const auto span=centers.back()-base;
+    const auto projected=span-view*dot(span,view);
+    // One transverse axis for the whole ribbon. Rotating each row around its
+    // local tangent makes wide bends fold into overlapping triangular fans.
+    auto across=cross(projected,view);
+    if (length(across)<0.001f) across=cross({0,1,0},view);
+    if (length(across)<0.001f) across=cross({1,0,0},view);
+    across=normalized(across);
+    const auto along=cross(view,across);
+    const float travel=std::max(0.0f,dot(span,along));
+    for (unsigned r=0;r<=kSegments;++r) {
+        const auto offset=centers[r]-base;
+        const float depth=std::min(dot(offset,view),distance*0.9f);
+        // Retain lateral curls and world depth, but make projected rows advance
+        // monotonically. The perspective correction prevents a deep bend from
+        // reversing row order. Adjacent quads cannot fold or self-overdraw.
+        const float height=travel*(float(r)/kSegments)*(distance-depth)/distance;
+        centers[r]=base+across*dot(offset,across)+along*height+view*depth;
+    }
+    return across;
+}
+
 inline void build(const std::array<Pose,kJoints.size()>& poses, const Pose& root,
                   Vec3 eye, const Motion& motion, float seconds, float fade, std::vector<Vertex>& out) {
     out.clear();
@@ -178,15 +204,9 @@ inline void build(const std::array<Pose,kJoints.size()>& poses, const Pose& root
                     curl(h,seconds,seed)*(curlSize*growth)+
                     outward*(t*t*5)+lag*smooth(0,0.85f,t);
             }
+            const auto across=stabilize_ribbon(centers,eye);
             for (unsigned r=0;r<=kSegments;++r) {
                 const float t=float(r)/kSegments;
-                const auto tangent=normalized(centers[std::min(r+1,kSegments)]-centers[r ? r-1:0]);
-                // A ribbon follows a real 3D curve, while its narrow cross-section
-                // faces the camera so it remains visible from front and side.
-                auto across=cross(tangent,normalized(eye-centers[r]));
-                if (length(across)<0.001f) across=cross(tangent,{1,0,0});
-                if (length(across)<0.001f) across=cross(tangent,{0,0,1});
-                across=normalized(across);
                 const float pulse=0.8f+0.2f*std::sin((height*t-kRiseSpeed*seconds)*0.2f+seed);
                 const float width=halfWidth*pulse*(0.65f+0.35f*std::sin(pi*t))*std::pow(1-t,0.65f);
                 // Attached bases are buried, without a transparent body gap.

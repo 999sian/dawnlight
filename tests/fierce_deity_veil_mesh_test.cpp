@@ -157,5 +157,21 @@ int main() {
         assert(length(motion.lag[i])==0);
         assert(length(motion.base[i]-anchor(moved[i/kStrands],i/kStrands,i%kStrands,respawn+0.1f))<0.001f);
     }
-    std::cout<<"Dark veil: thin varied strands, buried wandering roots, limb/run lag, frame-rate consistency, detach/fade/respawn, depth-ready geometry and warp reset passed\n";
+    // Wide ribbons must not fold into reverse-facing triangle fans as curves
+    // rise or the camera moves. Check perspective-facing area for every face,
+    // including strong vertical lag, close views and almost end-on views.
+    for (Vec3 eye:{Vec3{0,70,300},Vec3{300,70,0},Vec3{20,300,30},Vec3{0,400,0},Vec3{5,10,15}}) {
+        for (unsigned frame=0;frame<30;++frame) {
+            const float time=frame*0.13f;
+            Motion stress;
+            stress.update(pose,{},0,time);
+            for (auto& lag:stress.lag) lag={15,-20,12};
+            build(pose,root,eye,stress,time,1,b);
+            for (unsigned v=0;v<b.size();v+=3) {
+                const auto p=b[v].world,q=b[v+1].world,r=b[v+2].world;
+                assert(dot(cross(q-p,r-p),eye-p)>=-0.001f);
+            }
+        }
+    }
+    std::cout<<"Dark veil: varied strands, wandering roots, limb/run lag, lifecycle, warp reset and fold-free wide ribbons passed\n";
 }
