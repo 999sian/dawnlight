@@ -190,7 +190,7 @@ void restore_equipment_selection() {
 }
 
 void deactivate(daAlink_c*, bool clearMeter) {
-    fierce_deity_smoke_stop();
+    fierce_deity_flame_stop();
     // A pending preload has not touched Link. An already installed cosmetic
     // outfit is restored by service_model_swap at the next safe player update.
     const bool wasActive = s_state.active;
@@ -202,7 +202,7 @@ void deactivate(daAlink_c*, bool clearMeter) {
 }
 
 void reset_for_link(daAlink_c* link) {
-    fierce_deity_smoke_stop();
+    fierce_deity_flame_stop();
     clear_kh2_drive();
     // The previous player may belong to another save. Never restore its clothes
     // into the current save; equipment restoration belongs to its deletion hook.
@@ -603,14 +603,14 @@ void after_player_execute(ModContext*, void* args, void*, void*) {
         fierce_deity_transition_tick(link);
     }
     if (!fierce_deity_enabled()) {
-        fierce_deity_smoke_stop();
+        fierce_deity_flame_stop();
         return;
     }
     if (!s_state.modelReloadFrame) {
         update_spin_activation(link);
     }
     update_drain(link);
-    fierce_deity_smoke_tick(link, s_state.active && !s_state.modelReloadFrame &&
+    fierce_deity_flame_tick(link, s_state.active && !s_state.modelReloadFrame &&
         s_state.modelSwapState == ModelSwapState::None && !menu_or_pause_active());
 }
 
@@ -753,7 +753,7 @@ ModResult initialize_fierce_deity(ModError* error) {
 }
 
 void shutdown_fierce_deity() {
-    fierce_deity_smoke_stop();
+    fierce_deity_flame_stop();
     s_damageSamples.clear();
     clear_kh2_drive();
     if (s_saveObserver != 0 && svc_save != nullptr) {

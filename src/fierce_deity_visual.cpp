@@ -15,6 +15,7 @@
 #include "JSystem/JParticle/JPAEmitterManager.h"
 #include "JSystem/JParticle/JPAResource.h"
 #include "JSystem/JParticle/JPAResourceManager.h"
+#include "JSystem/JParticle/JPABaseShape.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_particle_name.h"
 #include "Z2AudioLib/Z2SeMgr.h"
@@ -35,7 +36,8 @@
 namespace dawnlight {
 namespace {
 
-#include "fierce_deity_smoke.inc"
+#include "fierce_deity_flame.inc"
+#include "fierce_deity_flame_draw.inc"
 
 // Draw-local implementation of the selectable body and eye appearances. Do not
 // patch shared BMD materials: another actor (including Dark Link) can use them.
@@ -47,6 +49,8 @@ DEFINE_HOOK(&J3DShapePacket::drawFast, FierceShapePacketFastHook);
 DEFINE_HOOK(&J3DShape::drawFast, FierceShapeDrawHook);
 DEFINE_HOOK(&J3DShapeDraw::draw, FiercePrimitiveDrawHook);
 DEFINE_HOOK(&JPAResource::calc, FierceWarpParticleCalcHook);
+DEFINE_HOOK(&JPABaseShape::setGX, FierceFlameShapeSetupHook);
+DEFINE_HOOK(&JPAResource::draw, FierceFlameResourceDrawHook);
 DEFINE_HOOK(&mDoExt_modelUpdateDL, FierceEquipmentUpdateHook);
 DEFINE_HOOK(&mDoExt_modelEntryDL, FierceEquipmentEntryHook);
 #if defined(__APPLE__)
@@ -549,8 +553,8 @@ void after_player_draw(ModContext*, void* args, void*, void*) {
 
 bool fierce_deity_transition_busy() { return s_transition.owner != nullptr; }
 
-void fierce_deity_smoke_tick(daAlink_c* link, bool enabled) { tick_dark_smoke(link, enabled); }
-void fierce_deity_smoke_stop() { stop_dark_smoke(); }
+void fierce_deity_flame_tick(daAlink_c* link, bool enabled) { tick_dark_flame(link, enabled); }
+void fierce_deity_flame_stop() { stop_dark_flame(); }
 
 void fierce_deity_transition_prepare(daAlink_c* link, FierceDeityTint fromTint, FierceDeityTint toTint, bool entering) {
     prepare_transition(link, fromTint, toTint, entering);
@@ -615,6 +619,8 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         (result = mods::hook::add_post<FierceShapeDrawHook>(svc_hook, after_shape_draw)) != MOD_OK ||
         (result = mods::hook::add_pre<FiercePrimitiveDrawHook>(svc_hook, before_primitive_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FierceWarpParticleCalcHook>(svc_hook, after_warp_particle_calc)) != MOD_OK ||
+        (result = mods::hook::add_post<FierceFlameShapeSetupHook>(svc_hook, after_flame_shape_setup)) != MOD_OK ||
+        (result = mods::hook::add_post<FierceFlameResourceDrawHook>(svc_hook, after_flame_resource_draw)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentUpdateHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentEntryHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FiercePlayerDrawHook>(svc_hook, before_player_draw)) != MOD_OK ||
