@@ -127,12 +127,12 @@ void stage(ModContext*,const GfxStageContext* ctx,void*) {
     if (sLast==Clock::time_point{}) { sOrigin=now; sLast=now; }
     const float dt=std::chrono::duration<float>(now-sLast).count();
     sLast=now;
-    sMotion.update(origin(root),dt);
     sFade=std::min(1.0f,sFade+std::clamp(dt,0.0f,0.05f)*5);
     const float seconds=std::chrono::duration<float>(now-sOrigin).count();
+    sMotion.update(poses,origin(root),dt,seconds);
     const auto& view=*static_cast<const view_class*>(ctx->game_view);
     const auto& eye=view.lookat.eye;
-    build(poses,root,{eye.x,eye.y,eye.z},sMotion.lag,seconds,sFade,sMesh);
+    build(poses,root,{eye.x,eye.y,eye.z},sMotion,seconds,sFade,sMesh);
     if (sMesh.empty()) return;
     GfxDeviceInfo device=GFX_DEVICE_INFO_INIT;
     if (svc_gfx->get_device_info(mod_ctx,&device)!=MOD_OK) return;

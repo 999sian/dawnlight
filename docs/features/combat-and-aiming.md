@@ -58,15 +58,26 @@ without stored charge start empty; Boss Rush charge is kept separate.
 | White | Current outfit: white texels become black; black and colored texels become white. Amber iris/pupils and black sclera. |
 | Gold | Current outfit with warm golden shading/specular highlights and fully white glowing eyes. |
 
-While Dark Link is active, 44 fine black strands rise from the animated torso,
+While Dark Link is active, up to 44 black smoke strands rise from the animated torso,
 neck, shoulders, arms and legs with any selected visual. Their roots follow
 eleven current presented bone poses, including custom outfits. Each strand is
 an independent curved ribbon: there is no enclosing surface or geometry between
 neighbouring strands. Bends travel upward at 20 game units per second, with
-different phases, heights and widths across the body. Soft transparent sides and
-tapered tips keep the strands fine; opacity detail flows upward with the curves.
+independent phases, heights, widths and opacity across the body. Width also
+undulates along the rising curve. Roots sit inside the approximate limb volume
+without a transparent base gap; scene depth hides the buried section. Soft
+transparent sides and tapered tips keep the strands fine; opacity detail flows
+upward with the curves.
 Their narrow cross-sections face the camera to remain visible from the side.
-Roots stay attached while upper sections trail movement by at most 12 game units.
+Roots slide along and around each limb, following its presented position and
+rotation while attached. Visible middle and upper sections trail running and
+limb movement by at most 28 game units, with independent 0.12–0.24 second response
+times, settling smoothly after stopping. Each strand has a staggered 3.2–6 second
+lifecycle: fade in, wander along the body, detach, drift upward in world space
+with a little inherited momentum, then fade away. A replacement appears at a
+new body position with fresh width, height and opacity variation. Detached
+strands no longer follow Link or his limb rotations. The bounded pool needs
+no particle assets or unbounded emission history.
 The veil fades in over 0.2 seconds and clears on deactivation, hidden/dead/wolf
 states, events, scene changes and outfit reloads. Teleports and long frame gaps
 reset its movement history. It draws after the world translucent lists, with

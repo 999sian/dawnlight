@@ -7,6 +7,9 @@ using namespace dawnlight::dark_veil;
 Pose identity(Vec3 position={}) {
     return {{{1,0,0,position.x},{0,1,0,position.y},{0,0,1,position.z}}};
 }
+float time_at(unsigned strand,float age,unsigned generation=1) {
+    return lifecycle(strand,0).duration*(generation+age-variation(strand,7));
+}
 int main() {
     std::array<Pose,kJoints.size()> pose;
     for (unsigned i=0;i<pose.size();++i) pose[i]=identity({float(i*10),float(i*15),0});
@@ -23,47 +26,51 @@ int main() {
     auto moved=pose;
     for (auto& p:moved) { p[0][3]+=translation.x; p[2][3]+=translation.z; }
     build(moved,identity(translation),Vec3{0,70,300}+translation,{},1,1,b);
-    assert(a.size()==b.size());
     for (unsigned i=0;i<a.size();++i) {
         assert(length(b[i].world-a[i].world-translation)<0.001);
         assert(length(b[i].field-a[i].field)<0.001);
     }
-    // A single independently animated limb cannot move any other sleeve.
+    // Independently animated limbs do not displace unrelated strands.
     moved=pose; moved[4][0][3]+=35;
     build(moved,root,{0,70,300},{},1,1,b);
     const unsigned perPart=kVertexCount/kJoints.size();
     for (unsigned i=0;i<a.size();++i)
         if (i/perPart!=4) assert(length(a[i].world-b[i].world)==0);
     assert(length(a[4*perPart].world-b[4*perPart].world)>30);
-    // Separate narrow strips, with shared segment edges and tapered ends.
-    for (unsigned strand=0;strand<kJoints.size()*kStrands;++strand) {
-        const auto start=strand*kSegments*6;
-        assert(a[start].opacity==0);
-        assert(a[start+(kSegments-1)*6+4].opacity==0);
+    float minWidth=100,maxWidth=0,minHeight=1000,maxHeight=0,minAlpha=1,maxAlpha=0;
+    for (unsigned i=0;i<kJoints.size()*kStrands;++i) {
+        const auto first=i*kSegments*6, mid=first+8*6, last=first+(kSegments-1)*6+4;
+        const auto center=(a[first].world+a[first+1].world)*0.5f;
+        assert(length(center-anchor(pose[i/kStrands],i/kStrands,i%kStrands,1))<0.0001f);
+        const auto local=local_anchor(i/kStrands,i%kStrands,1);
+        assert(std::hypot(local.y,local.z)<=10.001f); // buried roots
+        const auto life=lifecycle(i,1);
+        if(life.age>0.14f && life.age<0.62f) assert(a[first].opacity>=0.35f); // no base gap
+        assert(a[last].opacity==0);
         for (unsigned r=0;r<kSegments;++r) {
-            const auto i=start+r*6;
-            assert(length(a[i].world-a[i+1].world)<=3.601f);
-            assert(a[i].field.x==-1 && a[i+1].field.x==1);
-            if (r+1<kSegments) assert(length(a[i+2].world-a[i+6].world)==0);
+            const auto v=first+r*6;
+            assert(length(a[v].world-a[v+1].world)<=6.801f);
+            assert(a[v].field.x==-1 && a[v+1].field.x==1);
+            if (r+1<kSegments) assert(length(a[v+2].world-a[v+6].world)==0);
+        }
+        const float width=length(a[mid].world-a[mid+1].world);
+        const float height=a[last].world.y-center.y;
+        minWidth=std::min(minWidth,width); maxWidth=std::max(maxWidth,width);
+        minHeight=std::min(minHeight,height); maxHeight=std::max(maxHeight,height);
+        if(life.age>0.14f && life.age<0.62f) {
+            minAlpha=std::min(minAlpha,a[first].opacity); maxAlpha=std::max(maxAlpha,a[first].opacity);
         }
     }
-    // Root centers stay attached while upper curve geometry visibly moves.
+    assert(maxWidth/minWidth>3 && maxHeight/minHeight>3 && maxAlpha/minAlpha>2);
     build(pose,root,{0,70,300},{},1.25f,1,b);
     unsigned moving=0;
-    for (unsigned strand=0;strand<kJoints.size()*kStrands;++strand) {
-        const auto first=strand*kSegments*6;
-        const auto anchorA=(a[first].world+a[first+1].world)*0.5f;
-        const auto anchorB=(b[first].world+b[first+1].world)*0.5f;
-        assert(length(anchorA-anchorB)<0.0001f);
-        const auto i=first+(kSegments/2)*6;
-        const auto centerA=(a[i].world+a[i+1].world)*0.5f;
-        const auto centerB=(b[i].world+b[i+1].world)*0.5f;
-        if (length(centerA-centerB)>0.1f) ++moving;
+    for (unsigned i=0;i<kJoints.size()*kStrands;++i) {
+        const auto first=i*kSegments*6;
+        if(length((a[first].world+a[first+1].world-b[first].world-b[first+1].world)*0.5f)>0.1f) ++moving;
     }
-    assert(moving>kJoints.size()*kStrands*0.9f);
+    assert(moving>kJoints.size()*kStrands*0.9f); // roots wander even on a stationary pose
     for (float seed:{1.0f,9.0f,22.0f})
         assert(length(curl(17,1,seed)-curl(17+kRiseSpeed*0.25f,1.25f,seed))<0.0001f);
-    // Side and overhead views must not collapse strips or create NaNs.
     for (Vec3 eye:{Vec3{300,70,0},Vec3{0,400,0}}) {
         build(pose,root,eye,{},1,1,b);
         assert(b.size()==kVertexCount);
@@ -73,22 +80,82 @@ int main() {
     for (const auto& v:b) assert(v.opacity==0);
     moved=pose; moved[0][0][0]=std::numeric_limits<float>::quiet_NaN();
     build(moved,root,{0,70,300},{},1,1,b); assert(b.empty());
+
     Motion motion;
-    motion.update({},1.0f/60);
-    for (unsigned i=1;i<=120;++i) {
-        motion.update({float(i*2),0,0},1.0f/60);
-        assert(length(motion.lag)<=12.001f&&motion.lag.x<=0);
+    const float attached=time_at(0,0.3f);
+    motion.update(pose,{},1.0f/60,attached);
+    for (unsigned f=1;f<=120;++f) {
+        moved=pose;
+        for (auto& p:moved) p[0][3]+=f*2;
+        motion.update(moved,{float(f*2),0,0},1.0f/60,attached);
+        assert(length(motion.lag[0])<=28.001f && motion.lag[0].x<0);
     }
-    assert(motion.lag.x<-1);
-    motion.update({10000,0,0},1.0f/60); assert(length(motion.lag)==0);
-    motion.update({10001,0,0},2); assert(length(motion.lag)==0);
-    motion.reset(); assert(!motion.ready&&length(motion.lag)==0);
-    // Time-based relaxation converges similarly at different display rates.
-    auto simulate=[](unsigned fps) {
-        Motion m; m.update({},1.0f/fps);
-        for (unsigned f=1;f<=fps;++f) m.update({60.0f*f/fps,0,0},1.0f/fps);
-        return m.lag;
+    assert(motion.lag[0].x<-10); // visible run follow-through
+    const auto lagBeforeStop=motion.lag[0];
+    motion.update(moved,{240,0,0},1.0f/60,attached);
+    assert(motion.lag[0].x<0 && length(motion.lag[0])<length(lagBeforeStop));
+    motion.update(moved,{10000,0,0},1.0f/60,attached);
+    for (auto lag:motion.lag) assert(length(lag)==0);
+    motion.update(pose,{10001,0,0},2,attached);
+    for (auto lag:motion.lag) assert(length(lag)==0);
+    motion.reset(); assert(!motion.ready);
+    // Rotating a limb in place produces local lag without actor translation.
+    const float limbTime=time_at(4*kStrands,0.3f);
+    motion.update(pose,{},1.0f/60,limbTime);
+    moved=pose;
+    moved[4][0][0]=0; moved[4][0][1]=-1;
+    moved[4][1][0]=1; moved[4][1][1]=0;
+    motion.update(moved,{},1.0f/60,limbTime);
+    for (unsigned i=0;i<motion.lag.size();++i)
+        if(i/kStrands!=4) assert(length(motion.lag[i])==0);
+    const auto delta=anchor(moved[4],4,0,limbTime)-anchor(pose[4],4,0,limbTime);
+    assert(dot(motion.lag[4*kStrands],delta)<0);
+    build(moved,root,{0,70,300},{},limbTime,1,a);
+    build(moved,root,{0,70,300},motion,limbTime,1,b);
+    const unsigned first=4*kStrands*kSegments*6, mid=first+12*6;
+    assert(length((a[first].world+a[first+1].world-b[first].world-b[first+1].world)*0.5f)<0.0001f);
+    assert(length((a[mid].world+a[mid+1].world-b[mid].world-b[mid+1].world)*0.5f)>1);
+    auto simulate=[&](unsigned fps) {
+        Motion m;
+        const float start=time_at(0,0.1f);
+        m.update(pose,{},1.0f/fps,start);
+        for (unsigned f=1;f<=fps;++f) {
+            auto running=pose;
+            const float x=60.0f*f/fps;
+            for (auto& p:running) p[0][3]+=x;
+            m.update(running,{x,0,0},1.0f/fps,start+float(f)/fps);
+        }
+        return m.lag[0];
     };
     assert(length(simulate(30)-simulate(144))<0.01);
-    std::cout<<"Dark veil: bounded mesh, separate thin strips, moving curves, upward propagation, body attachment, independent limbs, fade, invalid poses and motion reset passed\n";
+    // Release into world space, fade out, then respawn on the current body.
+    motion.reset();
+    float release=time_at(0,0.62f)+0.001f;
+    motion.update(pose,{},0,release-0.02f);
+    assert(!motion.released[0]);
+    motion.update(pose,{},0.02f,release);
+    assert(motion.released[0]);
+    const auto releasedBase=motion.base[0], velocity=motion.velocity[0];
+    moved=pose; for(auto& p:moved) p[0][3]+=30;
+    motion.update(moved,{30,0,0},0.1f,release+0.1f);
+    assert(length(motion.base[0]-releasedBase-velocity*0.1f)<0.001f);
+    assert(motion.base[0].y>releasedBase.y);
+    assert(length(motion.base[0]-anchor(moved[0],0,0,release+0.1f))>20);
+    assert(life_opacity(0)==0 && life_opacity(1)==0 && life_opacity(0.99f)<0.01f);
+    build(pose,root,{0,70,300},{},time_at(0,0.8f),1,a);
+    assert(a[0].opacity==0 && a[12*6].opacity>0); // free wisps feather at both ends
+    const float respawn=time_at(0,0.01f,2);
+    for (float t=release+0.2f;t<respawn;t+=0.1f) motion.update(moved,{30,0,0},0.1f,t);
+    motion.update(moved,{30,0,0},0.1f,respawn);
+    assert(!motion.released[0] && motion.generation[0]==2);
+    assert(length(motion.base[0]-anchor(moved[0],0,0,respawn))<0.001f);
+    unsigned freeCount=0;
+    for (bool free:motion.released) freeCount+=free;
+    assert(freeCount>0 && freeCount<motion.released.size()); // staggered, never a shared flash
+    motion.update(moved,{10000,0,0},0.1f,respawn+0.1f);
+    for (unsigned i=0;i<motion.base.size();++i) {
+        assert(length(motion.lag[i])==0);
+        assert(length(motion.base[i]-anchor(moved[i/kStrands],i/kStrands,i%kStrands,respawn+0.1f))<0.001f);
+    }
+    std::cout<<"Dark veil: thin varied strands, buried wandering roots, limb/run lag, frame-rate consistency, detach/fade/respawn, depth-ready geometry and warp reset passed\n";
 }
