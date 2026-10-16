@@ -61,6 +61,7 @@ fn vs(@builtin(vertex_index) index: u32) -> VertexOutput {
 }
 @group(0) @binding(6) var glow: texture_2d<f32>;
 @group(0) @binding(7) var linearSampler: sampler;
+@group(0) @binding(8) var<uniform> bloomParameters: vec4f;
 fn sampleGlow(uv: vec2f) -> vec3f {
     // Zero outside the image, rather than streaking a clamped edge texel.
     if (any(uv < vec2f(0.0)) || any(uv > vec2f(1.0))) { return vec3f(0.0); }
@@ -75,6 +76,6 @@ fn fs(input: VertexOutput) -> @location(0) vec4f {
         sum += (sampleGlow(input.uv - offset) + sampleGlow(input.uv + offset)) * weights[i];
     }
     // The sharp emissive eye is already in the scene. Add only its soft spill.
-    return vec4f(sum * 1.5, 0.0);
+    return vec4f(sum * (1.5 * bloomParameters.x), 0.0);
 }
 )wgsl"

@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <chrono>
 #include <cstring>
 #include <mutex>
 #include <vector>
@@ -158,16 +159,20 @@ WGPURenderPipeline pipeline_for(WGPUDevice device, const GfxRenderTargetLayout& 
     if (pipeline) sPipelines.push_back({layout.key, pipeline});
     return pipeline;
 }
-void draw(ModContext*, const GfxDrawContext* ctx, const void*, size_t, void*) {
+void draw(ModContext*, const GfxDrawContext* ctx, const void* data, size_t size, void*) {
     std::lock_guard lock(sGpuMutex);
     if (!sReady) return;
     sReady = false;
+    if (size != sizeof(GfxRange)) return;
+    GfxRange parameters; std::memcpy(&parameters, data, sizeof(parameters));
     auto pipeline = pipeline_for(ctx->device, ctx->layout);
     if (!pipeline) return;
-    WGPUBindGroupEntry entries[2] = {WGPU_BIND_GROUP_ENTRY_INIT, WGPU_BIND_GROUP_ENTRY_INIT};
+    WGPUBindGroupEntry entries[3] = {WGPU_BIND_GROUP_ENTRY_INIT, WGPU_BIND_GROUP_ENTRY_INIT, WGPU_BIND_GROUP_ENTRY_INIT};
     entries[0].binding = 6; entries[0].textureView = sViews[1];
     entries[1].binding = 7; entries[1].sampler = sSampler;
-    auto group = bindings(ctx->device, wgpuRenderPipelineGetBindGroupLayout(pipeline, 0), entries, 2);
+    entries[2].binding = 8; entries[2].buffer = ctx->uniform_buffer;
+    entries[2].offset = parameters.offset; entries[2].size = parameters.size;
+    auto group = bindings(ctx->device, wgpuRenderPipelineGetBindGroupLayout(pipeline, 0), entries, 3);
     if (!group) return;
     const auto& target = ctx->layout.color_attachments[GFX_SCENE_COLOR_ATTACHMENT_INDEX];
     wgpuRenderPassEncoderSetViewport(ctx->pass, 0, 0, target.width, target.height, 0, 1);
@@ -192,11 +197,24 @@ void composite(ModContext*, const GfxStageContext*, void*) {
     GfxDeviceInfo device = GFX_DEVICE_INFO_INIT;
     if (svc_gfx->resolve_pass(mod_ctx, &desc, &scene) != MOD_OK || !scene.depth ||
         svc_gfx->get_device_info(mod_ctx, &device) != MOD_OK) return;
+    // Sample one continuous signal per scene, shared by both eyes. Three gentle
+    // frequencies avoid a mechanical pulse or frame-rate-dependent random jumps.
+    // Only the blurred spill varies (+/-12%); sharp eye color/alpha stay intact.
+    using Clock = std::chrono::steady_clock;
+    static const auto origin = Clock::now();
+    const double seconds = std::chrono::duration<double>(Clock::now() - origin).count();
+    constexpr double tau = 6.283185307179586;
+    const std::array<float, 4> intensity = {float(1.0 +
+        0.070 * std::sin(tau * 2.3 * seconds) +
+        0.035 * std::sin(tau * 5.7 * seconds + 1.2) +
+        0.015 * std::sin(tau * 9.1 * seconds + 0.7)), 0, 0, 0};
+    GfxRange parameters{};
+    if (svc_gfx->push_uniform(mod_ctx, intensity.data(), sizeof(intensity), &parameters) != MOD_OK) return;
     for (unsigned i = 0; i < count; ++i) {
         if (masks[i].width != scene.width || masks[i].height != scene.height) continue;
         const Job job = {masks[i], scene.depth, device.uses_reversed_z};
         if (svc_gfx->push_compute(mod_ctx, sCompute, &job, sizeof(job)) == MOD_OK)
-            svc_gfx->push_draw(mod_ctx, sDraw, nullptr, 0);
+            svc_gfx->push_draw(mod_ctx, sDraw, &parameters, sizeof(parameters));
     }
 }
 } // namespace

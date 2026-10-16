@@ -42,9 +42,13 @@ def group(pipeline, entries):
         {'binding': binding, 'resource': resource} for binding, resource in entries])
 
 horizontal_group = group(horizontal, [(4, a.create_view()), (5, b.create_view())])
-render_group = group(render, [(6, b.create_view()), (7, device.create_sampler(min_filter='linear', mag_filter='linear'))])
+sampler = device.create_sampler(min_filter='linear', mag_filter='linear')
 
-def run(reversed_z=False, alpha=255, hidden=False):
+def run(reversed_z=False, alpha=255, hidden=False, intensity=1.0):
+    parameters = device.create_buffer_with_data(data=struct.pack('<4f', intensity, 0, 0, 0),
+        usage=wgpu.BufferUsage.UNIFORM)
+    render_group = group(render, [(6, b.create_view()), (7, sampler),
+        (8, {'buffer': parameters, 'offset': 0, 'size': 16})])
     pixels = [0]*(width*height*4)
     depth = [1.0]*(width*height)
     scene = [1.0]*(width*height)
@@ -99,4 +103,8 @@ for image in (run(alpha=0), run(hidden=True)):
     assert max(image[0::4]) == 0, 'transparent/hidden eye emitted'
 partial = run(alpha=128)
 assert 0.49 < red(partial, 18, 22)/red(normal, 18, 22) < 0.52, 'native alpha lost'
-print('Eye bloom GPU: real soft spill, occlusion, alpha, reversed Z and odd dimensions passed')
+for intensity in (0.88, 1.12):
+    flicker = run(intensity=intensity)
+    assert abs(red(flicker, 18, 22)/red(normal, 18, 22) - intensity) < 0.002
+    assert red(flicker, 48, 22) == 0, 'flicker revealed a hidden eye'
+print('Eye bloom GPU: flicker intensity, real soft spill, occlusion, alpha, reversed Z and odd dimensions passed')

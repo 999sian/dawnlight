@@ -69,7 +69,9 @@ emission multiplier, independent of room lighting and preserving eyelid/cutout a
 RGB output still clamps to the renderer's normal color range. Selective bloom
 captures the actual skinned eye pixels with their native alpha into an offscreen
 mask. Scene-depth testing removes hidden pixels before a separable Gaussian blur
-adds a soft red spill around the visible eye surface. There are no halo sprites,
+adds a soft red spill around the visible eye surface. Its brightness fluctuates
+gently by at most 12% with a continuous, frame-rate-independent signal shared by
+both eyes. The sharp eye surface remains steady. There are no halo sprites,
 projection offsets or enlarged eye meshes. The composite preserves scene alpha,
 depth and normal attachments; global bloom and lantern lighting are unchanged.
 Captures are bounded to eight eye primitive groups per scene and discarded at
