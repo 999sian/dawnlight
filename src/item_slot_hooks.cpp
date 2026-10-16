@@ -297,6 +297,24 @@ bool dawnlight_touch_ui_active() {
     return s_dawnlightTouchUiSessionEnabled;
 }
 
+ZSlotGetConfigVarFn s_midnaGetConfigVar = nullptr;
+
+bool custom_midna_binding_configured() {
+    if (s_midnaGetConfigVar == nullptr) {
+        void* address = nullptr;
+        if (svc_hook == nullptr || svc_hook->resolve == nullptr ||
+            svc_hook->resolve(mod_ctx, "dusk::config::GetConfigVar", &address, nullptr) != MOD_OK ||
+            address == nullptr) return false;
+        s_midnaGetConfigVar = reinterpret_cast<ZSlotGetConfigVarFn>(address);
+    }
+    // isActionBound also reports the host's virtual touch control as bound.
+    // Only a saved controller/keyboard binding should replace D-pad Left.
+    const auto* binding = s_midnaGetConfigVar("actionBindings.callMidna_port0");
+    return binding != nullptr &&
+        static_cast<const dusk::config::ConfigVar<int>*>(binding)->getValue() !=
+            static_cast<int>(PAD_NATIVE_BUTTON_INVALID);
+}
+
 struct ZPromptVisualState {
     J2DPane* root = nullptr;
     J2DPane* hiddenPanes[16] = {};
@@ -2998,7 +3016,7 @@ void after_pad_read(ModContext*, void*, void*, void*) {
     }
 
     if (dComIfGp_getLinkPlayer() == nullptr || daAlink_getAlinkActorClass() == nullptr ||
-        z_item_menu_or_pause_context())
+        z_item_menu_or_pause_context() || custom_midna_binding_configured())
     {
         s_dpadLeftHeld = false;
         s_dpadLeftTrig = false;
@@ -3445,7 +3463,16 @@ HookAction before_midna_talk_trigger(ModContext*, void* args, void* retval, void
 
     const bool touchTriggered = consume_midna_touch_press();
     if (z_item_slot_active()) {
-        *static_cast<BOOL*>(retval) = s_dpadLeftTrig || touchTriggered;
+        const bool customBinding = custom_midna_binding_configured();
+        if (customBinding && !touchTriggered &&
+            !(dawnlight_touch_ui_active() && s_touchZItemHeld)) {
+            // The original checks CALL_MIDNA before its vanilla Z fallback.
+            // Keep native edge detection and keyboard/controller handling.
+            return HOOK_CONTINUE;
+        }
+        // Touch-Z belongs to the item slot, never the host's virtual Midna
+        // action. The separate Midna touch button still works with any bind.
+        *static_cast<BOOL*>(retval) = touchTriggered || (!customBinding && s_dpadLeftTrig);
         return HOOK_SKIP_ORIGINAL;
     }
     if (dawnlight_touch_ui_active() && touchTriggered) {
@@ -4244,6 +4271,7 @@ ModResult install_item_slot_hooks(ModError* error) {
 }
 
 void shutdown_item_slot_hooks() {
+    s_midnaGetConfigVar = nullptr;
     after_ring_native_combine(nullptr, nullptr, nullptr, nullptr);
     s_touchRingCombineRequested = false;
     s_ringComboChanged = false;

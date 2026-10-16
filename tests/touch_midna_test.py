@@ -56,6 +56,7 @@ const char* z_slot_provider_notice(){return providerNotice;}
 int windowStatus=0;
 int dMeter2Info_getWindowStatus(){return windowStatus;}
 bool z_item_slot_active(){return zActive;}
+bool custom_midna_binding_configured(){return false;}
 bool dawnlight_touch_ui_active(){return touchActive;}
 namespace dusk::ui {enum class Control {Z,SKIP,A,R};}
 constexpr unsigned PAD_TRIGGER_R=0x20,PAD_TRIGGER_Z=0x10,PAD_BUTTON_A=0x100;
