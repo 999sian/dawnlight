@@ -76,6 +76,12 @@ finisher.
 Enemy HP scaling and enemy damage scaling remain separate settings and can be
 combined freely with these options. **HP Scaling** defaults to 100% and remains
 independently editable while Dawnlight Mode is on; enabling the mode does not
-force 300%. See
+force 300%. Diababa's side heads are excluded from both manual HP Scaling and
+Automatic NG+ HP Scaling: their native HP values control bomb hits and the
+scripted phase transition. The middle head's native 50-HP resets are scaled each
+vulnerability round, including the later landing reset. Above 100%, the native
+four-cut shortcut cannot end a round or kill the boss while HP remain; the
+vulnerability timeout and zero-HP retreat/victory path remain native. Other
+enemies retain the normal scaling behavior. See
 [ENEMY_HARD_MODE.md](../../ENEMY_HARD_MODE.md) for the complete enemy and boss profile
 list, exact multipliers, exclusions, and implementation details.
