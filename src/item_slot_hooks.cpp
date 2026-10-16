@@ -192,6 +192,7 @@ bool s_touchZItemHeld = false;
 bool s_touchZItemTrig = false;
 bool s_touchRingCombineRequested = false;
 bool s_ringComboChanged = false;
+u32 s_ringNativeRPressed = 0;
 bool s_midnaPromptThisFrame = false;
 bool s_zPromptCustomVisualsActive = false;
 bool s_hideZPromptButton = false;
@@ -3318,6 +3319,28 @@ void after_meter_map_draw(ModContext*, void* args, void*, void*) {
     restore_wii_u_minimap_layout(mods::arg<dMeterMap_c*>(args, 0));
 }
 
+HookAction before_ring_native_combine(ModContext*, void*, void*, void*) {
+    s_ringNativeRPressed = 0;
+    if (!dawnlight_combine_active()) {
+        // External providers have already handled their own L/Z inputs. The
+        // original setActiveCursor still accepts R for X/Y combinations, even
+        // when Dawnlight's dispatcher is disabled. Mask only that native read.
+        auto& pad = mDoCPd_c::getCpadInfo(PAD_1);
+        s_ringNativeRPressed = pad.mPressedButtonFlags & PAD_TRIGGER_R;
+        pad.mPressedButtonFlags &= ~PAD_TRIGGER_R;
+    }
+    return HOOK_CONTINUE;
+}
+
+void after_ring_native_combine(ModContext*, void*, void*, void*) {
+    // Restore before external post-hooks (TE combines on an L release).
+    // A provider may skip our late pre-hook; in that case there is no saved R.
+    if (s_ringNativeRPressed != 0) {
+        mDoCPd_c::getCpadInfo(PAD_1).mPressedButtonFlags |= s_ringNativeRPressed;
+        s_ringNativeRPressed = 0;
+    }
+}
+
 HookAction before_ring_combine(ModContext*, void* args, void*, void*) {
     s_ringComboChanged = false;
     auto* ring = mods::arg<dMenu_Ring_c*>(args, 0);
@@ -3949,8 +3972,19 @@ ModResult install_item_slot_hooks(ModError* error) {
     // combination before assignment, but leave external providers in control.
     HookOptions comboOptions = HOOK_OPTIONS_INIT;
     comboOptions.priority = 1000;
-    ModResult result = MOD_OK;
-    if (dawnlight_combine_active()) {
+    // Run after provider pre-hooks, then restore before provider post-hooks.
+    // Suppressing R globally would interfere with gameplay and provider input.
+    HookOptions nativeComboPreOptions = HOOK_OPTIONS_INIT;
+    nativeComboPreOptions.priority = -1000;
+    HookOptions nativeComboPostOptions = HOOK_OPTIONS_INIT;
+    nativeComboPostOptions.priority = 1000;
+    ModResult result = mods::hook_add_pre<RingSetActiveCursorHook>(
+        svc_hook, before_ring_native_combine, &nativeComboPreOptions);
+    if (result == MOD_OK) {
+        result = mods::hook_add_post<RingSetActiveCursorHook>(
+            svc_hook, after_ring_native_combine, &nativeComboPostOptions);
+    }
+    if (result == MOD_OK && dawnlight_combine_active()) {
         result = mods::hook_add_pre<RingSetActiveCursorHook>(
             svc_hook, before_ring_combine, &comboOptions);
         if (result == MOD_OK) {
@@ -4210,6 +4244,7 @@ ModResult install_item_slot_hooks(ModError* error) {
 }
 
 void shutdown_item_slot_hooks() {
+    after_ring_native_combine(nullptr, nullptr, nullptr, nullptr);
     s_touchRingCombineRequested = false;
     s_ringComboChanged = false;
     s_hdHudGetConfigVar = nullptr;
