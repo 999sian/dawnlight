@@ -220,6 +220,10 @@ jobs:
         if: matrix.platform == 'linux-x86_64'
         run: python3 tests/ring_native_combine_test.py --dusklight-dir dusklight
 
+      - name: Test custom Midna binding with Z Items
+        if: matrix.platform == 'linux-x86_64'
+        run: python3 tests/custom_midna_binding_test.py --dusklight-dir dusklight
+
       - name: Test TE Collection service adapter
         if: matrix.platform == 'linux-x86_64'
         run: python3 tests/collection_service_test.py dusklight
