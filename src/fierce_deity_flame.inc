@@ -149,9 +149,9 @@ void tick_dark_flame(daAlink_c* link, bool enabled) {
         emitter->setRandomDirectionSpeed(0.25f);
         emitter->setSpread(0.12f);
         emitter->setVolumeSize(12);
-        // Spread the flames across the body without multiplying their density by
-        // the number of new attachment points (about 60 live particles total).
-        emitter->setRate(0.12f);
+        // Denser surface coverage with the same eleven emitters and flame size
+        // (about 90 live particles total at the nominal rate and lifetime).
+        emitter->setRate(0.18f);
         emitter->setRateStep(0);
         emitter->setLifeTime(45);
         emitter->setGlobalParticleScale(0.25f, 0.4f);

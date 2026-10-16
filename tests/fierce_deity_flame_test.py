@@ -158,7 +158,7 @@ int main() {
     for(unsigned i=0;i<count;++i){
         auto& e=emitters[i];assert(e.pos.x==10*expectedJoints[i]&&e.pos.y==30*expectedJoints[i]);
         assert(e.continuous&&e.dir.x==0&&e.dir.y==1&&e.dir.z==0);
-        assert(e.speed>e.random&&e.rate*e.life*count<=60.0f&&e.life<=45&&e.alpha<200);
+        assert(e.speed>e.random&&e.rate*e.life*count<=90.0f&&e.life<=45&&e.alpha<200);
     }
     for(int tick=0;tick<100;++tick) tick_dark_flame(&link,true);
     assert(allocations==count&&s_darkFlame.keys==keys); // bounded, not a new burst each frame
