@@ -637,7 +637,7 @@ void draw_z_prompt_dpad(dMeterButton_c* meter) {
 bool z_item_menu_or_pause_context();
 bool midna_unlocked();
 u8 resolved_select_item(int index);
-bool is_z_lantern_item(u8 itemNo);
+bool z_item_uses_oil(u8 itemNo);
 bool z_item_has_ammo(u8 itemNo);
 bool z_item_ammo_values(u8 itemNo, u8& itemNum, u8& itemMax);
 
@@ -784,7 +784,8 @@ void sync_z_touch_item_meter(Rml::Element* button) {
         if (z_item_ammo_values(itemNo, itemNum, itemMax) && itemMax != 0) {
             rml += "<count class=\"item-count visible\">" + std::to_string(itemNum) +
                    "</count>";
-        } else if (is_z_lantern_item(itemNo) && dComIfGs_getMaxOil() > 0) {
+        }
+        if (z_item_uses_oil(itemNo) && dComIfGs_getMaxOil() > 0) {
             const f32 oilFill = std::clamp(static_cast<f32>(dComIfGs_getOil()) /
                     static_cast<f32>(dComIfGs_getMaxOil()),
                 0.0f, 1.0f);
@@ -2061,8 +2062,25 @@ void layout_z_hud_item(dMeter2Draw_c* meter, const u8 itemNo) {
         g_drawHIO.mButtonZItemBasePosY);
 }
 
-bool is_z_lantern_item(const u8 itemNo) {
-    return itemNo == dItemNo_KANTERA_e || itemNo == dItemNo_KANTERA2_e;
+bool z_item_uses_oil(const u8 itemNo) {
+    if (itemNo == dItemNo_KANTERA_e || itemNo == dItemNo_KANTERA2_e) {
+        return true;
+    }
+    if (itemNo != dItemNo_BOW_e) {
+        return false;
+    }
+
+    // The Z HUD is drawn separately from drawKanteraMeter (which Standalone
+    // hooks for X/Y). Read the saved combo, not just its resolved Bow icon.
+    const u8 selectedSlot = dComIfGs_getSelectItemIndex(kZItemSlot);
+    const u8 mixSlot = dComIfGs_getMixItemIndex(kZItemSlot);
+    if (selectedSlot >= MAX_ITEM_SLOTS || mixSlot >= MAX_ITEM_SLOTS) {
+        return false;
+    }
+    const u8 selected = dComIfGs_getItem(selectedSlot, false);
+    const u8 mixed = dComIfGs_getItem(mixSlot, false);
+    return (selected == dItemNo_KANTERA_e && mixed == dItemNo_BOW_e) ||
+           (selected == dItemNo_BOW_e && mixed == dItemNo_KANTERA_e);
 }
 
 bool z_item_has_ammo(const u8 itemNo) {
@@ -2252,7 +2270,7 @@ void draw_z_ammo(dMeter2Draw_c* meter, const u8 itemNo, const f32 itemAlphaRate)
 }
 
 void draw_z_oil_meter(dMeter2Draw_c* meter, const u8 itemNo, const f32 itemAlphaRate) {
-    if (!is_z_lantern_item(itemNo) || dComIfGs_getMaxOil() == 0) {
+    if (!z_item_uses_oil(itemNo) || dComIfGs_getMaxOil() == 0) {
         return;
     }
 
