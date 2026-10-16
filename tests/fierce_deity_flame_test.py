@@ -13,10 +13,6 @@ using s16=short;
 namespace JGeometry { template<class T> struct TVec3 { T x,y,z; TVec3(T x,T y,T z):x(x),y(y),z(z){} }; }
 using fpc_ProcID=unsigned; constexpr unsigned fpcM_ERROR_PROCESS_ID_e=~0u;
 constexpr u16 ID_ZF_J_FIRE02_FIRE=0x3af;
-constexpr u16 ID_ZF_J_FIRE00_GLOW=0x3ad;
-enum class FierceDeityTint {None,Dark,White,Gold};
-FierceDeityTint tint=FierceDeityTint::None;
-FierceDeityTint fierce_deity_displayed_tint(){return tint;}
 using Mtx=float[3][4]; using MtxP=float(*)[4];
 struct cXyz { void set(float a,float b,float c){x=a;y=b;z=c;} float x,y,z; cXyz(float x=0,float y=0,float z=0):x(x),y(y),z(z){} };
 struct csXyz { short x,y,z; csXyz(short x,short y,short z):x(x),y(y),z(z){} };
@@ -29,15 +25,13 @@ struct Model {
 struct JPABaseEmitter {
     bool stopped=false,hidden=false,cleared=false,continuous=false;
     u32 id=0; unsigned updates=0; cXyz pos,dir,scale;
-    u16 effect=0; std::array<int,3> prm{},env{};
     float rate=0,speed=0,random=0,psx=0,psy=0; int life=0,alpha=0;
     void stopCreateParticle(){stopped=true;}
     void stopDrawParticle(){hidden=true;}
     void deleteAllParticle(){cleared=true;}
     void becomeContinuousParticle(){continuous=true;}
-    void setGlobalPrmColor(int r,int g,int b){prm={r,g,b};}
-    void setGlobalEnvColor(int r,int g,int b){env={r,g,b};}
-    void setGlobalScale(const cXyz& s){scale=s;psx=s.x;psy=s.y;}
+    void setGlobalPrmColor(int r,int g,int b){assert(r==0&&g==0&&b==0);}
+    void setGlobalEnvColor(int r,int g,int b){assert(r==0&&g==0&&b==0);}
     void setGlobalAlpha(int a){alpha=a;}
     void setLocalTranslation(const cXyz& p){assert(p.x==0&&p.y==0&&p.z==0);}
     void setLocalRotation(const JGeometry::TVec3<s16>& p){assert(p.x==0&&p.y==0&&p.z==0);}
@@ -56,20 +50,11 @@ struct JPABaseEmitter {
 };
 struct ModContext {};
 namespace mods { template<class T> T arg(void* args,int i){return static_cast<T>(static_cast<void**>(args)[i]);} }
-struct JPABaseParticle {
-    cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};
-    cXyz mVelType0{1,2,3},mVelType1{1,2,3},mVelType2{1,2,3};
-    int mLifeTime=0;unsigned status=0;
-    void setStatus(unsigned flags){status|=flags;}
-};
+struct JPABaseParticle {cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};};
 struct JPAEmitterWorkData {JPABaseEmitter* mpEmtr=nullptr;cXyz mPublicScale{1,1,1};};
 std::array<JPABaseEmitter,256> emitters{};
 unsigned allocations=0,lookups=0; bool spawnFails=false,controllerAlive=true;
-struct JPAResourceManager {
-    bool available=true,eyeAvailable=true;
-    void* getResource(u16 id){assert(id==0x3af||id==0x3ad);return available&&(id!=0x3ad||eyeAvailable)?this:nullptr;}
-} resources;
-using Resources=JPAResourceManager;
+struct Resources { bool available=true; void* getResource(u16 id){assert(id==0x3af);return available?this:nullptr;} } resources;
 struct JPAEmitterManager { Resources* res=&resources; Resources* getResourceManager(u8 i){assert(i==0);return res;} } manager1,manager2;
 JPAEmitterManager* currentManager=&manager1;
 struct dPa_control_c { static JPAEmitterManager* getEmitterManager(){return currentManager;} };
@@ -83,26 +68,21 @@ struct daAlink_c {
     unsigned id=1; Model* mpLinkModel=nullptr;
     bool hidden=false,wolf=false,dead=false,event=false,scene=false;
     int mClothesChangeWaitTimer=0;
-    unsigned field_0x30b4=4; bool missingHead=false;
-    MtxP getHeadMtx(){return missingHead?nullptr:mpLinkModel->getAnmMtx(field_0x30b4);}
     bool checkPlayerNoDraw(){return hidden;} bool checkWolf(){return wolf;}
     bool checkDeadHP(){return dead;} bool checkEventRun(){return event;}
     bool checkSceneChangeAreaStart(){return scene;}
     JPABaseEmitter* setEmitter(u32* key,u16 effect,const cXyz* pos,const csXyz* rot) {
-        assert((effect==0x3af||effect==0x3ad)&&rot->x==0&&rot->y==0&&rot->z==0);
+        assert(effect==0x3af&&rot->x==0&&rot->y==0&&rot->z==0);
         if(spawnFails){*key=0;return nullptr;}
         auto* e=*key?dComIfGp_particle_getEmitter(*key):nullptr;
         if(!e){assert(allocations<emitters.size());e=&emitters[allocations++];*key=e->id=100+allocations;}
-        e->effect=effect;e->pos=*pos;++e->updates;return e;
+        e->pos=*pos;++e->updates;return e;
     }
 };
 unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
 '''
 draw_fixture = r'''
-constexpr int GX_BM_BLEND=1,GX_BL_ZERO=0,GX_BL_INVSRCALPHA=2,GX_LO_COPY=3,GX_FALSE=0,GX_BL_SRCALPHA=8,GX_BL_ONE=9,GX_TRUE=1,GX_LEQUAL=10;
-constexpr int GX_GREATER=11,GX_AOP_AND=12,GX_ALWAYS=13;
-std::array<int,5> alphaCompare{};
-void GXSetAlphaCompare(int a,int b,int c,int d,int e){alphaCompare={a,b,c,d,e};}
+constexpr int GX_BM_BLEND=1,GX_BL_ZERO=0,GX_BL_INVSRCALPHA=2,GX_LO_COPY=3,GX_FALSE=0;
 std::array<int,4> blend{};std::array<int,3> depth{};unsigned gxWrites=0;
 void GXSetBlendMode(int a,int b,int c,int d){blend={a,b,c,d};++gxWrites;}
 void GXSetZMode(int a,int b,int c){depth={a,b,c};++gxWrites;}
@@ -110,9 +90,7 @@ struct JPABaseShape {
     int getBlendMode(){return 1;}int getBlendSrc(){return 4;}
     int getBlendDst(){return 5;}int getLogicOp(){return 6;}
     int getZEnable(){return 1;}int getZCmp(){return 7;}int getZUpd(){return 1;}
-    int getAlphaCmp0(){return GX_GREATER;}int getAlphaRef0(){return 128;}
-    int getAlphaOp(){return GX_AOP_AND;}int getAlphaCmp1(){return GX_ALWAYS;}int getAlphaRef1(){return 0;}
-    void nativeSetup(){GXSetBlendMode(1,4,5,6);GXSetZMode(1,7,1);GXSetAlphaCompare(GX_GREATER,128,GX_AOP_AND,GX_ALWAYS,0);}
+    void nativeSetup(){GXSetBlendMode(1,4,5,6);GXSetZMode(1,7,1);}
 };
 struct JPAResource {JPABaseShape shape;JPABaseShape* getBsp(){return &shape;}};
 
@@ -149,6 +127,23 @@ int main() {
     tick_dark_flame(&link,false);assert(allocations==0);
     tick_dark_flame(&link,true);assert(allocations==count);
     check_flame_drawing(&emitters[0]);
+    // Native field/drag output must not override the requested ascent. This
+    // callback runs before native position integration and interpolation capture.
+    JPAEmitterWorkData motionWork{&emitters[0]};JPABaseParticle motion;
+    void* calcArgs[]={nullptr,&motionWork,&motion};
+    for(float nativeY : {8.0f,-2.0f,0.0f}) {
+        motion.mVelocity={0.2f,nativeY,-0.3f};
+        after_flame_particle_calc(nullptr,calcArgs,nullptr,nullptr);
+        assert(motion.mVelocity.x==0.2f&&motion.mVelocity.y==0.50f&&motion.mVelocity.z==-0.3f);
+        motion.mLocalPosition.y+=motion.mVelocity.y;
+    }
+    assert(motion.mLocalPosition.y==1.5f);
+    JPABaseEmitter otherFlame;motionWork.mpEmtr=&otherFlame;
+    motion.mVelocity.y=8.0f;after_flame_particle_calc(nullptr,calcArgs,nullptr,nullptr);
+    assert(motion.mVelocity.y==8.0f); // normal FIRE02 instances remain native
+    calcArgs[1]=nullptr;after_flame_particle_calc(nullptr,calcArgs,nullptr,nullptr);
+    calcArgs[1]=&motionWork;calcArgs[2]=nullptr;
+    after_flame_particle_calc(nullptr,calcArgs,nullptr,nullptr);
     // Births cover both sides AND front/back, outside each segment's centerline.
     for(unsigned i=0;i<count;++i){
         JPAEmitterWorkData work{&emitters[i]};JPABaseParticle p;
@@ -180,7 +175,6 @@ int main() {
     for(unsigned i=0;i<count;++i){
         auto& e=emitters[i];assert(e.pos.x==10*expectedJoints[i]&&e.pos.y==30*expectedJoints[i]);
         assert(e.continuous&&e.dir.x==0&&e.dir.y==1&&e.dir.z==0);
-        assert((e.prm==std::array<int,3>{0,0,0}&&e.env==e.prm));
         assert(e.speed>e.random&&e.rate*e.life*count<=90.0f&&e.life<=45&&e.alpha<200);
     }
     for(int tick=0;tick<100;++tick) tick_dark_flame(&link,true);
@@ -228,65 +222,6 @@ int main() {
     resources.available=true;spawnFails=true;old=allocations;
     tick_dark_flame(&link,true);assert((allocations==old&&s_darkFlame.keys==std::array<u32,count>{}));
     spawnFails=false;tick_dark_flame(&link,true);assert(allocations==old+count);
-    // Two faint native glow halos at independently positioned eyes.
-    link.mpLinkModel=&model;tint=FierceDeityTint::Dark;old=allocations;
-    tick_dark_flame(&link,true);assert(allocations==old+2);
-    auto eyeKeys=s_darkFlame.eyeKeys;
-    for(unsigned i=0;i<2;++i){
-        auto* e=dComIfGp_particle_getEmitter(eyeKeys[i]);
-        assert(e&&e->effect==0x3ad&&e->continuous);
-        assert(e->pos.x==56&&e->pos.y==112&&e->pos.z==(i==0?-3.5f:3.5f));
-        assert(e->scale.x==0.12f&&e->scale.y==0.12f&&e->scale.z==0.12f);
-        assert((e->prm==std::array<int,3>{255,28,20}&&e->env==e->prm));
-        assert(!owns_dark_flame(e)&&owns_eye_glow(e));
-        assert(e->alpha==80&&e->life==12&&e->rate*e->life<3);
-        // Glow particles stay on the eye, with neither body shell placement nor rising motion.
-        JPAEmitterWorkData eyeWork{e};JPABaseParticle p;p.mLocalPosition={1,2,3};
-        void* initArgs[]={&p,&eyeWork};after_flame_particle_init(nullptr,initArgs,nullptr,nullptr);
-        assert(p.mLocalPosition.x==0&&p.mLocalPosition.y==0&&p.mLocalPosition.z==0);
-        assert(p.status==0x60&&p.mLifeTime==12);
-        assert(p.mVelocity.y==0&&p.mVelType0.x==0&&p.mVelType1.y==0&&p.mVelType2.z==0);
-        JPAResource resource;void* args[]={&resource.shape,&eyeWork};
-        resource.shape.nativeSetup();const auto originalBlend=blend;const auto originalDepth=depth;
-        const auto originalAlpha=alphaCompare;
-        assert(e->alpha<originalAlpha[1]); // the native cutoff can hide the entire halo
-        after_flame_shape_setup(nullptr,args,nullptr,nullptr);
-        assert((alphaCompare==std::array<int,5>{GX_GREATER,0,GX_AOP_AND,GX_ALWAYS,0}));
-        // Batch setup may replay shape state; the low-alpha override must survive.
-        resource.shape.nativeSetup();after_flame_shape_setup(nullptr,args,nullptr,nullptr);
-        assert(alphaCompare[1]==0);
-        assert((blend==std::array<int,4>{GX_BM_BLEND,GX_BL_SRCALPHA,GX_BL_ONE,GX_LO_COPY}));
-        assert((depth==std::array<int,3>{GX_TRUE,GX_LEQUAL,GX_FALSE}));
-        void* drawArgs[]={&resource,&eyeWork,e};after_flame_resource_draw(nullptr,drawArgs,nullptr,nullptr);
-        assert(blend==originalBlend&&depth==originalDepth&&alphaCompare==originalAlpha);
-    }
-    for(int i=0;i<100;++i)tick_dark_flame(&link,true);
-    assert(allocations==old+2&&eyeKeys==s_darkFlame.eyeKeys);
-    // Rotate the head 90 degrees: the two eyes follow head-local Z, not world X.
-    model.pose[4][0][0]=0;model.pose[4][2][2]=0;
-    model.pose[4][0][2]=1;model.pose[4][2][0]=-1;
-    tick_dark_flame(&link,true);
-    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.x==36.5f);
-    assert(dComIfGp_particle_getEmitter(eyeKeys[1])->pos.x==43.5f);
-    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.z==-16);
-    link.mpLinkModel=&replacement;tick_dark_flame(&link,true);
-    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.x==48);
-    assert(dComIfGp_particle_getEmitter(eyeKeys[0])->pos.z==-10.5f);
-    for(auto other:{FierceDeityTint::White,FierceDeityTint::Gold,FierceDeityTint::None}){
-        tint=other;tick_dark_flame(&link,true);
-        assert((s_darkFlame.eyeKeys==std::array<u32,2>{}));
-    }
-    for(auto key:eyeKeys)assert(dComIfGp_particle_getEmitter(key)->cleared);
-    tint=FierceDeityTint::Dark;resources.eyeAvailable=false;old=allocations;
-    tick_dark_flame(&link,true);assert(allocations==old&&s_darkFlame.keys[0]!=0);
-    resources.eyeAvailable=true;link.field_0x30b4=25;
-    tick_dark_flame(&link,true);assert(allocations==old);
-    link.field_0x30b4=4;link.missingHead=true;
-    tick_dark_flame(&link,true);assert(allocations==old);link.missingHead=false;
-    tick_dark_flame(&link,true);eyeKeys=s_darkFlame.eyeKeys;
-    link.hidden=true;tick_dark_flame(&link,true);link.hidden=false;
-    for(auto key:eyeKeys){auto* e=dComIfGp_particle_getEmitter(key);assert(e->cleared&&e->hidden&&e->stopped);}
-    assert(!s_darkFlame.owner);
     // Expired generation keys are harmless on cleanup.
     for(auto& e:emitters)e.id=0;
     stop_dark_flame();tick_dark_flame(nullptr,true);assert(!s_darkFlame.owner);
@@ -294,10 +229,9 @@ int main() {
 '''
 with tempfile.TemporaryDirectory(prefix='dawnlight-dark-flame-') as temp:
     cpp, exe = Path(temp)/'test.cpp', Path(temp)/'test'
-    cpp.write_text((root/'src/fierce_deity_colors.hpp').read_text().replace('#pragma once','') +
-                   '\nusing dawnlight::kDarkLinkEyeRed;\n' + fixture + (root/'src/fierce_deity_flame.inc').read_text() + draw_fixture +
+    cpp.write_text(fixture + (root/'src/fierce_deity_flame.inc').read_text() + draw_fixture +
                    (root/'src/fierce_deity_flame_draw.inc').read_text() + draw_checks + checks)
     subprocess.run(['c++', '-std=c++20', '-Wall', '-Wextra', '-Werror',
                     str(cpp), '-o', str(exe)], check=True)
     subprocess.run([str(exe)], check=True)
-print('Dark Link flame: pose attachment, full-circumference birth placement, bounded emitters, black blending, faint pinned eye glow, draw-state isolation, teardown and missing resources passed')
+print('Dark Link flame: pose attachment, full-circumference birth placement, bounded emitters, black blending, draw-state isolation, teardown and missing resources passed')

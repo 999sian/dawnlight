@@ -1,5 +1,4 @@
 #include "fierce_deity.hpp"
-#include "fierce_deity_colors.hpp"
 #include "dual_wield.hpp"
 #include "service_imports.hpp"
 #include "fierce_deity_wipe.hpp"
@@ -54,6 +53,7 @@ DEFINE_HOOK(&JPAResource::calc, FierceWarpParticleCalcHook);
 DEFINE_HOOK(&JPABaseShape::setGX, FierceFlameShapeSetupHook);
 DEFINE_HOOK(&JPAResource::draw, FierceFlameResourceDrawHook);
 DEFINE_HOOK(&JPABaseParticle::init_p, FierceFlameParticleInitHook);
+DEFINE_HOOK(&JPAResource::calc_p, FierceFlameParticleCalcHook);
 DEFINE_HOOK(&mDoExt_modelUpdateDL, FierceEquipmentUpdateHook);
 DEFINE_HOOK(&mDoExt_modelEntryDL, FierceEquipmentEntryHook);
 #if defined(__APPLE__)
@@ -284,7 +284,7 @@ public:
         xf(0x100B, rgba({64, 64, 64, ambientAlpha}));
         const GXColor eyeColor = tint == FierceDeityTint::Gold ? GXColor{255,255,255,materialAlpha} :
             tint == FierceDeityTint::White ? GXColor{255,176,24,materialAlpha} :
-            GXColor{kDarkLinkEyeRed[0],kDarkLinkEyeRed[1],kDarkLinkEyeRed[2],materialAlpha};
+            GXColor{255,28,20,materialAlpha};
         const GXColor bodyColor = tint == FierceDeityTint::Gold ? GXColor{210,145,24,materialAlpha} :
             tint == FierceDeityTint::White ? GXColor{240,240,240,materialAlpha} : GXColor{8,9,11,materialAlpha};
         xf(0x100D, rgba(eye ? eyeColor : bodyColor));
@@ -626,6 +626,7 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         (result = mods::hook::add_post<FierceFlameShapeSetupHook>(svc_hook, after_flame_shape_setup)) != MOD_OK ||
         (result = mods::hook::add_post<FierceFlameResourceDrawHook>(svc_hook, after_flame_resource_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FierceFlameParticleInitHook>(svc_hook, after_flame_particle_init)) != MOD_OK ||
+        (result = mods::hook::add_post<FierceFlameParticleCalcHook>(svc_hook, after_flame_particle_calc)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentUpdateHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentEntryHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FiercePlayerDrawHook>(svc_hook, before_player_draw)) != MOD_OK ||

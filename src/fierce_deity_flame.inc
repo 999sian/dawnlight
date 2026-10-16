@@ -2,7 +2,7 @@
 // Use the resident FIRE02 flame, without its separate glow/spark emitters. Only
 // emitter instances are modified; the shared particle resource stays native.
 constexpr u16 kDarkFlameEffect = ID_ZF_J_FIRE02_FIRE;
-constexpr u16 kEyeGlowEffect = ID_ZF_J_FIRE00_GLOW;
+constexpr float kDarkFlameRiseSpeed = 0.50f;
 // Human skeleton: spine/neck, left shoulder/elbow, right shoulder/elbow,
 // left thigh/knee and right thigh/knee. Limb emitters follow their own bones
 // during attacks, running and jumping instead of clustering at the torso.
@@ -17,7 +17,6 @@ constexpr std::array<std::array<float, 3>, 11> kDarkFlameSurfaces{{
 }};
 struct DarkFlameState {
     std::array<u32, kDarkFlameJoints.size()> keys{};
-    std::array<u32, 2> eyeKeys{};
     // Copy the current bone axes, never retain pointers into an outfit's model.
     std::array<std::array<std::array<float, 3>, 3>, kDarkFlameJoints.size()> axes{};
     std::array<u32, kDarkFlameJoints.size()> samples{};
@@ -43,92 +42,10 @@ bool owns_dark_flame(JPABaseEmitter* emitter) {
     return dark_flame_index(emitter) < kDarkFlameJoints.size();
 }
 
-bool owns_eye_glow(JPABaseEmitter* emitter) {
-    if (emitter == nullptr || s_darkFlame.owner == nullptr ||
-        g_dComIfG_gameInfo.play.getParticle() == nullptr ||
-        dPa_control_c::getEmitterManager() == nullptr ||
-        dPa_control_c::getEmitterManager() != s_darkFlame.manager) return false;
-    for (u32 key : s_darkFlame.eyeKeys)
-        if (key != 0 && dComIfGp_particle_getEmitter(key) == emitter) return true;
-    return false;
-}
-
-void stop_eye_glow() {
-    auto* manager = dPa_control_c::getEmitterManager();
-    if (g_dComIfG_gameInfo.play.getParticle() != nullptr && manager != nullptr &&
-        manager == s_darkFlame.manager) {
-        for (u32 key : s_darkFlame.eyeKeys) {
-            if (key == 0) continue;
-            if (auto* emitter = dComIfGp_particle_getEmitter(key)) {
-                emitter->stopCreateParticle();
-                emitter->stopDrawParticle();
-                emitter->deleteAllParticle();
-            }
-        }
-    }
-    s_darkFlame.eyeKeys = {};
-}
-
-void tick_eye_glow(daAlink_c* link, JPAResourceManager* resources) {
-    // Only the red-eyed Dark / Dark Magic appearances get a faint halo.
-    // Reuse the common soft glow, without its separate flame or spark effects.
-    if (fierce_deity_displayed_tint() != FierceDeityTint::Dark ||
-        resources->getResource(kEyeGlowEffect) == nullptr ||
-        link->field_0x30b4 >= link->mpLinkModel->getModelData()->getJointNum()) {
-        stop_eye_glow();
-        return;
-    }
-    MtxP head = link->getHeadMtx();
-    if (head == nullptr) {
-        stop_eye_glow();
-        return;
-    }
-    const csXyz upright(0, 0, 0);
-    const cXyz scale(0.12f, 0.12f, 0.12f);
-    for (size_t i = 0; i < s_darkFlame.eyeKeys.size(); ++i) {
-        // Native human eye center is (12, -8, 0) in head space. Separate the
-        // eyes along local Z and move four units forward to clear the face.
-        // Resolve the live head matrix each tick, including after outfit swaps.
-        const float side = i == 0 ? -3.5f : 3.5f;
-        const cXyz position(
-            head[0][3] + head[0][0] * 16.0f - head[0][1] * 8.0f + head[0][2] * side,
-            head[1][3] + head[1][0] * 16.0f - head[1][1] * 8.0f + head[1][2] * side,
-            head[2][3] + head[2][0] * 16.0f - head[2][1] * 8.0f + head[2][2] * side);
-        auto* emitter = link->setEmitter(&s_darkFlame.eyeKeys[i], kEyeGlowEffect,
-                                         &position, &upright);
-        if (emitter == nullptr) continue;
-        emitter->becomeContinuousParticle();
-        emitter->setGlobalScale(scale);
-        emitter->setGlobalPrmColor(kDarkLinkEyeRed[0], kDarkLinkEyeRed[1], kDarkLinkEyeRed[2]);
-        emitter->setGlobalEnvColor(kDarkLinkEyeRed[0], kDarkLinkEyeRed[1], kDarkLinkEyeRed[2]);
-        // A small, low-opacity glow, not a rising flame or a light trail.
-        emitter->setGlobalAlpha(80);
-        emitter->setRate(0.17f);
-        emitter->setRateStep(0);
-        emitter->setLifeTime(12);
-        // Births are pinned to the eye by after_flame_particle_init; native
-        // texture/alpha animation is retained without modifying shared resources.
-    }
-}
-
 void after_flame_particle_init(ModContext*, void* args, void*, void*) {
     auto* work = mods::arg<JPAEmitterWorkData*>(args, 1);
     auto* particle = mods::arg<JPABaseParticle*>(args, 0);
     if (work == nullptr || particle == nullptr) return;
-    if (owns_eye_glow(work->mpEmtr)) {
-        // Native particle flags: follow emitter (0x20), skip force fields (0x40).
-        // Zero birth offsets and all velocity components so the halo stays on
-        // the animated eye even while Link runs or turns his head.
-        particle->setStatus(0x20 | 0x40);
-        particle->mLocalPosition.set(0, 0, 0);
-        particle->mPosition = particle->mOffsetPosition;
-        particle->mVelocity.set(0, 0, 0);
-        particle->mVelType0.set(0, 0, 0);
-        particle->mVelType1.set(0, 0, 0);
-        particle->mVelType2.set(0, 0, 0);
-        particle->mLifeTime = 12;
-        return;
-    }
     const size_t i = dark_flame_index(work->mpEmtr);
     if (i == kDarkFlameJoints.size()) return;
 
@@ -158,8 +75,18 @@ void after_flame_particle_init(ModContext*, void* args, void*, void*) {
         particle->mOffsetPosition.z + offset[2] * work->mPublicScale.z);
 }
 
+void after_flame_particle_calc(ModContext*, void* args, void*, void*) {
+    auto* work = mods::arg<JPAEmitterWorkData*>(args, 1);
+    auto* particle = mods::arg<JPABaseParticle*>(args, 2);
+    if (work == nullptr || particle == nullptr || !owns_dark_flame(work->mpEmtr)) return;
+    // JPAResource::calc_p runs after force fields/drag calculate velocity and
+    // before JPABaseParticle::calc_p integrates position and captures interpolation.
+    // Set actual vertical motion here, not merely the emitter's birth impulse.
+    // Preserve lateral motion, native lifetime, scale and texture animation.
+    particle->mVelocity.y = kDarkFlameRiseSpeed;
+}
+
 void stop_dark_flame() {
-    stop_eye_glow();
     auto* manager = dPa_control_c::getEmitterManager();
     if (g_dComIfG_gameInfo.play.getParticle() != nullptr && manager != nullptr &&
         manager == s_darkFlame.manager) {
@@ -228,7 +155,7 @@ void tick_dark_flame(daAlink_c* link, bool enabled) {
         emitter->setLocalRotation(localRotation);
         emitter->setLocalScale(unit);
         emitter->setDirection(up);
-        emitter->setDirectionalSpeed(0.50f);
+        emitter->setDirectionalSpeed(kDarkFlameRiseSpeed);
         emitter->setAwayFromCenterSpeed(0.0f);
         emitter->setAwayFromAxisSpeed(0.0f);
         emitter->setRandomDirectionSpeed(0.25f);
@@ -241,5 +168,4 @@ void tick_dark_flame(daAlink_c* link, bool enabled) {
         emitter->setLifeTime(45);
         emitter->setGlobalParticleScale(0.25f, 0.4f);
     }
-    tick_eye_glow(link, resources);
 }
