@@ -1,4 +1,4 @@
-// A flowing density field on continuous body-attached surfaces, not sprites.
+// Fine rising ribbons: transparent outside each strand, no enclosing shell.
 R"wgsl(
 struct VertexOutput {
     @builtin(position) position: vec4f,
@@ -26,13 +26,13 @@ fn noise(p: vec3f) -> f32 {
                    mix(hash(cell+vec3f(0,1,1)),hash(cell+vec3f(1,1,1)),u.x),u.y),u.z);
 }
 @fragment fn fs(input: VertexOutput) -> @location(0) vec4f {
-    // Elongate the structure vertically, and distort it with another smooth
-    // scale so the sheet changes shape instead of repeating one flame image.
-    let p=input.field*vec3f(1.0,0.48,1.0);
-    let warp=noise(p*0.65+vec3f(7.1,3.8,1.7));
-    let density=0.65*noise(p+vec3f(warp*1.1,0.0,warp*0.7))+
-                0.35*noise(p*2.1+vec3f(2.4,9.1,5.3));
-    let alpha=0.48*input.opacity*smoothstep(0.18,0.72,density);
+    // X spans just one thin ribbon. Feather to exactly zero at both edges;
+    // there is no low-opacity density floor filling the gaps between strands.
+    let edge=pow(max(0.0,1.0-abs(input.field.x)),1.4);
+    let flow=input.field.y;
+    let seed=input.field.z;
+    let detail=noise(vec3f(flow*0.65,seed*1.71,0.3));
+    let alpha=0.72*input.opacity*edge*(0.58+0.42*detail);
     return vec4f(0.0,0.0,0.0,alpha);
 }
 )wgsl"

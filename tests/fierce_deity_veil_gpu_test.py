@@ -57,7 +57,10 @@ def run(phase=0, opacity=1, hidden=False, reversed_z=False, samples=1):
 clear=run(opacity=0)
 visible=run()
 assert visible!=clear and max(visible[0::4])<=204,'veil did not darken the background'
-assert max(visible[0::4])-min(visible[0::4])>20,'density field is uniform'
+assert max(visible[0::4])-min(visible[0::4])>20,'strand core has no contrast'
+for y in range(64):
+    assert visible[(y*64)*4:(y*64+16)*4]==clear[(y*64)*4:(y*64+16)*4], 'solid fill outside the strand'
+    assert visible[(y*64+48)*4:(y*64+64)*4]==clear[(y*64+48)*4:(y*64+64)*4], 'solid fill outside the strand'
 assert run(phase=0.8)!=visible,'density did not flow'
 assert run(hidden=True)==clear,'veil drew through an occluder'
 assert run(reversed_z=True)==visible

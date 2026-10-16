@@ -13,6 +13,7 @@ struct Vec3 {
     Vec3 operator*(float s) const { return {x*s, y*s, z*s}; }
 };
 inline float dot(Vec3 a, Vec3 b) { return a.x*b.x + a.y*b.y + a.z*b.z; }
+inline Vec3 cross(Vec3 a, Vec3 b) { return {a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x}; }
 inline float length(Vec3 a) { return std::sqrt(dot(a,a)); }
 inline Vec3 normalized(Vec3 a) { const auto n=length(a); return n>0.0001f ? a*(1/n) : Vec3{0,1,0}; }
 inline Vec3 limited(Vec3 a, float limit) { const auto n=length(a); return n>limit ? a*(limit/n) : a; }
@@ -28,16 +29,30 @@ inline bool finite(const Pose& p) {
     return true;
 }
 inline constexpr std::array<unsigned,11> kJoints{1,2,3,7,8,12,13,18,19,23,24};
-// Continuous capsule sleeves: bone length, local Y/Z radii including a soft
-// outer margin. No persistent geometry or material pointers from Link's model.
+// Strand roots are spread around each bone, close to the body surface.
+// The spaces between strands contain no geometry, rather than a faint shell.
 inline constexpr std::array<Vec3,11> kSurfaces{{
-    {20,24,20},{18,26,20},{10,14,14},
-    {28,15,15},{26,14,14},{28,15,15},{26,14,14},
-    {35,17,17},{40,15,15},{35,17,17},{40,15,15},
+    {20,20,16},{18,22,16},{10,12,12},
+    {28,11,11},{26,10,10},{28,11,11},{26,10,10},
+    {35,13,13},{40,11,11},{35,13,13},{40,11,11},
 }};
-inline constexpr unsigned kSides=16, kRings=8;
-inline constexpr unsigned kVertexCount=kJoints.size()*(kRings-1)*kSides*6;
+inline constexpr unsigned kStrands=4, kSegments=24;
+inline constexpr unsigned kVertexCount=kJoints.size()*kStrands*kSegments*6;
+inline constexpr float kRiseSpeed=20.0f;
 struct Vertex { Vec3 world, field; float opacity; };
+
+// Features at height h reappear at h + speed*dt after dt: the bends themselves
+// travel upward, not just a low-contrast texture on otherwise static geometry.
+inline Vec3 curl(float height, float seconds, float seed) {
+    const float flow=height-kRiseSpeed*seconds;
+    const float phase=seed*2.39996323f;
+    return {std::sin(flow*0.18f+phase)+0.28f*std::sin(flow*0.37f+phase*1.7f),0,
+            std::cos(flow*0.16f+phase*1.13f)+0.25f*std::sin(flow*0.31f+phase*0.7f)};
+}
+inline float smooth(float a,float b,float value) {
+    const float t=std::clamp((value-a)/(b-a),0.0f,1.0f);
+    return t*t*(3-2*t);
+}
 
 struct Motion {
     Vec3 previous{}, lag{};
@@ -64,47 +79,53 @@ inline void build(const std::array<Pose,kJoints.size()>& poses, const Pose& root
     for (const auto& pose:poses) if (!finite(pose)) return;
     out.reserve(kVertexCount);
     constexpr float pi=3.14159265358979323846f;
-    // Two hemispherical caps joined by a straight sleeve along the limb.
-    constexpr std::array<float,kRings> latitude{-pi/2,-pi/3,-pi/6,0,0,pi/6,pi/3,pi/2};
-    const auto rootPos=origin(root);
-    const auto right=normalized(rotate(root,{1,0,0}));
-    const auto forward=normalized(rotate(root,{0,0,1}));
     for (unsigned part=0;part<poses.size();++part) {
-        std::array<std::array<Vertex,kSides+1>,kRings> rings{};
         const auto& pose=poses[part];
         const auto dim=kSurfaces[part];
-        for (unsigned r=0;r<kRings;++r) {
-            const float cap=std::cos(latitude[r]);
-            const float axial=std::sin(latitude[r]);
-            for (unsigned side=0;side<kSides;++side) {
-                const float angle=2*pi*side/kSides;
-                const float y=std::cos(angle),z=std::sin(angle);
-                const Vec3 local{(r<4 ? 0:dim.x)+axial*std::min(dim.y,dim.z),cap*dim.y*y,cap*dim.z*z};
-                const auto normal=normalized(rotate(pose,{axial,cap*y,cap*z}));
-                const float lift=std::max(0.0f,normal.y);
-                const auto base=origin(pose)+rotate(pose,local);
-                // Attached bases and a short, bounded, gently billowing upper
-                // edge. Only the upper-facing region receives movement lag.
-                const float wave=std::sin(seconds*2.1f+dot(base-rootPos,{0.07f,0.03f,0.09f}));
-                const auto position=base+Vec3{0,lift*(12+3*wave),0}+lag*(lift*lift);
-                const auto relative=position-rootPos;
-                // One body-local 3D field across all sleeves: no repeated sprite
-                // or angular UV seam. Its Y coordinate scrolls upward at 8 units/s.
-                const Vec3 field{dot(relative,right)*0.075f+0.22f*std::sin(seconds*0.43f+relative.y*0.04f),
-                    (relative.y-seconds*8)*0.075f,
-                    dot(relative,forward)*0.075f+0.18f*std::cos(seconds*0.31f+dot(relative,right)*0.05f)};
-                const float facing=std::abs(dot(normal,normalized(eye-position)));
-                // Soften the silhouette instead of exposing the capsule contour.
-                const float edge=std::clamp(facing/0.28f,0.0f,1.0f);
-                const float opacity=fade*edge*edge*(3-2*edge)*(0.45f+0.55f*(1-facing))*(1-0.45f*lift);
-                rings[r][side]={position,field,opacity};
+        for (unsigned strand=0;strand<kStrands;++strand) {
+            const unsigned index=part*kStrands+strand;
+            const float seed=float(index+1);
+            const float variation=float((index*17+11)%29)/28;
+            const float angle=2*pi*strand/kStrands+part*2.39996323f;
+            const Vec3 local{dim.x*(0.18f+0.22f*((strand+part)%4)),
+                             dim.y*std::cos(angle),dim.z*std::sin(angle)};
+            const auto anchor=origin(pose)+rotate(pose,local);
+            const auto radial=rotate(pose,{0,std::cos(angle),std::sin(angle)});
+            const auto outward=limited({radial.x,0,radial.z},1);
+            const float height=(part==2 ? 58.0f : part<2 ? 46.0f : 32.0f)+variation*16;
+            const float halfWidth=1.0f+variation*0.8f;
+            std::array<Vec3,kSegments+1> centers{};
+            std::array<std::array<Vertex,2>,kSegments+1> strip{};
+            for (unsigned r=0;r<=kSegments;++r) {
+                const float t=float(r)/kSegments;
+                const float h=height*t;
+                const float growth=smooth(0,0.65f,t);
+                centers[r]=anchor+Vec3{0,h,0}+
+                    curl(h,seconds,seed)*((2.0f+variation*3)*growth)+
+                    outward*(t*t*5)+lag*(t*t);
             }
-            rings[r][kSides]=rings[r][0];
-        }
-        for (unsigned r=0;r+1<kRings;++r) for (unsigned s=0;s<kSides;++s) {
-            const auto& a=rings[r][s]; const auto& b=rings[r+1][s];
-            const auto& c=rings[r][s+1]; const auto& d=rings[r+1][s+1];
-            out.insert(out.end(),{a,c,b,c,d,b});
+            for (unsigned r=0;r<=kSegments;++r) {
+                const float t=float(r)/kSegments;
+                const auto tangent=normalized(centers[std::min(r+1,kSegments)]-centers[r ? r-1:0]);
+                // A ribbon follows a real 3D curve, while its narrow cross-section
+                // faces the camera so it remains visible from front and side.
+                auto across=cross(tangent,normalized(eye-centers[r]));
+                if (length(across)<0.001f) across=cross(tangent,{1,0,0});
+                if (length(across)<0.001f) across=cross(tangent,{0,0,1});
+                across=normalized(across);
+                const float width=halfWidth*(0.65f+0.35f*std::sin(pi*t))*std::pow(1-t,0.65f);
+                const float opacity=fade*smooth(0,0.08f,t)*(1-smooth(0.6f,1,t));
+                const float flow=(height*t-kRiseSpeed*seconds)*0.13f;
+                for (unsigned side=0;side<2;++side) {
+                    const float u=side ? 1.0f:-1.0f;
+                    strip[r][side]={centers[r]+across*(u*width),{u,flow,seed},opacity};
+                }
+            }
+            // Each strand is an independent strip. Never connect neighbouring
+            // roots or limbs into a translucent enclosing surface.
+            for (unsigned r=0;r<kSegments;++r)
+                out.insert(out.end(),{strip[r][0],strip[r][1],strip[r+1][0],
+                                      strip[r][1],strip[r+1][1],strip[r+1][0]});
         }
     }
 }

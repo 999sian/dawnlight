@@ -35,11 +35,39 @@ int main() {
     for (unsigned i=0;i<a.size();++i)
         if (i/perPart!=4) assert(length(a[i].world-b[i].world)==0);
     assert(length(a[4*perPart].world-b[4*perPart].world)>30);
-    // Circular seams share exactly the same vertices, rather than a UV seam.
-    for (unsigned part=0;part<kJoints.size();++part) for(unsigned ring=0;ring+1<kRings;++ring) {
-        const auto start=(part*(kRings-1)+ring)*kSides*6;
-        assert(length(a[start].world-a[start+(kSides-1)*6+1].world)==0);
-        assert(length(a[start].field-a[start+(kSides-1)*6+1].field)==0);
+    // Separate narrow strips, with shared segment edges and tapered ends.
+    for (unsigned strand=0;strand<kJoints.size()*kStrands;++strand) {
+        const auto start=strand*kSegments*6;
+        assert(a[start].opacity==0);
+        assert(a[start+(kSegments-1)*6+4].opacity==0);
+        for (unsigned r=0;r<kSegments;++r) {
+            const auto i=start+r*6;
+            assert(length(a[i].world-a[i+1].world)<=3.601f);
+            assert(a[i].field.x==-1 && a[i+1].field.x==1);
+            if (r+1<kSegments) assert(length(a[i+2].world-a[i+6].world)==0);
+        }
+    }
+    // Root centers stay attached while upper curve geometry visibly moves.
+    build(pose,root,{0,70,300},{},1.25f,1,b);
+    unsigned moving=0;
+    for (unsigned strand=0;strand<kJoints.size()*kStrands;++strand) {
+        const auto first=strand*kSegments*6;
+        const auto anchorA=(a[first].world+a[first+1].world)*0.5f;
+        const auto anchorB=(b[first].world+b[first+1].world)*0.5f;
+        assert(length(anchorA-anchorB)<0.0001f);
+        const auto i=first+(kSegments/2)*6;
+        const auto centerA=(a[i].world+a[i+1].world)*0.5f;
+        const auto centerB=(b[i].world+b[i+1].world)*0.5f;
+        if (length(centerA-centerB)>0.1f) ++moving;
+    }
+    assert(moving>kJoints.size()*kStrands*0.9f);
+    for (float seed:{1.0f,9.0f,22.0f})
+        assert(length(curl(17,1,seed)-curl(17+kRiseSpeed*0.25f,1.25f,seed))<0.0001f);
+    // Side and overhead views must not collapse strips or create NaNs.
+    for (Vec3 eye:{Vec3{300,70,0},Vec3{0,400,0}}) {
+        build(pose,root,eye,{},1,1,b);
+        assert(b.size()==kVertexCount);
+        for (const auto& v:b) assert(std::isfinite(v.world.x)&&std::isfinite(v.world.y)&&std::isfinite(v.world.z));
     }
     build(pose,root,{0,70,300},{},1,0,b);
     for (const auto& v:b) assert(v.opacity==0);
@@ -62,5 +90,5 @@ int main() {
         return m.lag;
     };
     assert(length(simulate(30)-simulate(144))<0.01);
-    std::cout<<"Dark veil: bounded mesh, continuous seams, body attachment, independent limbs, fade, invalid poses and motion reset passed\n";
+    std::cout<<"Dark veil: bounded mesh, separate thin strips, moving curves, upward propagation, body attachment, independent limbs, fade, invalid poses and motion reset passed\n";
 }
