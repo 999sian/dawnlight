@@ -511,8 +511,13 @@ HookAction before_shape_draw(ModContext*, void* args, void*, void*) {
     } else {
         // Eyes use the full self-lit COLOR1, without sampling iris RGB. Native
         // alpha remains in APREV, so eyelids/cutouts and warp masks still work.
+        // Boost red-eye emission only. GX clamps the final RGB to its normal
+        // color range, so this is not an HDR/bloom pass or an alpha increase.
+        const auto emissionScale = eye && scope.tint == FierceDeityTint::Dark ?
+            GX_CS_SCALE_2 : GX_CS_SCALE_1;
         effect.stage(count, GX_TEXCOORD_NULL, GX_TEXMAP_NULL, identity, identity,
-                     GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC);
+                     GX_CC_ZERO, GX_CC_ZERO, GX_CC_ZERO, GX_CC_RASC,
+                     GX_TEV_ADD, emissionScale);
         next = count + 1;
     }
     }

@@ -443,6 +443,7 @@ int main() {
         player.data.materials.name=name;
         draw_begin(p);
         assert(gpuCount==4 && gpuMaterial.r==255 && gpuMaterial.g==28 && gpuMaterial.b==20);
+        assert(gpuStages[3].scale==GX_CS_SCALE_2); // double red-eye emission, not alpha
         assert((xf[0x100F] & 2)==0); // COLOR1 lighting disabled: emissive in dark rooms
         assert(gpuMaterial.a==93 && gpuAmbient.a==61);
         for(unsigned i=0x603;i<=0x60F;++i) assert(xf[i]==nativeXF[i]);
@@ -674,6 +675,7 @@ int main() {
     draw_end();assert(bp==nativeBP && xf==nativeXF);
     player.data.materials.name="al_eyeballR_m";
     draw_begin(p);assert(gpuCount==4 && gpuMaterial.r==255 && gpuMaterial.g==255 && gpuMaterial.b==255);
+    assert(gpuStages[3].scale==GX_CS_SCALE_1); // Gold does not get the red-eye boost
     assert(!(xf[0x100F]&2) && eye_coverage(3,0,0)==1);draw_end();
     // White's three-stage path fits through stage 16, then safely falls back.
     palette=FierceDeityTint::White;

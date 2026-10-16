@@ -3,6 +3,8 @@
 // emitter instances are modified; the shared particle resource stays native.
 constexpr u16 kDarkFlameEffect = ID_ZF_J_FIRE02_FIRE;
 constexpr float kDarkFlameRiseSpeed = 0.50f;
+// Preserve the original nominal travel distance: 1.10 * 45 = 0.50 * 99.
+constexpr s16 kDarkFlameLifeTime = 99;
 // Human skeleton: spine/neck, left shoulder/elbow, right shoulder/elbow,
 // left thigh/knee and right thigh/knee. Limb emitters follow their own bones
 // during attacks, running and jumping instead of clustering at the torso.
@@ -48,6 +50,9 @@ void after_flame_particle_init(ModContext*, void* args, void*, void*) {
     if (work == nullptr || particle == nullptr) return;
     const size_t i = dark_flame_index(work->mpEmtr);
     if (i == kDarkFlameJoints.size()) return;
+    // Apply to the actual birth as native lifetime keys/randomization can
+    // otherwise shorten the emitter setting before the particle is created.
+    particle->mLifeTime = kDarkFlameLifeTime;
 
     // Balanced opposing sides, advancing per actual birth (not per frame).
     // Every four particles cover the full circumference, even at low rates.
@@ -162,10 +167,10 @@ void tick_dark_flame(daAlink_c* link, bool enabled) {
         emitter->setSpread(0.12f);
         emitter->setVolumeSize(12);
         // Denser surface coverage with the same eleven emitters and flame size
-        // (about 90 live particles total at the nominal rate and lifetime).
+        // (about 196 live particles total at the nominal rate and lifetime).
         emitter->setRate(0.18f);
         emitter->setRateStep(0);
-        emitter->setLifeTime(45);
+        emitter->setLifeTime(kDarkFlameLifeTime);
         emitter->setGlobalParticleScale(0.25f, 0.4f);
     }
 }

@@ -50,7 +50,7 @@ struct JPABaseEmitter {
 };
 struct ModContext {};
 namespace mods { template<class T> T arg(void* args,int i){return static_cast<T>(static_cast<void**>(args)[i]);} }
-struct JPABaseParticle {cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};};
+struct JPABaseParticle {cXyz mLocalPosition, mOffsetPosition, mPosition, mVelocity{0,1.1f,0};s16 mLifeTime=7;};
 struct JPAEmitterWorkData {JPABaseEmitter* mpEmtr=nullptr;cXyz mPublicScale{1,1,1};};
 std::array<JPABaseEmitter,256> emitters{};
 unsigned allocations=0,lookups=0; bool spawnFails=false,controllerAlive=true;
@@ -151,6 +151,8 @@ int main() {
         bool positiveY=false,negativeY=false,positiveZ=false,negativeZ=false;
         for(int birth=0;birth<4;++birth){
             after_flame_particle_init(nullptr,args,nullptr,nullptr);
+            assert(p.mLifeTime==99);
+            assert(p.mLifeTime*kDarkFlameRiseSpeed==49.5f); // original 1.10 * 45 travel
             positiveY|=p.mLocalPosition.y>0;negativeY|=p.mLocalPosition.y<0;
             positiveZ|=p.mLocalPosition.z>0;negativeZ|=p.mLocalPosition.z<0;
             assert(p.mPosition.x==p.mOffsetPosition.x+p.mLocalPosition.x);
@@ -169,13 +171,15 @@ int main() {
     assert(armParticle.mLocalPosition.x==-16&&armParticle.mLocalPosition.y==26);
     // Foreign fire particles are untouched even when the resource is identical.
     JPABaseEmitter foreign;armWork.mpEmtr=&foreign;armParticle.mLocalPosition={1,2,3};
+    armParticle.mLifeTime=7;
     after_flame_particle_init(nullptr,armArgs,nullptr,nullptr);
     assert(armParticle.mLocalPosition.x==1&&armParticle.mLocalPosition.y==2&&armParticle.mLocalPosition.z==3);
+    assert(armParticle.mLifeTime==7);
     const auto keys=s_darkFlame.keys;
     for(unsigned i=0;i<count;++i){
         auto& e=emitters[i];assert(e.pos.x==10*expectedJoints[i]&&e.pos.y==30*expectedJoints[i]);
         assert(e.continuous&&e.dir.x==0&&e.dir.y==1&&e.dir.z==0);
-        assert(e.speed>e.random&&e.rate*e.life*count<=90.0f&&e.life<=45&&e.alpha<200);
+        assert(e.speed>e.random&&e.rate*e.life*count<=200.0f&&e.life==99&&e.alpha<200);
     }
     for(int tick=0;tick<100;++tick) tick_dark_flame(&link,true);
     assert(allocations==count&&s_darkFlame.keys==keys); // bounded, not a new burst each frame

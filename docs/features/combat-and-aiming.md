@@ -64,10 +64,13 @@ with particle births spread around each body segment and along its length.
 It is cleared when the transformation ends, Link is hidden, or an outfit/scene
 change interrupts it. The effect uses the native FIRE02 flame without its separate glow or sparks.
 Only Dark Link’s emitters use black alpha blending; ordinary fires remain unchanged.
-Dark and Dark Magic render the eye surfaces themselves as self-lit red, independent
-of room lighting, while preserving eyelid/cutout alpha. There are no eye flame or
+Dark and Dark Magic render the eye surfaces themselves as self-lit red with a 2x
+emission multiplier, independent of room lighting and preserving eyelid/cutout alpha.
+RGB output still clamps to the renderer's normal color range. There are no eye flame or
 halo particles. Body-flame vertical movement is held at 0.50 units per simulation
-step after native force/drag calculation; native texture animation is unchanged.
+step after native force/drag calculation. Particles live for 99 steps to preserve
+the original nominal ascent distance (1.10 x 45 = 0.50 x 99); the emission rate
+is unchanged, so more particles coexist. Native texture animation is unchanged.
 
 **Dark Link Activation**, below the visual selector, offers **Spin Attack**
 (charged), **R+Z**, **R+A** (default), **L3**, or **R3**. Activation requires a full meter unless **Free Transform** is enabled. With
