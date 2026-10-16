@@ -22,7 +22,7 @@ are independent and disabled by default:
 
 ### Cave of Ordeals Randomizer
 
-`Cave of Ordeals Randomizer` replaces each placed combat enemy in `D_SB01`
+`Cave of Ordeals Randomizer` replaces each placed combat enemy except Poes in `D_SB01`
 with a random, different enemy type when the room's actors load. It is Off by
 default and independent of Enemy Hard Mode, Boss Hard Mode, and Dawnlight Mode.
 Reload the Cave after changing the option: actors already loaded, including
@@ -62,8 +62,9 @@ new layout.
   120 creation attempts, that slot keeps its original enemy and parameters.
   This fallback neither removes the enemy nor stalls room loading indefinitely.
 
-Poes are combat enemies too; a randomized replacement does not award a Poe soul.
-Use the native Cave layout when collecting those souls.
+The three Poes stay native, preserving their positions, parameters and soul
+collection flags. Other enemies in their rooms are still randomized, so all
+three Poe souls remain collectible with the randomizer enabled.
 
 Enemy Hard Mode also adds selected enemy-specific mechanics: every second
 Bulblin bow shot becomes a three-arrow spread, every Fire Toadpoli shot and
