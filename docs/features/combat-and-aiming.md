@@ -58,12 +58,23 @@ without stored charge start empty; Boss Rush charge is kept separate.
 | White | Current outfit: white texels become black; black and colored texels become white. Amber iris/pupils and black sclera. |
 | Gold | Current outfit with warm golden shading/specular highlights and fully white glowing eyes. |
 
-While Dark Link is active, black flames rise from the animated torso, neck,
-shoulders, arms and legs with any selected visual. It follows the current outfit, including custom models,
-with particle births spread around each body segment and along its length.
-It is cleared when the transformation ends, Link is hidden, or an outfit/scene
-change interrupts it. The effect uses the native FIRE02 flame without its separate glow or sparks.
-Only Dark Link’s emitters use black alpha blending; ordinary fires remain unchanged.
+While Dark Link is active, a continuous black veil surrounds the animated torso,
+neck, shoulders, arms and legs with any selected visual. Eleven overlapping
+capsule sleeves follow the current presented bone pose, including custom outfits.
+A seamless procedural 3D density field flows upward and slowly deforms; the upper
+edges billow and trail movement by at most 12 game units. The body-local field
+travels with Link, rather than leaving repeated particle silhouettes behind.
+The veil fades in over 0.2 seconds and clears on deactivation, hidden/dead/wolf
+states, events, scene changes and outfit reloads. Teleports and long frame gaps
+reset its movement history. It draws after the world translucent lists, with
+scene-depth occlusion and no depth, alpha or normal writes. It uses no new assets.
+
+The previous FIRE02 body flames are **preserved but disabled**, including their
+attachment, lifetime, velocity and black-blending hooks. To restore them, set
+`kUseLegacyDarkFlames = true` in `src/fierce_deity_veil.hpp` and rebuild. This
+switch disables the veil and re-enables the old particle hooks/emission; the two
+effects do not run together. Eye bloom is independent of this switch.
+
 Dark and Dark Magic render the eye surfaces themselves as self-lit red with a 2x
 emission multiplier, independent of room lighting and preserving eyelid/cutout alpha.
 RGB output still clamps to the renderer's normal color range. Selective bloom
@@ -77,7 +88,7 @@ depth and normal attachments; global bloom and lantern lighting are unchanged.
 Captures are bounded to eight eye primitive groups per scene and discarded at
 scene/frame boundaries. During warp transitions or without the graphics service,
 only the masked self-lit eye surface is drawn.
-Body-flame vertical movement is held at 0.50 units per simulation
+For the disabled legacy effect, body-flame vertical movement is held at 0.50 units per simulation
 step after native force/drag calculation. Particles live for 99 steps to preserve
 the original nominal ascent distance (1.10 x 45 = 0.50 x 99); the emission rate
 is unchanged, so more particles coexist. Native texture animation is unchanged.

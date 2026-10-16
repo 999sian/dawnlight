@@ -3,6 +3,7 @@
 #include "service_imports.hpp"
 #include "fierce_deity_wipe.hpp"
 #include "fierce_deity_eye_bloom.hpp"
+#include "fierce_deity_veil.hpp"
 
 #include "d/actor/d_a_alink.h"
 #include "JSystem/J3DGraphBase/J3DMaterial.h"
@@ -595,8 +596,11 @@ void after_player_draw(ModContext*, void* args, void*, void*) {
 
 bool fierce_deity_transition_busy() { return s_transition.owner != nullptr; }
 
-void fierce_deity_flame_tick(daAlink_c* link, bool enabled) { tick_dark_flame(link, enabled); }
-void fierce_deity_flame_stop() { stop_dark_flame(); }
+void fierce_deity_flame_tick(daAlink_c* link, bool enabled) {
+    if constexpr (kUseLegacyDarkFlames) tick_dark_flame(link, enabled);
+    else tick_dark_veil(link, enabled);
+}
+void fierce_deity_flame_stop() { stop_dark_flame(); stop_dark_veil(); }
 
 void fierce_deity_transition_prepare(daAlink_c* link, FierceDeityTint fromTint, FierceDeityTint toTint, bool entering) {
     prepare_transition(link, fromTint, toTint, entering);
@@ -662,10 +666,10 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         (result = mods::hook::add_pre<FiercePrimitiveDrawHook>(svc_hook, before_primitive_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FiercePrimitiveDrawHook>(svc_hook, after_eye_primitive_draw)) != MOD_OK ||
         (result = mods::hook::add_post<FierceWarpParticleCalcHook>(svc_hook, after_warp_particle_calc)) != MOD_OK ||
-        (result = mods::hook::add_post<FierceFlameShapeSetupHook>(svc_hook, after_flame_shape_setup)) != MOD_OK ||
-        (result = mods::hook::add_post<FierceFlameResourceDrawHook>(svc_hook, after_flame_resource_draw)) != MOD_OK ||
-        (result = mods::hook::add_post<FierceFlameParticleInitHook>(svc_hook, after_flame_particle_init)) != MOD_OK ||
-        (result = mods::hook::add_post<FierceFlameParticleCalcHook>(svc_hook, after_flame_particle_calc)) != MOD_OK ||
+        (kUseLegacyDarkFlames && (result = mods::hook::add_post<FierceFlameShapeSetupHook>(svc_hook, after_flame_shape_setup)) != MOD_OK) ||
+        (kUseLegacyDarkFlames && (result = mods::hook::add_post<FierceFlameResourceDrawHook>(svc_hook, after_flame_resource_draw)) != MOD_OK) ||
+        (kUseLegacyDarkFlames && (result = mods::hook::add_post<FierceFlameParticleInitHook>(svc_hook, after_flame_particle_init)) != MOD_OK) ||
+        (kUseLegacyDarkFlames && (result = mods::hook::add_post<FierceFlameParticleCalcHook>(svc_hook, after_flame_particle_calc)) != MOD_OK) ||
         (result = mods::hook::add_pre<FierceEquipmentUpdateHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FierceEquipmentEntryHook>(svc_hook, observe_equipment_model)) != MOD_OK ||
         (result = mods::hook::add_pre<FiercePlayerDrawHook>(svc_hook, before_player_draw)) != MOD_OK ||
@@ -673,6 +677,7 @@ ModResult initialize_fierce_deity_visual(ModError* error) {
         return mods::set_error(error, result, "failed to install Dawnlight Dark Link visual hooks");
     }
     initialize_eye_bloom();
+    initialize_dark_veil();
     return MOD_OK;
 }
 

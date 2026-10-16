@@ -1,5 +1,6 @@
 #include "fierce_deity.hpp"
 #include "fierce_deity_eye_bloom.hpp"
+#include "fierce_deity_veil.hpp"
 
 #include "combat_meter.hpp"
 #include "fierce_deity_hud.hpp"
@@ -755,6 +756,7 @@ ModResult initialize_fierce_deity(ModError* error) {
 
 void shutdown_fierce_deity() {
     shutdown_eye_bloom();
+    shutdown_dark_veil();
     fierce_deity_flame_stop();
     s_damageSamples.clear();
     clear_kh2_drive();
