@@ -46,7 +46,7 @@ currently loaded save's story flags:
 | Give Talo the Wooden Sword in Ordon | Glide, with Glider selected |
 | Obtain the Ordon Sword | Dual Wield option in Collection |
 | Free Ordona | Revali's Gale and its counter |
-| Free Faron | Dark Link |
+| Defeat Darknut in the Temple of Time | Dark Link |
 | Each complete heart above the starting three | +5 maximum stamina, including on top of Dawnlight Mode's 100-point base |
 | Each three full heart containers | One Gale charge: 3 hearts = 1, 6 = 2, 9 = 3, etc. |
 

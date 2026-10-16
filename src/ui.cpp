@@ -594,7 +594,7 @@ ModResult build_general_tab(
         != MOD_OK) return MOD_ERROR;
     if (add_toggle(ctx, left, "Progression System", progression_system_config_var(),
             "Sprint stays independently toggleable. Give Talo the Wooden Sword to unlock the Glider, "
-            "free Ordona for Revali's Gale, and free Faron for Dark Link. Gale gains one charge "
+            "free Ordona for Revali's Gale, and defeat Darknut in the Temple of Time for Dark Link. Gale gains one charge "
             "per three full heart containers. Each complete heart above the starting three adds 5 maximum stamina. Controlled settings are locked while On.")
         != MOD_OK) return MOD_ERROR;
     if (add_toggle(ctx, left, "Notifications", notifications_config_var(),

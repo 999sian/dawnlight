@@ -8,6 +8,7 @@
 #include "d/actor/d_a_alink.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_save.h"
+#include "d/d_stage.h"
 #include "mods/service.hpp"
 
 #include <cstdio>
@@ -45,7 +46,14 @@ ProgressionState progression_state() {
     const bool bossRush = save_state_boss_rush_active();
     state.glide = bossRush || dComIfGs_isEventBit(dSv_event_flag_c::F_0026);
     state.gale = bossRush || dComIfGs_isEventBit(dSv_event_flag_c::M_016);
-    state.fierceDeity = bossRush || dComIfGs_isEventBit(dSv_event_flag_c::M_019);
+    // The Temple of Time miniboss sets this on victory. Use live dungeon
+    // memory there, saved data elsewhere; settings can also query at the title
+    // screen, where no stage metadata is installed yet.
+    auto* stage = dComIfGp_getStageStagInfo();
+    state.fierceDeity = bossRush ||
+        (stage != nullptr && dStage_stagInfo_GetSaveTbl(stage) == dStage_SaveTbl_LV6 ?
+            dComIfGs_isStageMiddleBoss() :
+            dComIfGs_getSaveData()->getSave(dStage_SaveTbl_LV6).getBit().isStageBossEnemy2());
     state.dualWield = bossRush || dComIfGs_isItemFirstBit(dItemNo_SWORD_e);
     state.charges = progression_charges(dComIfGs_getMaxLife());
     return state;

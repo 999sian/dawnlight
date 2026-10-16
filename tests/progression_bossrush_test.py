@@ -12,6 +12,21 @@ fixture = r'''
 using namespace dawnlight;
 struct dSv_event_flag_c { enum {F_0026, M_016, M_019}; };
 bool bossRush=false, flags[3]{};
+constexpr int dStage_SaveTbl_LV6=6;
+bool middleBoss[10]{}, liveMiddleBoss=false;
+int currentStage=0;
+bool hasStage=true;
+int* dComIfGp_getStageStagInfo(){return hasStage ? &currentStage : nullptr;}
+int dStage_stagInfo_GetSaveTbl(int* stage){assert(stage);return *stage;}
+bool dComIfGs_isStageMiddleBoss(){assert(hasStage);return liveMiddleBoss;}
+struct StageSave {
+    StageSave& getBit(){return *this;}
+    bool isStageBossEnemy2(){return middleBoss[dStage_SaveTbl_LV6];}
+} stageSave;
+struct SaveData {
+    StageSave& getSave(int stage){assert(stage==dStage_SaveTbl_LV6);return stageSave;}
+} saveData;
+SaveData* dComIfGs_getSaveData(){return &saveData;}
 constexpr int dItemNo_SWORD_e=40;
 bool ordonSword=false;
 bool dComIfGs_isItemFirstBit(int item){assert(item==dItemNo_SWORD_e);return ordonSword;}
@@ -42,7 +57,36 @@ int main(){
     assert(!state.glide&&!state.gale&&!state.fierceDeity&&!state.dualWield);
     flags[0]=true;state=progression_state();assert(state.glide&&!state.gale&&!state.fierceDeity);
     flags[1]=true;state=progression_state();assert(state.glide&&state.gale&&!state.fierceDeity);
-    flags[2]=true;state=progression_state();assert(state.glide&&state.gale&&state.fierceDeity);
+    flags[2]=true;state=progression_state();assert(state.glide&&state.gale&&!state.fierceDeity);
+    // Faron and other dungeon minibosses no longer unlock Dark Link.
+    for(int stage=0;stage<10;++stage) if(stage!=dStage_SaveTbl_LV6) middleBoss[stage]=true;
+    state=progression_state();assert(!state.fierceDeity);
+    // Victory is visible immediately in live Temple of Time memory, before
+    // leaving the dungeon copies the flag into the persistent stage save.
+    currentStage=dStage_SaveTbl_LV6;
+    ProgressionNotifications notifications;
+    assert(notifications.update(true,progression_state())==0);
+    liveMiddleBoss=true;state=progression_state();assert(state.fierceDeity);
+    assert(notifications.update(true,state)==4);
+    assert(notifications.update(true,state)==0);
+    middleBoss[dStage_SaveTbl_LV6]=true;currentStage=0;liveMiddleBoss=false;
+    state=progression_state();assert(state.fierceDeity);
+    // The saved flag works outside the dungeon and on older completed saves.
+    flags[2]=false;state=progression_state();assert(state.fierceDeity);
+    hasStage=false;state=progression_state();assert(state.fierceDeity);
+    middleBoss[dStage_SaveTbl_LV6]=false;state=progression_state();assert(!state.fierceDeity);
+    hasStage=true;middleBoss[dStage_SaveTbl_LV6]=true;state=progression_state();
+    for(bool dawnlight:{false,true}){
+        int64_t value=0;
+        assert(mode_override(ModeSetting::FierceDeity,dawnlight,true,state,value)&&value==1);
+        middleBoss[dStage_SaveTbl_LV6]=false;
+        auto locked=progression_state();
+        assert(mode_override(ModeSetting::FierceDeity,dawnlight,true,locked,value)&&value==0);
+        middleBoss[dStage_SaveTbl_LV6]=true;
+    }
+    int64_t personal=0;
+    assert(!mode_override(ModeSetting::FierceDeity,false,false,state,personal));
+    middleBoss[dStage_SaveTbl_LV6]=false;state=progression_state();assert(!state.fierceDeity); // another save
     assert(!state.dualWield); // Other story milestones are not the Ordon Sword.
     ordonSword=true;state=progression_state();assert(state.dualWield);
     ordonSword=false;state=progression_state();assert(!state.dualWield); // another save
@@ -53,4 +97,4 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp.write_text(fixture)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
-print('Boss Rush progression: immediate abilities, heart-based charges, unchanged story flags and Off settings passed')
+print('Progression: Darknut live/saved victory, Faron/other miniboss exclusion, notifications, Boss Rush and Off settings passed')

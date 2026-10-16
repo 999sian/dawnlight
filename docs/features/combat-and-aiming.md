@@ -203,7 +203,7 @@ Other held items retain their normal appearance. Rendering changes are
 scoped to the player's draw calls; shared model data and other actors are untouched.
 
 With [Progression System](general-settings.md) enabled, Dark Link unlocks
-after freeing Faron; it is available immediately in Boss Rush.
+after defeating Darknut in the Temple of Time; it is available immediately in Boss Rush.
 
 ## Shielding and Dual Wield
 
