@@ -183,6 +183,9 @@ void after_room(ModContext*, void* args, void*, void*) {
 void after_request(ModContext*, void* args, void* retval, void*) {
     if (s_roomLoads.empty() || !s_roomLoads.back().enabled || retval == nullptr) return;
     const auto name = mods::arg<s16>(args, 1);
+    // Poes carry collectible souls and save switches. Leave their entire native
+    // creation request intact while randomizing the other enemies in the room.
+    if (name == fpcNm_E_PO_e) return;
     if (!is_enemy_profile(name)) return;
     const auto* append = mods::arg<fopAcM_prm_class*>(args, 4);
     const auto id = *static_cast<fpc_ProcID*>(retval);
