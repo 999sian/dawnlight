@@ -27,6 +27,10 @@
 #include "JSystem/J2DGraph/J2DGrafContext.h"
 #include "JSystem/J2DGraph/J2DPrint.h"
 #include "JSystem/JParticle/JPAEmitter.h"
+#include "JSystem/JKernel/JKRSolidHeap.h"
+#include "JSystem/J3DGraphAnimator/J3DModel.h"
+#include "JSystem/J3DGraphAnimator/J3DJoint.h"
+#include "res/Object/AlAnm.h"
 #include "d/d_particle_name.h"
 #include <algorithm>
 #include <array>
@@ -81,7 +85,9 @@ unsigned s_meleeCooldown = 0;
 unsigned s_comboStep = 0, s_comboTimeout = 0;
 bool s_autoSwordCall = false;
 bool s_wavePending = false, s_allowDrop = false;
-std::array<unsigned, 3> s_cooldowns{};
+std::array<unsigned, 12> s_cooldowns{};
+void clear_loot();
+bool build_treasure_window(UiElementHandle left, UiElementHandle right);
 std::array<unsigned, 3> s_choices{0, 1, 2};
 struct ProcessFrame { void* args; ActorId id; };
 std::vector<ProcessFrame> s_processFrames;
@@ -97,7 +103,9 @@ struct Orb { cXyz position{}; unsigned value = 0; };
 std::array<Orb, orb_capacity> s_orbs;
 struct Attack {
     bool active = false;
-    unsigned life = 0, weapon = 0;
+    unsigned life = 0, weapon = 0, age = 0;
+    bool returning = false, exploding = false;
+    float travel = 0, limit = 0;
     cXyz position{}, velocity{};
     float radius = 0;
     dCcD_Stts status{};
@@ -211,7 +219,7 @@ void detach_attack_references() {
 }
 void reset_runtime() {
     s_saveReady = false; s_gameStarted = false;
-    close_window(); clear_attacks(); detach_attack_references(); retire_enemies();
+    close_window(); clear_attacks(); clear_loot(); detach_attack_references(); retire_enemies();
     if (s_savePrompt != kNone) {
         d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone;
         dComIfGp_setGameoverStatus(0);
@@ -251,6 +259,7 @@ void prepare_save() {
         g_dComIfG_gameInfo.play.setSelectItem(i, dItemNo_NONE_e);
     }
     for (int i = 0; i < MAX_ITEM_SLOTS; ++i) dComIfGs_setItem(i, dItemNo_NONE_e);
+    dComIfGs_setWalletSize(2); // 1000 rupees: every price up to the 20th chest (400) is affordable.
     dComIfGs_setMaxLife(15); // Three hearts; max life uses fifths, gauge uses quarters.
     dComIfGs_setLife(12);
     dComIfGs_setRupee(0);
@@ -402,8 +411,8 @@ cXyz target_direction(daAlink_c* link) {
     return result;
 }
 void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
-    auto slot = std::find_if(s_attacks.begin(), s_attacks.end(), [](const auto& a) { return !a.active; });
-    if (slot == s_attacks.end()) return;
+    auto slot = std::find_if(s_attacks.begin(), s_attacks.begin() + 8, [](const auto& a) { return !a.active; });
+    if (slot == s_attacks.begin() + 8) return;
     auto& a = *slot;
     a.weapon = weapon; a.life = weapon == 0 ? 35 : 3;
     a.position = link->current.pos + cXyz(0, 65, 0);
@@ -550,11 +559,14 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
     *static_cast<BOOL*>(result) = FALSE;
     return HOOK_SKIP_ORIGINAL;
 }
+#include "survivors_loot.inc"
+
 void update_weapons(daAlink_c* link) {
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
     for (auto& a : s_attacks) {
         if (!a.active) continue;
         a.status.Move();
+        if (a.weapon >= unsigned(Upgrade::Bow)) { update_item_attack(a, link); continue; }
         if (!a.life-- || a.collider.ChkAtShieldHit()) { stop_attack(a); continue; }
         const cXyz next = a.position + a.velocity;
         dBgS_LinChk wall; wall.Set(&a.position, &next, link);
@@ -566,6 +578,7 @@ void update_weapons(daAlink_c* link) {
         dComIfG_Ccsp()->Set(&a.collider);
     }
     update_sword(link);
+    fire_items(link);
     if (s_run.ranks[2] && !s_cooldowns[2]) {
         launch(link, 2, cXyz(0, 0, 0));
         s_cooldowns[2] = s_run.cooldown(65);
@@ -606,6 +619,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     s_run.tick(true);
     update_spawns(link); update_weapons(link); update_orbs(link);
     if (s_run.level_up()) clear_attacks();
+    else update_chests(link);
 }
 HookAction before_death(ModContext*, void*, void* result, void*) {
     if (!in_arena() || (s_run.phase != Phase::Running && s_run.phase != Phase::Upgrade)) return HOOK_CONTINUE;
@@ -709,8 +723,9 @@ void after_draw(ModContext*, void*, void*, void*) {
         cXyz size(10, 16, 10); csXyz angle(0, static_cast<s16>(s_run.ticks * 300), 0);
         dDbVw_drawCubeOpa(orb.position, size, angle, GXColor{90, 235, 255, 255});
     }
+    draw_loot();
     for (auto& a : s_attacks) {
-        if (!a.active || a.weapon == 0) continue;
+        if (!a.active || a.weapon != 2) continue;
         const GXColor color{255, 235, 160, 180};
         // Only Light Aura uses a ring; Sword Wave uses native spin particles.
         for (unsigned i = 0; i < 24; ++i) {
@@ -755,10 +770,14 @@ void draw_hud(ModContext*, void*, void*, void*) {
     graf->setColor(JUtility::TColor(80, 220, 245, 240));
     graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x - 160 + 320 * fraction, 88));
     graf->setColor(oldTL, oldTR, oldBR, oldBL);
+    std::snprintf(text, sizeof(text), "Bow %u | Boomerang %u | Bombs %u | Ball %u | Next chest: %u rupees",
+        s_run.rank(Upgrade::Bow), s_run.rank(Upgrade::Boomerang), s_run.rank(Upgrade::Bombs),
+        s_run.rank(Upgrade::Ball), s_run.chest_cost());
+    label(text, x, 96, 12);
     if (s_run.ticks >= duration && s_run.phase == Phase::Running)
-        label("Defeat the Elite Bokoblin!", x, 94, 16);
+        label("Defeat the Elite Bokoblin!", x, 116, 16);
     else if (s_spawnFailures >= 10)
-        label("Waiting for a clear enemy spawn position", x, 94, 13);
+        label("Waiting for a clear enemy spawn position", x, 116, 13);
     graf->setup2D();
 }
 void select_upgrade(ModContext*, void* data) {
@@ -774,9 +793,10 @@ void select_upgrade(ModContext*, void* data) {
 }
 void start_run(ModContext*, void*) {
     if (s_run.phase != Phase::Ready) return;
-    close_window(); prepare_save();
+    close_window(); clear_attacks(); clear_loot(); prepare_save();
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
-    s_run.start(seed); s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
+    s_run.start(seed); s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
+    s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
     s_comboStep = s_comboTimeout = 0;
 }
@@ -790,6 +810,10 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 }
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {
+    if (s_run.phase == Phase::Treasure) {
+        build_treasure_window(left, right);
+        return MOD_OK;
+    }
     if (s_run.phase == Phase::Upgrade) {
         svc_ui->pane_add_text(mod_ctx, right, "Combat is paused. Choose one upgrade. Closing this window keeps the same choices.", nullptr);
         for (unsigned i = 0; i < 3; ++i) {
@@ -808,7 +832,8 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         svc_ui->pane_add_text(mod_ctx, right,
             "Move and dodge while your weapons attack automatically. Collect the blue crystals to level up. "
             "Normal sword strikes are automatic. Unlock Sword Wave, Whirling Blade and Light Aura during the run. Enemies may drop hearts and rupees. "
-            "This first arena uses the native camera and supports controller and touch controls.", nullptr);
+            "Approach treasure chests to buy automatic item weapons. Prices start at 20 rupees and rise by 20 after every purchase. "
+            "Chest weapons can reach Level 5 through duplicate finds and level-up choices.", nullptr);
         std::snprintf(text, sizeof(text), "Completed runs: %u | Wins: %u | Best kills: %u | Best level: %u",
             s_records.runs, s_records.wins, s_records.best_kills, s_records.best_level);
         svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
@@ -820,6 +845,10 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
     svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
     std::snprintf(text, sizeof(text), "Sword Wave %u | Whirling Blade %u | Light Aura %u",
         s_run.ranks[0], s_run.ranks[1], s_run.ranks[2]);
+    svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
+    std::snprintf(text, sizeof(text), "Bow %u | Boomerang %u | Bombs %u | Ball and Chain %u | Chests %u",
+        s_run.rank(Upgrade::Bow), s_run.rank(Upgrade::Boomerang), s_run.rank(Upgrade::Bombs),
+        s_run.rank(Upgrade::Ball), s_run.chests_opened);
     svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
     svc_ui->pane_add_text(mod_ctx, right, s_storeFailed ?
         "Records could not be stored. Retry saving before leaving this mode." :
@@ -869,13 +898,13 @@ void update_survivors() {
         }
         return;
     }
-    if (!in_arena() || transitioning()) { s_player = kNone; s_warmup = 0; return; }
+    if (!in_arena() || transitioning()) { clear_attacks(); clear_loot(); s_player = kNone; s_warmup = 0; return; }
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
     if (s_restart) {
         // Always use a scene reload: destroys old actors, pending spawns, collision,
         // damage animations and native drop actors before another run starts.
-        retire_enemies(); clear_attacks();
+        retire_enemies(); clear_attacks(); clear_loot();
         dComIfGp_setNextStage(kStage, 0, 51, 0);
         s_run = {}; s_orbs = {}; s_restart = false; s_player = kNone;
         s_resultsStored = false; s_spawnFailures = 0;
@@ -898,7 +927,7 @@ void update_survivors() {
         s_saveRequested = s_savePrompt == kNone;
         return;
     }
-    if (s_run.phase == Phase::Ready || s_run.phase == Phase::Upgrade ||
+    if (s_run.phase == Phase::Ready || s_run.phase == Phase::Upgrade || s_run.phase == Phase::Treasure ||
         s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) open_window();
 }
 ModResult initialize_survivors(ModError* error) {

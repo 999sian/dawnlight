@@ -49,6 +49,38 @@ int main() {
     run.ranks[3] = run.ranks[4] = run.ranks[5] = run.ranks[6] = 1;
     assert(!run.eligible(Upgrade::Heart)); // Four passive slots, existing ranks can improve.
     assert(run.eligible(Upgrade::Power) && run.eligible(Upgrade::Spin) && run.eligible(Upgrade::Rupees));
+    // Chest weapons cannot be acquired from level-up offers before a purchase.
+    for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
+        assert(!run.eligible(static_cast<Upgrade>(i)));
+    unsigned wallet = 19;
+    Upgrade reward = Upgrade::Count;
+    run.phase = Phase::Treasure;
+    const auto rng = run.random;
+    assert(!run.buy_chest(wallet, reward) && wallet == 19 && run.random == rng && run.chest_cost() == 20);
+    wallet = 20;
+    assert(run.buy_chest(wallet, reward) && wallet == 0 && run.chest_cost() == 40);
+    assert(run.rank(reward) == 1 && run.eligible(reward)); // Even with four occupied passives.
+    assert(!run.tick(true)); // Treasure dialog cannot advance encounter time.
+    run.start(20); run.phase = Phase::Treasure;
+    wallet = 10000;
+    for (unsigned n = 0; n < 20; ++n) {
+        assert(run.chest_cost() == 20 * (n + 1));
+        assert(run.buy_chest(wallet, reward) && run.rank(reward) <= 5);
+    }
+    assert(wallet == 5800 && !run.chest_rewards_left());
+    const auto maxedRng = run.random;
+    assert(!run.buy_chest(wallet, reward) && wallet == 5800 && run.random == maxedRng);
+    for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
+        const auto weapon = static_cast<Upgrade>(i);
+        assert(run.rank(weapon) == 5 && !run.eligible(weapon));
+        const auto fast = run.item_cooldown(weapon);
+        run.ranks[i] = 1;
+        assert(run.item_cooldown(weapon) > fast);
+    }
+    run.start(2);
+    assert(run.chests_opened == 0 && run.chest_cost() == 20 && run.chest_rewards_left());
+    wallet = 100;
+    assert(!run.buy_chest(wallet, reward) && wallet == 100); // No purchase outside the dialog.
     Records records;
     records.finish(run); assert(records.runs == 0); // Live runs cannot become records.
     run.end(false); assert(run.phase == Phase::Defeat && !run.tick(true));

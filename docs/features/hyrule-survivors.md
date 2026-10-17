@@ -35,6 +35,10 @@ is retained and multiple earned levels are offered consecutively.
 | Sword Wave | Unlock aimed, piercing projectiles released during a normal sword swing; additional waves at levels 3 and 5 |
 | Whirling Blade | Unlock or improve a native Spin Attack with freely steerable movement |
 | Light Aura | Unlock or improve a smaller, more frequent area attack |
+| Hero's Bow | Chest unlock; stronger/faster arrows, spread shots at ranks 3 and 5 |
+| Boomerang | Chest unlock; damaging outbound/returning projectile, stronger/larger/faster with upgrades |
+| Bombs | Chest unlock; aimed ballistic throws with larger, stronger blasts and shorter cooldowns |
+| Ball and Chain | Chest unlock; launch and retract a heavy ball, stronger/larger/faster with upgrades |
 | Power | Increase automatic weapon damage |
 | Haste | Reduce automatic weapon cooldowns |
 | Reach | Increase weapon size |
@@ -42,7 +46,8 @@ is retained and multiple earned levels are offered consecutively.
 | Heart Container | Add one maximum heart without healing |
 | Rupees | Receive 20 rupees without healing |
 
-Equip all three available weapons and up to four different passive upgrades.
+Equip all three base weapons, all four chest weapons and up to four different
+passive upgrades. Chest weapons do not consume passive slots.
 Weapons and passives have five levels. Rupees remain available after the
 other upgrades reach their caps. Native enemy invulnerability, defense and death
 reactions still apply; the mod replaces the native nonlinear damage table only
@@ -61,6 +66,39 @@ population and Bokoblin health increase during the run. At ten minutes, ordinary
 spawning stops and an Elite Bokoblin appears. Defeat it to win. Death opens a
 result screen with time, kills, level and weapon levels. **New run** reloads the
 arena and resets all run upgrades.
+
+## Treasure chests
+
+Two treasure chests can be present at once. The first appears after 20–30 seconds;
+subsequent spawns are attempted at random 25–45 second intervals. Positions need
+flat ground, a clear footprint and an unobstructed line from Link. Failed/full
+placements retry after three seconds. Closed chests remain until purchased or the
+run ends; opened chests disappear after six seconds of resumed gameplay.
+
+Approach a chest to open a controller/touch-compatible purchase dialog. Combat
+and the run timer pause. The price is **20 rupees**, then **40**, **60**, and so on
+for each successful purchase in this run. Leaving the chest, insufficient funds,
+failed loading or repeated button callbacks do not charge rupees or advance the
+price. After leaving, move away and return to reopen the dialog. Closing the
+window keeps combat paused until the purchase or leave choice is made.
+
+Each purchase chooses equally among Hero's Bow, Boomerang, Bombs and Ball and
+Chain that are below rank 5. A first find unlocks the weapon at rank 1; duplicates
+add one rank. Unlocked chest weapons also enter the normal level-up pool. Maxed
+weapons are excluded from chest rewards, and no further chests spawn once all
+four are maxed. The separate Survivors save starts each run with the giant wallet
+(at least 1000 capacity), zero rupees and reset chest prices/unlocks.
+
+All four weapons attack automatically alongside the sword, without equipping
+items, consuming ammunition or interrupting movement. They aim at the nearest
+live tracked enemy within range and line of sight. Arrows stop on impact;
+boomerangs deal Survivors damage on their outward/return paths; bombs follow an
+arc and explode at the target or a wall; the ball launches outward and retracts
+toward Link. Projectiles cannot pass through walls. Power, Haste and Reach also
+apply. Custom bomb/ball hits use the linear Survivors damage path to avoid
+vanilla Bokoblin instant-death/health-correction special cases. Native item/chest models and bomb particles are reused; the chest lid
+animates after continuing from the reward dialog. These are run-local purchase
+props, not story treasure actors or inventory acquisitions.
 
 ## Records and saving
 
@@ -81,12 +119,15 @@ height. Other mods can still change gameplay; cross-mod balance is not enforced.
 ## Initial scope and device testing
 
 This is the initial arena implementation. It retains the native camera and uses
-code-drawn crystals and aura rings, plus native sword and particle effects. No additional textures, models or
-music are required. Larger arenas, camera changes, weapon evolutions, persistent
+code-drawn crystals, aura rings and chain lines, plus native chest/item models,
+sword animations and particle effects. No additional textures, models or music
+are required. Larger arenas, camera changes, weapon evolutions, persistent
 unlock trees and mid-run suspend are not part of this version.
 
 The budgets are 24 tracked enemies (including pending/deleting actors),
-16 attack objects and 64 experience crystals. Excess crystals merge their value.
+24 attack objects (eight base-weapon slots and four per chest weapon), two chest
+props and 64 experience crystals. Model allocation is bounded by a 2 MiB heap,
+trimmed after loading. Excess crystals merge their value.
 These limits are starting budgets, not a measured Android performance guarantee.
 Spawns require a valid floor and unobstructed line from Link, and are staggered.
 A failed elite creation/despawn can be retried without counting as a victory.
@@ -95,7 +136,7 @@ Only confirmed deaths of initialized, tracked actors award experience.
 Before merging/releasing, test on Android and desktop:
 
 1. Create and reload a separate Survivors slot; verify story and Boss Rush saves.
-2. Complete a run using all three weapons; check native enemy death, elite victory
+2. Complete a run using all seven weapons; check native enemy death, elite victory
    and no HP scaling leakage. Verify jump, dodge, controller and touch controls.
 3. Level up while surrounded, close/reopen the choice window, and earn several
    levels at once. Verify Link/enemies and the timer stay paused during selection.
@@ -111,10 +152,20 @@ Before merging/releasing, test on Android and desktop:
    native spin hits and that damage/dodges safely interrupt attacks.
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)
    does not heal and that restarting clears pickups and all weapon unlocks.
+10. Approach chests with 19/20 rupees, leave and return, buy twice, and confirm
+    prices 20/40/60 with no duplicate charges. Test controller and touch dialogs.
+11. Obtain all four chest weapons, test nearest-target selection, arrow impact,
+    bomb blasts, returning boomerangs/balls and walls. Verify rank upgrades and
+    simultaneous movement/automatic sword combos.
+12. Restart/change modes with closed/open chests and active item projectiles;
+    verify prices, ranks, models, particles and collisions reset. Verify story
+    treasure flags and inventory are unaffected.
 
 Automated tests cover rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared
 Boss Rush arena admission, sword scheduling with the native combo selector,
 movement during all three sword procedures, wave timing and
-particle cleanup, drop gating and level-up rewards. They do not replace the
+particle cleanup, drop gating and level-up rewards. Loot tests additionally cover
+purchase pricing/caps, guarded transactions, placement, all four trajectories,
+target selection, model-load failures and shared-animation/heap cleanup. They do not replace the
 in-game checks above.

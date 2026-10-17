@@ -58,7 +58,7 @@ unsigned s_spawnCooldown=0, s_spawnFailures=0, s_warmup=0;
 std::array<unsigned,3> s_cooldowns{};
 std::array<int,64> s_orbs{};
 Records s_records;
-void close_window() {} void clear_attacks() {} void detach_attack_references() {}
+void close_window() {} void clear_attacks() {} void clear_loot() {} void detach_attack_references() {}
 void d_GameOver_Delete(ActorId) {} void dComIfGp_setGameoverStatus(int) {}
 constexpr int MAX_SELECT_ITEM=4, MAX_ITEM_SLOTS=24, dItemNo_NONE_e=255;
 constexpr int TF_STATUS_HUMAN=0, dItemNo_WEAR_KOKIRI_e=47, KOKIRI_CLOTHES_FLAG=1;
@@ -89,6 +89,7 @@ void dComIfGs_onItemFirstBit(int){} void dComIfGs_setCollectClothes(int){}
 void dComIfGs_setSelectEquipClothes(int){} void dComIfGs_setCollectSword(int){}
 void dComIfGs_setSelectEquipSword(int){} void dComIfGs_setSelectEquipShield(int){}
 void dComIfGs_setBButtonItemKey(int){} void dComIfGs_setMaxLife(int){}
+void dComIfGs_setWalletSize(int){}
 void dComIfGs_setLife(int){} void dComIfGs_setRupee(int){}
 // A live third-slot hook can dereference the absent Link actor during file
 // select. Any live slot setter is forbidden in this pre-game fixture.

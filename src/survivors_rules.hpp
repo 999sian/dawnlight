@@ -9,26 +9,32 @@ namespace dawnlight::survivors {
 inline constexpr unsigned ticks_per_second = 30;
 inline constexpr unsigned duration = 10 * 60 * ticks_per_second;
 inline constexpr unsigned enemy_capacity = 24;
-inline constexpr unsigned projectile_capacity = 16;
+inline constexpr unsigned projectile_capacity = 24;
 inline constexpr unsigned orb_capacity = 64;
-enum class Phase { Loading, Ready, Running, Upgrade, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, Aura, Power, Haste, Reach, Magnet, Heart, Rupees, Count };
+enum class Phase { Loading, Ready, Running, Upgrade, Treasure, Victory, Defeat };
+enum class Upgrade : unsigned { Wave, Spin, Aura, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, Rupees, Count };
 inline constexpr std::array names{
-    "Sword Wave", "Whirling Blade", "Light Aura", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Rupees"};
+    "Sword Wave", "Whirling Blade", "Light Aura", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Rupees"};
 inline constexpr std::array descriptions{
     "Automatic piercing sword waves. Higher levels add damage and extra waves.",
     "Unlock or improve a moving spin attack.",
     "Unlock or improve a short-range pulse of light around Link.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
     "Increase the size of automatic attacks.", "Collect experience from farther away.",
-    "Gain one maximum heart (does not heal).", "Receive 20 rupees."};
+    "Gain one maximum heart (does not heal).",
+    "Faster, stronger arrows. Ranks 3 and 5 add spread shots.",
+    "A damaging returning boomerang. Upgrades increase damage, size and firing rate.",
+    "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
+    "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
+    "Receive 20 rupees."};
 
 struct Run {
     Phase phase = Phase::Loading;
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
     bool elite_spawned = false;
-    std::array<unsigned, 8> ranks{};
+    std::array<unsigned, 12> ranks{};
+    unsigned chests_opened = 0;
     std::array<Upgrade, 3> offers{};
     uint32_t next_random() {
         random ^= random << 13; random ^= random >> 17; random ^= random << 5;
@@ -40,9 +46,10 @@ struct Run {
     bool eligible(Upgrade u) const {
         if (u == Upgrade::Rupees) return true;
         if (rank(u) >= 5) return false;
-        if (u >= Upgrade::Power && rank(u) == 0) {
+        if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
+        if (u >= Upgrade::Power && u <= Upgrade::Heart && rank(u) == 0) {
             unsigned occupied = 0;
-            for (unsigned i = 3; i < ranks.size(); ++i) occupied += ranks[i] != 0;
+            for (unsigned i = 3; i < static_cast<unsigned>(Upgrade::Bow); ++i) occupied += ranks[i] != 0;
             if (occupied >= 4) return false;
         }
         return true;
@@ -50,7 +57,7 @@ struct Run {
     bool level_up() {
         if (phase != Phase::Running || xp < required_xp()) return false;
         xp -= required_xp(); ++level;
-        std::array<Upgrade, 9> pool{};
+        std::array<Upgrade, static_cast<unsigned>(Upgrade::Count)> pool{};
         unsigned count = 0;
         for (unsigned i = 0; i < static_cast<unsigned>(Upgrade::Count); ++i)
             if (eligible(static_cast<Upgrade>(i))) pool[count++] = static_cast<Upgrade>(i);
@@ -70,6 +77,31 @@ struct Run {
         phase = Phase::Running;
         return true;
     }
+    unsigned chest_cost() const { return 20 * (chests_opened + 1); }
+    bool chest_rewards_left() const {
+        for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
+            if (ranks[i] < 5) return true;
+        return false;
+    }
+    // Atomic, run-local purchase. Unaffordable/all-maxed attempts do not roll,
+    // consume currency, advance prices or change upgrades.
+    bool buy_chest(unsigned& rupees, Upgrade& reward) {
+        if (phase != Phase::Treasure || rupees < chest_cost()) return false;
+        std::array<Upgrade, 4> pool{};
+        unsigned count = 0;
+        for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
+            if (ranks[i] < 5) pool[count++] = static_cast<Upgrade>(i);
+        if (!count) return false;
+        reward = pool[next_random() % count];
+        rupees -= chest_cost(); ++chests_opened;
+        ++ranks[unsigned(reward)];
+        return true;
+    }
+    unsigned item_cooldown(Upgrade weapon) const {
+        const unsigned base = weapon == Upgrade::Bow ? 50 : weapon == Upgrade::Boomerang ? 85 :
+            weapon == Upgrade::Bombs ? 110 : 100;
+        return cooldown(base - 5 * (std::max(1u, rank(weapon)) - 1));
+    }
     bool tick(bool playable) {
         if (phase != Phase::Running || !playable) return false;
         ++ticks; return true;
@@ -86,7 +118,7 @@ struct Run {
     }
     unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power); }
     float radius(float base) const { return base * (1.0f + 0.15f * rank(Upgrade::Reach)); }
-    void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade) phase = won ? Phase::Victory : Phase::Defeat; }
+    void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };
 
 // Explicit little-endian encoding, independent of ABI padding and game version.
