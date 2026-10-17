@@ -21,13 +21,26 @@ assert 'field_0x22d[3][3] = isSkillIconVisible();' in collect
 core = (root/'src/survivors.cpp').read_text()
 a = core.index('void select_upgrade(')
 select = core[a:core.index('\nvoid start_run(', a)]
+# Compile the host's descriptor validation, not a permissive UI mock: rejected
+# descriptors fail the tab builder and cause Dusklight to deactivate the mod.
+host_ui = (sdk/'src/dusk/mods/svc/ui.cpp').read_text()
+a = host_ui.index('constexpr size_t kUiControlStringSetModeSize =')
+validator = host_ui[a:host_ui.index('constexpr size_t kUiControlOptionsSize =', a)]
+a = host_ui.index('bool valid_color_preset(')
+validator += host_ui[a:host_ui.index('bool copy_list_items(', a)]
 fixture = r'''
 #include <any>
 #include <cassert>
+#include <climits>
+#include <cstddef>
 #include <map>
 #include <string>
+#include <string_view>
 #include "survivors_items.hpp"
 #include "mods/svc/ui.h"
+// Icon buttons are not used here; the real validator still references lookup.
+namespace ui {const char* material_icon(const char*){assert(false);return "";}}
+// SDK_VALIDATOR
 using namespace dawnlight::survivors;
 using u8=uint8_t;
 constexpr u8 dItemNo_NOENTRY_146_e=0x92;
@@ -59,6 +72,8 @@ ModResult row(ModContext*,UiElementHandle parent,const UiRowDesc* desc,UiElement
 ModResult rml(ModContext*,UiElementHandle parent,const char* text,UiElementHandle* out){return add(parent,"rml",text,out);}
 ModResult text(ModContext*,UiElementHandle parent,const char* text,UiElementHandle* out){return add(parent,"text",text,out);}
 ModResult control(ModContext*,UiElementHandle parent,const UiControlDesc* desc,UiElementHandle* out){
+ if(out)*out=0;
+ if(!parent||!desc||!valid_control_desc(*desc))return MOD_INVALID_ARGUMENT;
  UiElementHandle id=0;auto result=add(parent,"button",desc->label,&id);
  if(out){*out=id;}auto& e=elements.at(id);e.pressed=desc->on_pressed;e.data=desc->user_data;e.help=desc->help_rml?desc->help_rml:"";
  return result;
@@ -69,7 +84,9 @@ UiWindowClosedFn onClosed=nullptr;
 ModResult push(ModContext*,const UiWindowDesc* desc,UiWindowHandle* out){
  ++pushed;if(failPush)return MOD_UNAVAILABLE;
  assert(desc->tab_count==1&&std::string(desc->tabs[0].title)=="Power-ups");
- *out=42;onClosed=desc->on_closed;visible=true;return desc->tabs[0].build(nullptr,42,1,2,nullptr,nullptr);
+ *out=42;onClosed=desc->on_closed;visible=true;
+ const auto result=desc->tabs[0].build(nullptr,42,1,2,nullptr,nullptr);
+ assert(result==MOD_OK);return result;
 }
 ModResult close(ModContext*,UiWindowHandle h){assert(h==42);++closed;visible=false;onClosed(nullptr,h,nullptr);return MOD_OK;}
 struct Log{void warn(ModContext*,const char*){}}logService;auto* svc_log=&logService;
@@ -87,6 +104,12 @@ int main(){
  service.pane_add_row=row;service.pane_add_rml=rml;service.pane_add_text=text;
  service.pane_add_control=control;service.elem_set_class=css;service.elem_set_visible=setVisible;
  service.window_push=push;service.window_close=close;
+ // This was the invalid descriptor that returned error 5 in the crash log.
+ fresh();UiControlDesc invalid=UI_CONTROL_DESC_INIT;
+ invalid.label="Power - Level 2";invalid.help_rml="+2 damage";
+ UiElementHandle rejected=99;
+ assert(control(nullptr,1,&invalid,&rejected)==MOD_INVALID_ARGUMENT);
+ assert(rejected==0&&elements.size()==2);
  fresh();s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::Power,Upgrade::Heart,Upgrade::Wave};
  const auto rng=s_run.random;assert(build_upgrade_choices(1,2)==MOD_OK);
  std::vector<Element*> buttons;unsigned cards=0;
@@ -120,13 +143,21 @@ int main(){
  assert(before_powerup_collection_wait(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
  // Overview is a read-only list of owned ranks with effective descriptions.
  fresh();s_run.ranks[3]=2;s_run.ranks[8]=5;s_run.ranks[12]=3;
- assert(build_powerup_overview(nullptr,42,1,2,nullptr,nullptr)==MOD_OK);unsigned count=0;
+ menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);
+ open_powerup_window();assert(s_powerupsWindow==42&&pushed==1);
+ const auto ranks=s_run.ranks;const auto overviewRng=s_run.random;unsigned count=0;
  for(const auto& [id,e]:elements)if(e.kind=="button"){
-   ++count;assert(!e.pressed&&!e.help.empty());
+   ++count;assert(e.pressed&&!e.help.empty());
+   e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);
    if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("3 arrows/shot")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
    if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);
  }
- assert(count==3&&s_run.rank(Upgrade::Power)==2);
+ assert(count==3&&s_run.ranks==ranks&&s_run.random==overviewRng);
+ assert(money==100&&lifeMax==15&&closed==0&&s_run.phase==Phase::Running);
+ close(nullptr,42);assert(!s_powerupsWindow&&!s_powerupsRequested&&!s_powerupsMenu);
+ menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);
+ open_powerup_window();assert(s_powerupsWindow==42&&pushed==2);
+ close_powerup_window();assert(!visible&&!s_powerupsRequested&&!s_powerupsMenu);
  // Story-mode flags and other collection requests are unaffected.
  fresh();arena=false;shown=false;after_powerup_scroll_visible(nullptr,nullptr,&shown,nullptr);assert(!shown);
  menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);assert(menu.mSubWindowOpenCheck==5&&!s_powerupsRequested);
@@ -148,7 +179,7 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp)/'test.cpp'
     binary = Path(tmp)/'test'
-    cpp.write_text(fixture + select + common + source + main)
+    cpp.write_text(fixture.replace('// SDK_VALIDATOR', validator) + select + common + source + main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes',
                     '-I',str(root/'src'),'-I',str(sdk/'sdk/include'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

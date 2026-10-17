@@ -61,7 +61,9 @@ ModResult build_powerup_overview(ModContext*, UiWindowHandle, UiElementHandle le
         UiControlDesc control = UI_CONTROL_DESC_INIT;
         control.label = label.c_str();
         // Native focus/hover updates the right pane for controller and touch.
-        // This is read-only; no activation callback grants another upgrade.
+        // Buttons require on_pressed even when read-only. Omitting it rejects
+        // the descriptor and fails the tab build, deactivating the entire mod.
+        control.on_pressed = [](ModContext*, void*) {};
         control.help_rml = help.c_str();
         result = svc_ui->pane_add_control(mod_ctx, left, &control, nullptr);
         if (result != MOD_OK) return result;
