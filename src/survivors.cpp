@@ -432,7 +432,7 @@ bool spawn_enemy(daAlink_c* link, bool elite) {
         dBgS_LinChk wall; wall.Set(&from, &to, link);
         if (dComIfG_Bgsp().LineCross(&wall)) continue;
         ActorId id = kNone;
-        const float scale = elite ? 1.4f : 1.0f;
+        const float scale = elite ? 2.0f : 1.0f;
         const ActorSpawnParams params{
             .parameters = parameters[type], .argument = -1, .room_num = 51,
             .position = {pos.x, pos.y, pos.z},
@@ -769,6 +769,9 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     if (enemy && !enemy->initialized) {
         enemy->initialized = true;
         if (enemy->profile == fpcNm_E_OC_e) {
+            // Native mtx_set ignores actor scale and uses its fixed HIO size.
+            // Model scale is applied before joint calculation, including the weapon.
+            if (enemy->elite) static_cast<daE_OC_c*>(actor)->getOcModel()->setBaseScale(actor->scale);
             actor->field_0x560 = actor->health = enemy->elite ? 120 :
                 static_cast<s16>(8 + std::min(24u, s_run.ticks / 900));
         }
@@ -797,6 +800,15 @@ void after_process(ModContext*, void* args, void*, void*) {
     if (!in_arena() || s_run.phase != Phase::Running || transitioning()) return;
     auto* enemy = tracked(frame.id);
     auto* actor = actor_by_id(frame.id);
+    if (enemy && actor && enemy->elite && enemy->profile == fpcNm_E_OC_e) {
+        // cc_set follows the scaled joints but writes fixed radii each Execute.
+        // Assign absolute values so paused callbacks cannot compound the scale.
+        auto* bokoblin = static_cast<daE_OC_c*>(actor);
+        bokoblin->mSphs_cc[0].SetR(50.0f * actor->scale.x);
+        bokoblin->mSphs_cc[1].SetR(45.0f * actor->scale.x);
+        bokoblin->mSphs_at[0].SetR(45.0f * actor->scale.x);
+        bokoblin->mSphs_at[1].SetR(30.0f * actor->scale.x);
+    }
     if (enemy && actor) credit_death(*enemy, actor);
 }
 HookAction before_drop(ModContext*, void*, void* result, void*) {

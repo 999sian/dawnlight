@@ -120,7 +120,8 @@ One chest still charges only once. Price increases are +5, +7, +9, +11 rupees, e
 
 Bokoblins and Keese appear first; Rats join after 30 seconds. Spawn frequency,
 population and Bokoblin health increase during the run. At ten minutes, ordinary
-spawning stops and an Elite Bokoblin appears. Defeat it to win. Death opens a
+spawning stops and an Elite Bokoblin appears at twice the normal size, with
+matching hitboxes so it is easy to recognize. Defeat it to win. Death opens a
 result screen with time, kills, level and weapon levels. **New run** reloads the
 arena and resets all run upgrades.
 
