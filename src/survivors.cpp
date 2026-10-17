@@ -214,11 +214,17 @@ void prepare_save() {
     dComIfGs_setSelectEquipSword(dItemNo_SWORD_e);
     dComIfGs_setSelectEquipShield(dItemNo_NONE_e);
     dComIfGs_setBButtonItemKey(dItemNo_SWORD_e);
-    for (int i = 0; i < MAX_ITEM_SLOTS; ++i) dComIfGs_setItem(i, dItemNo_NONE_e);
+    // Save callbacks run inside file select, before Link exists. The live
+    // dComIfGs_setSelectItemIndex hook in HD HUD checks Link's wolf state for
+    // slot 2. Initialize the data directly, including the play cache, instead.
+    // Clear assignments first so setItem cannot refresh an assigned slot.
+    auto& status = save->getPlayer().getPlayerStatusA();
     for (int i = 0; i < MAX_SELECT_ITEM; ++i) {
-        dComIfGs_setSelectItemIndex(i, dItemNo_NONE_e);
-        dComIfGs_setMixItemIndex(i, dItemNo_NONE_e);
+        status.setSelectItemIndex(i, dItemNo_NONE_e);
+        status.setMixItemIndex(i, dItemNo_NONE_e);
+        g_dComIfG_gameInfo.play.setSelectItem(i, dItemNo_NONE_e);
     }
+    for (int i = 0; i < MAX_ITEM_SLOTS; ++i) dComIfGs_setItem(i, dItemNo_NONE_e);
     dComIfGs_setMaxLife(15); // Three hearts; max life uses fifths, gauge uses quarters.
     dComIfGs_setLife(12);
     dComIfGs_setRupee(0);

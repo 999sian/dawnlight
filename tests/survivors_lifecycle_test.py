@@ -56,8 +56,45 @@ std::array<int,64> s_orbs{};
 Records s_records;
 void close_window() {} void clear_attacks() {} void detach_attack_references() {}
 void d_GameOver_Delete(ActorId) {} void dComIfGp_setGameoverStatus(int) {}
-unsigned preparations=0;
-void prepare_save() { ++preparations; }
+constexpr int MAX_SELECT_ITEM=4, MAX_ITEM_SLOTS=24, dItemNo_NONE_e=255;
+constexpr int TF_STATUS_HUMAN=0, dItemNo_WEAR_KOKIRI_e=47, KOKIRI_CLOTHES_FLAG=1;
+constexpr int dItemNo_SWORD_e=40, COLLECT_ORDON_SWORD=1;
+struct dSv_event_flag_c { enum { F_0250, F_0302, M_010 }; };
+struct Status {
+    std::array<int,MAX_SELECT_ITEM> slots{}, mixes{};
+    void setSelectItemIndex(int i,int v){slots.at(i)=v;}
+    void setMixItemIndex(int i,int v){mixes.at(i)=v;}
+};
+struct ReturnPlace { void set(const char*,int,int){} };
+struct Player {
+    Status status; ReturnPlace place;
+    Status& getPlayerStatusA(){return status;}
+    ReturnPlace& getPlayerReturnPlace(){return place;}
+};
+struct Save { Player player; Player& getPlayer(){return player;} } save;
+struct Play {
+    std::array<int,MAX_SELECT_ITEM> selected{};
+    void setSelectItem(int i,int v){selected.at(i)=v;}
+};
+struct Game { Play play; } g_dComIfG_gameInfo;
+std::array<int,MAX_ITEM_SLOTS> inventory{};
+Save* dComIfGs_getSaveData(){return &save;}
+void save_state_set_boss_rush_active(bool){} void save_state_set_intro_skipped(bool){}
+void dComIfGs_onEventBit(int){} void dComIfGs_setTransformStatus(int){}
+void dComIfGs_onItemFirstBit(int){} void dComIfGs_setCollectClothes(int){}
+void dComIfGs_setSelectEquipClothes(int){} void dComIfGs_setCollectSword(int){}
+void dComIfGs_setSelectEquipSword(int){} void dComIfGs_setSelectEquipShield(int){}
+void dComIfGs_setBButtonItemKey(int){} void dComIfGs_setMaxLife(int){}
+void dComIfGs_setLife(int){} void dComIfGs_setRupee(int){}
+// A live third-slot hook can dereference the absent Link actor during file
+// select. Any live slot setter is forbidden in this pre-game fixture.
+void dComIfGs_setSelectItemIndex(int,int){assert(false && "live item hook before Link exists");}
+void dComIfGs_setMixItemIndex(int,int){assert(false && "live mix hook during save preparation");}
+void dComIfGs_setItem(int i,int v){
+    // Native setItem refreshes the play selection if this slot is assigned.
+    for (int slot : save.player.status.slots) assert(slot==dItemNo_NONE_e);
+    inventory.at(i)=v;
+}
 constexpr char kBlob[]="records";
 struct mDoRst {
     static inline bool resetting=false, menu=false;
@@ -90,6 +127,22 @@ Service* svc_actor=&service; ModContext* mod_ctx=nullptr;
 '''
 main = r'''
 int main() {
+    save.player.status.slots.fill(dItemNo_NONE_e);
+    save.player.status.mixes.fill(dItemNo_NONE_e);
+    prepare_save(); // Even a blank new save must not call live item hooks.
+    // Cover reused/loaded slots, not only a blank new-save buffer. The HUD's
+    // play cache and all saved selections must agree before inventory clears.
+    for (int pass=0;pass<2;++pass) {
+        save.player.status.slots={0,4,10,23};save.player.status.mixes={4,10,23,0};
+        g_dComIfG_gameInfo.play.selected.fill(40);inventory.fill(40);
+        prepare_save();
+        for (int i=0;i<MAX_SELECT_ITEM;++i) {
+            assert(save.player.status.slots[i]==dItemNo_NONE_e);
+            assert(save.player.status.mixes[i]==dItemNo_NONE_e);
+            assert(g_dComIfG_gameInfo.play.selected[i]==dItemNo_NONE_e);
+        }
+        for (int item : inventory) assert(item==dItemNo_NONE_e);
+    }
     s_run.start(1);
     daE_OC_c actor; actor.health=0;
     Enemy enemy{7,fpcNm_E_OC_e,true,false,false,false,0};
@@ -189,7 +242,7 @@ int main() {
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'; binary=Path(tmp)/'test'
     cpp.write_text(stubs+'\n'+ '\n'.join(extract(n) for n in [
-        'in_arena','retire_enemies','reset_runtime','activated','deactivated','new_save','loaded','reset',
+        'in_arena','retire_enemies','reset_runtime','prepare_save','activated','deactivated','new_save','loaded','reset',
         'cleanup_enemies','credit_death','before_game_start','before_opening','before_stage','after_power'])+'\n'+main)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
