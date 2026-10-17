@@ -27,6 +27,7 @@ constexpr int SLOT_0=0,SLOT_4=4,SLOT_6=6,SLOT_11=11,SLOT_14=14,SLOT_15=15,SLOT_2
 std::array<u8,24> inventory;
 u8 dComIfGs_getItem(int slot,bool){return slot<24?inventory[slot]:u8(dItemNo_NONE_e);}
 void dComIfGs_setItem(int slot,u8 item){inventory[slot]=item;}
+unsigned potion_capacity(){unsigned count=0;for(int slot=11;slot<=14;++slot)count+=inventory[slot]==dItemNo_NONE_e||inventory[slot]==dItemNo_EMPTY_BOTTLE_e;return count;}
 bool arena=true;bool in_arena(){return arena;}
 Run s_run;
 u8 shield_item(const Run& r){return r.shield_tier()==2?dItemNo_HYLIA_SHIELD_e:r.shield_tier()==1?dItemNo_SHIELD_e:dItemNo_WOOD_SHIELD_e;}
@@ -75,37 +76,54 @@ std::vector<uint8_t> bytes_for(MessageId id,MessageLanguage language=MESSAGE_LAN
  }return {0};
 }
 std::string plain(MessageId id){std::string text;const auto& bytes=bytes_for(id);for(size_t i=0;i+1<bytes.size();){if(bytes[i]==0x1a)i+=bytes[i+1];else text+=char(bytes[i++]);}return text;}
-std::vector<std::string> red_segments(MessageId id){
+std::vector<std::string> colored_segments(MessageId id,MessageTextColor color){
  std::vector<std::string> out;bool red=false;const auto& bytes=bytes_for(id);
- for(size_t i=0;i+1<bytes.size();){if(bytes[i]==0x1a){if(bytes[i+1]==6&&bytes[i+2]==255&&bytes[i+3]==0&&bytes[i+4]==0){red=bytes[i+5]==MESSAGE_COLOR_RED;if(red)out.emplace_back();}i+=bytes[i+1];}else{if(red)out.back()+=char(bytes[i]);++i;}}
+ for(size_t i=0;i+1<bytes.size();){if(bytes[i]==0x1a){if(bytes[i+1]==6&&bytes[i+2]==255&&bytes[i+3]==0&&bytes[i+4]==0){red=bytes[i+5]==color;if(red)out.emplace_back();}i+=bytes[i+1];}else{if(red)out.back()+=char(bytes[i]);++i;}}
  return out;
 }
+std::vector<std::string> red_segments(MessageId id){return colored_segments(id,MESSAGE_COLOR_RED);}
 int main(){
  inventory.fill(dItemNo_NONE_e);s_run.start(1);
  Run before=s_run,after=before;before.shield=1;after.shield=2;
- assert(prepare_treasure_message(ChestReward::Shield,before,after));
- assert(plain(treasure_message_id())=="Wooden Shield\nBlock chance: 5% -> 10%");
+ assert(prepare_treasure_message(ChestReward::Shield,before,after,Rarity::Common));
+ assert(plain(treasure_message_id())=="Wooden Shield x1\nBlock chance: 5% -> 10%");
  assert(red_segments(treasure_message_id())==std::vector<std::string>{"5% -> 10%"});
  const auto previous=treasure_message_id();failMessage=true;
- assert(!prepare_treasure_message(ChestReward::Bow,before,after)&&treasure_message_id()==previous);failMessage=false;
+ assert(!prepare_treasure_message(ChestReward::Bow,before,after,Rarity::Common)&&treasure_message_id()==previous);failMessage=false;
  // Every reward level reports only values changed by that reward, including
  // damage/rate with already collected global upgrades and Fire Arrows.
  for(auto reward:{ChestReward::Bow,ChestReward::Boomerang,ChestReward::Bombs,ChestReward::Ball})for(unsigned level=0;level<5;++level){
   before=s_run;before.ranks[3]=2;before.ranks[4]=3;before.ranks[5]=4;before.ranks[12]=2;
   auto weapon=chest_weapon(reward);before.ranks[unsigned(weapon)]=level;after=before;++after.ranks[unsigned(weapon)];
-  assert(prepare_treasure_message(reward,before,after));const auto changes=reward_changes(reward,before,after);
+  assert(prepare_treasure_message(reward,before,after,Rarity::Common));const auto changes=reward_changes(reward,before,after);
   auto red=red_segments(treasure_message_id());assert(red.size()==changes.size());
   for(unsigned i=0;i<changes.size();++i)assert(red[i]==changes[i].before+" -> "+changes[i].after&&changes[i].before!=changes[i].after);
   if(reward==ChestReward::Bow&&level==2){auto text=plain(treasure_message_id());assert(text.find("Arrows: 1 -> 2")!=std::string::npos);assert(text.find("Damage: 10 -> 11")!=std::string::npos);}
  }
  before=s_run;before.master_sword=4;before.ranks[0]=3;after=before;after.master_sword=5;
- assert(prepare_treasure_message(ChestReward::MasterSword,before,after));
- assert(plain(treasure_message_id()).find("Light Sword\nSword bonus: +6 -> +7") == 0);
- assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run));
+ assert(prepare_treasure_message(ChestReward::MasterSword,before,after,Rarity::Common));
+ assert(plain(treasure_message_id()).find("Light Sword x1\nSword bonus: +6 -> +7") == 0);
+ assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run,Rarity::Common));
  assert(plain(treasure_message_id()).find("Bottles: 0 -> 1")!=std::string::npos);
  inventory[11]=inventory[12]=inventory[13]=dItemNo_RED_BOTTLE_e;inventory[14]=dItemNo_EMPTY_BOTTLE_e;
- assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run));
- assert(plain(treasure_message_id())=="Red Potion\nRed potions: 3 -> 4");
+ assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run,Rarity::Common));
+ assert(plain(treasure_message_id())=="Red Potion x1\nRed potions: 3 -> 4");
+ // Native Get Item retains rarity-colored names and red full-grant deltas.
+ const auto savedBottles=inventory;
+ constexpr std::array<MessageTextColor,5> colors{MESSAGE_COLOR_DEFAULT,MESSAGE_COLOR_GREEN,MESSAGE_COLOR_BLUE,MESSAGE_COLOR_PURPLE,MESSAGE_COLOR_ORANGE};
+ for(unsigned r=0;r<5;++r){
+   before=s_run;before.shield=5;after=before;after.shield+=r+1;
+   assert(prepare_treasure_message(ChestReward::Shield,before,after,Rarity(r)));
+   const auto parts=colored_segments(treasure_message_id(),colors[r]);
+   assert(!parts.empty()&&parts[0]==std::string(reward_name(ChestReward::Shield,after))+" x"+number(r+1));
+   assert(red_segments(treasure_message_id())==std::vector<std::string>{"25% -> "+number(30+5*r)+"%"});
+ }
+ inventory.fill(dItemNo_NONE_e);
+ assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run,Rarity::Orange));
+ assert(plain(treasure_message_id()).find("Bottles: 0 -> 4")!=std::string::npos);
+ assert(plain(treasure_message_id()).find("Red potions: 0 -> 4")!=std::string::npos);
+ assert(plain(treasure_message_id()).find("Excess reward: 0 -> +20 rupees")!=std::string::npos);
+ inventory=savedBottles;
  auto bottles=inventory;sync_survivors_inventory();assert(inventory==bottles);
  s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;s_run.master_sword=5;s_run.shield=7;s_run.dual_wield=true;
  sync_survivors_inventory();
@@ -145,7 +163,7 @@ int main(){
  // Native IDs work with the original global-archive selection and item-icon code.
  for(unsigned shield:{1u,4u,7u})for(unsigned master:{1u,5u})for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward){
   after=s_run;after.shield=shield;after.master_sword=master;
-  assert(prepare_treasure_message(ChestReward(reward),s_run,after));
+  assert(prepare_treasure_message(ChestReward(reward),s_run,after,Rarity::Common));
   assert(native_icon(treasure_message_id())==treasure_item(ChestReward(reward),after));
   for(auto language:{MESSAGE_LANGUAGE_ENGLISH,MESSAGE_LANGUAGE_GERMAN,MESSAGE_LANGUAGE_JAPANESE})assert(bytes_for(treasure_message_id(),language).size()>1);
  }
@@ -153,7 +171,7 @@ int main(){
  // reward/language. Update must parse our text once and continue until completion.
  for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward)
  for(auto language:{MESSAGE_LANGUAGE_ENGLISH,MESSAGE_LANGUAGE_GERMAN,MESSAGE_LANGUAGE_JAPANESE}){
-  assert(prepare_treasure_message(ChestReward(reward),s_run,after));
+  assert(prepare_treasure_message(ChestReward(reward),s_run,after,Rarity::Common));
   auto resolved=bytes_for(treasure_message_id(),language);
   const char* expected=s_treasureMessage->activeText;assert(expected);
   int resource=1,entry=2;JMessage::Sequence sequence;JMessage::TControl control;

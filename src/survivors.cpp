@@ -133,14 +133,16 @@ enum class SwordAction { None, Normal, Spin };
 SwordAction s_swordAction = SwordAction::None;
 unsigned s_meleeCooldown = 0;
 unsigned s_comboStep = 0, s_comboTimeout = 0;
-bool s_autoSwordCall = false;
+bool s_autoSwordCall = false, s_trackMelee = false;
+ActorId s_meleeTarget = kNone;
 bool s_wavePending = false, s_allowDrop = false;
 std::array<unsigned, unsigned(Upgrade::Rupees)> s_cooldowns{};
 void clear_loot();
 void cancel_treasure_demo();
 int potion_slot();
+unsigned potion_capacity();
 void cancel_ranged();
-bool prepare_treasure_message(ChestReward, const Run&, const Run&);
+bool prepare_treasure_message(ChestReward, const Run&, const Run&, Rarity);
 unsigned treasure_message_id();
 void sync_survivors_inventory();
 bool queue_ranged(daAlink_c*, Upgrade);
@@ -221,6 +223,7 @@ void stop_attack(Attack& a) {
     a.collider.OffAtSetBit(); a.collider.ResetAtHit();
 }
 void clear_attacks() {
+    s_meleeTarget = kNone; s_trackMelee = false;
     cancel_ranged();
     for (auto& a : s_attacks) stop_attack(a);
 }
@@ -370,8 +373,10 @@ void add_orb(cXyz position, unsigned value) {
 void drop_reward(fopAc_ac_c* actor) {
     const auto drop = s_run.roll_drop();
     if (drop == Run::Drop::None) return;
-    const int item = drop == Run::Drop::Heart ? dItemNo_HEART_e :
-        drop == Run::Drop::BlueRupee ? dItemNo_BLUE_RUPEE_e : dItemNo_GREEN_RUPEE_e;
+    constexpr std::array<int, unsigned(Run::Drop::Count)> items{-1, dItemNo_HEART_e,
+        dItemNo_GREEN_RUPEE_e, dItemNo_BLUE_RUPEE_e, dItemNo_YELLOW_RUPEE_e,
+        dItemNo_RED_RUPEE_e, dItemNo_PURPLE_RUPEE_e, dItemNo_ORANGE_RUPEE_e, dItemNo_SILVER_RUPEE_e};
+    const int item = items[unsigned(drop)];
     // Native item physics, pickup effects and currency/health handling. Ordinary
     // enemy drop hooks remain blocked, so a death cannot generate two rewards.
     struct Scope { Scope(){s_allowDrop=true;} ~Scope(){s_allowDrop=false;} } scope;
@@ -549,6 +554,7 @@ void release_sword_wave(daAlink_c* link) {
 bool normal_sword_proc(daAlink_c* link) {
     return link->mProcID == daAlink_c::PROC_CUT_NORMAL || link->mProcID == daAlink_c::PROC_CUT_FINISH;
 }
+#include "survivors_targeting.inc"
 bool begin_sword_combo(daAlink_c* link) {
     // Native recovery can clear its counter before our cooldown expires. Keep
     // the automatic sequence across that gap, but let native code pick each
@@ -575,7 +581,7 @@ void update_sword(daAlink_c* link) {
             continuingSwing = true;
         } else {
             s_wavePending = false; // Interrupted attacks cannot fire late from a damage/dodge action.
-            s_swordAction = SwordAction::None;
+            s_swordAction = SwordAction::None; s_trackMelee = false; s_meleeTarget = kNone;
         }
     } else if (s_swordAction == SwordAction::Spin) {
         if (link->mProcID == daAlink_c::PROC_CUT_TURN) return;
@@ -594,7 +600,12 @@ void update_sword(daAlink_c* link) {
         if (link->field_0x2fde != 0x103) link->swordEquip(0);
         return; // Let native equip animation finish before replacing the body action.
     }
-    const auto direction = target_direction(link);
+    auto direction = target_direction(link);
+    if (!spin && !wave) {
+        auto* target = melee_target(link);
+        if (!target) return;
+        direction = target->current.pos - link->current.pos;
+    } else { s_meleeTarget = kNone; s_trackMelee = false; }
     link->shape_angle.y = cM_atan2s(direction.x, direction.z);
     link->current.angle.y = link->shape_angle.y;
     if (spin) {
@@ -605,7 +616,7 @@ void update_sword(daAlink_c* link) {
             s_cooldowns[1] = s_run.cooldown(100);
         }
     } else if (wave ? link->procCutNormalInit(1) : begin_sword_combo(link)) {
-        s_swordAction = SwordAction::Normal; s_wavePending = wave;
+        s_swordAction = SwordAction::Normal; s_wavePending = wave; s_trackMelee = !wave;
         if (wave) { s_comboStep = s_comboTimeout = 0; link->mComboCutCount = 0; }
         s_meleeCooldown = s_run.cooldown(30);
         if (wave) s_cooldowns[0] = s_run.cooldown(40);
@@ -862,10 +873,10 @@ void select_upgrade(ModContext*, void* data) {
     const unsigned choice = *static_cast<unsigned*>(data);
     if (s_run.phase != Phase::Upgrade || choice >= 3) return;
     const auto selected = s_run.offers[choice];
+    const unsigned bonus = s_run.upgrade_rupees(selected, s_run.offer_rarities[choice]);
     if (!s_run.choose(choice)) return;
     if (selected == Upgrade::Heart) dComIfGs_setMaxLife(15 + 5 * s_run.rank(Upgrade::Heart));
-    if (selected == Upgrade::Rupees)
-        dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(), dComIfGs_getRupee() + 20));
+    if (bonus) dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(), dComIfGs_getRupee() + bonus));
     close_window();
     s_run.level_up(); // Preserve queued levels; do not resume combat between choices.
 }

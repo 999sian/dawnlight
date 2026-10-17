@@ -1,11 +1,50 @@
 #include "../src/survivors_rules.hpp"
 #include <cassert>
+#include <cstdlib>
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
+    // Exact base chances and multiplicative Luck; no additive percentage points.
+    for(unsigned luck:{0u,1u,5u}) {
+        Run sample;sample.start(98765);sample.ranks[unsigned(Upgrade::Luck)]=luck;
+        assert(sample.luck_percent()==100+10*luck);
+        assert(sample.lucky_chance(2000)==2000+200*luck);
+        constexpr unsigned trials=200000;
+        std::array<unsigned,5> rarities{};
+        std::array<unsigned,unsigned(Run::Drop::Count)> loot{};
+        for(unsigned n=0;n<trials;++n){++rarities[unsigned(sample.roll_rarity())];++loot[unsigned(sample.roll_drop())];}
+        const std::array<unsigned,5> expected{10000-sample.lucky_chance(3600),sample.lucky_chance(2000),sample.lucky_chance(1000),sample.lucky_chance(500),sample.lucky_chance(100)};
+        for(unsigned i=0;i<5;++i)assert(std::abs(int(rarities[i]*10000/trials)-int(expected[i]))<40);
+        assert(std::abs(int(loot[1]*10000/trials)-int(sample.lucky_chance(500)))<30);
+        assert(std::abs(int(loot[0]*10000/trials)-int(10000-sample.lucky_chance(5000)))<40);
+        const unsigned rupees=trials-loot[0]-loot[1];
+        const unsigned valuable=rupees-loot[unsigned(Run::Drop::GreenRupee)];
+        assert(std::abs(int(valuable*10000/rupees)-int(sample.lucky_chance(1700)))<80);
+        for(unsigned i=1;i<loot.size();++i)assert(loot[i]); // Every native color is reachable.
+    }
+    for(unsigned rarity=0;rarity<5;++rarity) {
+        for(unsigned u=0;u<unsigned(Upgrade::Rupees);++u)for(unsigned initial:{0u,4u}) {
+            Run r;r.start(13);r.shield=1;r.ranks[8]=1;r.ranks[u]=initial;
+            // Weapons must be chest-unlocked first.
+            if(u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)&&!initial)continue;
+            r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);
+            const auto random=r.random;const unsigned gain=std::min(5-initial,rarity+1);
+            assert(r.upgrade_rupees(Upgrade(u),Rarity(rarity))==20*(rarity+1-gain));
+            assert(r.choose(0)&&r.rank(Upgrade(u))==initial+gain&&r.random==random);
+            assert(!r.choose(0));
+        }
+        for(unsigned item=0;item<unsigned(ChestReward::Count);++item) {
+            Run r;r.start(14);r.phase=Phase::Treasure;r.master_sword=4;r.shield=9;r.ranks[8]=4;
+            const auto reward=ChestReward(item);const auto gain=r.chest_gain(reward,Rarity(rarity),3);
+            const unsigned extra=r.chest_rupees(reward,Rarity(rarity),3);unsigned money=20;
+            assert(gain+extra/20==rarity+1);
+            assert(r.buy_chest(money,reward,3,Rarity(rarity))&&money==extra&&r.chests_opened==1);
+            assert(r.master_sword<=5&&r.shield<=10&&r.rank(Upgrade::Bow)<=5);
+        }
+    }
     Run run;
     assert(std::all_of(run.ranks.begin(),run.ranks.end(),[](auto r){return r==0;}));
-    std::array<unsigned,4> drops{};
+    std::array<unsigned,unsigned(Run::Drop::Count)> drops{};
     run.start(123);
     for(unsigned i=0;i<10000;++i) ++drops[static_cast<unsigned>(run.roll_drop())];
     assert(drops[1]>350 && drops[1]<650); // Rare hearts, not an every-kill heal.
@@ -29,8 +68,9 @@ int main() {
     assert(!run.level_up() && run.offers == offers); // Closing/reopening cannot reroll.
     assert(!run.choose(3));
     const auto previous = run.rank(offers[0]);
+    const auto gain = run.upgrade_gain(offers[0], run.offer_rarities[0]);
     assert(run.choose(0));
-    if (offers[0] != Upgrade::Rupees) assert(run.rank(offers[0]) == previous + 1);
+    if (offers[0] != Upgrade::Rupees) assert(run.rank(offers[0]) == previous + gain);
     assert(!run.choose(0)); // Double activation is ignored.
     assert(run.level_up()); // Excess XP remains available.
     for (uint32_t seed = 1; seed < 1000; ++seed) {

@@ -36,7 +36,7 @@ std::unique_ptr<SurvivorsMessage> override_survivors_message(unsigned id,
     }
     return message;
 }
-std::vector<ItemChange> treasure_changes(ChestReward reward, const Run& before, const Run& after) {
+std::vector<ItemChange> treasure_changes(ChestReward reward, const Run& before, const Run& after, Rarity rarity = Rarity::Common) {
     auto changes = reward_changes(reward, before, after);
     if (reward == ChestReward::RedPotion) {
         unsigned bottles = 0, red = 0;
@@ -44,16 +44,22 @@ std::vector<ItemChange> treasure_changes(ChestReward reward, const Run& before, 
             const auto item = dComIfGs_getItem(slot, false);
             bottles += item != dItemNo_NONE_e; red += item == dItemNo_RED_BOTTLE_e;
         }
-        if (bottles < 4) changes.push_back({"Bottles", number(bottles), number(bottles + 1)});
-        changes.push_back({"Red potions", number(red), number(red + 1)});
+        const unsigned gain = before.chest_gain(reward, rarity, potion_capacity());
+        if (bottles < 4) changes.push_back({"Bottles", number(bottles), number(std::min(4u, bottles + gain))});
+        changes.push_back({"Red potions", number(red), number(red + gain)});
     }
+    const auto extra = before.chest_rupees(reward, rarity, potion_capacity());
+    if (extra) changes.push_back({"Excess reward", "0", "+" + number(extra) + " rupees"});
     return changes;
 }
-bool prepare_treasure_message(ChestReward reward, const Run& before, const Run& after) {
-    const auto changes = treasure_changes(reward, before, after);
+bool prepare_treasure_message(ChestReward reward, const Run& before, const Run& after, Rarity rarity) {
+    const auto changes = treasure_changes(reward, before, after, rarity);
+    constexpr std::array<MessageTextColor, 5> colors{MESSAGE_COLOR_DEFAULT, MESSAGE_COLOR_GREEN,
+        MESSAGE_COLOR_BLUE, MESSAGE_COLOR_PURPLE, MESSAGE_COLOR_ORANGE};
     mods::flow::MessageBuilder builder;
     builder.box_kind(MESSAGE_BOX_ITEM_GET).box_position(MESSAGE_POSITION_MIDDLE)
-        .text(reward_name(reward, after));
+        .text_color(colors[unsigned(rarity)]).text(reward_name(reward, after))
+        .text(" x").text(number(reward_units(rarity))).text_color(MESSAGE_COLOR_DEFAULT);
     for (const auto& change : changes) {
         builder.text("\n").text(change.label).text(": ")
             .text_color(MESSAGE_COLOR_RED).text(change.before).text(" -> ").text(change.after)

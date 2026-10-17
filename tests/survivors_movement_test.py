@@ -46,6 +46,7 @@ unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
 bool playing=true;bool playable(){return playing;}unsigned s_player=7;Run s_run;
 enum class SwordAction{None,Normal,Spin};SwordAction s_swordAction=SwordAction::None;
 struct{bool active=false;int animation=1;}s_ranged;
+void track_melee_facing(daAlink_c*){}
 bool normal_sword_proc(daAlink_c* p){return p->mProcID==daAlink_c::PROC_CUT_NORMAL||p->mProcID==daAlink_c::PROC_CUT_FINISH;}
 bool sword_action_available(daAlink_c* p){return p->mProcID==daAlink_c::PROC_WAIT||p->mProcID==daAlink_c::PROC_MOVE;}
 bool shield_pose(const daAlink_c* p){return p->mProcID==daAlink_c::PROC_GUARD_ATTACK||p->mProcID==daAlink_c::PROC_GUARD_SLIP||p->mProcID==daAlink_c::PROC_GUARD_BREAK;}

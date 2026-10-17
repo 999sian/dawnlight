@@ -73,7 +73,7 @@ inline std::string item_description(ChestReward reward, const Run& run) {
             "\nWave Lv." + number(run.rank(Upgrade::Wave)) + ": " + (run.rank(Upgrade::Wave) ? number(waves) + " piercing, " + number(run.attack_power(0)) + " dmg/" + seconds(run.cooldown(40)) : "locked") +
             "\nSpin Lv." + number(run.rank(Upgrade::Spin)) + ": " + (run.rank(Upgrade::Spin) ? "moving, " + number(run.attack_power(1)) + " dmg/" + seconds(run.cooldown(100)) : "locked") + "\n" + bonuses;
     }
-    return "Restores up to 8 hearts when used.\nBottles can be assigned to item buttons.\nChest rewards add bottles up to four,\nthen refill one empty bottle.";
+    return "Restores up to 8 hearts when used.\nBottles can be assigned to item buttons.\nChest rewards add bottles up to four,\nthen refill empty bottles.";
 }
 inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     const auto rank = run.rank(upgrade);
@@ -84,6 +84,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::Magnet: return number(150 + 65 * rank) + " pickup range";
     case Upgrade::Heart: return number(3 + rank) + " maximum hearts";
     case Upgrade::FireArrows: return "+" + number(2 * rank) + " fire damage";
+    case Upgrade::Luck: return "+" + number(run.luck_percent() - 100) + "% Luck";
     case Upgrade::Rupees: return "+20 rupees";
     default: return "Level " + number(rank);
     }
@@ -102,10 +103,10 @@ inline std::string upgrade_description(Upgrade upgrade, const Run& run) {
     } else text += "\n" + upgrade_value(upgrade, run);
     return text;
 }
-inline std::vector<ItemChange> upgrade_changes(Upgrade upgrade, const Run& before, const Run& after) {
+inline std::vector<ItemChange> upgrade_changes(Upgrade upgrade, const Run& before, const Run& after, Rarity rarity = Rarity::Common) {
     if (upgrade >= Upgrade::Bow && upgrade <= Upgrade::Ball)
         return reward_changes(ChestReward(unsigned(upgrade) - unsigned(Upgrade::Bow)), before, after);
-    if (upgrade == Upgrade::Rupees) return {{"Reward", "0", "+20 rupees"}};
+    if (upgrade == Upgrade::Rupees) return {{"Reward", "0", "+" + number(20 * reward_units(rarity)) + " rupees"}};
     std::vector<ItemChange> changes{{"Level", number(before.rank(upgrade)), number(after.rank(upgrade))}};
     if (upgrade == Upgrade::Wave || upgrade == Upgrade::Spin || upgrade == Upgrade::ShieldAttack) {
         changes.push_back({"Damage", before.rank(upgrade) ? number(before.attack_power(unsigned(upgrade))) : "off",

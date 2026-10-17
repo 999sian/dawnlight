@@ -45,6 +45,8 @@ template<class T> T arg(void* args,int n){return std::any_cast<T>(static_cast<st
 struct cXyz {
     float x=0,y=0,z=0;
     float abs(const cXyz& p)const{return std::sqrt((x-p.x)*(x-p.x)+(y-p.y)*(y-p.y)+(z-p.z)*(z-p.z));}
+    cXyz operator+(cXyz p)const{return {x+p.x,y+p.y,z+p.z};}
+    cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-p.z};}
     float absXZ()const{return std::sqrt(x*x+z*z);}
 };
 struct csXyz {short x=0,y=0,z=0; csXyz(short a=0,short b=0,short c=0):x(a),y(b),z(c){}};
@@ -54,8 +56,8 @@ struct cCcD_Obj {
     unsigned GetAtAtp()const{return power;}
     void OffAtSetBit(){active=false;} void ResetAtHit(){hit=false;}
 };
-struct fopAc_ac_c {unsigned id=7;struct {cXyz pos;csXyz angle;}current;};
-constexpr int dItemNo_NONE_e=255,dItemNo_HEART_e=0,dItemNo_GREEN_RUPEE_e=1,dItemNo_BLUE_RUPEE_e=2;
+struct fopAc_ac_c {unsigned id=7;int health=10;cXyz eyePos;struct {cXyz pos;csXyz angle;}current;};
+constexpr int dItemNo_NONE_e=255,dItemNo_HEART_e=0,dItemNo_GREEN_RUPEE_e=1,dItemNo_BLUE_RUPEE_e=2,dItemNo_YELLOW_RUPEE_e=3,dItemNo_RED_RUPEE_e=4,dItemNo_PURPLE_RUPEE_e=5,dItemNo_ORANGE_RUPEE_e=6,dItemNo_SILVER_RUPEE_e=7;
 HookAction before_sword_attack(ModContext*,void*,void*,void*);
 struct daAlink_c : fopAc_ac_c {
     enum {PROC_WAIT,PROC_MOVE,PROC_ATN_MOVE,PROC_ATN_ACTOR_WAIT,PROC_ATN_ACTOR_MOVE,
@@ -71,6 +73,7 @@ struct daAlink_c : fopAc_ac_c {
     unsigned normals=0,spins=0,equips=0,finishes=0,mComboCutCount=0;
     enum {FLG0_UNK_1000000,FLG0_UNK_8000,DIR_FORWARD=0,DIR_BACKWARD=1};
     struct {int field_0x300a=4;}mProcVar1;
+    struct {short field_0x300c=0;}mProcVar2;
     int direction=4;bool locked=false,hit=false;
     std::vector<int> normalTypes,finishTypes,comboCounts;
     int commonCutAction();int nativeCheckCutAction();
@@ -101,13 +104,17 @@ enum class SwordAction {None,Normal,Spin};
 SwordAction s_swordAction=SwordAction::None;
 bool s_wavePending=false,s_allowDrop=false,s_active=true,arena=true,playing=true;
 unsigned s_meleeCooldown=0,s_player=7,s_comboStep=0,s_comboTimeout=0;
-bool s_autoSwordCall=false;
+bool s_autoSwordCall=false,s_trackMelee=false;unsigned s_meleeTarget=kNone;
 std::array<unsigned,3>s_cooldowns{};
 bool in_arena(){return arena;} bool playable(){return arena && playing;}
 struct Enemy {unsigned id=kNone;bool initialized=false,retiring=false,credited=false;};
 std::array<Enemy,enemy_capacity>s_enemies;
-fopAc_ac_c enemy;
-fopAc_ac_c* actor_by_id(unsigned id){return id==enemy.id?&enemy:nullptr;}
+fopAc_ac_c enemy,enemy2;
+fopAc_ac_c* actor_by_id(unsigned id){return id==enemy.id?&enemy:id==enemy2.id?&enemy2:nullptr;}
+struct dBgS_LinChk {unsigned unused=0;void Set(const cXyz*,const cXyz*,daAlink_c*){}};
+bool blocked=false;
+struct World{bool LineCross(dBgS_LinChk*){return blocked;}}world;
+World& dComIfG_Bgsp(){return world;}
 cXyz target_direction(daAlink_c*){return {0,0,1};}
 unsigned waves=0;
 void launch(daAlink_c*,unsigned weapon,cXyz){assert(weapon==0);++waves;}
@@ -149,7 +156,8 @@ void reset(){
     player.normals=player.spins=player.equips=player.finishes=player.mComboCutCount=0;
     player.normalTypes.clear();player.finishTypes.clear();player.comboCounts.clear();
     player.direction=4;player.locked=player.hit=false;
-    s_comboStep=s_comboTimeout=0;s_autoSwordCall=false;
+    s_comboStep=s_comboTimeout=0;s_autoSwordCall=s_trackMelee=false;s_meleeTarget=kNone;blocked=false;
+    enemy.health=10;enemy2.id=11;player.current.pos={};
     s_run.start(1234);s_swordAction=SwordAction::None;s_wavePending=false;
     s_meleeCooldown=0;s_cooldowns={};waves=0;
     enemy.id=10;enemy.current.pos={0,0,150};s_enemies={};s_enemies[0]={10,true,false,false};
@@ -290,12 +298,44 @@ int main(){
     assert(!a.active && !a.collider.active && !a.collider.hit && a.emitters[0]==0 && a.emitters[1]==0);
     for(auto id:last)assert(emitters[id].stopped && emitters[id].quit && emitters[id].invalid);
     stop_attack(a); // Repeated cleanup is safe.
+    // Circle a target through a whole turn at full running speed. Facing is
+    // recomputed from the moved position every frame; travel remains untouched.
+    reset();update_sword(&player);assert(s_trackMelee&&s_meleeTarget==enemy.id);
+    for(unsigned frame=0;frame<120;++frame){
+        const float a=frame*6.2831853f/120;
+        player.current.pos={150*std::sin(a),0,150+150*std::cos(a)};
+        player.current.angle.y=player.mMoveAngle=short(1234+frame);player.mNormalSpeed=20;
+        track_melee_facing(&player);
+        const auto delta=enemy.current.pos-player.current.pos;
+        assert(player.shape_angle.y==cM_atan2s(delta.x,delta.z));
+        assert(player.mProcVar2.field_0x300c==player.shape_angle.y);
+        assert(player.current.angle.y==short(1234+frame)&&player.mMoveAngle==short(1234+frame)&&player.mNormalSpeed==20);
+    }
+    // A slightly nearer bystander does not steal a live lock mid-swing.
+    player.current.pos={};enemy.current.pos={0,0,150};enemy2.current.pos={60,0,40};
+    s_enemies[1]={11,true,false,false};track_melee_facing(&player);
+    assert(s_meleeTarget==10&&player.shape_angle.y==0);
+    enemy.health=0;track_melee_facing(&player);assert(s_meleeTarget==11&&player.shape_angle.y==cM_atan2s(60,40));
+    player.mProcID=daAlink_c::PROC_CUT_FINISH;player.mProcVar2.field_0x300c=9;
+    enemy2.current.pos={-80,0,40};track_melee_facing(&player);
+    assert(player.shape_angle.y==cM_atan2s(-80,40)&&player.mProcVar2.field_0x300c==9);
+    blocked=true;track_melee_facing(&player);assert(s_meleeTarget==kNone);blocked=false;
+    enemy2.current.pos={0,250,30};assert(!melee_target(&player));
+    enemy2.current.pos={0,0,1000};assert(!melee_target(&player));
+    enemy2.current.pos={80,0,40};
+    for(int reason=0;reason<6;++reason){
+        player.mProcID=reason==0?daAlink_c::PROC_DAMAGE:daAlink_c::PROC_CUT_NORMAL;
+        s_trackMelee=reason!=1;s_run.phase=reason==2?Phase::Upgrade:Phase::Running;
+        arena=reason!=3;player.mLinkAcch.ground=reason!=4;player.id=reason==5?8:7;
+        player.shape_angle.y=123;track_melee_facing(&player);assert(player.shape_angle.y==123);
+    }
+    reset();
     // Native random drops stay suppressed; only scoped reward creation bypasses the hook.
     fpc_ProcID result=0;assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_SKIP_ORIGINAL && result==kNone);
-    bool seen[3]{};
-    for(int i=0;i<1000;++i){drop_reward(&enemy);assert(!s_allowDrop);}
-    for(auto item:drops){assert(item>=0 && item<=2);seen[item]=true;}
-    assert(seen[0] && seen[1] && seen[2]);
+    bool seen[8]{};
+    for(int i=0;i<100000;++i){drop_reward(&enemy);assert(!s_allowDrop);}
+    for(auto item:drops){assert(item>=0 && item<=7);seen[item]=true;}
+    for(bool found:seen)assert(found);
     arena=false;assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_CONTINUE);arena=true;
     // Heart Container raises capacity only; fallback currency clamps to the wallet.
     reset();unsigned choice=0;s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Heart;
@@ -306,7 +346,7 @@ int main(){
 }
 '''
 functions = ['stop_attack', 'update_wave_effects', 'sword_action_available', 'enemy_in_range',
-             'before_cut', 'before_sword_attack', 'normal_sword_proc', 'begin_sword_combo',
+             'before_cut', 'before_sword_attack', 'normal_sword_proc', 'targeting', 'begin_sword_combo',
              'release_sword_wave', 'update_sword', 'after_sword_move', 'before_large_spin',
              'native_sword_collider', 'after_power', 'before_drop', 'drop_reward', 'select_upgrade']
 # Execute Dusklight's actual combo counter/selector, not a reimplementation of
@@ -317,7 +357,7 @@ native_combo_functions = extract('daAlink_c::commonCutAction', native) + '\n' + 
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join(extract(name) for name in functions) + '\n' + main)
+    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join((root/'src/survivors_targeting.inc').read_text() if name=='targeting' else extract(name) for name in functions) + '\n' + main)
     subprocess.run(['c++', '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

@@ -48,6 +48,9 @@ void after_auto_movement(ModContext*, void* args, void*, void*) {
 }
 void after_auto_position(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
+    // posMove has finished: aim from the new position before setMatrix builds
+    // this frame's body/sword and collision capsules. Never redirect movement.
+    if (link) track_melee_facing(link);
     if (link && link == s_guardMovement) {
         // GuardSlip finishes once its native recoil speed reaches zero. Keep
         // that timer independent from the player's physical travel speed.

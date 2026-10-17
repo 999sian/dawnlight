@@ -19,7 +19,7 @@ constexpr int kNone=-1;
 using u8=uint8_t;
 using ActorId=int;
 bool messageAvailable=true;
-bool prepare_treasure_message(ChestReward, const Run&, const Run&){return messageAvailable;}
+bool prepare_treasure_message(ChestReward, const Run&, const Run&, Rarity){return messageAvailable;}
 unsigned treasure_message_id(){return 0x8123;}
 unsigned inventorySyncs=0;
 void sync_survivors_inventory(){++inventorySyncs;}
@@ -143,7 +143,7 @@ void dMeter2Info_setShield(int item,bool){equippedShield=item;}
 void dMeter2Info_setSword(int item,bool){equippedSword=item;}
 void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
 Run s_run;unsigned rupees=0;int s_player=1;
-struct Chest{bool active=false,opening=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};};
+struct Chest{bool active=false,opening=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};std::array<Rarity,3> rarities{};};
 constexpr unsigned kChestCount=2;unsigned s_selectedChest=kChestCount;
 std::array<Chest,2>s_chests;
 struct {bool ready=true;}s_loot;
@@ -157,6 +157,7 @@ bool ui_visible(){return window!=0;}
 bool playable(){return mode&&!stageChange&&!running&&!paused&&!ui_visible();}
 void close_window(){window=0;}
 bool sword_action_available(daAlink_c* link){return link->mProcID==daAlink_c::PROC_WAIT;}
+unsigned dComIfGs_getRupeeMax(){return 10000;}
 unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned n){rupees=n;}
 void clear_attacks(){++cleared;}
 '''
@@ -173,8 +174,9 @@ void fresh(){
     created=ordered=reset=deleted=drawn=cleared=0;itemPartner=-1;
     g_fpcCtTg_Queue.mpHead=nullptr;
 }
-bool open_first(){
+bool open_first(Rarity rarity=Rarity::Common){
     if(!begin_treasure_choice(0,&player))return false;
+    s_chests[0].rarities.fill(rarity);
     unsigned choice=0;select_treasure(nullptr,&choice);update_treasure_choice(&player);
     return s_run.phase==Phase::Treasure;
 }
@@ -207,9 +209,9 @@ int main(){
     }
     // Cancel and reopen retain the same offers and never charge or reroll.
     fresh();assert(begin_treasure_choice(0,&player));
-    const auto savedOffers=s_chests[0].offers;const auto savedRng=s_run.random;
+    const auto savedOffers=s_chests[0].offers;const auto savedRarities=s_chests[0].rarities;const auto savedRng=s_run.random;
     dismiss_treasure_choice();assert(s_run.phase==Phase::Running&&rupees==100&&created==0);
-    assert(begin_treasure_choice(0,&player));assert(s_chests[0].offers==savedOffers&&s_run.random==savedRng);
+    assert(begin_treasure_choice(0,&player));assert(s_chests[0].offers==savedOffers&&s_chests[0].rarities==savedRarities&&s_run.random==savedRng);
     window=1;cancel_treasure_demo();assert(window==0&&s_selectedChest==kChestCount&&s_run.phase==Phase::Running);
     // Fully exhausted cached offers refresh, while partially usable ones stay fixed.
     fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=true;
@@ -321,6 +323,23 @@ int main(){
     assert(open_first());bottles[1]=99;
     accept();update_treasure_demo(&player);
     assert(bottles[1]==99&&rupees==580&&s_run.chests_opened==6&&s_chests[0].active);
+    // Orange potion grants four bottles, then pays the fifth unit as rupees.
+    fresh();s_chests[0].offers={ChestReward::RedPotion,ChestReward::Count,ChestReward::Count};
+    assert(open_first(Rarity::Orange)&&s_treasure.potions==4&&s_treasure.bonusRupees==20);
+    assert(potionGrants==0&&rupees==100);accept();eventEnded=true;update_treasure_demo(&player);
+    assert(potionGrants==4&&potion_capacity()==0&&rupees==100&&s_run.chests_opened==1);
+    for(auto item:bottles)assert(item==dItemNo_RED_BOTTLE_e);
+    update_treasure_demo(&player);assert(potionGrants==4&&rupees==100);
+    // A full bottle is never overwritten; cancelled multi-potion events pay nothing.
+    fresh();bottles[0]=99;s_chests[0].offers={ChestReward::RedPotion,ChestReward::Count,ChestReward::Count};
+    assert(open_first(Rarity::Blue)&&s_treasure.potions==3);
+    bottles[1]=98;accept();eventEnded=true;update_treasure_demo(&player);
+    assert(bottles[0]==99&&bottles[1]==98&&potionGrants==0&&rupees==100&&s_run.chests_opened==0);
+    // Multi-rank shield evolution is displayed and committed once; price rises once.
+    fresh();s_run.shield=5;s_chests[0].offers={ChestReward::Shield,ChestReward::Count,ChestReward::Count};
+    assert(open_first(Rarity::Purple)&&prop.itemNo==dItemNo_HYLIA_SHIELD_e);
+    accept();eventEnded=true;update_treasure_demo(&player);
+    assert(s_run.shield==9&&equippedShield==dItemNo_HYLIA_SHIELD_e&&rupees==80&&s_run.chest_cost()==40);
     // Async failure, order timeout, interrupted event: no charge or reward.
     for(unsigned reason=0;reason<3;++reason){
         fresh();assert(open_first());

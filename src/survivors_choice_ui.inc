@@ -6,7 +6,7 @@ ui-row.survivors-treasure-row { gap: 12dp; align-items: stretch; }
 ui-row.survivors-treasure-card { display: block; position: relative; flex: 1 1 0; min-width: 0; background-color: #18251fee; border-radius: 8dp; }
 .survivors-treasure-copy, .survivors-treasure-copy * { pointer-events: none; }
 .survivors-treasure-copy { padding: 16dp; min-height: 330dp; text-align: center; font-size: 16dp; line-height: 1.35; }
-.survivors-treasure-copy img { display: block; width: 80dp; height: 80dp; margin: 0 auto 12dp; }
+.survivors-treasure-copy img { display: block; width: 80dp; height: 80dp; margin: 0 auto 12dp; border: 3dp #f4d78b; border-radius: 8dp; padding: 6dp; }
 .survivors-treasure-name { display: block; color: #f4d78b; font-size: 20dp; font-weight: bold; margin-bottom: 10dp; }
 .survivors-treasure-effect { display: block; margin-bottom: 12dp; }
 .survivors-treasure-change { display: block; margin-bottom: 5dp; }
@@ -34,6 +34,13 @@ std::string treasure_rml_escape(const std::string& text) {
         else escaped += c;
     }
     return escaped;
+}
+std::string choice_rml_start(const char* icon, const char* name, Rarity rarity) {
+    const std::string color = rarity_colors[unsigned(rarity)];
+    return "<div class=\"survivors-treasure-copy\"><img src=\"" + treasure_rml_escape(icon) +
+        "\" style=\"border-color: " + color + ";\"/><div class=\"survivors-treasure-name\" style=\"color: " + color +
+        ";\">" + treasure_rml_escape(name) + "</div><div class=\"survivors-treasure-effect\">" +
+        rarity_names[unsigned(rarity)] + " x" + number(reward_units(rarity)) + "</div>";
 }
 ModResult begin_choice_cards(UiElementHandle left, UiElementHandle right, const std::string& hint,
                              UiElementHandle& row) {

@@ -12,13 +12,17 @@ inline constexpr unsigned enemy_capacity = 24;
 inline constexpr unsigned projectile_capacity = 24;
 inline constexpr unsigned orb_capacity = 64;
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Rupees, Count };
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, Rupees, Count };
+enum class Rarity : unsigned { Common, Green, Blue, Purple, Orange };
+inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
+inline constexpr std::array rarity_names{"Common", "Green", "Blue", "Purple", "Orange"};
+inline constexpr std::array rarity_colors{"#f4d78b", "#7bdd83", "#72b7ff", "#cb91ff", "#ffad54"};
 enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, OrdonSword, Shield, Count };
 inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Rupees"};
+    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Rupees"};
 inline constexpr std::array descriptions{
     "Automatic piercing sword waves. Higher levels add damage and extra waves.",
     "Unlock or improve a moving spin attack.",
@@ -31,6 +35,7 @@ inline constexpr std::array descriptions{
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
     "Ignite arrows. Upgrades increase fire-arrow damage.",
+    "Improve reward rarities, heart drops, rupee drops and rupee colors. Each level adds +10% Luck.",
     "Receive 20 rupees."};
 
 struct Run {
@@ -42,6 +47,7 @@ struct Run {
     std::array<unsigned, unsigned(Upgrade::Rupees)> ranks{};
     unsigned chests_opened = 0;
     std::array<Upgrade, 3> offers{};
+    std::array<Rarity, 3> offer_rarities{};
     uint32_t next_random() {
         random ^= random << 13; random ^= random >> 17; random ^= random << 5;
         return random;
@@ -49,6 +55,26 @@ struct Run {
     void start(uint32_t seed) { *this = {}; random = seed ? seed : 1; phase = Phase::Running; }
     unsigned required_xp() const { return 5 + level * 3; }
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return i < ranks.size() ? ranks[i] : 0; }
+    unsigned luck_percent() const { return 100 + 10 * rank(Upgrade::Luck); }
+    // Multiplicative positive-outcome chances, expressed in basis points.
+    // Five Luck ranks cap the multiplier at 1.5; totals stay below 100%.
+    unsigned lucky_chance(unsigned basis_points) const { return basis_points * luck_percent() / 100; }
+    Rarity roll_rarity() {
+        const unsigned roll = next_random() % 10000;
+        unsigned threshold = 0;
+        constexpr std::array<unsigned, 4> chances{100, 500, 1000, 2000};
+        for (unsigned i = 0; i < chances.size(); ++i) {
+            threshold += lucky_chance(chances[i]);
+            if (roll < threshold) return Rarity(4 - i);
+        }
+        return Rarity::Common;
+    }
+    unsigned upgrade_gain(Upgrade u, Rarity rarity) const {
+        return u < Upgrade::Rupees ? std::min(reward_units(rarity), 5 - std::min(5u, rank(u))) : 0;
+    }
+    unsigned upgrade_rupees(Upgrade u, Rarity rarity) const {
+        return 20 * (reward_units(rarity) - upgrade_gain(u, rarity));
+    }
     bool eligible(Upgrade u) const {
         if (u == Upgrade::Rupees) return true;
         if (u >= Upgrade::Count || rank(u) >= 5) return false;
@@ -74,6 +100,7 @@ struct Run {
             const unsigned choice = next_random() % count;
             offer = pool[choice]; pool[choice] = pool[--count];
         }
+        for (auto& rarity : offer_rarities) rarity = roll_rarity();
         phase = Phase::Upgrade;
         return true;
     }
@@ -81,7 +108,7 @@ struct Run {
         if (phase != Phase::Upgrade || choice >= offers.size()) return false;
         const auto u = offers[choice];
         if (!eligible(u)) return false;
-        if (u != Upgrade::Rupees) ++ranks[static_cast<unsigned>(u)];
+        if (u != Upgrade::Rupees) ranks[static_cast<unsigned>(u)] += upgrade_gain(u, offer_rarities[choice]);
         phase = Phase::Running;
         return true;
     }
@@ -112,15 +139,28 @@ struct Run {
         }
         return result;
     }
+    unsigned chest_gain(ChestReward reward, Rarity rarity, unsigned bottle_capacity = 0) const {
+        unsigned remaining = 0;
+        if (reward <= ChestReward::Ball) remaining = 5 - std::min(5u, rank(chest_weapon(reward)));
+        else if (reward == ChestReward::MasterSword) remaining = 5 - std::min(5u, master_sword);
+        else if (reward == ChestReward::Shield) remaining = 10 - std::min(10u, shield);
+        else if (reward == ChestReward::OrdonSword) remaining = !dual_wield;
+        else if (reward == ChestReward::RedPotion) remaining = bottle_capacity;
+        return std::min(reward_units(rarity), remaining);
+    }
+    unsigned chest_rupees(ChestReward reward, Rarity rarity, unsigned bottle_capacity = 0) const {
+        return 20 * (reward_units(rarity) - chest_gain(reward, rarity, bottle_capacity));
+    }
     // Apply exactly the selected reward. No reroll, payment or rank change on
     // an invalid/stale selection; presentation commits this preview only once.
-    bool buy_chest(unsigned& rupees, ChestReward reward, bool bottle_available = false) {
-        if (phase != Phase::Treasure || rupees < chest_cost() || !chest_eligible(reward, bottle_available)) return false;
-        rupees -= chest_cost(); ++chests_opened;
-        if (reward == ChestReward::MasterSword) ++master_sword;
+    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common) {
+        if (phase != Phase::Treasure || rupees < chest_cost() || !chest_eligible(reward, bottle_capacity != 0)) return false;
+        const unsigned gain = chest_gain(reward, rarity, bottle_capacity);
+        rupees = rupees - chest_cost() + chest_rupees(reward, rarity, bottle_capacity); ++chests_opened;
+        if (reward == ChestReward::MasterSword) master_sword += gain;
         else if (reward == ChestReward::OrdonSword) dual_wield = true;
-        else if (reward == ChestReward::Shield) ++shield;
-        else if (reward <= ChestReward::Ball) ++ranks[unsigned(chest_weapon(reward))];
+        else if (reward == ChestReward::Shield) shield += gain;
+        else if (reward <= ChestReward::Ball) ranks[unsigned(chest_weapon(reward))] += gain;
         return true;
     }
     unsigned item_cooldown(Upgrade weapon) const {
@@ -135,12 +175,21 @@ struct Run {
     unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), enemy_capacity - 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
     unsigned cooldown(unsigned base) const { return std::max(6u, base * (100 - rank(Upgrade::Haste) * 10) / 100); }
-    // One native collectible per confirmed kill: 5% heart, 5% blue, 40% green.
-    enum class Drop { None, Heart, GreenRupee, BlueRupee };
+    // At base Luck: 5% heart, 45% rupee, 50% nothing. A second lucky
+    // roll chooses rupee value, so Luck improves both frequency and quality.
+    enum class Drop { None, Heart, GreenRupee, BlueRupee, YellowRupee, RedRupee, PurpleRupee, OrangeRupee, SilverRupee, Count };
     Drop roll_drop() {
-        const unsigned roll = next_random() % 100;
-        return roll < 5 ? Drop::Heart : roll < 10 ? Drop::BlueRupee :
-            roll < 50 ? Drop::GreenRupee : Drop::None;
+        const unsigned roll = next_random() % 10000;
+        if (roll < lucky_chance(500)) return Drop::Heart;
+        if (roll >= lucky_chance(5000)) return Drop::None;
+        const unsigned color = next_random() % 10000;
+        unsigned threshold = 0;
+        constexpr std::array<unsigned, 6> chances{5, 15, 80, 200, 400, 1000};
+        for (unsigned i = 0; i < chances.size(); ++i) {
+            threshold += lucky_chance(chances[i]);
+            if (color < threshold) return Drop(unsigned(Drop::SilverRupee) - i);
+        }
+        return Drop::GreenRupee;
     }
     unsigned block_chance() const { return std::min(10u, shield) * 5; }
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }

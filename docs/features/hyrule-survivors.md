@@ -23,7 +23,10 @@ Automatic strikes advance through the native four-hit combo, including its
 directional/lock-on variants and finisher. Follow-up strikes respect the native
 hit and cancel windows; interruptions or two seconds without a new strike reset
 the sequence. Normal swings, finishers and spin attacks all retain stick-controlled
-movement through the native ground and wall collision handling.
+movement through the native ground and wall collision handling. During normal
+swings and finishers, facing follows the same live enemy every frame after movement,
+without changing travel direction or camera lock-on. Dead, blocked, out-of-range
+or elevated targets are released; a nearby reachable target can replace them.
 
 Leveling up pauses Link and the encounter and offers three upgrades in the same
 side-by-side card layout as chests. Every card uses the native Hidden Skills scroll
@@ -47,10 +50,12 @@ is retained and multiple earned levels are offered consecutively.
 | Reach | Increase weapon size |
 | Magnet | Attract experience from farther away |
 | Heart Container | Add one maximum heart without healing |
-| Rupees | Receive 20 rupees without healing |
+| Luck | +10% Luck per rank (five ranks); multiplies positive reward/drop chances |
+| Rupees | Receive 20 rupees per reward unit without healing |
 
 Equip both base weapons, all four chest weapons and up to four different
-passive upgrades. Chest weapons do not consume passive slots.
+passive upgrades. Luck has a separate slot and remains available even with four
+passives. Chest weapons do not consume passive slots.
 Weapons, Fire Arrows and Shield Attack have five levels. Rupees remain available after the
 other upgrades reach their caps. Native enemy defense and death reactions still apply. Ordinary nonlethal hits
 keep their hit effects and damage but do not interrupt enemy movement or attacks.
@@ -61,11 +66,53 @@ Sword Wave uses the two smaller
 normal-spin particle effects, following the moving-emitter approach of Great Spin
 Projectile. It does not use the large Great Spin effect or a debug sphere.
 
-Each confirmed ordinary enemy kill has a 5% chance to drop a native heart, a 40%
-chance to drop a green rupee and a 5% chance to drop a blue rupee. The remaining
-50% drop no item. Experience crystals are still awarded independently. Native
-random drops are suppressed to prevent duplicate rewards; hearts and rupees use
-the game's normal pickup behavior. Level-ups never heal Link.
+Each confirmed ordinary enemy kill has a base 5% chance to drop a native heart,
+45% to drop a rupee and 50% to drop nothing. Luck multiplies the heart and rupee
+chances; at +50% Luck these become 7.5%, 67.5% and 25%. A second roll chooses the
+rupee's color. Experience crystals are awarded independently. Native random drops
+are suppressed to prevent duplicate rewards. Level-ups never heal Link.
+
+| Rupee color | Value | Base chance within rupee drops |
+| --- | ---: | ---: |
+| Green | 1 | 83% |
+| Blue | 5 | 10% |
+| Yellow | 10 | 4% |
+| Red | 20 | 2% |
+| Purple | 50 | 0.8% |
+| Orange | 100 | 0.15% |
+| Silver | 200 | 0.05% |
+
+Luck also multiplies the non-green color chances, with green taking the remainder.
+Hearts and all rupee colors use native pickup behavior.
+
+## Rarities and Luck
+
+Each of the three level-up or chest choices independently rolls a rarity when
+its offers are generated. Rarity controls how many ranks of the selected reward
+are granted; it does not choose additional random items after confirmation.
+
+| Rarity | Reward units | Base chance | With +10% Luck |
+| --- | ---: | ---: | ---: |
+| Common | 1 | 64% | 60.4% |
+| Green | 2 | 20% | 22% |
+| Blue | 3 | 10% | 11% |
+| Purple | 4 | 5% | 5.5% |
+| Orange | 5 | 1% | 1.1% |
+
+`chance = base chance * (1 + 0.10 * Luck rank)` for each non-common tier;
+common receives the remaining probability. These are mutually exclusive outcomes
+of one roll, preserving the requested base percentages. Luck has five ranks
+(+10% through +50%) and resets each run. The multiplier approach also applies to
+heart/rupee drop chances and the separate rupee-quality roll. Luck never rerolls
+already displayed choices; previews and reopening a window consume no randomness.
+
+The reward name and icon border show its rarity color; each card also says
+**Green x2**, **Blue x3**, etc. Before/after values include the full grant. Native
+Get Item names use the same rarity and quantity while changed values remain red.
+Upgrade caps are unchanged. Each unit exceeding the cap becomes **20 rupees**,
+shown in the preview/message and capped by the wallet when granted. This also
+applies to extra Ordon Sword units and potion units beyond available bottle slots.
+One chest still charges only once and increases the next chest price by 20 rupees.
 
 Bokoblins and Keese appear first; Rats join after 30 seconds. Spawn frequency,
 population and Bokoblin health increase during the run. At ten minutes, ordinary
@@ -106,11 +153,10 @@ the attempt before creating the event or spending rupees.
 Each chest samples its offers without replacement from the eligible reward types: Hero's Bow,
 Boomerang, Bombs, Ball and Chain, Master Sword, an Ordon Sword for Dual Wield,
 a shield upgrade and a bottle of Red Potion.
-The four automatic item weapons unlock at rank 1; duplicates add one rank up to
-5, and unlocked weapons also enter the normal level-up pool.
+The four automatic item weapons unlock at rank 1; duplicates add their rarity's number of ranks up to 5, and unlocked weapons also enter the normal level-up pool.
 
-Master Sword has five chest ranks. The first find equips it and adds 3 damage;
-each later find adds 1, and the **fifth find equips the Light Sword** with its
+Master Sword has five chest ranks. Rank 1 equips it and adds 3 damage;
+each later rank adds 1, and **rank 5 equips the Light Sword** with its
 native light effect (7 bonus sword damage total). Sword damage applies to melee,
 Whirling Blade and Sword Wave, without the vanilla light-material 100-damage override.
 Get Item uses a private instance of Link's sword model instead of the native rupee placeholder.
@@ -122,19 +168,19 @@ block turns Link toward the attacker and plays the native guard reaction, interr
 automatic attacks. Idle lock-on does not grant free blocks. Dual Wield temporarily
 uses the shield during block/bash actions and resumes afterward.
 
-| Shield finds | Block chance | Reward model |
+| Shield ranks | Block chance | Reward model |
 | --- | --- | --- |
 | 1–3 | 5–15% | Wooden Shield |
 | 4–6 | 20–30% | Ordon Shield |
 | 7–10 | 35–50% | Hylian Shield |
 
-Each shield find adds 5 percentage points. At 50%, shields leave the chest pool.
+Each shield rank adds 5 percentage points. At 50%, shields leave the chest pool.
 After the first shield, Shield Attack can appear in level-up offers. These chest
 shield ranks are separate from the five Shield Attack ranks.
 
-A potion reward adds one new filled bottle while fewer than four bottles are
+Each unit of a potion reward adds a new filled bottle while fewer than four are
 owned, even if an existing bottle is empty. Once all four slots are occupied,
-it refills one empty bottle instead. Filled bottles are never overwritten. Red
+it refills an empty bottle instead. Filled bottles are never overwritten. Red
 Potion can be used normally from the item inventory; drinking it makes that
 empty bottle eligible for a future refill. Four full bottles exclude potions
 from the reward pool until a bottle is emptied. Equipment and potions are chest-only.
@@ -197,7 +243,8 @@ save. Story treasure flags remain unaffected.
 
 In Survivors, the Hidden Skills scroll is always visible at its normal Collection
 slot. Activating it with the controller or touch opens a read-only list of the
-run's collected power-ups. Select a name to see its current rank, description and
+run's collected power-ups. Select a name to see its current rank, followed on
+a separate line by its description and
 effective values, including weapon ranks and dependent upgrades. No uncollected
 power-ups are listed; an empty run shows a hint. Rupee rewards have no lasting rank.
 Closing the overview returns to Collection. Actual Hidden Skill event flags and
@@ -258,6 +305,8 @@ Before merging/releasing, test on Android and desktop:
    verify the full four-hit combo while moving, then unlock Wave and verify a
    swing releases the small spin projectile. Verify the combo restarts after a
    damage reaction or a gap between targets, and permits movement during finishers.
+   Circle an enemy at full speed; verify facing tracks it through the hit window,
+   a passing enemy does not steal the target, and walls/death release the lock.
 8. Steer in every direction during Whirling Blade, including into walls; verify
    native spin hits and that damage/dodges safely interrupt attacks.
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)
@@ -280,7 +329,7 @@ Before merging/releasing, test on Android and desktop:
 12. Restart/change modes with closed/open chests and active item projectiles;
     verify prices, ranks, models, particles and collisions reset. Verify story
     treasure flags are unaffected and the next run restores Ordon Sword/no bottles.
-13. Obtain Master Sword five times: verify native Light Sword on the fifth find,
+13. Obtain five Master Sword ranks: verify native Light Sword at rank five,
     its glow and linear damage, and exclusion after rank 5. Collect four
     red-potion bottles, drink one, then obtain a refill. Check new-bottle priority
     over empty bottles, exclusion with four full bottles, and instant chest removal.
@@ -308,7 +357,14 @@ Before merging/releasing, test on Android and desktop:
     full/empty bottles must remain assignable and usable. Check a story save
     afterward to confirm its normal assignments and descriptions are unchanged.
 
-Automated tests cover rules, caps, upgrade choice integrity, record encoding,
+21. Compare all rarity colors on names and icon borders, quantities and full deltas.
+    Test multi-rank grants near a cap, shield/sword evolution, potion batches with
+    mixed empty/full/missing bottles, overflow currency and cancel/reopen stability.
+    Check Luck's +10% increments, reset and appearance in the power-up overview.
+
+Automated tests cover rarity/drop distributions at 0/10/50% Luck, colored card
+previews, multi-rank grants and overflow, potion transactions and cancellation,
+continuous melee facing while orbiting, target retention/replacement, rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared
 Boss Rush arena admission, sword scheduling with the native combo selector,
 movement during all three sword procedures, wave timing and

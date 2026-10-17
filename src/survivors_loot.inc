@@ -8,6 +8,7 @@ struct Chest {
     unsigned age = 0;
     ChestReward reward = ChestReward::Count;
     std::array<ChestReward, 3> offers{ChestReward::Count, ChestReward::Count, ChestReward::Count};
+    std::array<Rarity, 3> rarities{};
 };
 std::array<Chest, kChestCount> s_chests;
 unsigned s_chestDelay = 20 * ticks_per_second, s_selectedChest = kChestCount;

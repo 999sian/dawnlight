@@ -26,9 +26,10 @@ constexpr int SLOT_11=11,SLOT_14=14;
 std::array<int,4> bottles;
 int dComIfGs_getItem(int slot,bool){return bottles.at(slot-SLOT_11);}
 int potion_slot(){for(int i=0;i<4;++i)if(bottles[i]==dItemNo_NONE_e||bottles[i]==dItemNo_EMPTY_BOTTLE_e)return i+11;return -1;}
+unsigned potion_capacity(){unsigned count=0;for(auto item:bottles)count+=item==dItemNo_NONE_e||item==dItemNo_EMPTY_BOTTLE_e;return count;}
 Run s_run;unsigned rupees=500,selected=99;
 unsigned dComIfGs_getRupee(){return rupees;}
-struct Chest {std::array<ChestReward,3> offers;};
+struct Chest {std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
 std::array<Chest,2>s_chests;unsigned s_selectedChest=0;
 std::array<unsigned,3>s_choices{0,1,2};
 void select_treasure(ModContext*,void* data){selected=*static_cast<unsigned*>(data);}
@@ -61,7 +62,7 @@ main = r'''
 void fresh(){
  elements.clear();elements[1].kind=elements[2].kind="pane";next=3;
  s_run.start(123);s_run.phase=Phase::TreasureChoice;s_selectedChest=0;selected=99;rupees=500;
- bottles.fill(dItemNo_NONE_e);failControl=false;
+ bottles.fill(dItemNo_NONE_e);failControl=false;s_chests[0].rarities={};
  s_chests[0].offers={ChestReward::Bow,ChestReward::Shield,ChestReward::MasterSword};
 }
 int main(){
@@ -95,10 +96,21 @@ int main(){
  for(unsigned n=0;n<unsigned(ChestReward::Count);++n){
    fresh();auto reward=static_cast<ChestReward>(n);s_run.shield=6;s_run.master_sword=4;
    Run preview=s_run;preview.phase=Phase::Treasure;unsigned money=500;
-   assert(preview.buy_chest(money,reward,true));auto card=treasure_card_rml(reward,preview);
+   assert(preview.buy_chest(money,reward,true));auto card=treasure_card_rml(reward,preview,Rarity::Common);
    char icon[40];std::snprintf(icon,sizeof(icon),"item://item/%02x",unsigned(treasure_item(reward,preview)));
    assert(card.find(icon)!=std::string::npos&&card.find(reward_name(reward,preview))!=std::string::npos);
    if(reward==ChestReward::RedPotion){assert(card.find("Bottles")!=std::string::npos&&card.find("Red potions")!=std::string::npos);}
+ }
+ // All rarity colors appear on both the name and icon border. Preview is pure.
+ for(unsigned rarity=0;rarity<5;++rarity){
+   fresh();s_chests[0].rarities.fill(Rarity(rarity));
+   const auto rngBefore=s_run.random;assert(build_treasure_choices(1,2)==MOD_OK);
+   unsigned cards=0;for(const auto& [id,e]:elements)if(e.kind=="rml"){
+     ++cards;const std::string color=rarity_colors[rarity];
+     assert(e.text.find("border-color: "+color)!=std::string::npos&&e.text.find("color: "+color)!=std::string::npos);
+     assert(e.text.find(std::string(rarity_names[rarity])+" x"+number(rarity+1))!=std::string::npos);
+   }
+   assert(cards==3&&s_run.random==rngBefore&&s_run.chests_opened==0&&rupees==500);
  }
  for(unsigned count=1;count<=2;++count){
    fresh();for(unsigned i=count;i<3;++i)s_chests[0].offers[i]=ChestReward::Count;

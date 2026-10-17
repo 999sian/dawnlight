@@ -12,8 +12,8 @@ HookAction before_powerup_icon(ModContext*, void* args, void*, void*) {
     return HOOK_CONTINUE;
 }
 std::string powerup_description_rml(Upgrade upgrade) {
-    std::string text = "<div class=\"survivors-treasure-name\">";
-    text += treasure_rml_escape(names[unsigned(upgrade)]) + " - Level " + number(s_run.rank(upgrade)) + "</div>";
+    std::string text = "<span class=\"survivors-treasure-name\">";
+    text += treasure_rml_escape(names[unsigned(upgrade)]) + " - Level " + number(s_run.rank(upgrade)) + "</span><br/>";
     const auto description = upgrade_description(upgrade, s_run);
     std::string line;
     for (char c : description) {
@@ -31,14 +31,17 @@ ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
         Run preview = s_run;
         if (!preview.choose(i)) continue;
         const auto upgrade = s_run.offers[i];
-        std::string rml = "<div class=\"survivors-treasure-copy\"><img src=\"";
-        rml += kPowerupScrollIcon;
-        rml += "\"/><div class=\"survivors-treasure-name\">" + treasure_rml_escape(names[unsigned(upgrade)]) + "</div>";
+        const auto rarity = s_run.offer_rarities[i];
+        std::string rml = choice_rml_start(kPowerupScrollIcon, names[unsigned(upgrade)], rarity);
         rml += "<div class=\"survivors-treasure-effect\">" + treasure_rml_escape(descriptions[unsigned(upgrade)]) + "</div>";
-        for (const auto& change : upgrade_changes(upgrade, s_run, preview))
+        for (const auto& change : upgrade_changes(upgrade, s_run, preview, rarity))
             rml += "<div class=\"survivors-treasure-change\">" + treasure_rml_escape(change.label) +
                 ": <span class=\"survivors-treasure-delta\">" + treasure_rml_escape(change.before) +
                 " -&gt; " + treasure_rml_escape(change.after) + "</span></div>";
+        const unsigned extra = s_run.upgrade_rupees(upgrade, rarity);
+        if (upgrade != Upgrade::Rupees && extra)
+            rml += "<div class=\"survivors-treasure-change\">Excess reward: <span class=\"survivors-treasure-delta\">+" +
+                number(extra) + " rupees</span></div>";
         rml += "</div>";
         result = add_choice_card(row, rml, names[unsigned(upgrade)], select_upgrade, &s_choices[i]);
         if (result != MOD_OK) return result;

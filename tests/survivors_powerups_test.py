@@ -129,6 +129,24 @@ int main(){
    s_run.offers.fill(Upgrade(i));assert(build_upgrade_choices(1,2)==MOD_OK);
    assert(s_run.phase==Phase::Upgrade&&s_run.rank(Upgrade::Heart)==0&&money==100);
  }
+ // Rarity presentation and the actual activation agree, including overflow.
+ for(unsigned r=0;r<5;++r){
+   fresh();s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::Luck,Upgrade::Power,Upgrade::Rupees};
+   s_run.offer_rarities.fill(Rarity(r));s_run.ranks[unsigned(Upgrade::Power)]=4;
+   const auto rngBefore=s_run.random;assert(build_upgrade_choices(1,2)==MOD_OK);
+   unsigned copies=0;std::vector<Element*> picks;
+   for(auto& [id,e]:elements){
+     if(e.kind=="button")picks.push_back(&e);
+     if(e.kind!="rml")continue;
+     ++copies;const std::string color=rarity_colors[r];
+     assert(e.text.find("border-color: "+color)!=std::string::npos&&e.text.find("color: "+color)!=std::string::npos);
+     assert(e.text.find(std::string(rarity_names[r])+" x"+number(r+1))!=std::string::npos);
+   }
+   assert(copies==3&&s_run.random==rngBefore&&s_run.rank(Upgrade::Luck)==0);
+   picks[0]->pressed(nullptr,picks[0]->data);assert(s_run.luck_percent()==100+10*(r+1));
+   fresh();s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Power;s_run.ranks[3]=4;s_run.offer_rarities[0]=Rarity(r);
+   select_upgrade(nullptr,&s_choices[0]);assert(s_run.ranks[3]==5&&money==100+20*r);
+ }
  // Native controller/touch request is consumed before dMw's fade/subscreen transition.
  fresh();dMenu_Collect2D_c menu,other;std::any args[]{&menu};bool shown=false;
  after_powerup_scroll_visible(nullptr,nullptr,&shown,nullptr);assert(shown);
@@ -148,6 +166,7 @@ int main(){
  const auto ranks=s_run.ranks;const auto overviewRng=s_run.random;unsigned count=0;
  for(const auto& [id,e]:elements)if(e.kind=="button"){
    ++count;assert(e.pressed&&!e.help.empty());
+   assert(e.help.find("</span><br/>")!=std::string::npos);
    e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);
    if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("3 arrows/shot")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
    if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);

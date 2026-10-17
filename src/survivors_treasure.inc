@@ -16,7 +16,7 @@ struct TreasureDemo {
     bool started = false, poseStarted = false, retiring = false;
     unsigned waitFrames = 0;
     Run result;
-    unsigned price = 0;
+    unsigned price = 0, bonusRupees = 0, potions = 0;
 } s_treasure;
 ChestReward s_chosenTreasure = ChestReward::Count;
 void dismiss_treasure_choice() {
@@ -32,6 +32,14 @@ int potion_slot() {
     for (int slot = SLOT_11; slot <= SLOT_14; ++slot)
         if (dComIfGs_getItem(slot, true) == dItemNo_EMPTY_BOTTLE_e) return slot;
     return -1;
+}
+unsigned potion_capacity() {
+    unsigned count = 0;
+    for (int slot = SLOT_11; slot <= SLOT_14; ++slot) {
+        const auto item = dComIfGs_getItem(slot, true);
+        count += item == dItemNo_NONE_e || item == dItemNo_EMPTY_BOTTLE_e;
+    }
+    return count;
 }
 daDitem_c* treasure_actor() {
     auto* actor = actor_by_id(s_treasure.item);
@@ -86,7 +94,10 @@ bool begin_treasure_choice(unsigned index, daAlink_c* link) {
     // Preserve offers on cancel. Reroll only when every cached reward became unusable.
     if (std::none_of(chest.offers.begin(), chest.offers.end(), [](ChestReward reward) {
             return s_run.chest_eligible(reward, potion_slot() >= 0);
-        })) chest.offers = s_run.roll_chest_offers(potion_slot() >= 0);
+        })) {
+        chest.offers = s_run.roll_chest_offers(potion_slot() >= 0);
+        for (auto& rarity : chest.rarities) rarity = s_run.roll_rarity();
+    }
     if (chest.offers[0] == ChestReward::Count) return false;
     s_selectedChest = index; s_chosenTreasure = ChestReward::Count;
     s_run.phase = Phase::TreasureChoice;
@@ -108,8 +119,10 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link, ChestReward reward) {
     if (!layer || layer == fpcLy_RootLayer() || fpcLy_IsDeletingMesg(layer)) return false;
     Run preview = s_run; preview.phase = Phase::Treasure;
     unsigned rupees = dComIfGs_getRupee();
-    if (!preview.buy_chest(rupees, reward, potion_slot() >= 0)) return false;
-    if (!prepare_treasure_message(reward, s_run, preview)) return false;
+    const auto choice = unsigned(std::find(offers.begin(), offers.end(), reward) - offers.begin());
+    const auto rarity = s_chests[index].rarities[choice];
+    if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity)) return false;
+    if (!prepare_treasure_message(reward, s_run, preview, rarity)) return false;
     auto* previous = fpcLy_CurrentLayer(); fpcLy_SetCurrentLayer(layer);
     // 0x01 is native presentation-only: daDitem_c skips execItemGet.
     const auto item = fopAcM_createDemoItem(&link->current.pos, treasure_item(reward, preview),
@@ -118,6 +131,8 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link, ChestReward reward) {
     if (item == kNone) return false;
     s_treasure = {}; s_treasure.item = item;
     s_treasure.result = preview; s_treasure.price = s_run.chest_cost();
+    s_treasure.bonusRupees = s_run.chest_rupees(reward, rarity, potion_capacity());
+    if (reward == ChestReward::RedPotion) s_treasure.potions = s_run.chest_gain(reward, rarity, potion_capacity());
     s_chests[index].reward = reward;
     s_run.phase = Phase::Treasure;
     return true;
@@ -184,11 +199,10 @@ void update_treasure_demo(daAlink_c* link) {
         auto& chest = s_chests[s_selectedChest];
         chest.opening = true; ++chest.age;
         if (!dComIfGp_evmng_endCheck("DEFAULT_GETITEM")) return;
-        const int bottle = potion_slot();
         const unsigned rupees = dComIfGs_getRupee();
         // Commit the displayed reward, without rerolling against possibly
         // changed inventory. No charge when a potion no longer has space.
-        if (rupees >= s_treasure.price && (chest.reward != ChestReward::RedPotion || bottle >= 0)) {
+        if (rupees >= s_treasure.price && (chest.reward != ChestReward::RedPotion || potion_capacity() >= s_treasure.potions)) {
             if (chest.reward == ChestReward::MasterSword) {
                 const bool light = s_treasure.result.master_sword >= 5;
                 const u8 sword = light ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e;
@@ -203,11 +217,12 @@ void update_treasure_demo(daAlink_c* link) {
                 dComIfGs_onItemFirstBit(shield);
                 dMeter2Info_setShield(shield, false);
             } else if (chest.reward == ChestReward::RedPotion) {
-                dComIfGs_setItem(bottle, dItemNo_RED_BOTTLE_e);
+                for (unsigned i = 0; i < s_treasure.potions; ++i)
+                    dComIfGs_setItem(potion_slot(), dItemNo_RED_BOTTLE_e);
                 dComIfGs_onItemFirstBit(dItemNo_EMPTY_BOTTLE_e);
                 dComIfGs_onItemFirstBit(dItemNo_RED_BOTTLE_e);
             }
-            dComIfGs_setRupee(rupees - s_treasure.price);
+            dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(), rupees - s_treasure.price + s_treasure.bonusRupees));
             s_run = s_treasure.result;
             sync_survivors_inventory();
             chest = {}; // Remove immediately after the native reward/camera ends.
