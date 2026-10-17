@@ -46,6 +46,9 @@ struct Enemy {
 };
 std::array<Enemy,enemy_capacity> s_enemies;
 Run s_run;
+enum class SwordAction { None, Normal, Spin };
+SwordAction s_swordAction=SwordAction::None;
+unsigned s_meleeCooldown=0; bool s_wavePending=false;
 bool arena=true, transition=false, s_active=true, s_restart=false;
 bool s_saveReady=false, s_gameStarted=true;
 bool s_loaded=false, s_resultsStored=false, s_storeFailed=false, s_saveRequested=false;
@@ -107,11 +110,14 @@ int dComIfGp_getStartStageRoomNo(){return arena?51:0;}
 unsigned restartParam=123;
 void dComIfGs_setRestartRoomParam(unsigned value){restartParam=value;}
 struct Collider { unsigned power=0; unsigned GetAtAtp(){return power;} };
+bool native_sword_collider(const Collider*){return false;}
 struct Attack { Collider collider; };
 std::array<Attack,16> s_attacks;
 struct dCcU_AtInfo { Collider* mpCollider; unsigned mAttackPower; };
 unsigned xp=0;
 void add_orb(int,unsigned value){xp+=value;}
+unsigned rewards=0;
+void drop_reward(fopAc_ac_c*){++rewards;}
 void finish(bool won){s_run.end(won);}
 std::set<ActorId> pending;
 std::unordered_map<ActorId,fopAc_ac_c*> actors;
@@ -150,10 +156,11 @@ int main() {
     transition=false; enemy.retiring=true; credit_death(enemy,&actor); assert(xp==0);
     enemy.retiring=false; enemy.initialized=false; credit_death(enemy,&actor); assert(xp==0);
     enemy.initialized=true; actor.health=10; credit_death(enemy,&actor); assert(xp==0);
-    actor.health=0; credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1);
-    credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1);
+    assert(rewards==0);
+    actor.health=0; credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1);
+    credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1);
     enemy={8,fpcNm_E_OC_e,true,false,false,true,0}; actor.health=1; actor.action=9;
-    credit_death(enemy,&actor); assert(s_run.phase==Phase::Victory && xp==33);
+    credit_death(enemy,&actor); assert(s_run.phase==Phase::Victory && xp==33 && rewards==1);
     s_run.start(2);
     s_enemies[0]={9,fpcNm_E_OC_e,false,false,true,false,0}; pending.insert(9);
     cleanup_enemies(); assert(s_enemies[0].id==9 && service.attempts==0);

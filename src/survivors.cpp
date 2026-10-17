@@ -26,6 +26,8 @@
 #include "m_Do/m_Do_Reset.h"
 #include "JSystem/J2DGraph/J2DGrafContext.h"
 #include "JSystem/J2DGraph/J2DPrint.h"
+#include "JSystem/JParticle/JPAEmitter.h"
+#include "d/d_particle_name.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -47,6 +49,8 @@ DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
 DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
+DEFINE_HOOK(&daAlink_c::procCutTurn, SurvivorsSpinMove);
+DEFINE_HOOK(&daAlink_c::checkCutLargeTurnState, SurvivorsLargeSpin);
 DEFINE_HOOK(&fopAcM_orderDoorEvent, SurvivorsDoor);
 DEFINE_HOOK(&at_power_check, SurvivorsPower);
 DEFINE_HOOK(&dMeter2Draw_c::draw, SurvivorsHud);
@@ -69,6 +73,10 @@ UiWindowHandle s_window = 0;
 ActorId s_player = kNone;
 fpc_ProcID s_savePrompt = kNone;
 unsigned s_spawnCooldown = 0, s_spawnFailures = 0, s_warmup = 0;
+enum class SwordAction { None, Normal, Spin };
+SwordAction s_swordAction = SwordAction::None;
+unsigned s_meleeCooldown = 0;
+bool s_wavePending = false, s_allowDrop = false;
 std::array<unsigned, 3> s_cooldowns{};
 std::array<unsigned, 3> s_choices{0, 1, 2};
 struct ProcessFrame { void* args; ActorId id; };
@@ -90,6 +98,7 @@ struct Attack {
     float radius = 0;
     dCcD_Stts status{};
     dCcD_Sph collider{};
+    std::array<u32, 2> emitters{};
 };
 // Stable addresses: collision server retains pointers until its next frame.
 std::array<Attack, projectile_capacity> s_attacks;
@@ -124,11 +133,22 @@ Enemy* tracked(ActorId id) {
     for (auto& e : s_enemies) if (e.id != kNone && e.id == id) return &e;
     return nullptr;
 }
-void clear_attacks() {
-    for (auto& a : s_attacks) {
-        a.active = false; a.life = 0;
-        a.collider.OffAtSetBit(); a.collider.ResetAtHit();
+void stop_attack(Attack& a) {
+    for (auto& id : a.emitters) {
+        if (id) {
+            if (auto* emitter = dComIfGp_particle_getEmitter(id)) {
+                emitter->stopCreateParticle();
+                emitter->quitImmortalEmitter();
+                emitter->becomeInvalidEmitter();
+            }
+            id = 0;
+        }
     }
+    a.active = false; a.life = 0;
+    a.collider.OffAtSetBit(); a.collider.ResetAtHit();
+}
+void clear_attacks() {
+    for (auto& a : s_attacks) stop_attack(a);
 }
 void close_window() {
     const auto handle = s_window; s_window = 0;
@@ -196,6 +216,7 @@ void reset_runtime() {
     s_player = kNone; s_loaded = false; s_resultsStored = false;
     s_storeFailed = false; s_restart = false; s_saveRequested = false;
     s_spawnCooldown = s_spawnFailures = s_warmup = 0;
+    s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
 }
 void prepare_save() {
     save_state_set_boss_rush_active(false);
@@ -265,6 +286,16 @@ void add_orb(cXyz position, unsigned value) {
     // Preserve XP at the cap without spawning more game actors or particles.
     nearest->value += value;
 }
+void drop_reward(fopAc_ac_c* actor) {
+    const auto drop = s_run.roll_drop();
+    if (drop == Run::Drop::None) return;
+    const int item = drop == Run::Drop::Heart ? dItemNo_HEART_e :
+        drop == Run::Drop::BlueRupee ? dItemNo_BLUE_RUPEE_e : dItemNo_GREEN_RUPEE_e;
+    // Native item physics, pickup effects and currency/health handling. Ordinary
+    // enemy drop hooks remain blocked, so a death cannot generate two rewards.
+    struct Scope { Scope(){s_allowDrop=true;} ~Scope(){s_allowDrop=false;} } scope;
+    fopAcM_createItem(&actor->current.pos, item, -1, 51, nullptr, nullptr, 0);
+}
 void credit_death(Enemy& e, fopAc_ac_c* actor) {
     if (e.credited || e.retiring || !e.initialized || s_run.phase != Phase::Running ||
         !in_arena() || transitioning()) return;
@@ -275,6 +306,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
+    if (!e.elite) drop_reward(actor);
     add_orb(actor->current.pos, e.elite ? 30 : e.profile == fpcNm_E_OC_e ? 3 : 1);
     if (e.elite) finish(true);
 }
@@ -371,7 +403,7 @@ void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
     a.weapon = weapon; a.life = weapon == 0 ? 35 : 3;
     a.position = link->current.pos + cXyz(0, 65, 0);
     a.velocity = weapon == 0 ? direction * 42.0f : cXyz(0, 0, 0);
-    a.radius = s_run.radius(weapon == 0 ? 65.0f : weapon == 1 ? 220.0f : 130.0f);
+    a.radius = s_run.radius(weapon == 0 ? 65.0f : 130.0f);
     a.status.Init(120, 0xff, link);
     a.collider.Set(kAttackSource); a.collider.SetStts(&a.status);
     a.collider.SetAtType(AT_TYPE_NORMAL_SWORD);
@@ -381,42 +413,151 @@ void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
     a.collider.OnAtNoConHit(); a.collider.ResetAtHit(); a.collider.OnAtSetBit();
     a.active = true;
 }
+void update_wave_effects(Attack& a, daAlink_c* link) {
+    // Same moving-emitter approach as Great Spin Projectile, using only the
+    // two small normal-spin effects, never the six large-spin emitters.
+    constexpr std::array<u16, 2> effects{ID_ZI_J_KAITENGIRI_A, ID_ZI_J_KAITENGIRI_B};
+    const csXyz rotation(-cM_atan2s(a.velocity.y, a.velocity.absXZ()),
+                         cM_atan2s(a.velocity.x, a.velocity.z), 0);
+    for (unsigned i = 0; i < effects.size(); ++i) {
+        auto& id = a.emitters[i];
+        auto* emitter = id ? dComIfGp_particle_getEmitter(id) : nullptr;
+        if (id && (!emitter || (emitter->mMaxFrame > 0 && emitter->getAge() >= emitter->mMaxFrame))) {
+            if (emitter) {
+                emitter->stopCreateParticle(); emitter->quitImmortalEmitter();
+                emitter->becomeInvalidEmitter();
+            }
+            id = 0;
+        }
+        id = dComIfGp_particle_set(id, effects[i], &a.position, &link->tevStr,
+                                  &rotation, nullptr, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
+        if (id) {
+            dComIfGp_particle_levelEmitterOnEventMove(id);
+            if (auto* current = dComIfGp_particle_getEmitter(id)) current->setGlobalTranslation(a.position);
+        }
+    }
+}
+bool sword_action_available(daAlink_c* link) {
+    if (!link->mLinkAcch.ChkGroundHit() || link->checkWolf() || !link->mSwordModel) return false;
+    switch (link->mProcID) {
+    case daAlink_c::PROC_WAIT: case daAlink_c::PROC_MOVE:
+    case daAlink_c::PROC_ATN_MOVE: case daAlink_c::PROC_ATN_ACTOR_WAIT:
+    case daAlink_c::PROC_ATN_ACTOR_MOVE: case daAlink_c::PROC_WAIT_TURN:
+    case daAlink_c::PROC_MOVE_TURN: return true;
+    default: return false; // Never interrupt damage, dodge, jumping or item actions.
+    }
+}
+bool enemy_in_range(daAlink_c* link, float range) {
+    for (const auto& e : s_enemies) {
+        if (!e.initialized || e.retiring || e.credited) continue;
+        if (auto* actor = actor_by_id(e.id); actor && actor->current.pos.abs(link->current.pos) < range)
+            return true;
+    }
+    return false;
+}
+void release_sword_wave(daAlink_c* link) {
+    const auto direction = target_direction(link);
+    launch(link, 0, direction);
+    if (s_run.ranks[0] >= 3) {
+        launch(link, 0, cXyz(direction.x * 0.94f + direction.z * 0.34f,
+            direction.y, direction.z * 0.94f - direction.x * 0.34f));
+        if (s_run.ranks[0] >= 5) launch(link, 0, cXyz(direction.x * 0.94f - direction.z * 0.34f,
+            direction.y, direction.z * 0.94f + direction.x * 0.34f));
+    }
+}
+void update_sword(daAlink_c* link) {
+    // daAlink_CutNmParamType is private to d_a_alink_cut.inc: left swing = 1.
+    constexpr int normalLeftSwing = 1;
+    if (s_meleeCooldown) --s_meleeCooldown;
+    if (s_swordAction == SwordAction::Normal) {
+        if (link->mProcID == daAlink_c::PROC_CUT_NORMAL) {
+            if (s_wavePending && link->mUnderFrameCtrl[0].getFrame() >= link->field_0x3478) {
+                release_sword_wave(link); s_wavePending = false;
+            }
+            return;
+        }
+        s_wavePending = false; // Interrupted attacks cannot fire late from a damage/dodge action.
+        s_swordAction = SwordAction::None;
+    } else if (s_swordAction == SwordAction::Spin) {
+        if (link->mProcID == daAlink_c::PROC_CUT_TURN) return;
+        s_swordAction = SwordAction::None;
+    }
+    if (!sword_action_available(link)) return;
+    const bool spin = s_run.ranks[1] && !s_cooldowns[1] && enemy_in_range(link, s_run.radius(450));
+    const bool wave = s_run.ranks[0] && !s_cooldowns[0] && enemy_in_range(link, 1600);
+    if (!spin && !wave && (s_meleeCooldown || !enemy_in_range(link, s_run.radius(280)))) return;
+    if (!link->checkItemSwordEquip()) {
+        if (link->mEquipItem != dItemNo_NONE_e) return;
+        if (link->field_0x2fde != 0x103) link->swordEquip(0);
+        return; // Let native equip animation finish before replacing the body action.
+    }
+    const auto direction = target_direction(link);
+    link->shape_angle.y = cM_atan2s(direction.x, direction.z);
+    link->current.angle.y = link->shape_angle.y;
+    if (spin) {
+        if (link->procCutTurnInit(1, 1)) {
+            s_swordAction = SwordAction::Spin;
+            link->field_0x3478 = s_run.radius(link->field_0x3478);
+            s_cooldowns[1] = s_run.cooldown(100);
+        }
+    } else if (link->procCutNormalInit(normalLeftSwing)) {
+        s_swordAction = SwordAction::Normal; s_wavePending = wave;
+        s_meleeCooldown = s_run.cooldown(30);
+        if (wave) s_cooldowns[0] = s_run.cooldown(40);
+    }
+}
+void after_spin_move(ModContext*, void* args, void*, void*) {
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    if (!link || !playable() || s_swordAction != SwordAction::Spin ||
+        link->mProcID != daAlink_c::PROC_CUT_TURN || fopAcM_GetID(link) != s_player) return;
+    // Runs before native posMove/ground/wall resolution, retaining collision.
+    // Keep the spin animation but replace its forced stop/lunge with stick movement.
+    link->current.angle.y = link->mMoveAngle;
+    link->mNormalSpeed = link->mpHIO->mMove.m.mMaxSpeed * link->mStickValue;
+}
+HookAction before_large_spin(ModContext*, void*, void* result, void*) {
+    if (!in_arena()) return HOOK_CONTINUE;
+    *static_cast<BOOL*>(result) = FALSE;
+    return HOOK_SKIP_ORIGINAL;
+}
 void update_weapons(daAlink_c* link) {
+    for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
     for (auto& a : s_attacks) {
         if (!a.active) continue;
         a.status.Move();
-        if (!a.life-- || a.collider.ChkAtShieldHit()) {
-            a.active = false; a.collider.OffAtSetBit(); continue;
-        }
+        if (!a.life-- || a.collider.ChkAtShieldHit()) { stop_attack(a); continue; }
         const cXyz next = a.position + a.velocity;
         dBgS_LinChk wall; wall.Set(&a.position, &next, link);
-        if (a.weapon == 0 && dComIfG_Bgsp().LineCross(&wall)) {
-            a.active = false; a.collider.OffAtSetBit(); continue;
-        }
+        if (a.weapon == 0 && dComIfG_Bgsp().LineCross(&wall)) { stop_attack(a); continue; }
         a.position = next;
+        if (a.weapon == 0) update_wave_effects(a, link);
         a.collider.SetC(a.position); a.collider.SetR(a.radius);
         a.collider.SetAtVec(a.velocity);
         dComIfG_Ccsp()->Set(&a.collider);
     }
-    constexpr std::array<unsigned, 3> baseCooldown{40, 100, 65};
-    for (unsigned weapon = 0; weapon < 3; ++weapon) {
-        if (!s_run.ranks[weapon]) continue;
-        if (s_cooldowns[weapon]) { --s_cooldowns[weapon]; continue; }
-        s_cooldowns[weapon] = s_run.cooldown(baseCooldown[weapon]);
-        cXyz direction = target_direction(link);
-        launch(link, weapon, direction);
-        if (weapon == 0 && s_run.ranks[0] >= 3) {
-            launch(link, weapon, cXyz(direction.x * 0.94f + direction.z * 0.34f,
-                direction.y, direction.z * 0.94f - direction.x * 0.34f));
-            if (s_run.ranks[0] >= 5) launch(link, weapon, cXyz(direction.x * 0.94f - direction.z * 0.34f,
-                direction.y, direction.z * 0.94f + direction.x * 0.34f));
-        }
+    update_sword(link);
+    if (s_run.ranks[2] && !s_cooldowns[2]) {
+        launch(link, 2, cXyz(0, 0, 0));
+        s_cooldowns[2] = s_run.cooldown(65);
     }
+}
+bool native_sword_collider(const cCcD_Obj* collider) {
+    auto* link = daAlink_getAlinkActorClass();
+    if (!in_arena() || !link || fopAcM_GetID(link) != s_player) return false;
+    if (s_swordAction == SwordAction::Spin && collider == &link->mAtSph) return true;
+    if (s_swordAction == SwordAction::Normal)
+        for (const auto& capsule : link->mAtCps) if (collider == &capsule) return true;
+    return false;
 }
 void after_power(ModContext*, void* args, void*, void*) {
     if (!s_active) return;
     auto* info = mods::arg<dCcU_AtInfo*>(args, 0);
     if (!info || !info->mpCollider) return;
+    if (native_sword_collider(info->mpCollider)) {
+        info->mAttackPower = s_swordAction == SwordAction::Spin ? s_run.attack_power(1) :
+            3 + s_run.rank(Upgrade::Power);
+        return;
+    }
     for (const auto& attack : s_attacks) {
         if (info->mpCollider == &attack.collider) {
             // The native table maps 3 to 30 and >=4 to up to 200 damage.
@@ -502,7 +643,7 @@ void after_process(ModContext*, void* args, void*, void*) {
     if (enemy && actor) credit_death(*enemy, actor);
 }
 HookAction before_drop(ModContext*, void*, void* result, void*) {
-    if (!in_arena()) return HOOK_CONTINUE;
+    if (!in_arena() || s_allowDrop) return HOOK_CONTINUE;
     *static_cast<fpc_ProcID*>(result) = kNone;
     return HOOK_SKIP_ORIGINAL;
 }
@@ -535,18 +676,15 @@ void after_draw(ModContext*, void*, void*, void*) {
         dDbVw_drawCubeOpa(orb.position, size, angle, GXColor{90, 235, 255, 255});
     }
     for (auto& a : s_attacks) {
-        if (!a.active) continue;
-        const GXColor color = a.weapon == 2 ? GXColor{255, 235, 160, 180} : GXColor{110, 225, 255, 210};
-        if (a.weapon == 0) dDbVw_drawSphereXlu(a.position, a.radius * 0.45f, color, 1);
-        else {
-            // Horizontal ring, so the visible footprint matches the attack radius.
-            for (unsigned i = 0; i < 24; ++i) {
-                const s16 p = static_cast<s16>(i * 65536 / 24);
-                const s16 q = static_cast<s16>((i + 1) * 65536 / 24);
-                cXyz from = a.position + cXyz(cM_ssin(p) * a.radius, -35, cM_scos(p) * a.radius);
-                cXyz to = a.position + cXyz(cM_ssin(q) * a.radius, -35, cM_scos(q) * a.radius);
-                dDbVw_drawLineXlu(from, to, color, 1, 8);
-            }
+        if (!a.active || a.weapon == 0) continue;
+        const GXColor color{255, 235, 160, 180};
+        // Only Light Aura uses a ring; Sword Wave uses native spin particles.
+        for (unsigned i = 0; i < 24; ++i) {
+            const s16 p = static_cast<s16>(i * 65536 / 24);
+            const s16 q = static_cast<s16>((i + 1) * 65536 / 24);
+            cXyz from = a.position + cXyz(cM_ssin(p) * a.radius, -35, cM_scos(p) * a.radius);
+            cXyz to = a.position + cXyz(cM_ssin(q) * a.radius, -35, cM_scos(q) * a.radius);
+            dDbVw_drawLineXlu(from, to, color, 1, 8);
         }
     }
 }
@@ -595,9 +733,8 @@ void select_upgrade(ModContext*, void* data) {
     const auto selected = s_run.offers[choice];
     if (!s_run.choose(choice)) return;
     if (selected == Upgrade::Heart) dComIfGs_setMaxLife(15 + 5 * s_run.rank(Upgrade::Heart));
-    if (selected == Upgrade::Heart || selected == Upgrade::Heal)
-        dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(), dComIfGs_getLife() +
-            (selected == Upgrade::Heart ? 4 : 8)));
+    if (selected == Upgrade::Rupees)
+        dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(), dComIfGs_getRupee() + 20));
     close_window();
     s_run.level_up(); // Preserve queued levels; do not resume combat between choices.
 }
@@ -606,6 +743,7 @@ void start_run(ModContext*, void*) {
     close_window(); prepare_save();
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
     s_run.start(seed); s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
+    s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
 }
 void replay(ModContext*, void*) { close_window(); s_restart = true; }
 void save_results(ModContext*, void*) { close_window(); s_saveRequested = true; }
@@ -622,7 +760,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         for (unsigned i = 0; i < 3; ++i) {
             const auto u = s_run.offers[i]; const unsigned index = static_cast<unsigned>(u);
             char text[80];
-            if (u == Upgrade::Heal) std::snprintf(text, sizeof(text), "%s (+2 hearts)", names[index]);
+            if (u == Upgrade::Rupees) std::snprintf(text, sizeof(text), "%s (+20)", names[index]);
             else std::snprintf(text, sizeof(text), "%s - Level %u", names[index], s_run.rank(u) + 1);
             const auto result = button(left, text, select_upgrade, &s_choices[i], descriptions[index]);
             if (result != MOD_OK) return result;
@@ -634,7 +772,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         svc_ui->pane_add_text(mod_ctx, left, "Survive for 10 minutes, then defeat the Elite Bokoblin.", nullptr);
         svc_ui->pane_add_text(mod_ctx, right,
             "Move and dodge while your weapons attack automatically. Collect the blue crystals to level up. "
-            "Each level offers three upgrades. Sword Wave is your starting weapon; unlock Whirling Blade and Light Aura during the run. "
+            "Normal sword strikes are automatic. Unlock Sword Wave, Whirling Blade and Light Aura during the run. Enemies may drop hearts and rupees. "
             "This first arena uses the native camera and supports controller and touch controls.", nullptr);
         std::snprintf(text, sizeof(text), "Completed runs: %u | Wins: %u | Best kills: %u | Best level: %u",
             s_records.runs, s_records.wins, s_records.best_kills, s_records.best_level);
@@ -737,6 +875,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
     PRE(SurvivorsSwordAttack, before_cut); PRE(SurvivorsDoor, before_cut);
     POST(SurvivorsPower, after_power);
+    POST(SurvivorsSpinMove, after_spin_move); PRE(SurvivorsLargeSpin, before_large_spin);
     PRE(SurvivorsStage, before_stage); POST(SurvivorsHud, draw_hud);
     PRE(SurvivorsGameStart, before_game_start); PRE(SurvivorsOpening, before_opening);
     PRE(SurvivorsDrops, before_drop); PRE(SurvivorsDirectDrops, before_drop);

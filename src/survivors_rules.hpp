@@ -12,23 +12,23 @@ inline constexpr unsigned enemy_capacity = 24;
 inline constexpr unsigned projectile_capacity = 16;
 inline constexpr unsigned orb_capacity = 64;
 enum class Phase { Loading, Ready, Running, Upgrade, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, Aura, Power, Haste, Reach, Magnet, Heart, Heal, Count };
+enum class Upgrade : unsigned { Wave, Spin, Aura, Power, Haste, Reach, Magnet, Heart, Rupees, Count };
 inline constexpr std::array names{
-    "Sword Wave", "Whirling Blade", "Light Aura", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Recovery"};
+    "Sword Wave", "Whirling Blade", "Light Aura", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Rupees"};
 inline constexpr std::array descriptions{
     "Automatic piercing sword waves. Higher levels add damage and extra waves.",
-    "Unlock or improve a periodic sweeping attack around Link.",
+    "Unlock or improve a moving spin attack.",
     "Unlock or improve a short-range pulse of light around Link.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
     "Increase the size of automatic attacks.", "Collect experience from farther away.",
-    "Gain one maximum heart and recover one heart.", "Recover two hearts."};
+    "Gain one maximum heart (does not heal).", "Receive 20 rupees."};
 
 struct Run {
     Phase phase = Phase::Loading;
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
     bool elite_spawned = false;
-    std::array<unsigned, 8> ranks{1, 0, 0, 0, 0, 0, 0, 0};
+    std::array<unsigned, 8> ranks{};
     std::array<Upgrade, 3> offers{};
     uint32_t next_random() {
         random ^= random << 13; random ^= random >> 17; random ^= random << 5;
@@ -38,7 +38,7 @@ struct Run {
     unsigned required_xp() const { return 5 + level * 3; }
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return i < ranks.size() ? ranks[i] : 0; }
     bool eligible(Upgrade u) const {
-        if (u == Upgrade::Heal) return true;
+        if (u == Upgrade::Rupees) return true;
         if (rank(u) >= 5) return false;
         if (u >= Upgrade::Power && rank(u) == 0) {
             unsigned occupied = 0;
@@ -55,7 +55,7 @@ struct Run {
         for (unsigned i = 0; i < static_cast<unsigned>(Upgrade::Count); ++i)
             if (eligible(static_cast<Upgrade>(i))) pool[count++] = static_cast<Upgrade>(i);
         for (auto& offer : offers) {
-            if (!count) { offer = Upgrade::Heal; continue; }
+            if (!count) { offer = Upgrade::Rupees; continue; }
             const unsigned choice = next_random() % count;
             offer = pool[choice]; pool[choice] = pool[--count];
         }
@@ -66,7 +66,7 @@ struct Run {
         if (phase != Phase::Upgrade || choice >= offers.size()) return false;
         const auto u = offers[choice];
         if (!eligible(u)) return false;
-        if (u != Upgrade::Heal) ++ranks[static_cast<unsigned>(u)];
+        if (u != Upgrade::Rupees) ++ranks[static_cast<unsigned>(u)];
         phase = Phase::Running;
         return true;
     }
@@ -77,6 +77,13 @@ struct Run {
     unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), enemy_capacity - 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
     unsigned cooldown(unsigned base) const { return std::max(6u, base * (100 - rank(Upgrade::Haste) * 10) / 100); }
+    // One native collectible per confirmed kill: 5% heart, 5% blue, 40% green.
+    enum class Drop { None, Heart, GreenRupee, BlueRupee };
+    Drop roll_drop() {
+        const unsigned roll = next_random() % 100;
+        return roll < 5 ? Drop::Heart : roll < 10 ? Drop::BlueRupee :
+            roll < 50 ? Drop::GreenRupee : Drop::None;
+    }
     unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power); }
     float radius(float base) const { return base * (1.0f + 0.15f * rank(Upgrade::Reach)); }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade) phase = won ? Phase::Victory : Phase::Defeat; }

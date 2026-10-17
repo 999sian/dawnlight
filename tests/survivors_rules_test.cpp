@@ -4,6 +4,13 @@
 using namespace dawnlight::survivors;
 int main() {
     Run run;
+    assert(std::all_of(run.ranks.begin(),run.ranks.end(),[](auto r){return r==0;}));
+    std::array<unsigned,4> drops{};
+    run.start(123);
+    for(unsigned i=0;i<10000;++i) ++drops[static_cast<unsigned>(run.roll_drop())];
+    assert(drops[1]>350 && drops[1]<650); // Rare hearts, not an every-kill heal.
+    assert(drops[2]>3500 && drops[2]<4500 && drops[3]>350 && drops[3]<650);
+    run = {};
     assert(!run.tick(true));
     run.start(0);
     for (unsigned i = 0; i < duration; ++i) {
@@ -23,25 +30,25 @@ int main() {
     assert(!run.choose(3));
     const auto previous = run.rank(offers[0]);
     assert(run.choose(0));
-    if (offers[0] != Upgrade::Heal) assert(run.rank(offers[0]) == previous + 1);
+    if (offers[0] != Upgrade::Rupees) assert(run.rank(offers[0]) == previous + 1);
     assert(!run.choose(0)); // Double activation is ignored.
     assert(run.level_up()); // Excess XP remains available.
     for (uint32_t seed = 1; seed < 1000; ++seed) {
         run.start(seed);
         run.ranks.fill(5); run.ranks[2] = 4; run.xp = 100;
         assert(run.level_up());
-        for (const auto offer : run.offers) assert(offer == Upgrade::Aura || offer == Upgrade::Heal);
+        for (const auto offer : run.offers) assert(offer == Upgrade::Aura || offer == Upgrade::Rupees);
         assert(std::count(run.offers.begin(), run.offers.end(), Upgrade::Aura) == 1);
         run.start(seed); run.ranks.fill(5); run.xp = 100;
         assert(run.level_up());
-        for (const auto offer : run.offers) assert(offer == Upgrade::Heal);
+        for (const auto offer : run.offers) assert(offer == Upgrade::Rupees);
         assert(run.choose(2));
         assert(run.cooldown(40) == 20);
     }
     run.start(1);
     run.ranks[3] = run.ranks[4] = run.ranks[5] = run.ranks[6] = 1;
     assert(!run.eligible(Upgrade::Heart)); // Four passive slots, existing ranks can improve.
-    assert(run.eligible(Upgrade::Power) && run.eligible(Upgrade::Spin) && run.eligible(Upgrade::Heal));
+    assert(run.eligible(Upgrade::Power) && run.eligible(Upgrade::Spin) && run.eligible(Upgrade::Rupees));
     Records records;
     records.finish(run); assert(records.runs == 0); // Live runs cannot become records.
     run.end(false); assert(run.phase == Phase::Defeat && !run.tick(true));
@@ -59,6 +66,6 @@ int main() {
     assert(!loaded.decode(std::span(bytes.data(), bytes.size() - 1)));
     corrupt = bytes; corrupt[12] = 250; assert(!loaded.decode(corrupt));
     run.start(9); assert(run.xp == 0 && run.kills == 0 && run.ticks == 0 && run.level == 1);
-    assert(run.ranks[0] == 1 && run.ranks[1] == 0 && run.ranks[7] == 0);
+    assert(run.ranks[0] == 0 && run.ranks[1] == 0 && run.ranks[7] == 0);
     std::cout << "Survivors rules: timing, choices, caps, restart and records passed\n";
 }
