@@ -1,11 +1,15 @@
 #include "survivors.hpp"
 #include "survivors_rules.hpp"
+#include "survivors_items.hpp"
 #include "enemy_spawner.hpp"
 #include "bow_fire_resource.hpp"
 #include "save_state.hpp"
 #include "service_imports.hpp"
 #include "mods/hook.hpp"
 #include "mods/service.hpp"
+#include "mods/svc/flow.hpp"
+#include "d/d_menu_ring.h"
+#include "d/d_menu_item_explain.h"
 #include "SSystem/SComponent/c_math.h"
 #include "d/actor/d_a_alink.h"
 #include "d/actor/d_a_demo_item.h"
@@ -65,6 +69,14 @@ DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#damage_check", void(e_ms_class*), S
 DEFINE_HOOK(&daAlink_c::setMatrix, SurvivorsRangedAim);
 DEFINE_HOOK(&daAlink_c::checkUpperItemActionBow, SurvivorsBowAction);
 DEFINE_HOOK(&daAlink_c::checkNextActionBow, SurvivorsBowNext);
+DEFINE_HOOK(&daAlink_c::checkUpperItemActionIronBall, SurvivorsBallAction);
+DEFINE_HOOK(&daAlink_c::checkNextActionIronBall, SurvivorsBallNext);
+DEFINE_HOOK(&dMenu_Ring_c::setActiveCursor, SurvivorsRingCursor);
+DEFINE_HOOK(&dMenu_Ring_c::setItem, SurvivorsRingAssign);
+DEFINE_HOOK(&dMenu_Ring_c::setMixItem, SurvivorsRingMix);
+DEFINE_HOOK(&dSv_player_status_a_c::setSelectItemIndex, SurvivorsBind);
+DEFINE_HOOK(&dSv_player_status_a_c::setMixItemIndex, SurvivorsMixBind);
+DEFINE_HOOK(&dMenu_ItemExplain_c::openExplain, SurvivorsExplain);
 DEFINE_HOOK(&daAlink_c::checkUpperGrabItemThrow, SurvivorsBombThrow);
 DEFINE_HOOK(&daAlink_c::cancelUpperItemReadyAnime, SurvivorsRangedCancel);
 DEFINE_HOOK(&daAlink_c::procCoGetItemInit, SurvivorsGetItem);
@@ -112,6 +124,9 @@ void clear_loot();
 void cancel_treasure_demo();
 int potion_slot();
 void cancel_ranged();
+bool prepare_treasure_message(ChestReward, const Run&, const Run&);
+unsigned treasure_message_id();
+void sync_survivors_inventory();
 bool queue_ranged(daAlink_c*, Upgrade);
 std::array<unsigned, 3> s_choices{0, 1, 2};
 struct ProcessFrame { void* args; ActorId id; };
@@ -599,6 +614,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 #include "survivors_loot.inc"
 #include "survivors_ranged.inc"
 #include "survivors_treasure.inc"
+#include "survivors_inventory.inc"
 #include "survivors_defense.inc"
 
 void update_weapons(daAlink_c* link) {
@@ -991,6 +1007,14 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsRangedAim, before_ranged_aim);
     PRE(SurvivorsBowAction, before_ranged_native);
     PRE(SurvivorsBowNext, before_ranged_native);
+    PRE(SurvivorsBallAction, before_ranged_native);
+    PRE(SurvivorsBallNext, before_ranged_native);
+    PRE(SurvivorsRingCursor, before_ring_assignment);
+    PRE(SurvivorsRingAssign, before_ring_assignment);
+    PRE(SurvivorsRingMix, before_ring_assignment);
+    PRE(SurvivorsBind, before_item_binding);
+    PRE(SurvivorsMixBind, before_item_mix);
+    POST(SurvivorsExplain, after_item_explain);
     PRE(SurvivorsBombThrow, before_ranged_native);
     PRE(SurvivorsRangedCancel, before_ranged_native);
     PRE(SurvivorsTreasureDraw, before_treasure_draw);
@@ -1022,6 +1046,7 @@ ModResult initialize_survivors(ModError* error) {
 }
 void shutdown_survivors() {
     s_active = false; reset_runtime(); cleanup_enemies();
+    s_treasureMessage.reset(); s_itemNameMessage.reset(); s_itemDescriptionMessage.reset();
     if (s_savePrompt != kNone) { d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone; }
     if (s_registered) svc_game_mode->unregister_game_mode(mod_ctx, kMode);
     s_registered = false;

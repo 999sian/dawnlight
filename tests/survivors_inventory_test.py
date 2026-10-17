@@ -1,0 +1,126 @@
+"""Run inventory guards and reward text through the real SDK message builder."""
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+root = Path(__file__).resolve().parents[1]
+sdk = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dusklight'
+source = (root / 'src/survivors_inventory.inc').read_text()
+fixture = r'''
+#include <cassert>
+#include <any>
+#include <map>
+#include <string>
+#include "survivors_items.hpp"
+#include "mods/svc/flow.hpp"
+using namespace dawnlight::survivors;
+using u8=uint8_t;
+using u32=uint32_t;
+constexpr int SLOT_0=0,SLOT_4=4,SLOT_6=6,SLOT_11=11,SLOT_14=14,SLOT_15=15,SLOT_20=20,SLOT_21=21,SLOT_22=22,MAX_ITEM_SLOTS=24;
+constexpr u8 dItemNo_NONE_e=255,dItemNo_BOW_e=1,dItemNo_BOOMERANG_e=2,dItemNo_NORMAL_BOMB_e=3,dItemNo_IRONBALL_e=4,
+ dItemNo_MASTER_SWORD_e=5,dItemNo_LIGHT_SWORD_e=6,dItemNo_SWORD_e=7,dItemNo_WOOD_SHIELD_e=8,dItemNo_SHIELD_e=9,dItemNo_HYLIA_SHIELD_e=10,
+ dItemNo_RED_BOTTLE_e=20,dItemNo_EMPTY_BOTTLE_e=21;
+std::array<u8,24> inventory;
+u8 dComIfGs_getItem(int slot,bool){return slot<24?inventory[slot]:dItemNo_NONE_e;}
+void dComIfGs_setItem(int slot,u8 item){inventory[slot]=item;}
+bool arena=true;bool in_arena(){return arena;}
+Run s_run;
+u8 shield_item(const Run& r){return r.shield_tier()==2?dItemNo_HYLIA_SHIELD_e:r.shield_tier()==1?dItemNo_SHIELD_e:dItemNo_WOOD_SHIELD_e;}
+struct dSv_player_status_a_c{};
+struct Player{dSv_player_status_a_c status;auto& getPlayerStatusA(){return status;}};
+struct Info{Player player;auto& getPlayer(){return player;}};
+struct{Info info;}g_dComIfG_gameInfo;
+struct dMenu_Ring_c{bool mPlayerIsWolf=false;unsigned mCurrentSlot=0;std::array<u8,24>mItemSlots{};};
+struct dMenu_ItemExplain_c{u32 field_0xcc=0,field_0xc8=0,field_0xc4=0;u8 field_0xde=1,field_0xdf=10;unsigned numberUpdates=0;void setNumber(){++numberUpdates;}};
+enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
+namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
+struct Message{std::vector<uint8_t> text;};
+std::map<MessageId,Message> messages;MessageId nextId=0x8000;bool failMessage=false;
+ModResult register_message(ModContext*,uint16_t group,const MessageVariantData* variants,size_t count,MessageId* id,MessageHandle* handle){
+ assert(group==0&&count==6);if(failMessage)return MOD_UNAVAILABLE;
+ for(size_t i=0;i<count;++i){assert(variants[i].text_size>1);assert(variants[i].text[variants[i].text_size-1]==0);}
+ *id=nextId++;*handle=*id;messages[*id]={{variants[0].text,variants[0].text+variants[0].text_size}};return MOD_OK;
+}
+ModResult remove_message(ModContext*,MessageHandle id){messages.erase(id);return MOD_OK;}
+MessageService messageService{.register_message=register_message,.remove_message=remove_message};
+extern "C"{ModContext* mod_ctx=nullptr;const MessageService* svc_message=&messageService;const FlowService* svc_flow=nullptr;}
+'''
+main = r'''
+std::string plain(MessageId id){std::string text;const auto& bytes=messages.at(id).text;for(size_t i=0;i+1<bytes.size();){if(bytes[i]==0x1a)i+=bytes[i+1];else text+=char(bytes[i++]);}return text;}
+std::vector<std::string> red_segments(MessageId id){
+ std::vector<std::string> out;bool red=false;const auto& bytes=messages.at(id).text;
+ for(size_t i=0;i+1<bytes.size();){if(bytes[i]==0x1a){if(bytes[i+1]==6&&bytes[i+2]==255&&bytes[i+3]==0&&bytes[i+4]==0){red=bytes[i+5]==MESSAGE_COLOR_RED;if(red)out.emplace_back();}i+=bytes[i+1];}else{if(red)out.back()+=char(bytes[i]);++i;}}
+ return out;
+}
+int main(){
+ inventory.fill(dItemNo_NONE_e);s_run.start(1);
+ Run before=s_run,after=before;before.shield=1;after.shield=2;
+ assert(prepare_treasure_message(ChestReward::Shield,before,after));
+ assert(plain(treasure_message_id())=="Wooden Shield\nBlock chance: 5% -> 10%");
+ assert(red_segments(treasure_message_id())==std::vector<std::string>{"5% -> 10%"});
+ const auto previous=treasure_message_id();failMessage=true;
+ assert(!prepare_treasure_message(ChestReward::Bow,before,after)&&treasure_message_id()==previous);failMessage=false;
+ // Every reward level reports only values changed by that reward, including
+ // damage/rate with already collected global upgrades and Fire Arrows.
+ for(auto reward:{ChestReward::Bow,ChestReward::Boomerang,ChestReward::Bombs,ChestReward::Ball})for(unsigned level=0;level<5;++level){
+  before=s_run;before.ranks[3]=2;before.ranks[4]=3;before.ranks[5]=4;before.ranks[12]=2;
+  auto weapon=chest_weapon(reward);before.ranks[unsigned(weapon)]=level;after=before;++after.ranks[unsigned(weapon)];
+  assert(prepare_treasure_message(reward,before,after));const auto changes=reward_changes(reward,before,after);
+  auto red=red_segments(treasure_message_id());assert(red.size()==changes.size());
+  for(unsigned i=0;i<changes.size();++i)assert(red[i]==changes[i].before+" -> "+changes[i].after&&changes[i].before!=changes[i].after);
+  if(reward==ChestReward::Bow&&level==2){auto text=plain(treasure_message_id());assert(text.find("Arrows: 1 -> 2")!=std::string::npos);assert(text.find("Damage: 10 -> 11")!=std::string::npos);}
+ }
+ before=s_run;before.master_sword=4;before.ranks[0]=3;after=before;after.master_sword=5;
+ assert(prepare_treasure_message(ChestReward::MasterSword,before,after));
+ assert(plain(treasure_message_id()).find("Light Sword\nSword bonus: +6 -> +7") == 0);
+ assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run));
+ assert(plain(treasure_message_id()).find("Bottles: 0 -> 1")!=std::string::npos);
+ inventory[11]=inventory[12]=inventory[13]=dItemNo_RED_BOTTLE_e;inventory[14]=dItemNo_EMPTY_BOTTLE_e;
+ assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run));
+ assert(plain(treasure_message_id())=="Red Potion\nRed potions: 3 -> 4");
+ auto bottles=inventory;sync_survivors_inventory();assert(inventory==bottles);
+ s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;s_run.master_sword=5;s_run.shield=7;s_run.dual_wield=true;
+ sync_survivors_inventory();
+ assert(inventory[4]==dItemNo_BOW_e&&inventory[0]==dItemNo_BOOMERANG_e&&inventory[15]==dItemNo_NORMAL_BOMB_e&&inventory[6]==dItemNo_IRONBALL_e);
+ assert(inventory[20]==dItemNo_LIGHT_SWORD_e&&inventory[21]==dItemNo_SWORD_e&&inventory[22]==dItemNo_HYLIA_SHIELD_e);
+ for(int i=11;i<=14;++i)assert(inventory[i]==bottles[i]);
+ auto* status=&g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA();
+ for(int button=0;button<4;++button)for(unsigned slot=0;slot<256;++slot){
+  std::any args[]={status,button,u8(slot)};const bool allowed=slot==255||(slot>=11&&slot<=14);
+  assert((before_item_binding(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE)==allowed);
+  assert((before_item_mix(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE)==(slot==255));
+ }
+ dSv_player_status_a_c foreign;std::any foreignArgs[]={&foreign,0,u8(4)};
+ assert(before_item_binding(nullptr,foreignArgs,nullptr,nullptr)==HOOK_CONTINUE);
+ dMenu_Ring_c ring;std::any ringArgs[]={&ring};ring.mItemSlots[0]=4;
+ assert(before_ring_assignment(nullptr,ringArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+ ring.mItemSlots[0]=11;assert(before_ring_assignment(nullptr,ringArgs,nullptr,nullptr)==HOOK_CONTINUE);
+ inventory[11]=dItemNo_NONE_e;assert(!survivors_slot_assignable(11));
+ arena=false;ring.mItemSlots[0]=4;assert(before_ring_assignment(nullptr,ringArgs,nullptr,nullptr)==HOOK_CONTINUE);
+ std::any bindArgs[]={status,0,u8(4)};assert(before_item_binding(nullptr,bindArgs,nullptr,nullptr)==HOOK_CONTINUE);arena=true;
+ dMenu_ItemExplain_c explain;u8 opened=1;std::any explainArgs[]={&explain,u8(4)};
+ after_item_explain(nullptr,explainArgs,&opened,nullptr);assert(explain.numberUpdates==1&&explain.field_0xdf==0);
+ assert(plain(explain.field_0xcc)=="Hero's Bow"&&plain(explain.field_0xc8).find("Fire Lv.0")!=std::string::npos);
+ const auto oldDescription=explain.field_0xc8;s_run.ranks[12]=5;s_run.ranks[8]=5;
+ after_item_explain(nullptr,explainArgs,&opened,nullptr);
+ assert(explain.field_0xc8!=oldDescription&&!messages.count(oldDescription));
+ assert(plain(explain.field_0xc8).find("3 arrows/shot")!=std::string::npos&&plain(explain.field_0xc8).find("Fire Lv.5 (+10 dmg)")!=std::string::npos);
+ opened=0;const auto id=explain.field_0xc8;after_item_explain(nullptr,explainArgs,&opened,nullptr);assert(explain.field_0xc8==id);
+ for(unsigned rank=0;rank<=5;++rank){
+  Run run;run.ranks.fill(rank);run.master_sword=rank;run.shield=rank*2;
+  for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward){
+   const auto text=item_description(ChestReward(reward),run);assert(text.size()<480&&std::count(text.begin(),text.end(),'\n')==3);
+   size_t start=0,end;do{end=text.find('\n',start);assert((end==std::string::npos?text.size():end)-start<=54);start=end+1;}while(end!=std::string::npos);
+  }
+ }
+ assert(messages.size()==3); // One reward and one name/description pair, never accumulated.
+ s_treasureMessage.reset();s_itemNameMessage.reset();s_itemDescriptionMessage.reset();assert(messages.empty());
+}
+'''
+with tempfile.TemporaryDirectory() as tmp:
+    cpp, binary = Path(tmp)/'test.cpp', Path(tmp)/'test'
+    cpp.write_text(fixture + source + main)
+    subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes','-Wno-missing-field-initializers',
+                    '-I',str(root/'src'),'-I',str(sdk/'sdk/include'),str(cpp),'-o',str(binary)],check=True)
+    subprocess.run([str(binary)],check=True)
+print('Survivors inventory: reward deltas/red tags, message lifetime, inventory, binding guards and live descriptions passed')

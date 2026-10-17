@@ -1,8 +1,16 @@
 """Production ranged animation scheduler: release frames, aim, interrupts and fairness."""
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 root=Path(__file__).resolve().parents[1]
+sdk=Path(sys.argv[1]) if len(sys.argv)>1 else root/'dusklight'
+native=(sdk/'src/d/actor/d_a_alink_ironball.inc').read_text()
+native_next=native[native.index('int daAlink_c::checkNextActionIronBall()'):native.index('int daAlink_c::procIronBallSubjectInit()')]
+core=(root/'src/survivors.cpp').read_text()
+for method,alias in [('checkUpperItemActionIronBall','SurvivorsBallAction'),('checkNextActionIronBall','SurvivorsBallNext')]:
+    assert f'DEFINE_HOOK(&daAlink_c::{method}, {alias});' in core
+    assert f'PRE({alias}, before_ranged_native);' in core
 source=(root/'src/survivors_ranged.inc').read_text().split('void draw_ranged()')[0]
 fixture=r'''
 #include <cassert>
@@ -22,6 +30,13 @@ struct Frame{float frame=0,rate=1;int end=12;float getFrame(){return frame;}int 
 struct daAlink_c{
  enum{UPPER_2=2};int id=1,mEquipItem=0x103,proc=0;u16 animation=0;
  bool equipping=false;bool checkEquipAnime(){return equipping;}
+ int mFastShotTime=0;short field_0x2fe4=0;bool locked=true;
+ bool checkIronBallAnime(){return animation==dRes_ID_ALANM_BCK_IBTHROW_e;}
+ void setIronBallReadyAnime(){animation=dRes_ID_ALANM_BCK_IBTHROW_e;}
+ void setFastShotTimer(){mFastShotTime=10;}
+ bool checkAttentionLock(){return locked;}
+ int procIronBallSubjectInit(){proc=2;return 1;}int procIronBallMoveInit(){proc=2;return 1;}
+ int checkNextActionIronBall();
  Frame mUpperFrameCtrl[3],mUnderFrameCtrl[1];float field_0x347c=5,field_0x3484=8;
  struct{cXyz pos;struct{s16 y=123;}angle;}current;
  struct{s16 x=0,y=0;}shape_angle,mBodyAngle;
@@ -92,6 +107,22 @@ int main(){
  player.mUpperFrameCtrl[2].frame=4;update_ranged(&player);assert(shots.size()==1&&shots[0]==Upgrade::Bombs);
  fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[11]=1;
  assert(queue_ranged(&player,Upgrade::Ball)&&player.animation==dRes_ID_ALANM_BCK_IBTHROW_e);
+ // Execute the real native next-action selector: it steals our upper animation
+ // for a manually equipped iron ball and immediately cancels the run scheduler.
+ player.checkNextActionIronBall();update_ranged(&player);
+ assert(!s_ranged.active&&shots.empty());
+ for(bool locked:{false,true}){
+  fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[11]=1;player.locked=locked;
+  assert(queue_ranged(&player,Upgrade::Ball));
+  for(int frame=0;frame<6;++frame){
+   int nativeResult=1;
+   if(before_ranged_native(nullptr,&player,&nativeResult,nullptr)==HOOK_CONTINUE)player.checkNextActionIronBall();
+   assert(nativeResult==0&&player.proc==0);tick();assert(s_ranged.active);
+  }
+  assert(shots.size()==1&&shots[0]==Upgrade::Ball);
+ }
+ fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[11]=1;
+ assert(queue_ranged(&player,Upgrade::Ball));
  player.mUpperFrameCtrl[2].frame=5;update_ranged(&player);assert(shots.empty());
  player.mUpperFrameCtrl[2].frame=6;update_ranged(&player);assert(shots.size()==1);
  s_attacks[20].returning=true;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBPULL_e);
@@ -106,7 +137,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
-    cpp.write_text(fixture+source+main)
+    cpp.write_text(fixture+native_next+source+main)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
 print('Survivors ranged: native animation phases, release timing, haste, aim, cancellation and fairness passed')

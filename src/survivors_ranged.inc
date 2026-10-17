@@ -112,7 +112,11 @@ HookAction before_ranged_native(ModContext*, void* args, void* result, void*) {
     if (!s_ranged.active || !in_arena() || !link || fopAcM_GetID(link) != s_player ||
         !link->checkUpperAnime(s_ranged.animation)) return HOOK_CONTINUE;
     *static_cast<int*>(result) = 0;
-    return HOOK_SKIP_ORIGINAL; // No native arrow/ammo/aim-mode side effects for our upper animation.
+    // IBTHROW also passes checkIronBallAnime(). Its native action handler uses
+    // the locomotion frame as a wind-up timer, and its next-action handler
+    // enters IRON_BALL_MOVE/SUBJECT without an equipped ball. Both must yield
+    // to our release/pull/catch scheduler, just like manual bow targeting.
+    return HOOK_SKIP_ORIGINAL;
 }
 HookAction before_ranged_aim(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);

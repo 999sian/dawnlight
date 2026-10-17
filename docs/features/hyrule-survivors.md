@@ -89,6 +89,10 @@ and so on. Link receives the random reward through the native Get Item lift,
 holding pose and item message while enemies and the run timer pause. The lid
 opens during this sequence. Currency, reward and price are committed once the
 sequence completes; failed loading or cancellation does not charge rupees.
+The native Get Item text lists the upgrades changed by that purchase. Changed
+values are red and show before/after values, for example **Block chance: 5% -> 10%**.
+The preview is frozen with the selected reward; an unavailable message cancels
+the attempt before creating the event or spending rupees.
 
 Each purchase chooses equally among the eligible reward types: Hero's Bow,
 Boomerang, Bombs, Ball and Chain, Master Sword, an Ordon Sword for Dual Wield,
@@ -126,6 +130,15 @@ Potion can be used normally from the item inventory; drinking it makes that
 empty bottle eligible for a future refill. Four full bottles exclude potions
 from the reward pool until a bottle is emptied. Equipment and potions are chest-only.
 
+Obtained weapons, swords and the current shield also appear in the native item
+wheel. Their explanation shows their current rank, automatic behavior, damage,
+cooldown, range/area or block chance, including applicable collected upgrades.
+Open the explanation again after a level-up to see the updated values.
+Only bottles can be assigned to item buttons; automatic equipment cannot be
+assigned or combined. This also applies to extra bindings supplied by other mods.
+These inventory entries belong only to the isolated Survivors save and reset
+with the run. Red Potion retains the native recovery of up to eight hearts.
+
 Maxed weapons, a rank-5 Master Sword, an owned offhand sword and a 50% shield are excluded. New chests stop
 spawning only while no useful reward is available. Each run resets the separate
 Survivors inventory, sword/shield ranks, Dual Wield unlock, chest prices and weapon ranks, with
@@ -136,6 +149,8 @@ item slots or consuming ammunition. All four use Link's native upper-body animat
 draw/shoot, boomerang throw, bomb throw and ball throw/pull/catch. Link faces the target
 and releases each projectile at its animation cue; higher fire rates accelerate
 the animation. Sword, shield bash and item animations take turns; due item weapons rotate fairly.
+The automatic iron-ball animation bypasses native manual iron-ball action and
+aim transitions, so lock-on cannot cancel the throw before its release frame.
 They aim at the nearest
 live tracked enemy within range and line of sight. Arrows stop on impact;
 boomerangs use the native Gale wind model/animation and particle trails. They
@@ -232,6 +247,16 @@ Before merging/releasing, test on Android and desktop:
     outbound/return hits at the turnaround. Verify native chain and throw/pull/catch.
 16. Compare bomb rank/Reach blast visuals and radius. Unlock Fire Arrows after Bow,
     then check flame, damage upgrades and cleanup on death/restart/mod unload.
+17. Fire Ball and Chain while standing, moving and locking on. Check release,
+    outbound travel, pull/catch, and interruption by damage or opening a chest.
+18. Check each chest reward's Get Item text, including any additional pages.
+    Verify only changed values are red, shield 5% -> 10%, spread-shot unlocks,
+    fifth-sword evolution, new bottles/refills, and no grant after cancellation.
+19. Open the item wheel after each reward and after level-up upgrades. Check
+    weapon/sword/shield icons and current descriptions. Try X/Y, touch and
+    external-mod extra bindings: automatic equipment must remain unassigned;
+    full/empty bottles must remain assignable and usable. Check a story save
+    afterward to confirm its normal assignments and descriptions are unchanged.
 
 Automated tests cover rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared

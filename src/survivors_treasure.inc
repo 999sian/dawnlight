@@ -72,6 +72,7 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link) {
     Run preview = s_run; preview.phase = Phase::Treasure;
     unsigned rupees = dComIfGs_getRupee(); ChestReward reward = ChestReward::Count;
     if (!preview.buy_chest(rupees, reward, potion_slot() >= 0)) return false;
+    if (!prepare_treasure_message(reward, s_run, preview)) return false;
     const std::array<u8, 8> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e,
                                       dItemNo_IRONBALL_e, u8(preview.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e), dItemNo_RED_BOTTLE_e,
                                       dItemNo_SWORD_e, shield_item(preview)};
@@ -132,6 +133,7 @@ void after_treasure_get(ModContext*, void* args, void*, void*) {
         fopAcM_GetID(link) != s_player || link->mProcID != daAlink_c::PROC_GET_ITEM) return;
     link->setSingleAnimeBase(daAlink_c::ANM_GET_A);
     link->mProcVar1.field_0x300a = 0;
+    link->field_0x32cc = treasure_message_id();
     s_treasure.poseStarted = true;
 }
 void update_treasure_demo(daAlink_c* link) {
@@ -167,6 +169,7 @@ void update_treasure_demo(daAlink_c* link) {
             }
             dComIfGs_setRupee(rupees - s_treasure.price);
             s_run = s_treasure.result;
+            sync_survivors_inventory();
             chest = {}; // Remove immediately after the native reward/camera ends.
         }
         cancel_treasure_demo(); s_run.phase = Phase::Running;

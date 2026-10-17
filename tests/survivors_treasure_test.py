@@ -18,6 +18,11 @@ using s16=short;
 constexpr int kNone=-1;
 using u8=uint8_t;
 using ActorId=int;
+bool messageAvailable=true;
+bool prepare_treasure_message(ChestReward, const Run&, const Run&){return messageAvailable;}
+unsigned treasure_message_id(){return 0x8123;}
+unsigned inventorySyncs=0;
+void sync_survivors_inventory(){++inventorySyncs;}
 constexpr int fpcM_ERROR_PROCESS_ID_e=-1, fpcNm_Demo_Item_e=20;
 constexpr int dItemNo_NONE_e=255,dItemNo_EMPTY_BOTTLE_e=20,dItemNo_RED_BOTTLE_e=21,dItemNo_MASTER_SWORD_e=22,
     SLOT_11=11,SLOT_14=14,COLLECT_MASTER_SWORD=1,COLLECT_LIGHT_SWORD=3,
@@ -197,6 +202,8 @@ int main(){
     fresh();player.shape_angle.y=0x4000;assert(chest_interactable(s_chests[0],&player));
     fresh();createFails=true;assert(!begin_treasure_demo(0,&player));
     assert(currentLayer==&rootLayer&&s_run.phase==Phase::Running&&rupees==100);
+    fresh();messageAvailable=false;assert(!begin_treasure_demo(0,&player));
+    assert(created==0&&rupees==100&&s_run.phase==Phase::Running);messageAvailable=true;
     fresh();player.trigger=true;
     assert(before_chest_action(nullptr,&player,&result,nullptr)==HOOK_CONTINUE);
     assert(created==1&&cleared==1&&s_run.phase==Phase::Treasure&&rupees==100);
@@ -212,11 +219,13 @@ int main(){
     player.mProcID=daAlink_c::PROC_GET_ITEM;
     after_treasure_get(nullptr,&player,nullptr,nullptr);
     assert(s_treasure.poseStarted&&player.animation==daAlink_c::ANM_GET_A&&player.mProcVar1.field_0x300a==0);
+    assert(player.field_0x32cc==treasure_message_id());
     player.animation=99;after_treasure_get(nullptr,&player,nullptr,nullptr);assert(player.animation==99);
     retain_treasure_actor(&prop,reinterpret_cast<void*>(execute));
     assert(prop.mAction==daDitem_c::ACTION_WAIT_LIGHT_END_e);
     update_treasure_demo(&player);assert(s_chests[0].opening&&s_chests[0].age==1&&rupees==100);
-    eventEnded=true;update_treasure_demo(&player);
+    const auto syncedBefore=inventorySyncs;
+    eventEnded=true;update_treasure_demo(&player);assert(inventorySyncs==syncedBefore+1);
     assert(s_run.phase==Phase::Running&&rupees==80&&s_run.chest_cost()==40);
     assert(!s_chests[0].active&&s_run.chests_opened==1&&reset==1&&!alive);
     if (reward<=ChestReward::Ball) assert(s_run.rank(chest_weapon(reward))==1);
