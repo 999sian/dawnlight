@@ -39,6 +39,23 @@ struct dMenu_ItemExplain_c{u32 field_0xcc=0,field_0xc8=0,field_0xc4=0,field_0xd0
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
 bool treasureOwned=true;bool owns_treasure_event(){return treasureOwned;}
+namespace JMessage {
+struct Sequence {
+ const char* text=nullptr;unsigned resets=0,starts=0,updates=0;bool done=false;
+ void reset(){++resets;text=nullptr;done=false;}
+ void setBegin_messageEntryText(const void* resource,const void* entry,const char* value){assert(resource&&entry);++starts;text=value;}
+ const char* process(void*){++updates;return done?nullptr:text+1;}
+};
+struct TControl {
+ Sequence* pSequenceProcessor_=nullptr;const void* pResourceCache_=nullptr;void* pEntry_=nullptr;
+ const char* pMessageText_begin_=nullptr;const char* pMessageText_current_=nullptr;const char* pszText_update_current_=nullptr;
+ struct{unsigned clears=0;void clear(){++clears;}}oStack_renderingProcessor_;
+ bool isReady_update_()const{return pMessageText_begin_&&pSequenceProcessor_;}int update();
+};
+}
+struct dMsgObject_c{JMessage::TControl* mpCtrl=nullptr;unsigned id=0;unsigned getMessageIDLocal(){return id;}}messageObject;
+dMsgObject_c* dMsgObject_getMsgObjectClass(){return &messageObject;}
+// NATIVE_UPDATE
 // TREASURE_ITEM
 struct Message{unsigned id;uint8_t language;MessageOverrideFn fn;void* data;};
 std::map<MessageOverrideHandle,Message> messages;MessageOverrideHandle nextId=1;bool failMessage=false;
@@ -132,6 +149,38 @@ int main(){
   assert(native_icon(treasure_message_id())==treasure_item(ChestReward(reward),after));
   for(auto language:{MESSAGE_LANGUAGE_ENGLISH,MESSAGE_LANGUAGE_GERMAN,MESSAGE_LANGUAGE_JAPANESE})assert(bytes_for(treasure_message_id(),language).size()>1);
  }
+ // Reproduce HD HUD's archive rewrite after the service override, for every
+ // reward/language. Update must parse our text once and continue until completion.
+ for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward)
+ for(auto language:{MESSAGE_LANGUAGE_ENGLISH,MESSAGE_LANGUAGE_GERMAN,MESSAGE_LANGUAGE_JAPANESE}){
+  assert(prepare_treasure_message(ChestReward(reward),s_run,after));
+  auto resolved=bytes_for(treasure_message_id(),language);
+  const char* expected=s_treasureMessage->activeText;assert(expected);
+  int resource=1,entry=2;JMessage::Sequence sequence;JMessage::TControl control;
+  control.pSequenceProcessor_=&sequence;control.pResourceCache_=&resource;control.pEntry_=&entry;
+  messageObject={&control,treasure_message_id()};std::any updateArgs[]={&control};
+  // setMessageID first uses the service's retained copy; HD HUD then resets
+  // the sequence with wording fetched from the native entry instead.
+  for(const char* overwritten:{reinterpret_cast<const char*>(resolved.data()),"Vanilla item help"}){
+   control.pMessageText_begin_=control.pMessageText_current_=overwritten;
+   sequence.setBegin_messageEntryText(&resource,&entry,overwritten);
+   before_treasure_text_update(nullptr,updateArgs,nullptr,nullptr);
+   assert(control.pMessageText_begin_==expected&&control.pMessageText_current_==expected&&sequence.text==expected);
+   assert(control.pResourceCache_==&resource&&control.pEntry_==&entry&&messageObject.id==treasure_message_id());
+   const auto resets=sequence.resets;
+   for(int frame=0;frame<3;++frame){before_treasure_text_update(nullptr,updateArgs,nullptr,nullptr);assert(control.update()==1);}
+   assert(sequence.resets==resets&&control.pszText_update_current_==expected+1);
+   sequence.done=true;assert(control.update()==0);
+   before_treasure_text_update(nullptr,updateArgs,nullptr,nullptr);
+   assert(control.update()==0&&sequence.resets==resets); // Finished messages cannot loop.
+  }
+  control.pMessageText_begin_="foreign";const auto resets=sequence.resets;
+  arena=false;before_treasure_text_update(nullptr,updateArgs,nullptr,nullptr);arena=true;
+  treasureOwned=false;before_treasure_text_update(nullptr,updateArgs,nullptr,nullptr);treasureOwned=true;
+  ++messageObject.id;before_treasure_text_update(nullptr,updateArgs,nullptr,nullptr);--messageObject.id;
+  messageObject.mpCtrl=nullptr;before_treasure_text_update(nullptr,updateArgs,nullptr,nullptr);
+  assert(sequence.resets==resets&&std::string(control.pMessageText_begin_)=="foreign");
+ }
  assert(native_icon(0x8123)==dItemNo_BOW_e); // Reproduces the previous wrong-icon fallback.
  treasureOwned=false;assert(plain(treasure_message_id()).empty());treasureOwned=true;
  arena=false;assert(plain(explain.field_0xc8).empty());assert(plain(treasure_message_id()).empty());arena=true;
@@ -147,7 +196,11 @@ with tempfile.TemporaryDirectory() as tmp:
     icon = icon.replace('dMsgObject_getMessageID()', 'id').replace('isOugiID()', 'false').replace("*dComIfGp_getNextStageName() != 'T'", 'false')
     icon_function = '#define JUT_WARN(...)\nint native_icon(int id){int mItemIndex=0;\n'+icon+'return mItemIndex;}\n'
     assert 'if (param_1 > 5000)' in (sdk/'src/d/d_msg_string_base.cpp').read_text()
-    cpp.write_text(fixture.replace('// ITEM_ENUM', item_enum).replace('// TREASURE_ITEM', reward_item) + source + icon_function + main)
+    native_control = (sdk/'libs/JSystem/src/JMessage/control.cpp').read_text()
+    native_update = native_control[native_control.index('int JMessage::TControl::update()'):native_control.index('void JMessage::TControl::render()')]
+    hooks = (root/'src/survivors.cpp').read_text()
+    assert 'PRE(SurvivorsTreasureText, before_treasure_text_update)' in hooks
+    cpp.write_text(fixture.replace('// ITEM_ENUM', item_enum).replace('// TREASURE_ITEM', reward_item).replace('// NATIVE_UPDATE', native_update) + source + icon_function + main)
     subprocess.run([os.environ.get('CXX', 'c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes','-Wno-missing-field-initializers',
                     '-I',str(root/'src'),'-I',str(sdk/'sdk/include'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

@@ -10,6 +10,9 @@
 #include "mods/svc/flow.hpp"
 #include "d/d_menu_ring.h"
 #include "d/d_menu_item_explain.h"
+#include "d/d_msg_object.h"
+#include "d/d_msg_class.h"
+#include "JSystem/JMessage/control.h"
 #include "SSystem/SComponent/c_math.h"
 #include "d/actor/d_a_alink.h"
 #include "d/actor/d_a_demo_item.h"
@@ -78,6 +81,7 @@ DEFINE_HOOK(&dMenu_Ring_c::setMixItem, SurvivorsRingMix);
 DEFINE_HOOK(&dSv_player_status_a_c::setSelectItemIndex, SurvivorsBind);
 DEFINE_HOOK(&dSv_player_status_a_c::setMixItemIndex, SurvivorsMixBind);
 DEFINE_HOOK(&dMenu_ItemExplain_c::openExplain, SurvivorsExplain);
+DEFINE_HOOK(&JMessage::TControl::update, SurvivorsTreasureText);
 DEFINE_HOOK(&daAlink_c::checkUpperGrabItemThrow, SurvivorsBombThrow);
 DEFINE_HOOK(&daAlink_c::cancelUpperItemReadyAnime, SurvivorsRangedCancel);
 DEFINE_HOOK(&daAlink_c::procCoGetItemInit, SurvivorsGetItem);
@@ -1021,6 +1025,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBind, before_item_binding);
     PRE(SurvivorsMixBind, before_item_mix);
     POST(SurvivorsExplain, after_item_explain);
+    PRE(SurvivorsTreasureText, before_treasure_text_update);
     PRE(SurvivorsBombThrow, before_ranged_native);
     PRE(SurvivorsRangedCancel, before_ranged_native);
     PRE(SurvivorsTreasureDraw, before_treasure_draw);

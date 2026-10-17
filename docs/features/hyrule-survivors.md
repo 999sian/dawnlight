@@ -136,7 +136,9 @@ cooldown, range/area or block chance, including applicable collected upgrades.
 Open the explanation again after a level-up to see the updated values.
 Reward and inventory text retain native item message IDs, so reward icons match
 all weapons, sword/shield tiers and potions. Wheel descriptions use the normal
-text path, including Twilight HD HUD's item explanation panes.
+text path, including Twilight HD HUD's item explanation panes. Get Item upgrade
+text is rebound before sequence processing if a HUD rewrites it from the native
+archive; the native reward ID/icon and normal dialog completion stay intact.
 Only bottles can be assigned to item buttons; automatic equipment cannot be
 assigned or combined. This also applies to extra bindings supplied by other mods.
 These inventory entries belong only to the isolated Survivors save and reset
@@ -151,9 +153,11 @@ All four weapons attack automatically alongside the sword without assigning
 item slots or consuming ammunition. All four use Link's native upper-body animations while retaining movement: bow
 draw/shoot, boomerang throw, bomb throw and ball throw/pull/catch. Link faces the target
 and releases each projectile at its animation cue; higher fire rates accelerate
-the animation. During automatic sword, spin, shield and item actions, the stick
+the animation. During ground locomotion and automatic sword, spin, shield and item actions, the stick
 controls horizontal movement independently of animation lunges and slowdown;
-releasing the stick stops that travel. Native floor/wall collision, gravity,
+releasing the stick stops that travel. The correction also spans the return from
+a sword swing to locomotion and the remaining animation blend, avoiding a
+speed dip after normal attacks or Sword Wave. Native floor/wall collision, gravity,
 jumps, damage and item-get events retain their normal handling.
 Sword, shield bash and item animations take turns; due item weapons rotate fairly.
 The automatic iron-ball animation bypasses native manual iron-ball action and

@@ -4,16 +4,18 @@
 struct SurvivorsMessage {
     unsigned id = 0;
     bool treasure = false;
+    const char* activeText = nullptr;
     std::vector<mods::flow::MessageVariant> variants;
     std::vector<mods::flow::MessageOverride> overrides;
 };
 std::unique_ptr<SurvivorsMessage> s_treasureMessage, s_itemNameMessage, s_itemDescriptionMessage;
 bool survivors_message_text(ModContext*, const MessageOverrideContext* message,
         MessageTextData* out, void* data) {
-    const auto& replacement = *static_cast<SurvivorsMessage*>(data);
+    auto& replacement = *static_cast<SurvivorsMessage*>(data);
     if (!in_arena() || (replacement.treasure && !owns_treasure_event())) return false;
     for (const auto& variant : replacement.variants) if (variant.language() == message->language) {
         out->text = variant.text().data(); out->text_size = variant.text().size();
+        replacement.activeText = reinterpret_cast<const char*>(out->text);
         return true;
     }
     return false;
@@ -59,6 +61,27 @@ bool prepare_treasure_message(ChestReward reward, const Run& before, const Run& 
     return true;
 }
 unsigned treasure_message_id() { return s_treasureMessage ? s_treasureMessage->id : 0; }
+
+// HD HUD's item-get rewrite reads the native entry from the archive again,
+// after the message service has supplied our text. Rebind at the next sequence
+// update, after all setMessageIndex post-hooks, preserving the native ID/icon.
+HookAction before_treasure_text_update(ModContext*, void* args, void*, void*) {
+    auto* control = mods::arg<JMessage::TControl*>(args, 0);
+    if (!s_treasureMessage || !s_treasureMessage->activeText || !in_arena() ||
+        !owns_treasure_event()) return HOOK_CONTINUE;
+    auto* message = dMsgObject_getMsgObjectClass();
+    if (!message || message->mpCtrl != control || message->getMessageIDLocal() != s_treasureMessage->id ||
+        !control->pSequenceProcessor_ || !control->pResourceCache_ || !control->pEntry_ ||
+        !control->pMessageText_begin_) return HOOK_CONTINUE; // Never restart a completed sequence.
+    const char* text = s_treasureMessage->activeText;
+    if (control->pMessageText_begin_ == text) return HOOK_CONTINUE;
+    control->pSequenceProcessor_->reset();
+    control->pMessageText_begin_ = control->pMessageText_current_ = text;
+    control->pszText_update_current_ = nullptr;
+    control->oStack_renderingProcessor_.clear();
+    control->pSequenceProcessor_->setBegin_messageEntryText(control->pResourceCache_, control->pEntry_, text);
+    return HOOK_CONTINUE;
+}
 
 // Existing item slots for weapons; unused quest slots for the two swords and
 // shield. This inventory belongs only to the isolated Survivors save.

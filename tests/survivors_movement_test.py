@@ -22,7 +22,7 @@ struct cXyz{float x=0,y=0,z=0;cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
 struct daAlink_c{
- enum{PROC_WAIT,PROC_MOVE,PROC_CUT_TURN,PROC_CUT_NORMAL,PROC_CUT_FINISH,PROC_GUARD_ATTACK,PROC_GUARD_SLIP,PROC_GUARD_BREAK,PROC_DAMAGE,PROC_JUMP,PROC_GET_ITEM,MODE_PLAYER_FLY};
+ enum{PROC_WAIT,PROC_MOVE,PROC_CUT_TURN,PROC_CUT_NORMAL,PROC_CUT_FINISH,PROC_GUARD_ATTACK,PROC_GUARD_SLIP,PROC_GUARD_BREAK,PROC_DAMAGE,PROC_JUMP,PROC_DODGE,PROC_GET_ITEM,MODE_PLAYER_FLY};
  unsigned id=7;int mProcID=PROC_WAIT;bool matching=true;
  struct{cXyz pos;struct{short y=0;}angle;}current;
  struct{bool ground=true;bool ChkGroundHit(){return ground;}}mLinkAcch;
@@ -73,14 +73,29 @@ int main(){
   after_auto_position(nullptr,args,nullptr,nullptr);
   if(shield_pose(&link))assert(link.mNormalSpeed==2); // Native guard recoil can still reach zero and finish.
  }
+ // End-of-swing handoff: native checkCutCancelNextMode zeros speed, then
+ // enters WAIT/MOVE before posMove; the scheduler clears sword ownership.
+ // Recovery blend/foot speed must not slow any following locomotion frames.
+ s_ranged.active=false;
+ for(int proc:{daAlink_c::PROC_WAIT,daAlink_c::PROC_MOVE})for(float stick:{0.f,.25f,1.f}){
+  s_swordAction=SwordAction::Normal;link.mProcID=proc;link.mMoveValue=stick;link.mMoveAngle=0;
+  for(int frame=0;frame<12;++frame){
+   if(frame)s_swordAction=SwordAction::None;
+   link.mNormalSpeed=0;link.mSpeedModifier=.9f;link.current.pos={0,0,0};
+   before_auto_movement(nullptr,args,nullptr,nullptr);
+   previous={1,2,3};link.field_0x34d4={20,2,40};after_auto_movement(nullptr,args,nullptr,nullptr);
+   link.native_motion(previous);after_auto_position(nullptr,args,nullptr,nullptr);
+   assert(link.speedF==20*stick&&link.current.pos.z==20*stick);
+  }
+ }
  // No correction during damage, jumps, item-get events, pause, another actor,
- // an airborne attack, or a canceled upper-body animation.
+ // an airborne attack, or a dodge.
  link.mProcID=daAlink_c::PROC_CUT_NORMAL;link.mMoveValue=.03f;link.mNormalSpeed=8;
  s_swordAction=SwordAction::Normal;before_auto_movement(nullptr,args,nullptr,nullptr);assert(link.mNormalSpeed==0);
  after_auto_movement(nullptr,args,nullptr,nullptr);after_auto_position(nullptr,args,nullptr,nullptr);
  s_ranged.active=true;s_swordAction=SwordAction::Normal;
  for(int reason=0;reason<8;++reason){
-  link.mProcID=reason==0?daAlink_c::PROC_DAMAGE:reason==1?daAlink_c::PROC_JUMP:reason==2?daAlink_c::PROC_GET_ITEM:daAlink_c::PROC_MOVE;
+  link.mProcID=reason==0?daAlink_c::PROC_DAMAGE:reason==1?daAlink_c::PROC_JUMP:reason==2?daAlink_c::PROC_GET_ITEM:reason==6?daAlink_c::PROC_DODGE:daAlink_c::PROC_MOVE;
   playing=reason!=3;link.id=reason==4?9:7;link.mLinkAcch.ground=reason!=5;link.matching=reason!=6;s_run.phase=reason==7?Phase::Treasure:Phase::Running;
   link.mNormalSpeed=7;link.mSpeedModifier=.8f;link.current.pos={1,2,3};
   before_auto_movement(nullptr,args,nullptr,nullptr);
