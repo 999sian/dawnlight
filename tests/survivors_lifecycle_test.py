@@ -4,7 +4,7 @@ import re
 import subprocess
 import tempfile
 root = Path(__file__).resolve().parents[1]
-source = (root / 'src/survivors.cpp').read_text()
+source = (root / 'src/survivors.cpp').read_text()+"\n"+(root/'src/survivors_maps_ui.inc').read_text()
 def extract(name):
     match = re.search(r'^(?:void|bool|HookAction|ModResult) ' + name + r'\(', source, re.M)
     assert match, name
@@ -17,12 +17,14 @@ def extract(name):
     raise AssertionError(name)
 stubs = r'''
 #include <cassert>
+#include <chrono>
 #include <any>
 #include <cstring>
 #include <iostream>
 #include <set>
 #include <unordered_map>
 #include "survivors_rules.hpp"
+#include "../include/survivors_maps.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned; using ProfileName=int; using s8=signed char; using s16=short;
 constexpr ActorId kNone=~0u;
@@ -50,7 +52,13 @@ enum class SwordAction { None, Normal, Spin };
 SwordAction s_swordAction=SwordAction::None;
 unsigned s_comboStep=0,s_comboTimeout=0;
 unsigned s_meleeCooldown=0; bool s_wavePending=false;
-bool arena=true, transition=false, s_active=true, s_restart=false;
+unsigned s_map=0,s_requestedMap=0;
+const Arena& arena(){return arenas[s_map];}
+void clear_arena_geometry(){}
+bool s_arenaMeshReady=true;
+unsigned s_chestDelay=0;
+void dMeter2Info_setSword(int,bool){}
+bool arenaPresent=true, transition=false, s_active=true, s_restart=false;
 bool s_saveReady=false, s_gameStarted=true;
 bool s_loaded=false, s_resultsStored=false, s_storeFailed=false, s_saveRequested=false;
 ActorId s_player=kNone, s_savePrompt=kNone;
@@ -85,6 +93,7 @@ struct Game { Play play; } g_dComIfG_gameInfo;
 std::array<int,MAX_ITEM_SLOTS> inventory{};
 Save* dComIfGs_getSaveData(){return &save;}
 void save_state_set_boss_rush_active(bool){} void save_state_set_intro_skipped(bool){}
+void dComIfGs_onDarkClearLV(int){}
 void dComIfGs_onEventBit(int){} void dComIfGs_setTransformStatus(int){}
 void dComIfGs_onItemFirstBit(int){} void dComIfGs_setCollectClothes(int){}
 void dComIfGs_setSelectEquipClothes(int){} void dComIfGs_setCollectSword(int){}
@@ -113,8 +122,8 @@ struct mDoRst {
 };
 bool transitioning(){return transition;}
 const char kStage[]="D_DLBR0";
-const char* dComIfGp_getStartStageName(){return arena?kStage:"F_SP102";}
-int dComIfGp_getStartStageRoomNo(){return arena?51:0;}
+const char* dComIfGp_getStartStageName(){return arenaPresent?arenas[s_map].stage:"F_SP102";}
+int dComIfGp_getStartStageRoomNo(){return arenaPresent?arenas[s_map].room:0;}
 unsigned restartParam=123;
 void dComIfGs_setRestartRoomParam(unsigned value){restartParam=value;}
 struct Collider { unsigned power=0; unsigned GetAtAtp(){return power;} };
@@ -186,11 +195,11 @@ int main() {
     s_active=false;
     assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
     assert(std::strcmp(std::any_cast<const char*>(args[0]),"F_SP102")==0);
-    s_active=true; arena=false;
+    s_active=true; arenaPresent=false;
     assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
     assert(std::strcmp(std::any_cast<const char*>(args[0]),kStage)==0);
     assert(std::any_cast<s8>(args[2])==51 && std::any_cast<s16>(args[1])==0 && restartParam==0);
-    arena=true; s_run.phase=Phase::Running;
+    arenaPresent=true; s_run.phase=Phase::Running;
     assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
     s_restart=true; assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
     s_restart=false;mDoRst::resetting=true;
@@ -209,7 +218,7 @@ int main() {
         assert(std::strcmp(std::any_cast<const char*>(args[0]),"F_SP102")==0);
         assert(std::any_cast<s16>(args[1])==100 && std::any_cast<s8>(args[3])==10 && restartParam==123);
     };
-    opening(); // Logo -> opening scene must not start an arena beneath the title UI.
+    opening(); // Logo -> opening scene must not start an arenaPresent beneath the title UI.
     before_game_start(nullptr,nullptr,nullptr,nullptr);
     assert(!s_gameStarted); // No selected slot, including failed direct-save loads.
     for (bool brightnessScreen : {false,true}) {
@@ -255,6 +264,35 @@ int main() {
     after_power(nullptr,hit,nullptr,nullptr);assert(info.mAttackPower==200);
     s_active=false;info.mpCollider=&s_attacks[0].collider;
     after_power(nullptr,hit,nullptr,nullptr);assert(info.mAttackPower==200);
+    // A preview selection requests a reload, but neither changes the live map
+    // before that reload nor starts combat. Duplicate/invalid/running clicks fail.
+    s_map=0;s_requestedMap=0;s_restart=false;s_run.phase=Phase::Ready;
+    unsigned choice=3;select_arena(nullptr,&choice);
+    assert(s_requestedMap==3 && s_map==0 && s_restart && s_run.phase==Phase::Ready);
+    choice=2;select_arena(nullptr,&choice);assert(s_requestedMap==3);
+    s_restart=false;s_map=3;choice=3;select_arena(nullptr,&choice);assert(!s_restart);
+    choice=99;select_arena(nullptr,&choice);assert(!s_restart);
+    s_run.phase=Phase::Running;choice=1;select_arena(nullptr,&choice);assert(!s_restart);
+    s_run.phase=Phase::Ready;s_arenaMeshReady=false;start_run(nullptr,nullptr);
+    assert(s_run.phase==Phase::Ready);
+    s_arenaMeshReady=true;s_restart=true;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Ready);
+    s_restart=false;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Running && s_run.ticks==0);
+    // Every selected map routes through the same post-file-select gate.
+    s_active=true;s_gameStarted=true;s_run.phase=Phase::Ready;arenaPresent=true;
+    for(unsigned map=0;map<arenas.size();++map){
+        s_map=map;s_restart=false;
+        std::any next[]={static_cast<const char*>("F_SP108"),s16(99),s8(9),s8(9)};
+        assert(before_stage(nullptr,next,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+        s_restart=true;
+        assert(before_stage(nullptr,next,nullptr,nullptr)==HOOK_CONTINUE);
+        assert(std::strcmp(std::any_cast<const char*>(next[0]),arenas[map].stage)==0);
+        assert(std::any_cast<s8>(next[2])==arenas[map].room);
+        s_gameStarted=false;
+        next[0]=static_cast<const char*>("F_SP102");
+        assert(before_stage(nullptr,next,nullptr,nullptr)==HOOK_CONTINUE);
+        assert(std::strcmp(std::any_cast<const char*>(next[0]),"F_SP102")==0);
+        s_gameStarted=true;
+    }
     std::cout<<"Survivors lifecycle: true deaths, pending spawns, cleanup and routing passed\n";
 }
 '''
@@ -262,6 +300,6 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'; binary=Path(tmp)/'test'
     cpp.write_text(stubs+'\n'+ '\n'.join(extract(n) for n in [
         'in_arena','retire_enemies','reset_runtime','prepare_save','activated','deactivated','new_save','loaded','reset',
-        'cleanup_enemies','credit_death','before_game_start','before_opening','before_stage','after_power'])+'\n'+main)
+        'start_run','select_arena','cleanup_enemies','credit_death','before_game_start','before_opening','before_stage','after_power'])+'\n'+main)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

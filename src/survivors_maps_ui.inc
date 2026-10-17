@@ -1,0 +1,73 @@
+// The transparent preview pane shows the native scene itself. No captured game
+// textures are bundled, and HUD/texture mods are reflected in the preview.
+constexpr const char* kArenaStyle=R"(
+window { background-color: transparent; backdrop-filter: none; }
+window tab-bar { background-color: #171d19ee; }
+window content pane.survivors-map-list { flex: 0 0 35%; background-color: #171d19ef; padding: 16dp; gap: 8dp; font-size: 15dp; }
+window content pane.survivors-map-preview { flex: 1 1 0; padding: 16dp; justify-content: space-between; pointer-events: none; }
+.survivors-map-preview-copy { background-color: #171d19e8; border-radius: 8dp; padding: 16dp; font-size: 16dp; }
+.survivors-map-preview-title { display: block; font-family: var(--font-family-heading); font-size: 24dp; margin-bottom: 8dp; }
+.survivors-map-preview-hint { background-color: #171d19d9; padding: 8dp; border-radius: 8dp; font-size: 14dp; }
+button.survivors-map-option { padding: 12dp; font-size: 16dp; }
+button.survivors-map-selected { background-color: #e5bc3b28; border-color: #ffdc75; }
+@media (max-width: 640dp) {
+    window content pane.survivors-map-list { flex-basis: 42%; padding: 8dp; font-size: 12dp; }
+    window content pane.survivors-map-preview { padding: 8dp; }
+    button.survivors-map-option { font-size: 13dp; padding: 9dp; }
+    .survivors-map-preview-copy { padding: 10dp; font-size: 13dp; }
+    .survivors-map-preview-title { font-size: 18dp; }
+}
+)";
+std::array<unsigned,arenas.size()> s_mapChoices{0,1,2,3,4};
+void select_arena(ModContext*, void* data) {
+    const unsigned choice=*static_cast<unsigned*>(data);
+    if (s_run.phase!=Phase::Ready || s_restart || choice>=arenas.size() || choice==s_map) return;
+    s_requestedMap=choice;
+    close_window(); s_restart=true;
+}
+ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
+    auto result=svc_ui->elem_set_class(mod_ctx,left,"survivors-map-list",true);
+    if (result!=MOD_OK) return result;
+    result=svc_ui->elem_set_class(mod_ctx,right,"survivors-map-preview",true);
+    if (result!=MOD_OK) return result;
+    result=svc_ui->pane_add_text(mod_ctx,left,"Choose your arena",nullptr);
+    if (result!=MOD_OK) return result;
+    for (unsigned i=0;i<arenas.size();++i) {
+        UiControlDesc control=UI_CONTROL_DESC_INIT;
+        control.label=arenas[i].name; control.on_pressed=select_arena; control.user_data=&s_mapChoices[i];
+        UiElementHandle option=0;
+        result=svc_ui->pane_add_control(mod_ctx,left,&control,&option);
+        if (result!=MOD_OK) return result;
+        result=svc_ui->elem_set_class(mod_ctx,option,"survivors-map-option",true);
+        if (result!=MOD_OK) return result;
+        if (i==s_map) {
+            result=svc_ui->elem_set_class(mod_ctx,option,"survivors-map-selected",true);
+            if (result!=MOD_OK) return result;
+        }
+    }
+    UiControlDesc start=UI_CONTROL_DESC_INIT;
+    start.label="Start run"; start.on_pressed=start_run;
+    start.is_disabled=[](ModContext*,void*) { return !s_arenaMeshReady || s_restart; };
+    result=svc_ui->pane_add_control(mod_ctx,left,&start,nullptr);
+    if (result!=MOD_OK) return result;
+    if (!s_arenaMeshReady) result=svc_ui->pane_add_text(mod_ctx,left,
+        "Arena collision could not be prepared. Please select another map.",nullptr);
+    if (result!=MOD_OK) return result;
+    result=svc_ui->pane_add_text(mod_ctx,left,
+        "Survive 10 minutes, then defeat the Elite Bokoblin. Weapons attack automatically. "
+        "Collect XP, hearts and rupees. Chest prices: 20, 25, 32, 41, 52...",nullptr);
+    if (result!=MOD_OK) return result;
+    char records[160];
+    std::snprintf(records,sizeof(records),"Runs %u | Wins %u | Best kills %u | Best level %u",
+        s_records.runs,s_records.wins,s_records.best_kills,s_records.best_level);
+    result=svc_ui->pane_add_text(mod_ctx,left,records,nullptr);
+    if (result!=MOD_OK) return result;
+    result=svc_ui->pane_add_rml(mod_ctx,right,
+        "<div class=\"survivors-map-preview-hint\">LIVE PREVIEW &middot; Select with controller or touch. "
+        "The run begins only after Start run.</div>",nullptr);
+    if (result!=MOD_OK) return result;
+    const std::string copy="<div class=\"survivors-map-preview-copy\"><div class=\"survivors-map-preview-title\" style=\"color: "+
+        std::string(arena().accent)+";\">"+treasure_rml_escape(arena().name)+"</div>"+
+        treasure_rml_escape(arena().description)+"</div>";
+    return svc_ui->pane_add_rml(mod_ctx,right,copy.c_str(),nullptr);
+}

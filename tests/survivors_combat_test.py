@@ -98,6 +98,8 @@ struct daAlink_c : fopAc_ac_c {
         mProcID=PROC_CUT_TURN;field_0x3478=220;return 1;}
 } player;
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}
+int rewardRoom=51;
+int fopAcM_GetRoomNo(fopAc_ac_c*){return rewardRoom;}
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 Run s_run;
 enum class SwordAction {None,Normal,Spin};
@@ -143,7 +145,7 @@ std::vector<int>drops;
 fpc_ProcID fopAcM_createItem(const cXyz*,int item,int bit,int room,void*,void*,int mode){
     fpc_ProcID result=0;
     assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_CONTINUE);
-    assert(bit==-1 && room==51 && mode==0);drops.push_back(item);return 1;
+    assert(bit==-1 && room==rewardRoom && mode==0);drops.push_back(item);return 1;
 }
 unsigned maxLife=15,rupees=0,life=4;
 void dComIfGs_setMaxLife(unsigned v){maxLife=v;}
@@ -335,7 +337,10 @@ int main(){
     // Native random drops stay suppressed; only scoped reward creation bypasses the hook.
     fpc_ProcID result=0;assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_SKIP_ORIGINAL && result==kNone);
     bool seen[8]{};
-    for(int i=0;i<100000;++i){drop_reward(&enemy);assert(!s_allowDrop);}
+    for(int room : {51,6,0,50}) {
+        rewardRoom=room;
+        for(int i=0;i<25000;++i){drop_reward(&enemy);assert(!s_allowDrop);}
+    }
     for(auto item:drops){assert(item>=0 && item<=7);seen[item]=true;}
     for(bool found:seen)assert(found);
     arena=false;assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_CONTINUE);arena=true;

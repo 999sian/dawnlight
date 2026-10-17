@@ -318,7 +318,8 @@ bool spawn_chest(daAlink_c* link) {
         // Require a reachable center and a flat, unobstructed chest footprint.
         cXyz from = link->current.pos + cXyz(0, 70, 0), to = pos + cXyz(0, 70, 0);
         dBgS_LinChk wall; wall.Set(&from, &to, link);
-        if (dComIfG_Bgsp().LineCross(&wall)) continue;
+        if (dComIfG_Bgsp().LineCross(&wall) || !arena_path_clear(from,to,85)) continue;
+        if (dComIfG_Bgsp().GetRoomId(ground) != arena().room) continue;
         for (const cXyz offset : {cXyz(-80,0,0), cXyz(80,0,0), cXyz(0,0,-80), cXyz(0,0,80)}) {
             cXyz edge = to + offset; wall.Set(&to, &edge, link);
             if (dComIfG_Bgsp().LineCross(&wall)) clear = false;

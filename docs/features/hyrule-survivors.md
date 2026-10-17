@@ -9,9 +9,38 @@ The title screen, save selection, Link/Epona names and optional TV settings fini
 before the arena loads. Selecting the mode alone cannot start a run. Returning
 to the title screen disarms the run until another save is selected and started.
 
-## First arena
+## Arena selection
 
-The first version is a ten-minute run in Dawnlight's isolated Darknut arena.
+After file selection, choose an arena with controller, keyboard or touch. The
+right-hand preview shows the selected map directly from the game, including active
+texture mods. Selecting another map loads its preview; combat, enemy spawns and the
+run clock stay paused until **Start run**. **New run** returns to this selection.
+No screenshot files or copied game textures are bundled for these previews.
+
+| Arena | Native area | Layout |
+| --- | --- | --- |
+| Darknut Arena | `D_DLBR0`, room 51 | Original compact arena |
+| Hyrule Field | `F_SP121`, room 6 | Faron main field |
+| Gerudo Desert | `F_SP124`, room 0 | Desert and ruins |
+| Palace of Twilight | `D_MN08`, room 0 | Exterior entrance platforms |
+| Hyrule Castle Throne Room | `D_MN09A`, room 50 | Intact throne room |
+
+Each uses native player point 0 on layer 0. Room/spawn identifiers were checked
+against [TPGZ stage metadata](https://github.com/zsrtp/tpgz/tree/522f6c167996423a7634af53fe5840e30b217fd3/res/stage_info)
+and the native stage loader. No guessed world-space spawn coordinates are used.
+
+Stage enemies, NPCs, story-event triggers and vanilla reward chests are filtered
+before creation only in the active Survivors arena. Native geometry, lighting and
+doors remain. Magical curtains seal open collision-mesh boundaries and exit
+triggers, tinted green in the field, amber in the desert, violet in the palace and
+red in the throne room. Door interactions and native scene exits are disabled.
+Enemy and chest placement reject other rooms and paths across these barriers.
+If the arena collision cannot be prepared, Start run stays disabled and another
+map can still be selected. Story mode and Boss Rush retain their own rules.
+
+## Run
+
+Every arena hosts a ten-minute run.
 Start with three hearts and automatic normal sword strikes. Sword Wave starts
 locked, like Whirling Blade. Move, dodge and collect blue experience
 crystals while weapons attack automatically. Manual Jump remains available with
@@ -423,3 +452,13 @@ shield/sword tier, and reopen upgraded item descriptions with Twilight HD HUD
 both enabled and disabled. Move, reverse direction and release the stick during
 all automatic attacks (including block, bash, and ball pull/catch), then verify
 that damage, jumping and chest item-get still finish normally.
+
+
+For the additional maps, in-game verification remains required on an actual game
+installation: load each arena from both a new and existing Survivors save, switch
+previews repeatedly, start/replay, inspect every doorway and outdoor exit, roll
+along the barriers, and check chest/enemy placement near slopes and platforms.
+Verify the Palace exterior and intact throne room load without story events.
+The automated checks exercise stage-routing gates, map-selection/start callbacks,
+room-aware chest placement, mesh seam welding, exits, continuous barrier collision,
+sliding, corners and fast movement; they do not render the actual room archives.

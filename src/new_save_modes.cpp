@@ -713,7 +713,7 @@ bool is_bossrush_hub_active() {
 }
 
 bool is_bossrush_darknut_area_active() {
-    return survivors_arena_active() || (is_boss_rush() && boss_rush_state() == kBossRushStateHub &&
+    return (survivors_arena_active() && is_bossrush_darknut_area_stage()) || (is_boss_rush() && boss_rush_state() == kBossRushStateHub &&
            is_bossrush_darknut_area_stage());
 }
 

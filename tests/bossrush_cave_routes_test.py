@@ -206,6 +206,10 @@ int main() {
     // The new mode reuses room admission without requiring Boss Rush state.
     active=false;survivors=true;
     assert(is_bossrush_darknut_area_active());
+    current="F_SP121";stay=6;assert(!is_bossrush_darknut_area_active());
+    current="F_SP124";stay=0;assert(!is_bossrush_darknut_area_active());
+    current="D_MN08";stay=0;assert(!is_bossrush_darknut_area_active());
+    current="D_MN09A";stay=50;assert(!is_bossrush_darknut_area_active());
     survivors=false;assert(!is_bossrush_darknut_area_active());
     active=true;
     // Fairy exits on every tenth floor, including alternate fountain choices.

@@ -106,7 +106,7 @@ struct mDoGph_gInf_c {static float getMinXF(){return 0;} static float getWidthF(
 main = r'''
 int main(){
     // First visible HUD after the entrance, ordinary runs, and both messages.
-    for(auto phase:{Phase::Ready,Phase::Running,Phase::Upgrade,Phase::Treasure,Phase::Victory,Phase::Defeat}){
+    for(auto phase:{Phase::Running,Phase::Upgrade,Phase::Treasure,Phase::Victory,Phase::Defeat}){
         for(bool availableFont:{false,true})for(unsigned ticks:{0u,duration})for(unsigned failures:{0u,10u}){
             s_run.phase=phase;s_run.ticks=ticks;s_run.xp=4;s_spawnFailures=failures;hasFont=availableFont;
             boxes=labels=0;textureCoordinates=true;
@@ -116,9 +116,9 @@ int main(){
             assert((labels!=0)==availableFont);
         }
     }
-    for(int reason=0;reason<5;++reason){
+    for(int reason=0;reason<6;++reason){
         arena=reason!=0;transition=reason==1;window=reason==2;hasGraf=reason!=3;
-        s_run.phase=reason==4?Phase::Loading:Phase::Running;boxes=labels=0;
+        s_run.phase=reason==4?Phase::Loading:reason==5?Phase::Ready:Phase::Running;boxes=labels=0;
         draw_hud(nullptr,nullptr,nullptr,nullptr);assert(boxes==0 && labels==0);
     }
     std::cout<<"Survivors HUD: native font/box vertex packets, messages and render gates passed\n";

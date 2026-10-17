@@ -55,8 +55,13 @@ struct Enemy {unsigned id=0;bool initialized=false,credited=false,retiring=false
 std::array<Enemy,enemy_capacity>s_enemies;
 struct dBgS_LinChk {cXyz from,to;void Set(const cXyz* f,const cXyz* t,daAlink_c*){from=*f;to=*t;}};
 struct dBgS_ObjGndChk {cXyz pos;void SetPos(cXyz* p){pos=*p;}};
-bool blocked=false,invalidFloor=false,blockPositiveX=false;
+bool blocked=false,invalidFloor=false,blockPositiveX=false,arenaBlocked=false;
+int floorRoom=51;
+struct Arena { int room=51; } selectedArena;
+const Arena& arena(){return selectedArena;}
+bool arena_path_clear(const cXyz&,const cXyz&,float){return !arenaBlocked;}
 struct Background {
+    int GetRoomId(const dBgS_ObjGndChk&){return floorRoom;}
     bool LineCross(dBgS_LinChk* wall){return blocked || (blockPositiveX && wall->to.x>0);}
     float GroundCross(dBgS_ObjGndChk*){return invalidFloor?-1.0e9f:0;}
 }background;
@@ -102,16 +107,16 @@ struct {bool ready=true;}s_loot;
 int potion_slot(){return -1;}
 bool prepare_loot(daAlink_c*){return s_loot.ready;}
 bool sword_action_available(daAlink_c*){return true;}
-bool arena=true,transition=false;
+bool arenaPresent=true,transition=false;
 unsigned s_player=1,rupees=0;
-bool in_arena(){return arena;}bool transitioning(){return transition;}
+bool in_arena(){return arenaPresent;}bool transitioning(){return transition;}
 unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned r){rupees=r;}
 '''
 main = r'''
 void reset(){
     s_run.start(123);s_attacks={};s_cooldowns={};s_chests={};s_loot.ready=true;
     player={};player.current.pos={};player.id=s_player=1;s_selectedChest=kChestCount;
-    arena=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
+    arenaPresent=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
 }
 int main(){
     // Spawn at the current native hand matrix, independent of world height/facing.
@@ -216,6 +221,8 @@ int main(){
     assert(!launch_item(&player,Upgrade::Bow,{0,70,300})); // Bounded objects, no extra allocation.
     reset();invalidFloor=true;assert(!spawn_chest(&player));invalidFloor=false;
     blocked=true;assert(!spawn_chest(&player));blocked=false;
+    arenaBlocked=true;assert(!spawn_chest(&player));arenaBlocked=false;
+    floorRoom=50;assert(!spawn_chest(&player));floorRoom=51;
     assert(spawn_chest(&player));assert(s_chests[0].active && s_chests[0].position.y==0);
     assert(spawn_chest(&player));assert(!spawn_chest(&player));
     assert(s_chests[0].position.abs(s_chests[1].position)>=250);

@@ -1,6 +1,8 @@
 #include "survivors.hpp"
 #include "survivors_rules.hpp"
 #include "survivors_items.hpp"
+#include "survivors_maps.hpp"
+#include "survivors_barriers.hpp"
 #include "enemy_spawner.hpp"
 #include "bow_fire_resource.hpp"
 #include "save_state.hpp"
@@ -48,6 +50,10 @@
 #include "JSystem/J3DGraphBase/J3DDrawBuffer.h"
 #include "res/Object/AlAnm.h"
 #include "d/d_particle_name.h"
+#include "d/d_bg_w.h"
+#include "f_pc/f_pc_profile.h"
+#include "JSystem/JKernel/JKRHeap.h"
+#include "d/actor/d_a_bg.h"
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -61,11 +67,13 @@ namespace dawnlight {
 namespace {
 using namespace survivors;
 constexpr char kMode[] = "hyrule_survivors";
-// Shared empty-room resource alias; its admission gates are also enabled for this mode.
-constexpr char kStage[] = "D_DLBR0";
+unsigned s_map = 0, s_requestedMap = 0;
+const Arena& arena() { return arenas[s_map]; }
 constexpr char kBlob[] = "hyrule-survivors-records-v1";
 constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
+DEFINE_HOOK(&daAlink_c::checkSceneChange, SurvivorsArenaExit);
+DEFINE_HOOK_SYMBOL("src/d/d_stage.cpp#dStage_actorCreate", void(stage_actor_data_class*, fopAcM_prm_class*, size_t), SurvivorsArenaActor);
 DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
 DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
@@ -192,8 +200,7 @@ const dCcD_SrcSph kAttackSource = {
 };
 
 bool in_arena() {
-    return s_active && s_gameStarted && std::strcmp(dComIfGp_getStartStageName(), kStage) == 0 &&
-        dComIfGp_getStartStageRoomNo() == 51;
+    return s_active && s_gameStarted && arena_matches(s_map, dComIfGp_getStartStageName(), dComIfGp_getStartStageRoomNo());
 }
 bool ui_visible() {
     bool value = false;
@@ -215,6 +222,7 @@ Enemy* tracked(ActorId id) {
     for (auto& e : s_enemies) if (e.id != kNone && e.id == id) return &e;
     return nullptr;
 }
+#include "survivors_maps.inc"
 #include "survivors_aggro.inc"
 void stop_attack(Attack& a) {
     for (auto& id : a.emitters) {
@@ -294,6 +302,7 @@ void detach_attack_references() {
 }
 void reset_runtime() {
     s_saveReady = false; s_gameStarted = false;
+    s_map = s_requestedMap = 0; clear_arena_geometry();
     close_powerup_window(); close_window(); clear_attacks(); clear_loot(); detach_attack_references(); retire_enemies();
     if (s_savePrompt != kNone) {
         d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone;
@@ -310,10 +319,11 @@ void prepare_save() {
     save_state_set_boss_rush_active(false);
     save_state_set_intro_skipped(false);
     auto* save = dComIfGs_getSaveData();
-    save->getPlayer().getPlayerReturnPlace().set(kStage, 51, 0);
+    save->getPlayer().getPlayerReturnPlace().set(arena().stage, arena().room, arena().point);
     dComIfGs_onEventBit(dSv_event_flag_c::F_0250);
     dComIfGs_onEventBit(dSv_event_flag_c::F_0302);
     dComIfGs_onEventBit(dSv_event_flag_c::M_010);
+    for (int province=0; province<3; ++province) dComIfGs_onDarkClearLV(province);
     dComIfGs_setTransformStatus(TF_STATUS_HUMAN);
     dComIfGs_onItemFirstBit(dItemNo_WEAR_KOKIRI_e);
     dComIfGs_setCollectClothes(KOKIRI_CLOTHES_FLAG);
@@ -390,7 +400,7 @@ void drop_reward(fopAc_ac_c* actor) {
     // Native item physics, pickup effects and currency/health handling. Ordinary
     // enemy drop hooks remain blocked, so a death cannot generate two rewards.
     struct Scope { Scope(){s_allowDrop=true;} ~Scope(){s_allowDrop=false;} } scope;
-    fopAcM_createItem(&actor->current.pos, item, -1, 51, nullptr, nullptr, 0);
+    fopAcM_createItem(&actor->current.pos, item, -1, fopAcM_GetRoomNo(actor), nullptr, nullptr, 0);
 }
 void credit_death(Enemy& e, fopAc_ac_c* actor) {
     if (e.credited || e.retiring || !e.initialized || s_run.phase != Phase::Running ||
@@ -434,11 +444,12 @@ bool spawn_enemy(daAlink_c* link, bool elite) {
         pos.y = floor + (type == 1 ? 180 : 0);
         cXyz from = link->current.pos + cXyz(0, 80, 0), to = pos + cXyz(0, 80, 0);
         dBgS_LinChk wall; wall.Set(&from, &to, link);
-        if (dComIfG_Bgsp().LineCross(&wall)) continue;
+        if (dComIfG_Bgsp().LineCross(&wall) || !arena_path_clear(from, to)) continue;
+        if (dComIfG_Bgsp().GetRoomId(ground) != arena().room) continue;
         ActorId id = kNone;
         const float scale = elite ? 2.0f : 1.0f;
         const ActorSpawnParams params{
-            .parameters = parameters[type], .argument = -1, .room_num = 51,
+            .parameters = parameters[type], .argument = -1, .room_num = arena().room,
             .position = {pos.x, pos.y, pos.z},
             .angle = {0, static_cast<s16>(yaw + 0x8000), 0},
             .scale = {scale, scale, scale}, .create_function = nullptr,
@@ -756,6 +767,11 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     const auto id = fopAcM_GetID(actor);
     auto* enemy = tracked(id);
     retain_treasure_actor(actor, args);
+    if (in_arena()) {
+        const auto* nativeMethods = reinterpret_cast<const process_method_class*>(actor->sub_method);
+        if (nativeMethods && mods::arg<process_method_func>(args, 0) == nativeMethods->execute_method)
+            collect_arena_mesh(actor);
+    }
     if (!enemy && (!in_arena() || id != s_player)) return HOOK_CONTINUE;
     const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);
     if (!methods) return HOOK_CONTINUE;
@@ -804,7 +820,10 @@ void after_process(ModContext*, void* args, void*, void*) {
         bokoblin->mSphs_at[0].SetR(45.0f * actor->scale.x);
         bokoblin->mSphs_at[1].SetR(30.0f * actor->scale.x);
     }
-    if (enemy && actor) credit_death(*enemy, actor);
+    if (enemy && actor) {
+        confine_arena_actor(actor, enemy->elite ? 80.f : 35.f);
+        credit_death(*enemy, actor);
+    }
 }
 HookAction before_drop(ModContext*, void*, void* result, void*) {
     if (!in_arena() || s_allowDrop) return HOOK_CONTINUE;
@@ -826,9 +845,9 @@ HookAction before_stage(ModContext*, void* args, void*, void*) {
     // the arena. The earlier opening/title request must remain untouched.
     if (in_arena() && !s_restart && s_run.phase != Phase::Loading) return HOOK_SKIP_ORIGINAL;
     dComIfGs_setRestartRoomParam(0);
-    mods::arg_ref<const char*>(args, 0) = kStage;
-    mods::arg_ref<s16>(args, 1) = 0;
-    mods::arg_ref<s8>(args, 2) = 51;
+    mods::arg_ref<const char*>(args, 0) = arena().stage;
+    mods::arg_ref<s16>(args, 1) = arena().point;
+    mods::arg_ref<s8>(args, 2) = arena().room;
     mods::arg_ref<s8>(args, 3) = 0;
     return HOOK_CONTINUE;
 }
@@ -841,6 +860,7 @@ void after_draw(ModContext*, void*, void*, void*) {
     }
     draw_loot();
     draw_ranged();
+    draw_arena_barriers();
 
 }
 void label(const char* text, float x, float y, float size) {
@@ -853,7 +873,7 @@ void label(const char* text, float x, float y, float size) {
     print.printReturn(text, 550, size + 8, HBIND_CENTER, VBIND_TOP, x - 275, y, 255);
 }
 void draw_hud(ModContext*, void*, void*, void*) {
-    if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading) return;
+    if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
     graf->setup2D();
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
@@ -897,7 +917,7 @@ void select_upgrade(ModContext*, void* data) {
     s_run.level_up(); // Preserve queued levels; do not resume combat between choices.
 }
 void start_run(ModContext*, void*) {
-    if (s_run.phase != Phase::Ready) return;
+    if (s_run.phase != Phase::Ready || !s_arenaMeshReady || s_restart) return;
     close_window(); clear_attacks(); clear_loot(); prepare_save();
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -906,7 +926,7 @@ void start_run(ModContext*, void*) {
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
     s_comboStep = s_comboTimeout = 0;
 }
-void replay(ModContext*, void*) { close_window(); s_restart = true; }
+void replay(ModContext*, void*) { close_window(); s_requestedMap = s_map; s_restart = true; }
 void save_results(ModContext*, void*) { close_window(); s_saveRequested = true; }
 ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, void* data = nullptr,
                  const char* help = nullptr) {
@@ -917,24 +937,14 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_choice_ui.inc"
 #include "survivors_chest_ui.inc"
 #include "survivors_powerups.inc"
+#include "survivors_maps_ui.inc"
 
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {
     if (s_run.phase == Phase::TreasureChoice) return build_treasure_choices(left, right);
     if (s_run.phase == Phase::Upgrade) return build_upgrade_choices(left, right);
     char text[240];
-    if (s_run.phase == Phase::Ready) {
-        svc_ui->pane_add_text(mod_ctx, left, "Survive for 10 minutes, then defeat the Elite Bokoblin.", nullptr);
-        svc_ui->pane_add_text(mod_ctx, right,
-            "Move and dodge while your weapons attack automatically. Collect the blue crystals to level up. "
-            "Normal sword strikes are automatic. Unlock Sword Wave and Whirling Blade during the run. Enemies may drop hearts and rupees. "
-            "Approach a treasure chest and press Open to choose one of three random rewards. You need enough rupees to interact. Prices start at 20 rupees and rise by 20 after every purchase. "
-            "Chest weapons can reach Level 5 through duplicate finds and level-up choices. Chests can also contain the Master Sword or a bottle of Red Potion.", nullptr);
-        std::snprintf(text, sizeof(text), "Completed runs: %u | Wins: %u | Best kills: %u | Best level: %u",
-            s_records.runs, s_records.wins, s_records.best_kills, s_records.best_level);
-        svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
-        return button(left, "Start run", start_run);
-    }
+    if (s_run.phase == Phase::Ready) return build_arena_choices(left, right);
     std::snprintf(text, sizeof(text), "%s - %02u:%02u | %u kills | Level %u",
         s_run.phase == Phase::Victory ? "Victory" : "Defeat", s_run.ticks / 1800,
         s_run.ticks / 30 % 60, s_run.kills, s_run.level);
@@ -963,6 +973,7 @@ void open_window() {
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
     desc.tabs = &tab; desc.tab_count = 1;
     if (s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Upgrade) desc.rcss = kTreasureStyle;
+    if (s_run.phase == Phase::Ready) desc.rcss = kArenaStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
         if (s_window == handle) s_window = 0;
         if (s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count)
@@ -1012,8 +1023,10 @@ void update_survivors() {
     if (s_restart) {
         // Always use a scene reload: destroys old actors, pending spawns, collision,
         // damage animations and native drop actors before another run starts.
-        retire_enemies(); clear_attacks(); clear_loot();
-        dComIfGp_setNextStage(kStage, 0, 51, 0);
+        retire_enemies(); clear_attacks(); clear_loot(); clear_arena_geometry();
+        s_map = s_requestedMap;
+        prepare_save();
+        dComIfGp_setNextStage(arena().stage, arena().point, arena().room, 0);
         s_run = {}; s_orbs = {}; s_restart = false; s_player = kNone;
         s_resultsStored = false; s_spawnFailures = 0;
         return;
@@ -1025,6 +1038,7 @@ void update_survivors() {
         if (!playable() || ++s_warmup < 15) return;
         load_records(); s_run.phase = Phase::Ready;
     }
+    update_arena_safety(link);
     open_powerup_window();
     if (s_run.phase == Phase::TreasureChoice) update_treasure_choice(link);
     if (s_run.phase == Phase::Treasure) update_treasure_demo(link);
@@ -1033,7 +1047,7 @@ void update_survivors() {
         const auto bytes = s_records.encode();
         s_storeFailed = svc_save->set_blob(mod_ctx, kBlob, bytes.data(), bytes.size()) != MOD_OK;
         if (s_storeFailed) { s_saveRequested = false; return; }
-        dComIfGs_getSaveData()->getPlayer().getPlayerReturnPlace().set(kStage, 51, 0);
+        dComIfGs_getSaveData()->getPlayer().getPlayerReturnPlace().set(arena().stage, arena().room, arena().point);
         s_savePrompt = d_GameOver_Create(1);
         s_saveRequested = s_savePrompt == kNone;
         return;
@@ -1046,6 +1060,8 @@ ModResult initialize_survivors(ModError* error) {
     ModResult result = MOD_OK;
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
+    PRE(SurvivorsArenaActor, before_arena_stage_actor);
+    PRE(SurvivorsArenaExit, before_arena_exit);
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
     PRE(SurvivorsPlayer, before_chest_action);
@@ -1057,6 +1073,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsKeeseHit, before_enemy_hit); POST(SurvivorsKeeseHit, after_enemy_hit);
     PRE(SurvivorsRatHit, before_enemy_hit); POST(SurvivorsRatHit, after_enemy_hit);
     PRE(SurvivorsMovement, before_auto_movement); POST(SurvivorsMovement, after_auto_movement);
+    POST(SurvivorsPosition, after_arena_position);
     POST(SurvivorsPosition, after_auto_position);
     PRE(SurvivorsRangedAim, before_ranged_aim);
     PRE(SurvivorsBowAction, before_ranged_native);
