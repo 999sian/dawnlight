@@ -47,8 +47,11 @@ HookAction before_arena_stage_actor(ModContext*, void* args, void*, void*) {
     const auto* info=dStage_searchName(name);
     if (!info) return HOOK_CONTINUE; // native creator owns/frees its append
     if (info->procname==fpcNm_ALINK_e) {
-        // Use the native position/yaw but normal human entry, with no spawn demo.
-        params->base.parameters=0xff000000u | unsigned(arena().room);
+        // The original arena already has a working authored entrance. Keep it
+        // intact. Mode 0 is NOT an idle/no-demo spawn: setStartProcInit starts a
+        // 35-frame entrance demo for it. Use native idle mode 16 on the new maps.
+        if (s_map!=0) params->base.parameters=
+            (params->base.parameters & 0x00fe0fffu) | 0xff010000u;
         return HOOK_CONTINUE;
     }
     const bool local=params->room_no==arena().room || params->room_no==-1;
@@ -119,7 +122,9 @@ void confine_arena_actor(fopAc_ac_c* actor, float radius) {
     actor->current.pos=game_point(barriers::slide(map_point(actor->old.pos),map_point(actor->current.pos),radius,s_barriers));
 }
 void after_arena_position(ModContext*, void* args, void*, void*) {
-    if (!in_arena() || transitioning()) return;
+    // Authored entrances can begin behind a door/exit curtain. Let the native
+    // entry and ground correction finish before constraining movement.
+    if (!in_arena() || transitioning() || s_run.phase==Phase::Loading || !s_arenaSafe) return;
     auto* link=mods::arg<daAlink_c*>(args,0);
     if (!link || fopAcM_GetID(link)!=s_player) return;
     confine_arena_actor(link,40);
@@ -131,15 +136,22 @@ HookAction before_arena_exit(ModContext*, void*, void* result, void*) {
     *static_cast<int*>(result)=0;
     return HOOK_SKIP_ORIGINAL;
 }
+bool arena_grounded(daAlink_c* link) {
+    const float floor=link->mLinkAcch.GetGroundH();
+    return link->mLinkAcch.ChkGroundHit() && std::isfinite(floor) && floor>-1.0e8f &&
+        std::abs(link->current.pos.y-floor)<20 && fopAcM_GetRoomNo(link)==arena().room;
+}
 void update_arena_safety(daAlink_c* link) {
-    if (!s_arenaMeshReady) return;
+    // Native ground contact is available before our derived barrier mesh. Keep
+    // the first safe position during Loading as well, not just after warmup.
+    if (fpcM_IsCreating(fopAcM_GetID(link))) return;
     const int room=fopAcM_GetRoomNo(link);
     if (s_arenaSafe && (room!=arena().room || link->current.pos.y<s_arenaSafePosition.y-500)) {
         // Last safe floor position, not a scene reload that would discard a run.
         link->current.pos=link->old.pos=s_arenaSafePosition;
         link->speed.set(0,0,0);
         fopAcM_SetRoomNo(link,arena().room);
-    } else if (link->mLinkAcch.ChkGroundHit() && room==arena().room) {
+    } else if (arena_grounded(link)) {
         s_arenaSafePosition=link->current.pos; s_arenaSafe=true;
     }
 }

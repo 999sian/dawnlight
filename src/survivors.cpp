@@ -1033,12 +1033,16 @@ void update_survivors() {
     }
     if (s_player != fopAcM_GetID(link)) {
         s_player = fopAcM_GetID(link); s_run.phase = Phase::Loading; s_warmup = 0;
+        s_arenaSafe = false;
     }
+    if (fpcM_IsCreating(s_player)) return;
+    update_arena_safety(link);
     if (s_run.phase == Phase::Loading) {
-        if (!playable() || ++s_warmup < 15) return;
+        // Never freeze a falling or partially initialized Link in the preview.
+        if (!playable() || !arena_grounded(link)) { s_warmup=0; return; }
+        if (++s_warmup < 15) return;
         load_records(); s_run.phase = Phase::Ready;
     }
-    update_arena_safety(link);
     open_powerup_window();
     if (s_run.phase == Phase::TreasureChoice) update_treasure_choice(link);
     if (s_run.phase == Phase::Treasure) update_treasure_demo(link);
