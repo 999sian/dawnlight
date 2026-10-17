@@ -19,6 +19,11 @@ your configured binding; manual sword attacks and arena exits are disabled.
 Normal strikes aim at nearby enemies and use Link's native sword animation and
 collision. They wait for the sword to be drawn and do not interrupt jumps, dodges,
 damage reactions or item actions.
+Automatic strikes advance through the native four-hit combo, including its
+directional/lock-on variants and finisher. Follow-up strikes respect the native
+hit and cancel windows; interruptions or two seconds without a new strike reset
+the sequence. Normal swings, finishers and spin attacks all retain stick-controlled
+movement through the native ground and wall collision handling.
 
 Leveling up pauses Link and the encounter and offers three upgrades. Controller,
 keyboard and touch navigation use Dusklight's native mod window controls. Closing
@@ -99,7 +104,9 @@ Before merging/releasing, test on Android and desktop:
    are present. Confirm no stale actors, collisions or windows remain.
 6. Stress the population and crystal caps and check frame time/memory on Android.
 7. Start without Sword Wave, hit nearby enemies with automatic normal strikes,
-   then unlock Wave and verify a swing releases the small spin projectile.
+   verify the full four-hit combo while moving, then unlock Wave and verify a
+   swing releases the small spin projectile. Verify the combo restarts after a
+   damage reaction or a gap between targets, and permits movement during finishers.
 8. Steer in every direction during Whirling Blade, including into walls; verify
    native spin hits and that damage/dodges safely interrupt attacks.
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)
@@ -107,6 +114,7 @@ Before merging/releasing, test on Android and desktop:
 
 Automated tests cover rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared
-Boss Rush arena admission, sword scheduling, spin movement, wave timing and
+Boss Rush arena admission, sword scheduling with the native combo selector,
+movement during all three sword procedures, wave timing and
 particle cleanup, drop gating and level-up rewards. They do not replace the
 in-game checks above.

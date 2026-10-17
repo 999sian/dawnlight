@@ -50,6 +50,8 @@ DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
 DEFINE_HOOK(&daAlink_c::procCutTurn, SurvivorsSpinMove);
+DEFINE_HOOK(&daAlink_c::procCutNormal, SurvivorsNormalMove);
+DEFINE_HOOK(&daAlink_c::procCutFinish, SurvivorsFinishMove);
 DEFINE_HOOK(&daAlink_c::checkCutLargeTurnState, SurvivorsLargeSpin);
 DEFINE_HOOK(&fopAcM_orderDoorEvent, SurvivorsDoor);
 DEFINE_HOOK(&at_power_check, SurvivorsPower);
@@ -76,6 +78,8 @@ unsigned s_spawnCooldown = 0, s_spawnFailures = 0, s_warmup = 0;
 enum class SwordAction { None, Normal, Spin };
 SwordAction s_swordAction = SwordAction::None;
 unsigned s_meleeCooldown = 0;
+unsigned s_comboStep = 0, s_comboTimeout = 0;
+bool s_autoSwordCall = false;
 bool s_wavePending = false, s_allowDrop = false;
 std::array<unsigned, 3> s_cooldowns{};
 std::array<unsigned, 3> s_choices{0, 1, 2};
@@ -217,6 +221,7 @@ void reset_runtime() {
     s_storeFailed = false; s_restart = false; s_saveRequested = false;
     s_spawnCooldown = s_spawnFailures = s_warmup = 0;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
+    s_comboStep = s_comboTimeout = 0;
 }
 void prepare_save() {
     save_state_set_boss_rush_active(false);
@@ -465,25 +470,47 @@ void release_sword_wave(daAlink_c* link) {
             direction.y, direction.z * 0.94f + direction.x * 0.34f));
     }
 }
+bool normal_sword_proc(daAlink_c* link) {
+    return link->mProcID == daAlink_c::PROC_CUT_NORMAL || link->mProcID == daAlink_c::PROC_CUT_FINISH;
+}
+bool begin_sword_combo(daAlink_c* link) {
+    // Native recovery can clear its counter before our cooldown expires. Keep
+    // the automatic sequence across that gap, but let native code pick each
+    // directional/lock-on/hit-dependent swing and the fourth-hit finisher.
+    link->mComboCutCount = s_comboStep;
+    struct Scope { Scope(){s_autoSwordCall=true;} ~Scope(){s_autoSwordCall=false;} } scope;
+    if (!link->checkCutAction() || !normal_sword_proc(link)) return false;
+    s_comboStep = link->mComboCutCount % 4;
+    s_comboTimeout = 2 * ticks_per_second;
+    return true;
+}
 void update_sword(daAlink_c* link) {
-    // daAlink_CutNmParamType is private to d_a_alink_cut.inc: left swing = 1.
-    constexpr int normalLeftSwing = 1;
     if (s_meleeCooldown) --s_meleeCooldown;
+    if (s_comboTimeout && !--s_comboTimeout) s_comboStep = 0;
+    bool continuingSwing = false;
     if (s_swordAction == SwordAction::Normal) {
-        if (link->mProcID == daAlink_c::PROC_CUT_NORMAL) {
+        if (normal_sword_proc(link)) {
             if (s_wavePending && link->mUnderFrameCtrl[0].getFrame() >= link->field_0x3478) {
                 release_sword_wave(link); s_wavePending = false;
             }
-            return;
+            // Never cut off the damage window, and let the final hit recover.
+            if (!s_comboStep || s_meleeCooldown || link->mUnderFrameCtrl[0].getFrame() <=
+                std::max(link->field_0x347c, link->field_0x3484)) return;
+            continuingSwing = true;
+        } else {
+            s_wavePending = false; // Interrupted attacks cannot fire late from a damage/dodge action.
+            s_swordAction = SwordAction::None;
         }
-        s_wavePending = false; // Interrupted attacks cannot fire late from a damage/dodge action.
-        s_swordAction = SwordAction::None;
     } else if (s_swordAction == SwordAction::Spin) {
         if (link->mProcID == daAlink_c::PROC_CUT_TURN) return;
         s_swordAction = SwordAction::None;
     }
-    if (!sword_action_available(link)) return;
-    const bool spin = s_run.ranks[1] && !s_cooldowns[1] && enemy_in_range(link, s_run.radius(450));
+    if ((!continuingSwing && !sword_action_available(link)) ||
+        !link->mLinkAcch.ChkGroundHit() || link->checkWolf() || !link->mSwordModel) {
+        s_comboStep = s_comboTimeout = 0;
+        return;
+    }
+    const bool spin = !continuingSwing && s_run.ranks[1] && !s_cooldowns[1] && enemy_in_range(link, s_run.radius(450));
     const bool wave = s_run.ranks[0] && !s_cooldowns[0] && enemy_in_range(link, 1600);
     if (!spin && !wave && (s_meleeCooldown || !enemy_in_range(link, s_run.radius(280)))) return;
     if (!link->checkItemSwordEquip()) {
@@ -497,21 +524,24 @@ void update_sword(daAlink_c* link) {
     if (spin) {
         if (link->procCutTurnInit(1, 1)) {
             s_swordAction = SwordAction::Spin;
+            s_comboStep = s_comboTimeout = 0;
             link->field_0x3478 = s_run.radius(link->field_0x3478);
             s_cooldowns[1] = s_run.cooldown(100);
         }
-    } else if (link->procCutNormalInit(normalLeftSwing)) {
+    } else if (begin_sword_combo(link)) {
         s_swordAction = SwordAction::Normal; s_wavePending = wave;
         s_meleeCooldown = s_run.cooldown(30);
         if (wave) s_cooldowns[0] = s_run.cooldown(40);
     }
 }
-void after_spin_move(ModContext*, void* args, void*, void*) {
+void after_sword_move(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
-    if (!link || !playable() || s_swordAction != SwordAction::Spin ||
-        link->mProcID != daAlink_c::PROC_CUT_TURN || fopAcM_GetID(link) != s_player) return;
+    if (!link || !playable() || s_run.phase != Phase::Running || fopAcM_GetID(link) != s_player) return;
+    const bool spin = s_swordAction == SwordAction::Spin && link->mProcID == daAlink_c::PROC_CUT_TURN;
+    const bool normal = s_swordAction == SwordAction::Normal && normal_sword_proc(link);
+    if ((!spin && !normal) || !link->mLinkAcch.ChkGroundHit()) return;
     // Runs before native posMove/ground/wall resolution, retaining collision.
-    // Keep the spin animation but replace its forced stop/lunge with stick movement.
+    // Normal swings and finishers decelerate/lunge too, not only spin attacks.
     link->current.angle.y = link->mMoveAngle;
     link->mNormalSpeed = link->mpHIO->mMove.m.mMaxSpeed * link->mStickValue;
 }
@@ -587,6 +617,10 @@ HookAction before_cut(ModContext*, void*, void* result, void*) {
     if (!in_arena()) return HOOK_CONTINUE;
     *static_cast<BOOL*>(result) = FALSE;
     return HOOK_SKIP_ORIGINAL;
+}
+HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* user) {
+    if (s_autoSwordCall) return HOOK_CONTINUE;
+    return before_cut(ctx, args, result, user);
 }
 HookAction before_process(ModContext*, void* args, void* result, void*) {
     auto* process = mods::arg<void*>(args, 1);
@@ -744,6 +778,7 @@ void start_run(ModContext*, void*) {
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
     s_run.start(seed); s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
+    s_comboStep = s_comboTimeout = 0;
 }
 void replay(ModContext*, void*) { close_window(); s_restart = true; }
 void save_results(ModContext*, void*) { close_window(); s_saveRequested = true; }
@@ -873,9 +908,10 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
-    PRE(SurvivorsSwordAttack, before_cut); PRE(SurvivorsDoor, before_cut);
+    PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_cut);
     POST(SurvivorsPower, after_power);
-    POST(SurvivorsSpinMove, after_spin_move); PRE(SurvivorsLargeSpin, before_large_spin);
+    POST(SurvivorsSpinMove, after_sword_move); PRE(SurvivorsLargeSpin, before_large_spin);
+    POST(SurvivorsNormalMove, after_sword_move); POST(SurvivorsFinishMove, after_sword_move);
     PRE(SurvivorsStage, before_stage); POST(SurvivorsHud, draw_hud);
     PRE(SurvivorsGameStart, before_game_start); PRE(SurvivorsOpening, before_opening);
     PRE(SurvivorsDrops, before_drop); PRE(SurvivorsDirectDrops, before_drop);

@@ -48,6 +48,7 @@ std::array<Enemy,enemy_capacity> s_enemies;
 Run s_run;
 enum class SwordAction { None, Normal, Spin };
 SwordAction s_swordAction=SwordAction::None;
+unsigned s_comboStep=0,s_comboTimeout=0;
 unsigned s_meleeCooldown=0; bool s_wavePending=false;
 bool arena=true, transition=false, s_active=true, s_restart=false;
 bool s_saveReady=false, s_gameStarted=true;
