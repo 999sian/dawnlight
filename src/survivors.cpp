@@ -832,7 +832,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
 void open_window() {
     if (s_window || ui_visible()) return;
     UiTabDesc tab = UI_TAB_DESC_INIT;
-    tab.title = s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivor's";
+    tab.title = s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivors";
     tab.build = build_window;
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
     desc.tabs = &tab; desc.tab_count = 1;
@@ -840,7 +840,7 @@ void open_window() {
         if (s_window == handle) s_window = 0;
     };
     if (svc_ui->window_push(mod_ctx, &desc, &s_window) != MOD_OK)
-        svc_log->warn(mod_ctx, "Hyrule Survivor's: could not open run window");
+        svc_log->warn(mod_ctx, "Hyrule Survivors: could not open run window");
 }
 ModResult activated(void*, ModError*) { s_active = true; reset_runtime(); return MOD_OK; }
 ModResult deactivated(void*, ModError*) { s_active = false; reset_runtime(); return MOD_OK; }
@@ -917,16 +917,16 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsDrops, before_drop); PRE(SurvivorsDirectDrops, before_drop);
 #undef PRE
 #undef POST
-    if (result != MOD_OK) return mods::set_error(error, result, "failed to install Hyrule Survivor's hooks");
+    if (result != MOD_OK) return mods::set_error(error, result, "failed to install Hyrule Survivors hooks");
     const GameModeDesc mode{
         .struct_size = sizeof(GameModeDesc), .game_mode_id = kMode,
-        .full_name = "Hyrule Survivor's", .save_name = "gczelda2-survivors", .user_data = nullptr,
+        .full_name = "Hyrule Survivors", .save_name = "gczelda2-survivors", .user_data = nullptr,
         .on_activated = activated, .on_deactivated = deactivated, .on_play = activated,
         .on_save_loaded = loaded, .on_new_save = new_save, .on_new_save_select = nullptr,
         .on_game_reset = reset, .on_tick = nullptr,
     };
     result = svc_game_mode->register_game_mode(mod_ctx, &mode);
-    if (result != MOD_OK) return mods::set_error(error, result, "failed to register Hyrule Survivor's");
+    if (result != MOD_OK) return mods::set_error(error, result, "failed to register Hyrule Survivors");
     s_registered = true;
     return MOD_OK;
 }
