@@ -53,10 +53,10 @@ void cancel_treasure_demo() {
 bool chest_interactable(const Chest& chest, daAlink_c* link) {
     if (!chest.active || chest.opening || !s_loot.ready || s_run.phase != Phase::Running ||
         !playable() || s_treasure.item != kNone || !s_run.chest_rewards_left(potion_slot() >= 0) ||
-        dComIfGs_getRupee() < s_run.chest_cost() || !sword_action_available(link)) return false;
+        dComIfGs_getRupee() < s_run.chest_cost() || link->checkWolf() || dComIfGs_getLife() == 0) return false;
     const cXyz delta = chest.position - link->current.pos;
-    const s16 facing = static_cast<s16>(cM_atan2s(delta.x, delta.z) - link->shape_angle.y);
-    if (delta.absXZ() >= 150 || std::abs(delta.y) >= 20 || std::abs(int(facing)) > 0x2000) return false;
+    // Auto-aim/spin changes facing; it must never hide a nearby Open action.
+    if (delta.absXZ() >= 150 || std::abs(delta.y) >= 20) return false;
     const cXyz from = link->current.pos + cXyz(0, 50, 0), to = chest.position + cXyz(0, 50, 0);
     dBgS_LinChk wall; wall.Set(&from, &to, link);
     return !dComIfG_Bgsp().LineCross(&wall);
@@ -81,18 +81,23 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link) {
     s_selectedChest = index; s_chests[index].reward = reward;
     s_run.phase = Phase::Treasure;
     clear_attacks();
+    s_swordAction = SwordAction::None; s_wavePending = false;
+    s_comboStep = s_comboTimeout = 0;
+    for (auto& collider : link->mAtCps) { collider.OffAtSetBit(); collider.ResetAtHit(); }
+    link->mAtSph.OffAtSetBit(); link->mAtSph.ResetAtHit();
+    link->resetUpperAnime(daAlink_c::UPPER_2, 0);
+    link->procWaitInit(); // Open interrupts swings, rolls, damage and item actions.
     return true;
 }
-HookAction before_chest_action(ModContext*, void* args, void* result, void*) {
+HookAction before_chest_action(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!link || !in_arena() || fopAcM_GetID(link) != s_player) return HOOK_CONTINUE;
     for (unsigned i = 0; i < s_chests.size(); ++i) {
         if (!chest_interactable(s_chests[i], link)) continue;
-        link->setDoStatus(BUTTON_STATUS_OPEN);
-        if (!link->doTrigger()) return HOOK_CONTINUE;
-        begin_treasure_demo(i, link);
-        *static_cast<int*>(result) = 1; // Consume Open; never turn it into a roll.
-        return HOOK_SKIP_ORIGINAL;
+        dComIfGp_setDoStatusForce(BUTTON_STATUS_OPEN, 0);
+        if (mDoCPd_c::getTrigA(PAD_1) && begin_treasure_demo(i, link))
+            mDoCPd_c::getCpadInfo(PAD_1).mPressedButtonFlags &= ~PAD_BUTTON_A;
+        return HOOK_CONTINUE; // Link must execute the native Get Item event.
     }
     return HOOK_CONTINUE;
 }

@@ -28,6 +28,7 @@
 #include "m_Do/m_Do_ext.h"
 #include "m_Do/m_Do_graphic.h"
 #include "m_Do/m_Do_Reset.h"
+#include "m_Do/m_Do_controller_pad.h"
 #include "JSystem/J2DGraph/J2DGrafContext.h"
 #include "JSystem/J2DGraph/J2DPrint.h"
 #include "JSystem/JParticle/JPAEmitter.h"
@@ -53,7 +54,10 @@ constexpr char kStage[] = "D_DLBR0";
 constexpr char kBlob[] = "hyrule-survivors-records-v1";
 constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
-DEFINE_HOOK(&daAlink_c::checkNormalAction, SurvivorsChestAction);
+DEFINE_HOOK(&daAlink_c::setMatrix, SurvivorsRangedAim);
+DEFINE_HOOK(&daAlink_c::checkUpperItemActionBow, SurvivorsBowAction);
+DEFINE_HOOK(&daAlink_c::checkNextActionBow, SurvivorsBowNext);
+DEFINE_HOOK(&daAlink_c::cancelUpperItemReadyAnime, SurvivorsRangedCancel);
 DEFINE_HOOK(&daAlink_c::procCoGetItemInit, SurvivorsGetItem);
 DEFINE_HOOK(&fpcLf_Draw, SurvivorsTreasureDraw);
 DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
@@ -96,6 +100,8 @@ std::array<unsigned, 12> s_cooldowns{};
 void clear_loot();
 void cancel_treasure_demo();
 int potion_slot();
+void cancel_ranged();
+bool queue_ranged(daAlink_c*, Upgrade);
 std::array<unsigned, 3> s_choices{0, 1, 2};
 struct ProcessFrame { void* args; ActorId id; };
 std::vector<ProcessFrame> s_processFrames;
@@ -113,6 +119,9 @@ struct Attack {
     bool active = false;
     unsigned life = 0, weapon = 0, age = 0;
     bool returning = false, exploding = false;
+    ActorId target = kNone;
+    unsigned hops = 0, visitedCount = 0;
+    std::array<ActorId, 6> visited{};
     float travel = 0, limit = 0;
     cXyz position{}, velocity{};
     float radius = 0;
@@ -168,6 +177,7 @@ void stop_attack(Attack& a) {
     a.collider.OffAtSetBit(); a.collider.ResetAtHit();
 }
 void clear_attacks() {
+    cancel_ranged();
     for (auto& a : s_attacks) stop_attack(a);
 }
 void close_window() {
@@ -570,6 +580,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
     return HOOK_SKIP_ORIGINAL;
 }
 #include "survivors_loot.inc"
+#include "survivors_ranged.inc"
 #include "survivors_treasure.inc"
 
 void update_weapons(daAlink_c* link) {
@@ -588,8 +599,9 @@ void update_weapons(daAlink_c* link) {
         a.collider.SetAtVec(a.velocity);
         dComIfG_Ccsp()->Set(&a.collider);
     }
-    update_sword(link);
+    update_ranged(link);
     fire_items(link);
+    if (!s_ranged.active) update_sword(link);
     if (s_run.ranks[2] && !s_cooldowns[2]) {
         launch(link, 2, cXyz(0, 0, 0));
         s_cooldowns[2] = s_run.cooldown(65);
@@ -741,6 +753,7 @@ void after_draw(ModContext*, void*, void*, void*) {
         dDbVw_drawCubeOpa(orb.position, size, angle, GXColor{90, 235, 255, 255});
     }
     draw_loot();
+    draw_ranged();
     for (auto& a : s_attacks) {
         if (!a.active || a.weapon != 2) continue;
         const GXColor color{255, 235, 160, 180};
@@ -956,7 +969,11 @@ ModResult initialize_survivors(ModError* error) {
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
-    PRE(SurvivorsChestAction, before_chest_action);
+    PRE(SurvivorsPlayer, before_chest_action);
+    PRE(SurvivorsRangedAim, before_ranged_aim);
+    PRE(SurvivorsBowAction, before_ranged_native);
+    PRE(SurvivorsBowNext, before_ranged_native);
+    PRE(SurvivorsRangedCancel, before_ranged_native);
     PRE(SurvivorsTreasureDraw, before_treasure_draw);
     PRE(SurvivorsGetItem, before_treasure_get); POST(SurvivorsGetItem, after_treasure_get);
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);

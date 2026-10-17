@@ -27,6 +27,7 @@ stubs = r'''
 #include <vector>
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
+using ActorId=unsigned;constexpr ActorId kNone=~0u;
 using s16=short;using u16=unsigned short;using u8=unsigned char;
 struct ModContext {};
 struct cXyz {
@@ -38,6 +39,8 @@ struct cXyz {
     float abs2()const{return x*x+y*y+z*z;}float abs()const{return std::sqrt(abs2());}
     float abs(cXyz p)const{return (*this-p).abs();}
 };
+struct csXyz{csXyz(int,int,int){}};
+s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.14159265);}
 float cM_ssin(s16 angle){return std::sin(angle*3.14159265f/32768);}
 float cM_scos(s16 angle){return std::cos(angle*3.14159265f/32768);}
 struct Actor {unsigned id=1;int health=10;struct{cXyz pos;}current;cXyz eyePos;};
@@ -68,6 +71,7 @@ struct Collider {
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
 struct Attack {
+    ActorId target=kNone;unsigned hops=0,visitedCount=0;std::array<ActorId,6>visited{};
     bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,2>emitters{};
@@ -80,6 +84,8 @@ void clear_attacks(){++cleared;for(auto& a:s_attacks)stop_attack(a);}
 void close_window(){++closed;}
 struct Server {unsigned registrations=0;void Set(Collider* c){assert(c->active && c->status->owner==&player);++registrations;}}server;
 Server* dComIfG_Ccsp(){return &server;}
+std::array<unsigned,2>queued{};
+bool queue_ranged(daAlink_c*,Upgrade w){++queued[unsigned(w)-8];return true;}
 unsigned particles=0;
 template<class... Args> unsigned dComIfGp_particle_set(Args...){return ++particles;}
 '''
@@ -117,18 +123,18 @@ int main(){
     fire_items(&player);for(auto& a:s_attacks)assert(!a.active); // Locked items cannot fire.
     for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball})s_run.ranks[unsigned(weapon)]=1;
     fire_items(&player);
-    for(unsigned type=0;type<4;++type){
+    assert(queued[0]==1&&queued[1]==1);
+    for(unsigned type=2;type<4;++type){
         assert(s_attacks[8+4*type].active && s_cooldowns[8+type]>0);
         assert(s_attacks[8+4*type].status.owner==&player);
     }
-    assert(s_attacks[8].collider.type==AT_TYPE_ARROW && s_attacks[20].collider.type==AT_TYPE_NORMAL_SWORD &&
+    assert(s_attacks[20].collider.type==AT_TYPE_NORMAL_SWORD &&
            s_attacks[16].collider.type==AT_TYPE_NORMAL_SWORD);
     fire_items(&player);assert(!s_attacks[9].active); // Cooldowns prevent every-frame firing.
     for(unsigned i=0;i<8;++i)assert(!s_attacks[i].active); // Separate base-weapon budget.
-    reset();s_run.ranks[8]=5;fire_items(&player);
-    assert(s_attacks[8].active && s_attacks[9].active && s_attacks[10].active && !s_attacks[11].active);
-    const auto forward=s_attacks[8].velocity, left=s_attacks[9].velocity, right=s_attacks[10].velocity;
-    assert((left.x*forward.z-left.z*forward.x)*(right.x*forward.z-right.z*forward.x)<0);
+    reset();s_run.ranks[8]=5;
+    assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
+    assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
     s_attacks[8].collider.hit=true;update_item_attack(s_attacks[8],&player);assert(!s_attacks[8].active);
     blocked=true;update_item_attack(s_attacks[9],&player);assert(!s_attacks[9].active);
     reset();s_run.ranks[10]=1;assert(launch_item(&player,Upgrade::Bombs,{0,70,600}));
@@ -150,6 +156,18 @@ int main(){
         for(unsigned i=0;i<80 && a.active;++i)update_item_attack(a,&player);
         assert(!a.active);
     }
+    // Rank 1 visits two targets, rank 5 visits six distinct targets, then returns.
+    std::array<Actor,6> chain;
+    for(unsigned rank:{1u,5u}){
+        reset();actors.clear();s_enemies={};s_run.ranks[9]=rank;
+        for(unsigned i=0;i<6;++i){chain[i].id=10+i;chain[i].health=10;chain[i].eyePos={0,70,150.0f+150*i};
+            actors[10+i]=&chain[i];s_enemies[i]={10+i,true,false,false};}
+        assert(launch_item(&player,Upgrade::Boomerang,chain[0].eyePos));
+        auto& a=s_attacks[12];
+        for(unsigned tick=0;tick<200&&!a.returning;++tick)update_item_attack(a,&player);
+        assert(a.returning&&a.visitedCount==rank+1&&a.emitters[0]&&a.emitters[1]);
+        for(unsigned i=0;i<a.visitedCount;++i)for(unsigned j=i+1;j<a.visitedCount;++j)assert(a.visited[i]!=a.visited[j]);
+    }
     reset();s_run.ranks[8]=1;
     for(unsigned i=0;i<4;++i)assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
     assert(!launch_item(&player,Upgrade::Bow,{0,70,300})); // Bounded objects, no extra allocation.
@@ -164,7 +182,7 @@ int main(){
     std::cout<<"Survivors loot: targeting, four projectile types, caps, placement and proximity behavior passed\n";
 }
 '''
-functions = ['nearest_item_target','launch_item','explode_item','update_item_attack','fire_items',
+functions = ['nearest_item_target','next_boom_target','update_boom_wind','launch_item','explode_item','update_item_attack','fire_items',
              'spawn_chest','update_chests']
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'

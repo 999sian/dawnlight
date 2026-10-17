@@ -13,6 +13,11 @@ unsigned s_chestDelay = 20 * ticks_per_second, s_selectedChest = kChestCount;
 struct LootModels {
     JKRSolidHeap* heap = nullptr;
     J3DModel* masterSword = nullptr;
+    J3DModel* bow = nullptr;
+    J3DModel* heldBoomerang = nullptr;
+    std::array<J3DModel*, kSlotsPerItem> wind{};
+    std::array<mDoExt_bckAnm*, 2> bowAnims{};
+    mDoExt_bckAnm* windAnim = nullptr;
     request_of_phase_process_class chestPhase{}, linkPhase{};
     const char* linkArchive = nullptr;
     std::array<J3DModel*, projectile_capacity> projectiles{};
@@ -32,6 +37,9 @@ void clear_loot() {
         for (auto* model : s_loot.projectiles) if (model) forget(model);
         for (auto* model : s_loot.chests) if (model) forget(model);
         if (s_loot.masterSword) forget(s_loot.masterSword);
+        if (s_loot.bow) forget(s_loot.bow);
+        if (s_loot.heldBoomerang) forget(s_loot.heldBoomerang);
+        for (auto* model : s_loot.wind) if (model) forget(model);
     }
     if (s_loot.heap) mDoExt_destroySolidHeap(s_loot.heap);
     dComIfG_resDelete(&s_loot.chestPhase, "Dalways");
@@ -49,6 +57,7 @@ bool prepare_loot(daAlink_c* link) {
         clear_loot(); s_loot.failed = true; return false;
     }
     if (chestPhase != cPhs_COMPLEATE_e || linkPhase != cPhs_COMPLEATE_e) return false;
+    if (!dComIfGp_getAnmArchive()) { clear_loot(); s_loot.failed = true; return false; }
     s_loot.heap = mDoExt_createSolidHeapFromGame(0x200000, 0x20);
     if (!s_loot.heap) { clear_loot(); s_loot.failed = true; return false; }
     auto* previous = mDoExt_setCurrentHeap(s_loot.heap);
@@ -56,12 +65,25 @@ bool prepare_loot(daAlink_c* link) {
         return data ? mDoExt_J3DModel__create(data, environment ? 0 : 0x80000,
                                             environment ? 0x13000684 : 0x11000084) : nullptr;
     };
+    s_loot.bow = model(link->loadAramBmd(dRes_ID_ALANM_BMD_AL_BOW_e, 0x4c00), true);
+    s_loot.heldBoomerang = model(static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1f)));
+    const auto animation = [](J3DAnmTransform* data) -> mDoExt_bckAnm* {
+        auto* result = JKR_NEW mDoExt_bckAnm();
+        return data && result && result->init(data, TRUE, J3DFrameCtrl::EMode_NONE, 0, 0, -1, false) ? result : nullptr;
+    };
+    s_loot.bowAnims[0] = animation(static_cast<J3DAnmTransform*>(link->loadAram(dRes_ID_ALANM_BCK_BARELORD_e, 0x4000)));
+    s_loot.bowAnims[1] = animation(static_cast<J3DAnmTransform*>(link->loadAram(dRes_ID_ALANM_BCK_BASHOOT_e, 0x4000)));
+    s_loot.windAnim = animation(static_cast<J3DAnmTransform*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x13)));
+    for (auto*& wind : s_loot.wind)
+        wind = model(static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x34)), true);
     auto* chestData = static_cast<J3DModelData*>(dComIfG_getObjectRes("Dalways", 12));
     auto* lidData = static_cast<J3DAnmTransform*>(dComIfG_getObjectRes("Dalways", 7));
     // Master Sword has only a rupee placeholder in native item_resource.
     // Give its presentation a private model instance, borrowing Link's data.
     s_loot.masterSword = model(link->mpSwMModel ? link->mpSwMModel->getModelData() : nullptr);
-    bool ready = chestData && lidData && s_loot.masterSword;
+    bool ready = chestData && lidData && s_loot.masterSword && s_loot.bow && s_loot.heldBoomerang &&
+        s_loot.bowAnims[0] && s_loot.bowAnims[1] && s_loot.windAnim;
+    for (auto* wind : s_loot.wind) ready = ready && wind;
     for (unsigned i = 0; i < kChestCount; ++i) {
         s_loot.chests[i] = model(chestData);
         s_loot.lids[i] = JKR_NEW mDoExt_bckAnm();
@@ -109,6 +131,32 @@ bool nearest_item_target(daAlink_c* link, cXyz& target) {
     }
     return found;
 }
+bool next_boom_target(Attack& a, daAlink_c* link, float range) {
+    float nearest = range * range; ActorId chosen = kNone;
+    for (const auto& e : s_enemies) {
+        if (!e.initialized || e.credited || e.retiring ||
+            std::find(a.visited.begin(), a.visited.begin() + a.visitedCount, e.id) != a.visited.begin() + a.visitedCount) continue;
+        auto* actor = actor_by_id(e.id);
+        if (!actor || actor->health <= 0) continue;
+        const float distance = (actor->eyePos - a.position).abs2();
+        if (distance >= nearest) continue;
+        cXyz to = actor->eyePos;
+        dBgS_LinChk wall; wall.Set(&a.position, &to, link);
+        if (dComIfG_Bgsp().LineCross(&wall)) continue;
+        chosen = e.id; nearest = distance;
+    }
+    if (chosen == kNone || a.visitedCount == a.visited.size()) return false;
+    a.target = chosen; a.visited[a.visitedCount++] = chosen;
+    return true;
+}
+void update_boom_wind(Attack& a, daAlink_c* link) {
+    constexpr std::array<u16, 2> effects{0x1fe, 0x1ff}; // Native Gale Boomerang trails.
+    const csXyz angle(0, cM_atan2s(a.velocity.x, a.velocity.z), 0);
+    for (unsigned i = 0; i < effects.size(); ++i) {
+        a.emitters[i] = dComIfGp_particle_set(a.emitters[i], effects[i], &a.position, &link->tevStr,
+            &angle, nullptr, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
+    }
+}
 bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0) {
     const unsigned index = unsigned(weapon), type = index - unsigned(Upgrade::Bow);
     auto begin = s_attacks.begin() + kItemBegin + type * kSlotsPerItem;
@@ -118,6 +166,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     auto& a = *slot;
     a.weapon = index; a.age = 0; a.life = 100;
     a.returning = a.exploding = false; a.travel = 0;
+    a.target = kNone; a.visitedCount = 0; a.hops = 0;
     a.position = link->current.pos + cXyz(0, 70, 0);
     cXyz delta = target - a.position;
     const float distance = std::max(1.0f, delta.abs());
@@ -127,6 +176,10 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     a.limit = std::min(distance + 80.0f, weapon == Upgrade::Ball ? 900.0f : 1400.0f);
     a.velocity = aimed * (weapon == Upgrade::Bow ? 70.0f : weapon == Upgrade::Ball ? 40.0f : 42.0f);
     const unsigned rank = s_run.rank(weapon);
+    if (weapon == Upgrade::Boomerang) {
+        a.hops = rank; a.life = 120 + 40 * rank;
+        if (!next_boom_target(a, link, 1400)) return false;
+    }
     a.radius = s_run.radius(weapon == Upgrade::Bow ? 35 : 55 + 8 * rank);
     if (weapon == Upgrade::Bombs) {
         // Discrete ballistic arc reaches the target in 30 simulation ticks.
@@ -165,7 +218,23 @@ void update_item_attack(Attack& a, daAlink_c* link) {
     if (!a.exploding) {
         const bool shield = a.collider.ChkAtShieldHit();
         if (weapon == Upgrade::Bow && (shield || a.collider.ChkAtHit())) { stop_attack(a); return; }
-        if ((weapon == Upgrade::Boomerang || weapon == Upgrade::Ball) &&
+        if (weapon == Upgrade::Boomerang && !a.returning) {
+            auto* target = actor_by_id(a.target);
+            if (shield) a.returning = true;
+            else if (!target || target->health <= 0 || (target->eyePos - a.position).abs() <= a.radius || a.collider.ChkAtHit()) {
+                if (a.hops && next_boom_target(a, link, 800)) { --a.hops; a.collider.ResetAtHit(); }
+                else { a.returning = true; a.collider.ResetAtHit(); }
+            }
+            if (!a.returning) {
+                target = actor_by_id(a.target);
+                if (target) {
+                    const cXyz delta = target->eyePos - a.position;
+                    const float distance = std::max(1.0f, delta.abs());
+                    a.velocity = delta * (std::min(42.0f, distance) / distance);
+                }
+            }
+        }
+        if (weapon == Upgrade::Ball &&
             (shield || a.travel >= a.limit) && !a.returning) {
             a.returning = true; a.collider.ResetAtHit();
         }
@@ -188,6 +257,7 @@ void update_item_attack(Attack& a, daAlink_c* link) {
             }
         }
     }
+    if (weapon == Upgrade::Boomerang) update_boom_wind(a, link);
     if (weapon != Upgrade::Bombs || a.exploding) {
         a.collider.SetC(a.position); a.collider.SetR(a.radius); a.collider.SetAtVec(a.velocity);
         dComIfG_Ccsp()->Set(&a.collider);
@@ -200,12 +270,12 @@ void fire_items(daAlink_c* link) {
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
         if (!s_run.ranks[i] || s_cooldowns[i]) continue;
         const auto weapon = static_cast<Upgrade>(i);
+        if (weapon == Upgrade::Bow || weapon == Upgrade::Boomerang) {
+            queue_ranged(link, weapon); continue;
+        }
         if (!launch_item(link, weapon, target)) continue;
         s_cooldowns[i] = s_run.item_cooldown(weapon);
-        if (weapon == Upgrade::Bow && s_run.ranks[i] >= 3) {
-            launch_item(link, weapon, target, 0.14f);
-            if (s_run.ranks[i] >= 5) launch_item(link, weapon, target, -0.14f);
-        }
+
     }
 }
 bool spawn_chest(daAlink_c* link) {
@@ -272,6 +342,17 @@ void draw_loot() {
         const auto pitch = weapon == Upgrade::Bow ? s16(-cM_atan2s(a.velocity.y, a.velocity.absXZ())) : s16(0);
         draw_loot_model(s_loot.projectiles[i], a.position, yaw, pitch,
             weapon == Upgrade::Bow ? 1 : s_run.radius(1 + 0.08f * (s_run.rank(weapon) - 1)));
+        if (weapon == Upgrade::Boomerang && s_loot.windAnim) {
+            auto* model = s_loot.wind[i - kItemBegin - kSlotsPerItem];
+            auto* data = model->getModelData(); auto* root = data->getJointNodePointer(0);
+            auto* joint = data->getJointNodePointer(4);
+            auto* oldCalc = root->getMtxCalc(); auto oldCallback = joint->getCallBack();
+            // Native callback casts userArea to daBoomerang_c; our model isn't an actor.
+            joint->setCallBack(nullptr);
+            s_loot.windAnim->entry(data, std::fmod(float(a.age), std::max(1.0f, s_loot.windAnim->getEndFrame())));
+            draw_loot_model(model, a.position, 0, 0, 1);
+            root->setMtxCalc(oldCalc); joint->setCallBack(oldCallback);
+        }
         if (weapon == Upgrade::Ball && link) {
             cXyz from = link->current.pos + cXyz(0, 60, 0), to = a.position;
             dDbVw_drawLineXlu(from, to, GXColor{170,170,180,255}, 1, 5);

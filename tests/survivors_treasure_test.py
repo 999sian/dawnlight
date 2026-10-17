@@ -58,17 +58,27 @@ struct daDitem_c:Actor {
     bool chkDraw(){return visible;} bool chkDead(){return dead;}
 } prop;
 struct daAlink_c:Actor {
-    enum {PROC_WAIT,PROC_MOVE,PROC_ATN_MOVE,PROC_TIRED_WAIT,PROC_GET_ITEM,OTHER,ANM_GET_A};
+    enum {PROC_WAIT,PROC_MOVE,PROC_ATN_MOVE,PROC_TIRED_WAIT,PROC_GET_ITEM,OTHER,ANM_GET_A,UPPER_2};
     int mProcID=PROC_WAIT,animation=-1;bool wolf=false,dead=false,inEvent=false;
     struct {Vec pos;} current;
     struct {int p0=90,p1=90;void setParam0(int n){p0=n;} void setParam1(int n){p1=n;}} mDemo;
     struct {int field_0x300a=-7;} mProcVar1;
     unsigned field_0x32cc=0;
+    struct Collider{bool active=true;void OffAtSetBit(){active=false;}void ResetAtHit(){}}mAtCps[3],mAtSph;
+    void resetUpperAnime(int,int){}void procWaitInit(){mProcID=PROC_WAIT;}
     struct {s16 y=0;}shape_angle;int doStatus=0;bool trigger=false;
     void setDoStatus(int s){doStatus=s;}bool doTrigger(){return trigger;}
     bool checkWolf(){return wolf;}bool checkDeadHP(){return dead;}bool checkEventRun(){return inEvent;}
     void setSingleAnimeBase(int a){animation=a;}
 } player;
+constexpr int PAD_1=0,PAD_BUTTON_A=1;
+struct Pad {unsigned mPressedButtonFlags=0;};
+struct mDoCPd_c {static inline Pad pad{};
+    static bool getTrigA(int){return player.trigger;}static Pad& getCpadInfo(int){return pad;}};
+void dComIfGp_setDoStatusForce(int status,int){player.doStatus=status;}
+int dComIfGs_getLife(){return 12;}
+enum class SwordAction{None,Normal};SwordAction s_swordAction= SwordAction::None;
+bool s_wavePending=false;unsigned s_comboStep=0,s_comboTimeout=0;
 struct {int mPt2=-1;} event;
 bool alive=false,creating=false,doing=false,deleteAllowed=true,mode=true,stageChange=false;
 bool running=false,paused=false,talking=false,eventEnded=false,playerPresent=true,createFails=false;
@@ -169,9 +179,8 @@ int main(){
     rupees=20;player.trigger=false;
     assert(before_chest_action(nullptr,&player,&result,nullptr)==HOOK_CONTINUE);
     assert(player.doStatus==BUTTON_STATUS_OPEN && created==0);
-    for(unsigned reason=0;reason<8;++reason){
+    for(unsigned reason=1;reason<8;++reason){
         fresh();
-        if(reason==0)player.shape_angle.y=0x4000;
         if(reason==1)player.current.pos.z=-100;
         if(reason==2)player.current.pos.y=50;
         if(reason==3)blocked=true;
@@ -181,13 +190,15 @@ int main(){
         if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=true;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!begin_treasure_demo(0,&player)&&created==0&&rupees==100);
     }
+    fresh();player.shape_angle.y=0x4000;assert(chest_interactable(s_chests[0],&player));
     fresh();createFails=true;assert(!begin_treasure_demo(0,&player));
     assert(currentLayer==&rootLayer&&s_run.phase==Phase::Running&&rupees==100);
     fresh();player.trigger=true;
-    assert(before_chest_action(nullptr,&player,&result,nullptr)==HOOK_SKIP_ORIGINAL&&result==1);
+    assert(before_chest_action(nullptr,&player,&result,nullptr)==HOOK_CONTINUE);
     assert(created==1&&cleared==1&&s_run.phase==Phase::Treasure&&rupees==100);
     assert(!begin_treasure_demo(0,&player));
     const auto reward=s_chests[0].reward;
+    assert(!player.mAtCps[0].active && !player.mAtSph.active && player.mProcID==daAlink_c::PROC_WAIT);
     assert(!s_run.tick(true));
     update_treasure_demo(&player);assert(ordered==1&&prop.eventInfo.condition==dEvtCnd_CANGETITEM_e);
     before_treasure_get(nullptr,&player,nullptr,nullptr);assert(player.mDemo.p0==90);
@@ -205,6 +216,12 @@ int main(){
     assert(s_run.phase==Phase::Running&&rupees==80&&s_run.chest_cost()==40);
     assert(!s_chests[0].active&&s_run.rank(chest_weapon(reward))==1&&reset==1&&!alive);
     update_treasure_demo(&player);assert(rupees==80&&s_run.chests_opened==1);
+    // Pre-execute Open has priority even in damage/roll/sword/item procedures.
+    fresh();player.mProcID=daAlink_c::OTHER;player.trigger=true;mDoCPd_c::pad.mPressedButtonFlags=PAD_BUTTON_A;
+    s_swordAction=SwordAction::Normal;s_wavePending=true;s_comboStep=3;
+    before_chest_action(nullptr,&player,&result,nullptr);
+    assert(s_run.phase==Phase::Treasure&&player.mProcID==daAlink_c::PROC_WAIT);
+    assert(!mDoCPd_c::pad.mPressedButtonFlags&&!s_wavePending&&s_comboStep==0);
     // Master Sword is a one-time real equipment reward, not a level-up rank.
     fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;bottles.fill(dItemNo_RED_BOTTLE_e);
     assert(begin_treasure_demo(0,&player)&&s_chests[0].reward==ChestReward::MasterSword);

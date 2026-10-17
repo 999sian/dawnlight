@@ -30,14 +30,16 @@ stubs=r'''
 using namespace dawnlight::survivors;
 using s16=short;using u32=unsigned;
 constexpr int MOD_OK=0,TRUE=1,cPhs_ERROR_e=-1,cPhs_COMPLEATE_e=4;
-constexpr unsigned dRes_ID_ALANM_BMD_AL_IB_e=0x311;
+constexpr unsigned dRes_ID_ALANM_BMD_AL_IB_e=0x311,dRes_ID_ALANM_BMD_AL_BOW_e=0x312,
+ dRes_ID_ALANM_BCK_BARELORD_e=1,dRes_ID_ALANM_BCK_BASHOOT_e=2;
 struct ModContext{};ModContext* mod_ctx=nullptr;
 struct cXyz {float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
     cXyz operator+(cXyz p)const{return {x+p.x,y+p.y,z+p.z};}
     float absXZ()const{return std::sqrt(x*x+z*z);}};
 s16 cM_atan2s(float a,float b){return short(std::atan2(a,b)*32768/3.14159265f);}
 struct GXColor{int r,g,b,a;};void dDbVw_drawLineXlu(cXyz&,cXyz&,GXColor,int,int){}
-struct J3DJoint {void* calculator=reinterpret_cast<void*>(1);void* getMtxCalc(){return calculator;}
+struct J3DJoint {void* callback=reinterpret_cast<void*>(2);
+    void* getCallBack(){return callback;}void setCallBack(void* cb){callback=cb;}void* calculator=reinterpret_cast<void*>(1);void* getMtxCalc(){return calculator;}
     void setMtxCalc(void* p){calculator=p;}};
 struct J3DModelData{J3DJoint root;J3DJoint* getJointNodePointer(int){return &root;}}data[5];
 struct J3DAnmTransform{}lidData;
@@ -64,6 +66,8 @@ int dComIfG_resLoad(request_of_phase_process_class* p,const char*){
 void dComIfG_resDelete(request_of_phase_process_class* p,const char*){if(p->held){p->held=false;--references;}}
 void* dComIfG_getObjectRes(const char* arc,int id){
     if(std::strcmp(arc,"Dalways")==0){if(id==7)return missingLid?nullptr:&lidData;assert(id==12);return &data[0];}
+    if(id==0x13)return &lidData;
+    if(id==0x34)return &data[0];
     assert(id==0x1c || id==0x1f || id==0x1e);return &data[id==0x1c?1:id==0x1f?2:3];
 }
 void* dComIfGp_getAnmArchive(){return &lidData;}
@@ -92,7 +96,8 @@ struct mDoExt_bckAnm {
 J3DModel nativeSword(&data[4]);
 struct daAlink_c {struct{cXyz pos;}current;J3DModel* mpSwMModel=&nativeSword;
     static const char* getAlinkArcName(){return "Alink";}
-    J3DModelData* loadAramBmd(unsigned id,unsigned size){assert(currentHeap!=&defaultHeap && id==0x311 && size==0x2800);return &data[4];}
+    J3DModelData* loadAramBmd(unsigned id,unsigned size){assert(currentHeap!=&defaultHeap && ((id==0x311 && size==0x2800)||(id==0x312&&size==0x4c00)));return &data[4];}
+    void* loadAram(unsigned,unsigned size){assert(size==0x4000);return &lidData;}
 }player;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 namespace mDoMtx_stack_c{void transS(cXyz){}void YrotM(s16){}void XrotM(s16){}void* get(){return nullptr;}}
@@ -123,12 +128,15 @@ int main(){
     failHeap=false;clear_loot();missingLid=true;assert(!prepare_loot(&player) && references==0 && liveModels.empty());
     missingLid=false;clear_loot();failModel=int(modelsMade)+3;
     assert(!prepare_loot(&player) && references==0 && liveModels.empty());
-    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==19);
+    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==25);
     assert(currentHeap==&defaultHeap);
     const auto creations=heapCreates;assert(prepare_loot(&player) && heapCreates==creations);
     s_chests[0].active=true;s_chests[1].active=true;s_chests[1].opening=true;s_chests[1].age=45;
     const auto before=data[0].root.getMtxCalc();draw_loot();
     assert(draws==2 && data[0].root.getMtxCalc()==before);
+    s_attacks[12].active=true;s_attacks[12].weapon=unsigned(Upgrade::Boomerang);s_attacks[12].age=40;
+    auto oldCallback=data[0].root.getCallBack();draw_loot();
+    assert(data[0].root.getCallBack()==oldCallback&&data[0].root.getMtxCalc()==before);
     s_selectedChest=0;s_chests[0].reward=ChestReward::MasterSword;
     leafdraw_class process;int result=0;auto beforeDraw=draws;
     placeholder.matrix=reinterpret_cast<void*>(123);placeholder.scale={0.5f,0.5f,0.5f};

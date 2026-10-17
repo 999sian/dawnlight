@@ -36,7 +36,7 @@ is retained and multiple earned levels are offered consecutively.
 | Whirling Blade | Unlock or improve a native Spin Attack with freely steerable movement |
 | Light Aura | Unlock or improve a smaller, more frequent area attack |
 | Hero's Bow | Chest unlock; stronger/faster arrows, spread shots at ranks 3 and 5 |
-| Boomerang | Chest unlock; damaging outbound/returning projectile, stronger/larger/faster with upgrades |
+| Boomerang | Chest unlock; Gale wind effect and one extra target at rank 1; each upgrade adds another hop and improves damage/size/cooldown |
 | Bombs | Chest unlock; aimed ballistic throws with larger, stronger blasts and shorter cooldowns |
 | Ball and Chain | Chest unlock; launch and retract a heavy ball, stronger/larger/faster with upgrades |
 | Power | Increase automatic weapon damage |
@@ -75,8 +75,11 @@ flat ground, a clear footprint and an unobstructed line from Link. Failed/full
 placements retry after three seconds. Closed chests remain until purchased or the
 run ends; opened chests disappear immediately when their native reward sequence finishes.
 
-Face a nearby chest and use the native **Open** action. Without enough rupees
-it has no interaction prompt. There is no purchase/confirmation dialog. The HUD
+Approach a chest and use the native **Open** action. Without enough rupees
+it has no interaction prompt. Opening an affordable chest takes priority over
+automatic attacks and other actions: press Open to interrupt them immediately.
+Auto-aim/spin facing cannot hide the prompt; distance and line of sight still apply.
+There is no purchase/confirmation dialog. The HUD
 shows the next chest price on a separate line: **20 rupees**, then **40**, **60**,
 and so on. Link receives the random reward through the native Get Item lift,
 holding pose and item message while enemies and the run timer pause. The lid
@@ -104,10 +107,18 @@ spawning only while no useful reward is available. Each run resets the separate
 Survivors inventory, Master Sword unlock, chest prices and weapon ranks, with
 a giant wallet (at least 1000 capacity) and zero rupees.
 
-All four weapons attack automatically alongside the sword, without equipping
-items, consuming ammunition or interrupting movement. They aim at the nearest
+All four weapons attack automatically alongside the sword without assigning
+item slots or consuming ammunition. Bow and boomerang use Link's native upper-body
+draw/shoot and throw animations while retaining movement. Link faces the target
+and releases each projectile at its animation cue; higher fire rates accelerate
+the animation. Sword, bow and boomerang animations take turns.
+They aim at the nearest
 live tracked enemy within range and line of sight. Arrows stop on impact;
-boomerangs deal Survivors damage on their outward/return paths; bombs follow an
+boomerangs use the native Gale wind model/animation and particle trails. They
+chain to one additional enemy at rank 1, then one more per rank (up to six
+different targets at rank 5), before returning to Link. Each hop needs a live
+target within range and line of sight, and cannot revisit an earlier target.
+They deal Survivors damage on their outward/return paths. Bombs follow an
 arc and explode at the target or a wall; the ball launches outward and retracts
 toward Link. Projectiles cannot pass through walls. Power, Haste and Reach also
 apply. Custom bomb/ball hits use the linear Survivors damage path to avoid
@@ -170,12 +181,16 @@ Before merging/releasing, test on Android and desktop:
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)
    does not heal and that restarting clears pickups and all weapon unlocks.
 10. Approach chests with 19/20 rupees: only the affordable chest offers Open.
-    Check facing/range/walls, native Get Item animation and lid motion, then
+    Check range/walls, native Get Item animation and lid motion, then
     prices 20/40/60 in the HUD with no purchase dialog or duplicate charges.
     Verify enemies/timer pause but Link and the item/camera finish normally.
+    Press Open during sword/spin attacks, bow draw, boomerang throw and damage
+    reactions; the chest must interrupt immediately without a delayed projectile.
 11. Obtain all four chest weapons, test nearest-target selection, arrow impact,
     bomb blasts, returning boomerangs/balls and walls. Verify rank upgrades and
-    simultaneous movement/automatic sword combos.
+    simultaneous movement/automatic sword combos. Check native bow draw/shoot,
+    facing and boomerang throw poses while moving and locking on. Verify faster
+    animation with Haste, Gale wind effects and 2/6 distinct targets at ranks 1/5.
 12. Restart/change modes with closed/open chests and active item projectiles;
     verify prices, ranks, models, particles and collisions reset. Verify story
     treasure flags are unaffected and the next run restores Ordon Sword/no bottles.
@@ -189,5 +204,7 @@ Boss Rush arena admission, sword scheduling with the native combo selector,
 movement during all three sword procedures, wave timing and
 particle cleanup, drop gating and level-up rewards. Loot tests additionally cover
 purchase pricing/caps, guarded transactions, placement, all four trajectories,
-target selection, model-load failures and shared-animation/heap cleanup. They do not replace the
+target selection, boomerang chains, native ranged-animation release timing,
+interruption/priority, fairness, model-load failures and shared-animation/heap
+cleanup. They do not replace the
 in-game checks above.
