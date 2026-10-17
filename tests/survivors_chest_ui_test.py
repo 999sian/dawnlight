@@ -65,6 +65,7 @@ void fresh(){
  s_chests[0].offers={ChestReward::Bow,ChestReward::Shield,ChestReward::MasterSword};
 }
 int main(){
+ (void)kTreasureStyle; // Installed by open_window in-game; this fixture exercises the card builder.
  service.pane_add_row=row;service.pane_add_rml=rml;service.pane_add_text=text;
  service.pane_add_control=control;service.elem_set_class=css;service.elem_set_visible=visible;
  fresh();s_run.shield=1;s_run.master_sword=4;
