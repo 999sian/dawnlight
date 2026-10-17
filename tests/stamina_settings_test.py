@@ -32,6 +32,7 @@ fixture = r'''
 using namespace dawnlight;
 bool testSurvivors=false;
 bool survivors_active(){return testSurvivors;}
+bool survivors_dual_wield(){return false;}
 namespace dawnlight {bool teActive=false;bool twilit_stamina_active(){return teActive;}}
 namespace dawnlight {
 bool teHumanSprint=false,teWolfSprint=false;
