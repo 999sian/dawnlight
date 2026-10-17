@@ -571,6 +571,10 @@ void draw_hud(ModContext*, void*, void*, void*) {
     std::snprintf(text, sizeof(text), "XP %u / %u   Wave %u   Spin %u   Aura %u",
         s_run.xp, s_run.required_xp(), s_run.ranks[0], s_run.ranks[1], s_run.ranks[2]);
     label(text, x, 62, 14);
+    // J2DPrint enables direct TEX0 attributes. fillBox emits only position and
+    // color, so reset the vertex layout before its quads or the GX FIFO reads
+    // subsequent command bytes as missing texture coordinates.
+    graf->setup2D();
     const float fraction = std::min(1.0f, float(s_run.xp) / float(s_run.required_xp()));
     const auto oldTL = graf->mColorTL, oldTR = graf->mColorTR;
     const auto oldBR = graf->mColorBR, oldBL = graf->mColorBL;
@@ -583,6 +587,7 @@ void draw_hud(ModContext*, void*, void*, void*) {
         label("Defeat the Elite Bokoblin!", x, 94, 16);
     else if (s_spawnFailures >= 10)
         label("Waiting for a clear enemy spawn position", x, 94, 13);
+    graf->setup2D();
 }
 void select_upgrade(ModContext*, void* data) {
     const unsigned choice = *static_cast<unsigned*>(data);
