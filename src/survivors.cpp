@@ -7,6 +7,7 @@
 #include "mods/service.hpp"
 #include "SSystem/SComponent/c_math.h"
 #include "d/actor/d_a_alink.h"
+#include "d/actor/d_a_demo_item.h"
 #include "d/actor/d_a_e_ba.h"
 #include "d/actor/d_a_e_oc.h"
 #include "d/actor/d_a_e_ms.h"
@@ -21,6 +22,8 @@
 #include "f_op/f_op_overlap_mng.h"
 #include "f_pc/f_pc_method.h"
 #include "f_pc/f_pc_create_req.h"
+#include "f_pc/f_pc_create_tag.h"
+#include "f_pc/f_pc_layer.h"
 #include "m_Do/m_Do_ext.h"
 #include "m_Do/m_Do_graphic.h"
 #include "m_Do/m_Do_Reset.h"
@@ -49,6 +52,8 @@ constexpr char kStage[] = "D_DLBR0";
 constexpr char kBlob[] = "hyrule-survivors-records-v1";
 constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
+DEFINE_HOOK(&daAlink_c::checkNormalAction, SurvivorsChestAction);
+DEFINE_HOOK(&daAlink_c::procCoGetItemInit, SurvivorsGetItem);
 DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
 DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
@@ -87,7 +92,7 @@ bool s_autoSwordCall = false;
 bool s_wavePending = false, s_allowDrop = false;
 std::array<unsigned, 12> s_cooldowns{};
 void clear_loot();
-bool build_treasure_window(UiElementHandle left, UiElementHandle right);
+void cancel_treasure_demo();
 std::array<unsigned, 3> s_choices{0, 1, 2};
 struct ProcessFrame { void* args; ActorId id; };
 std::vector<ProcessFrame> s_processFrames;
@@ -560,6 +565,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
     return HOOK_SKIP_ORIGINAL;
 }
 #include "survivors_loot.inc"
+#include "survivors_treasure.inc"
 
 void update_weapons(daAlink_c* link) {
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
@@ -636,12 +642,19 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
     if (s_autoSwordCall) return HOOK_CONTINUE;
     return before_cut(ctx, args, result, user);
 }
+bool pause_run_actor(bool enemy) {
+    if (!in_arena() || s_run.phase == Phase::Loading) return false;
+    if (ui_visible() || dComIfGp_isPauseFlag()) return true;
+    // Native Get Item needs Link's Execute; enemies and the run clock stay paused.
+    return s_run.phase != Phase::Running && (enemy || s_run.phase != Phase::Treasure);
+}
 HookAction before_process(ModContext*, void* args, void* result, void*) {
     auto* process = mods::arg<void*>(args, 1);
     if (!process || !fopAcM_IsActor(process)) return HOOK_CONTINUE;
     auto* actor = static_cast<fopAc_ac_c*>(process);
     const auto id = fopAcM_GetID(actor);
     auto* enemy = tracked(id);
+    retain_treasure_actor(actor, args);
     if (!enemy && (!in_arena() || id != s_player)) return HOOK_CONTINUE;
     const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);
     if (!methods) return HOOK_CONTINUE;
@@ -673,8 +686,7 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
             if (bokoblin->getActionMode() <= 2) bokoblin->setActionMode(3, 0);
         }
     }
-    if ((enemy && enemy->retiring) || (in_arena() && s_run.phase != Phase::Loading &&
-        (s_run.phase != Phase::Running || ui_visible() || dComIfGp_isPauseFlag()))) {
+    if ((enemy && enemy->retiring) || pause_run_actor(enemy != nullptr)) {
         *static_cast<int*>(result) = 1;
         return HOOK_SKIP_ORIGINAL;
     }
@@ -770,14 +782,18 @@ void draw_hud(ModContext*, void*, void*, void*) {
     graf->setColor(JUtility::TColor(80, 220, 245, 240));
     graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x - 160 + 320 * fraction, 88));
     graf->setColor(oldTL, oldTR, oldBR, oldBL);
-    std::snprintf(text, sizeof(text), "Bow %u | Boomerang %u | Bombs %u | Ball %u | Next chest: %u rupees",
+    std::snprintf(text, sizeof(text), "Bow %u | Boomerang %u | Bombs %u | Ball %u",
         s_run.rank(Upgrade::Bow), s_run.rank(Upgrade::Boomerang), s_run.rank(Upgrade::Bombs),
-        s_run.rank(Upgrade::Ball), s_run.chest_cost());
+        s_run.rank(Upgrade::Ball));
     label(text, x, 96, 12);
+    if (s_run.chest_rewards_left())
+        std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
+    else std::snprintf(text, sizeof(text), "All chest weapons at maximum level");
+    label(text, x, 114, 14);
     if (s_run.ticks >= duration && s_run.phase == Phase::Running)
-        label("Defeat the Elite Bokoblin!", x, 116, 16);
+        label("Defeat the Elite Bokoblin!", x, 136, 16);
     else if (s_spawnFailures >= 10)
-        label("Waiting for a clear enemy spawn position", x, 116, 13);
+        label("Waiting for a clear enemy spawn position", x, 136, 13);
     graf->setup2D();
 }
 void select_upgrade(ModContext*, void* data) {
@@ -810,10 +826,6 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 }
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {
-    if (s_run.phase == Phase::Treasure) {
-        build_treasure_window(left, right);
-        return MOD_OK;
-    }
     if (s_run.phase == Phase::Upgrade) {
         svc_ui->pane_add_text(mod_ctx, right, "Combat is paused. Choose one upgrade. Closing this window keeps the same choices.", nullptr);
         for (unsigned i = 0; i < 3; ++i) {
@@ -832,7 +844,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         svc_ui->pane_add_text(mod_ctx, right,
             "Move and dodge while your weapons attack automatically. Collect the blue crystals to level up. "
             "Normal sword strikes are automatic. Unlock Sword Wave, Whirling Blade and Light Aura during the run. Enemies may drop hearts and rupees. "
-            "Approach treasure chests to buy automatic item weapons. Prices start at 20 rupees and rise by 20 after every purchase. "
+            "Face a treasure chest and press Open to receive an automatic item weapon. You need enough rupees to interact. Prices start at 20 rupees and rise by 20 after every purchase. "
             "Chest weapons can reach Level 5 through duplicate finds and level-up choices.", nullptr);
         std::snprintf(text, sizeof(text), "Completed runs: %u | Wins: %u | Best kills: %u | Best level: %u",
             s_records.runs, s_records.wins, s_records.best_kills, s_records.best_level);
@@ -890,6 +902,7 @@ bool survivors_active() { return s_active; }
 bool survivors_arena_active() { return in_arena(); }
 void update_survivors() {
     cleanup_enemies();
+    if (s_treasure.retiring) retire_treasure_actor();
     if (!s_active || !s_gameStarted) return;
     if (s_savePrompt != kNone) {
         if (d_GameOver_CheckDelete(s_savePrompt) && dComIfGp_getGameoverStatus() == 1) {
@@ -917,6 +930,7 @@ void update_survivors() {
         if (!playable() || ++s_warmup < 15) return;
         load_records(); s_run.phase = Phase::Ready;
     }
+    if (s_run.phase == Phase::Treasure) update_treasure_demo(link);
     if (s_saveRequested) {
         if (ui_visible() || dComIfGp_event_runCheck() || dMeter2Info_getGameOverType()) return;
         const auto bytes = s_records.encode();
@@ -927,7 +941,7 @@ void update_survivors() {
         s_saveRequested = s_savePrompt == kNone;
         return;
     }
-    if (s_run.phase == Phase::Ready || s_run.phase == Phase::Upgrade || s_run.phase == Phase::Treasure ||
+    if (s_run.phase == Phase::Ready || s_run.phase == Phase::Upgrade ||
         s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) open_window();
 }
 ModResult initialize_survivors(ModError* error) {
@@ -936,6 +950,8 @@ ModResult initialize_survivors(ModError* error) {
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
+    PRE(SurvivorsChestAction, before_chest_action);
+    PRE(SurvivorsGetItem, before_treasure_get); POST(SurvivorsGetItem, after_treasure_get);
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
     PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_cut);
     POST(SurvivorsPower, after_power);

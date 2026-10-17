@@ -75,12 +75,13 @@ flat ground, a clear footprint and an unobstructed line from Link. Failed/full
 placements retry after three seconds. Closed chests remain until purchased or the
 run ends; opened chests disappear after six seconds of resumed gameplay.
 
-Approach a chest to open a controller/touch-compatible purchase dialog. Combat
-and the run timer pause. The price is **20 rupees**, then **40**, **60**, and so on
-for each successful purchase in this run. Leaving the chest, insufficient funds,
-failed loading or repeated button callbacks do not charge rupees or advance the
-price. After leaving, move away and return to reopen the dialog. Closing the
-window keeps combat paused until the purchase or leave choice is made.
+Face a nearby chest and use the native **Open** action. Without enough rupees
+it has no interaction prompt. There is no purchase/confirmation dialog. The HUD
+shows the next chest price on a separate line: **20 rupees**, then **40**, **60**,
+and so on. Link receives the random weapon through the native Get Item lift,
+holding pose and item message while enemies and the run timer pause. The lid
+opens during this sequence. Currency, reward and price are committed once the
+sequence completes; failed loading or cancellation does not charge rupees.
 
 Each purchase chooses equally among Hero's Bow, Boomerang, Bombs and Ball and
 Chain that are below rank 5. A first find unlocks the weapon at rank 1; duplicates
@@ -97,8 +98,9 @@ arc and explode at the target or a wall; the ball launches outward and retracts
 toward Link. Projectiles cannot pass through walls. Power, Haste and Reach also
 apply. Custom bomb/ball hits use the linear Survivors damage path to avoid
 vanilla Bokoblin instant-death/health-correction special cases. Native item/chest models and bomb particles are reused; the chest lid
-animates after continuing from the reward dialog. These are run-local purchase
-props, not story treasure actors or inventory acquisitions.
+animates during the native reward presentation. These are run-local purchase
+props; the demo item uses the native presentation-only flag, so inventory and
+story treasure flags remain unaffected.
 
 ## Records and saving
 
@@ -152,8 +154,10 @@ Before merging/releasing, test on Android and desktop:
    native spin hits and that damage/dodges safely interrupt attacks.
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)
    does not heal and that restarting clears pickups and all weapon unlocks.
-10. Approach chests with 19/20 rupees, leave and return, buy twice, and confirm
-    prices 20/40/60 with no duplicate charges. Test controller and touch dialogs.
+10. Approach chests with 19/20 rupees: only the affordable chest offers Open.
+    Check facing/range/walls, native Get Item animation and lid motion, then
+    prices 20/40/60 in the HUD with no purchase dialog or duplicate charges.
+    Verify enemies/timer pause but Link and the item/camera finish normally.
 11. Obtain all four chest weapons, test nearest-target selection, arrow impact,
     bomb blasts, returning boomerangs/balls and walls. Verify rank upgrades and
     simultaneous movement/automatic sword combos.

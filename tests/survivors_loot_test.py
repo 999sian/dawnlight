@@ -157,32 +157,17 @@ int main(){
     assert(spawn_chest(&player));assert(s_chests[0].active && s_chests[0].position.y==0);
     assert(spawn_chest(&player));assert(!spawn_chest(&player));
     assert(s_chests[0].position.abs(s_chests[1].position)>=250);
-    player.current.pos=s_chests[0].position;update_chests(&player);
-    assert(s_run.phase==Phase::Treasure && s_selectedChest==0 && cleared>0);
-    rupees=19;buy_treasure(nullptr,nullptr);assert(rupees==19 && !s_chests[0].opened && s_run.chest_cost()==20);
-    leave_treasure(nullptr,nullptr);update_chests(&player);assert(s_run.phase==Phase::Running); // No immediate re-prompt.
-    player.current.pos.z+=300;update_chests(&player);
-    player.current.pos=s_chests[0].position;update_chests(&player);assert(s_run.phase==Phase::Treasure);
-    rupees=100;buy_treasure(nullptr,nullptr);assert(rupees==80 && s_chests[0].opened && s_run.chest_cost()==40);
-    buy_treasure(nullptr,nullptr);assert(rupees==80 && s_run.chests_opened==1);
-    leave_treasure(nullptr,nullptr);player.current.pos={};
+    // Proximity alone never pauses combat or opens a purchase window.
+    player.current.pos=s_chests[0].position;rupees=100;update_chests(&player);
+    assert(s_run.phase==Phase::Running && !s_chests[0].opened && rupees==100);
+    s_chests[0].opened=true;
     for(unsigned i=0;i<181;++i)update_chests(&player);
     assert(!s_chests[0].active);
-    // Reject stale, out-of-room, distant and unloaded-resource purchase callbacks.
-    for(unsigned reason=0;reason<5;++reason){
-        reset();s_chests[0].active=true;s_selectedChest=0;s_run.phase=Phase::Treasure;rupees=100;
-        if(reason==0)arena=false;
-        if(reason==1)transition=true;
-        if(reason==2)player.current.pos.z=200;
-        if(reason==3)s_loot.ready=false;
-        if(reason==4)s_chests[0].active=false;
-        buy_treasure(nullptr,nullptr);assert(rupees==100 && s_run.chests_opened==0);
-    }
-    std::cout<<"Survivors loot: targeting, four projectile types, caps, placement and guarded purchases passed\n";
+    std::cout<<"Survivors loot: targeting, four projectile types, caps, placement and proximity behavior passed\n";
 }
 '''
 functions = ['nearest_item_target','launch_item','explode_item','update_item_attack','fire_items',
-             'spawn_chest','update_chests','leave_treasure','buy_treasure']
+             'spawn_chest','update_chests']
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'
     binary=Path(tmp)/'test'

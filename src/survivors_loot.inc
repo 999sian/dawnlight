@@ -2,7 +2,7 @@
 // namespace; native assets are borrowed/refcounted, never added to the bundle.
 constexpr unsigned kChestCount = 2, kItemBegin = 8, kSlotsPerItem = 4;
 struct Chest {
-    bool active = false, opened = false, prompted = false;
+    bool active = false, opened = false, opening = false;
     cXyz position{};
     s16 yaw = 0;
     unsigned age = 0;
@@ -21,6 +21,7 @@ struct LootModels {
 } s_loot;
 
 void clear_loot() {
+    cancel_treasure_demo();
     // Some engines cache model matrices outside the owning heap.
     using ForgetModel = void (*)(J3DModel*);
     void* address = nullptr;
@@ -239,54 +240,10 @@ void update_chests(daAlink_c* link) {
         auto& c = s_chests[i];
         if (!c.active) continue;
         if (c.opened) { if (++c.age > 6 * ticks_per_second) c = {}; continue; }
-        const float distance = c.position.abs(link->current.pos);
-        if (distance > 250) c.prompted = false;
-        if (distance < 160 && !c.prompted && sword_action_available(link)) {
-            c.prompted = true; s_selectedChest = i; s_run.phase = Phase::Treasure;
-            clear_attacks(); return;
-        }
     }
     if (s_chestDelay) { --s_chestDelay; return; }
     if (!s_run.chest_rewards_left()) return;
     s_chestDelay = spawn_chest(link) ? (25 + s_run.next_random() % 21) * ticks_per_second : 3 * ticks_per_second;
-}
-void leave_treasure(ModContext*, void*) {
-    if (s_run.phase != Phase::Treasure) return;
-    close_window(); s_selectedChest = kChestCount; s_run.phase = Phase::Running;
-}
-void buy_treasure(ModContext*, void*) {
-    if (s_run.phase != Phase::Treasure || s_selectedChest >= s_chests.size() ||
-        !in_arena() || transitioning() || !s_loot.ready) return;
-    auto& c = s_chests[s_selectedChest];
-    auto* link = daAlink_getAlinkActorClass();
-    if (!c.active || c.opened || !link || fopAcM_GetID(link) != s_player || c.position.abs(link->current.pos) >= 160) return;
-    unsigned rupees = dComIfGs_getRupee();
-    if (!s_run.buy_chest(rupees, c.reward)) return;
-    dComIfGs_setRupee(rupees);
-    c.opened = true; c.age = 0;
-    close_window(); // Rebuild as the result panel. Repeated callbacks cannot charge again.
-}
-ModResult button(UiElementHandle, const char*, UiPressedFn, void*, const char*);
-bool build_treasure_window(UiElementHandle left, UiElementHandle right) {
-    if (s_selectedChest >= s_chests.size()) return false;
-    const auto& c = s_chests[s_selectedChest];
-    char text[160];
-    if (c.opened) {
-        std::snprintf(text, sizeof(text), "%s - Level %u", names[unsigned(c.reward)], s_run.rank(c.reward));
-        svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
-        svc_ui->pane_add_text(mod_ctx, right, descriptions[unsigned(c.reward)], nullptr);
-        button(left, "Continue", leave_treasure, nullptr, nullptr);
-    } else {
-        std::snprintf(text, sizeof(text), "Treasure chest: %u rupees | You have %u", s_run.chest_cost(), dComIfGs_getRupee());
-        svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
-        svc_ui->pane_add_text(mod_ctx, right,
-            "A random Hero's Bow, Boomerang, Bombs or Ball and Chain. Duplicates upgrade the weapon up to Level 5. Combat is paused.", nullptr);
-        if (!s_run.chest_rewards_left()) svc_ui->pane_add_text(mod_ctx, left, "All treasure weapons are at maximum level.", nullptr);
-        else if (dComIfGs_getRupee() >= s_run.chest_cost()) button(left, "Buy and open", buy_treasure, nullptr, nullptr);
-        else svc_ui->pane_add_text(mod_ctx, left, "Not enough rupees. You can return later.", nullptr);
-        button(left, "Leave chest", leave_treasure, nullptr, nullptr);
-    }
-    return true;
 }
 void draw_loot_model(J3DModel* model, cXyz pos, s16 yaw, s16 pitch, float scale) {
     if (!model) return;
@@ -303,7 +260,7 @@ void draw_loot() {
         const auto& c = s_chests[i]; if (!c.active) continue;
         auto* data = s_loot.chests[i]->getModelData();
         auto* root = data->getJointNodePointer(0); auto* previous = root->getMtxCalc();
-        s_loot.lids[i]->entry(data, c.opened ? std::min(float(c.age), s_loot.lids[i]->getEndFrame()) : 0);
+        s_loot.lids[i]->entry(data, (c.opened || c.opening) ? std::min(float(c.age), s_loot.lids[i]->getEndFrame()) : 0);
         draw_loot_model(s_loot.chests[i], c.position, c.yaw, 0, 1);
         root->setMtxCalc(previous); // Shared native chest data must not retain our animation pointer.
     }

@@ -96,6 +96,7 @@ struct Light{void settingTevStruct(int,cXyz*,dKy_tevstr_c*){}void setLightTevCol
 void mDoExt_modelUpdateDL(J3DModel*){++draws;}
 struct Attack{bool active=false,exploding=false;unsigned weapon=0,age=0;cXyz position,velocity;};
 std::array<Attack,projectile_capacity>s_attacks;Run s_run;
+void cancel_treasure_demo(){}
 '''
 globals=source[source.index('constexpr unsigned kChestCount'):source.index('void clear_loot()')]
 main=r'''
