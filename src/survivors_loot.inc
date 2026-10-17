@@ -7,6 +7,7 @@ struct Chest {
     s16 yaw = 0;
     unsigned age = 0;
     ChestReward reward = ChestReward::Count;
+    std::array<ChestReward, 3> offers{ChestReward::Count, ChestReward::Count, ChestReward::Count};
 };
 std::array<Chest, kChestCount> s_chests;
 unsigned s_chestDelay = 20 * ticks_per_second, s_selectedChest = kChestCount;
@@ -177,6 +178,9 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     a.returning = a.exploding = false; a.travel = 0;
     a.target = kNone; a.visitedCount = 0; a.hops = 0; a.ballVictimCount = 0;
     a.position = link->current.pos + cXyz(0, 70, 0);
+    // Native daArrow_c::setKeepMatrix attaches the arrow to the left item
+    // matrix. Its 180-degree local rotation does not change this origin.
+    if (weapon == Upgrade::Bow) mDoMtx_multVecZero(link->getLeftItemMatrix(), &a.position);
     cXyz delta = target - a.position;
     if (weapon == Upgrade::Ball) {
         delta.y = 0;

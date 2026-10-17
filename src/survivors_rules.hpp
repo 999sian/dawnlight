@@ -11,7 +11,7 @@ inline constexpr unsigned duration = 10 * 60 * ticks_per_second;
 inline constexpr unsigned enemy_capacity = 24;
 inline constexpr unsigned projectile_capacity = 24;
 inline constexpr unsigned orb_capacity = 64;
-enum class Phase { Loading, Ready, Running, Upgrade, Treasure, Victory, Defeat };
+enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
 enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Rupees, Count };
 enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, OrdonSword, Shield, Count };
 inline constexpr Upgrade chest_weapon(ChestReward reward) {
@@ -86,26 +86,36 @@ struct Run {
         return true;
     }
     unsigned chest_cost() const { return 20 * (chests_opened + 1); }
+    bool chest_eligible(ChestReward reward, bool bottle_available = false) const {
+        if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < 5;
+        if (reward == ChestReward::MasterSword) return master_sword < 5;
+        if (reward == ChestReward::OrdonSword) return !dual_wield;
+        if (reward == ChestReward::Shield) return shield < 10;
+        return reward == ChestReward::RedPotion && bottle_available;
+    }
     bool chest_rewards_left(bool bottle_available = false) const {
-        if (master_sword < 5 || !dual_wield || shield < 10 || bottle_available) return true;
-        for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
-            if (ranks[i] < 5) return true;
+        for (unsigned i = 0; i < unsigned(ChestReward::Count); ++i)
+            if (chest_eligible(ChestReward(i), bottle_available)) return true;
         return false;
     }
-    // Atomic, run-local purchase. Unaffordable/all-maxed attempts do not roll,
-    // consume currency, advance prices or change upgrades.
-    bool buy_chest(unsigned& rupees, ChestReward& reward, bool bottle_available = false) {
-        if (phase != Phase::Treasure || rupees < chest_cost()) return false;
+    std::array<ChestReward, 3> roll_chest_offers(bool bottle_available = false) {
         std::array<ChestReward, unsigned(ChestReward::Count)> pool{};
         unsigned count = 0;
-        for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
-            if (ranks[i] < 5) pool[count++] = static_cast<ChestReward>(i - unsigned(Upgrade::Bow));
-        if (master_sword < 5) pool[count++] = ChestReward::MasterSword;
-        if (!dual_wield) pool[count++] = ChestReward::OrdonSword;
-        if (shield < 10) pool[count++] = ChestReward::Shield;
-        if (bottle_available) pool[count++] = ChestReward::RedPotion;
-        if (!count) return false;
-        reward = pool[next_random() % count];
+        for (unsigned i = 0; i < pool.size(); ++i)
+            if (chest_eligible(ChestReward(i), bottle_available)) pool[count++] = ChestReward(i);
+        std::array<ChestReward, 3> result;
+        result.fill(ChestReward::Count);
+        for (auto& reward : result) {
+            if (!count) break;
+            const unsigned choice = next_random() % count;
+            reward = pool[choice]; pool[choice] = pool[--count];
+        }
+        return result;
+    }
+    // Apply exactly the selected reward. No reroll, payment or rank change on
+    // an invalid/stale selection; presentation commits this preview only once.
+    bool buy_chest(unsigned& rupees, ChestReward reward, bool bottle_available = false) {
+        if (phase != Phase::Treasure || rupees < chest_cost() || !chest_eligible(reward, bottle_available)) return false;
         rupees -= chest_cost(); ++chests_opened;
         if (reward == ChestReward::MasterSword) ++master_sword;
         else if (reward == ChestReward::OrdonSword) dual_wield = true;
@@ -137,7 +147,7 @@ struct Run {
     unsigned sword_bonus() const { return master_sword ? 2 + master_sword : 0; }
     unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0) + (weapon == unsigned(Upgrade::Bow) ? rank(Upgrade::FireArrows) * 2 : 0); }
     float radius(float base) const { return base * (1.0f + 0.15f * rank(Upgrade::Reach)); }
-    void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
+    void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };
 
 // Explicit little-endian encoding, independent of ABI padding and game version.

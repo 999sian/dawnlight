@@ -60,7 +60,7 @@ int main() {
         assert(run.shield_tier()==(rank>=7?2u:rank>=4?1u:0u));}
     run.shield=0;
     unsigned wallet = 19;
-    ChestReward reward = ChestReward::Count;
+    ChestReward reward = ChestReward::Bow;
     run.phase = Phase::Treasure;
     const auto rng = run.random;
     assert(!run.buy_chest(wallet, reward) && wallet == 19 && run.random == rng && run.chest_cost() == 20);
@@ -74,6 +74,7 @@ int main() {
     wallet = 100000;
     for (unsigned n = 0; n < 36; ++n) {
         assert(run.chest_cost() == 20 * (n + 1));
+        reward = run.roll_chest_offers()[0];
         assert(run.buy_chest(wallet, reward) && run.rank(chest_weapon(reward)) <= 5);
     }
     assert(wallet == 86680 && !run.chest_rewards_left());
@@ -90,7 +91,29 @@ int main() {
         run.ranks[i] = 5;
     }
     wallet = 10000;
+    reward = run.roll_chest_offers(true)[0];
     assert(run.buy_chest(wallet, reward, true) && reward == ChestReward::RedPotion);
+    // Offers are distinct, capped and do not purchase anything. Buy exactly the chosen reward.
+    for (unsigned seed=1; seed<100; ++seed) {
+        Run choices; choices.start(seed);
+        const auto offers=choices.roll_chest_offers(true);
+        assert(offers[0]!=offers[1]&&offers[0]!=offers[2]&&offers[1]!=offers[2]);
+        for(auto offered:offers)assert(choices.chest_eligible(offered,true));
+        assert(choices.chests_opened==0);
+        choices.phase=Phase::Treasure;unsigned money=20;const auto rng=choices.random;
+        assert(choices.buy_chest(money,ChestReward::Shield)&&choices.shield==1);
+        assert(!choices.master_sword&&!choices.dual_wield&&choices.rank(Upgrade::Bow)==0);
+        assert(choices.random==rng&&money==0);
+        assert(!choices.buy_chest(money,ChestReward::Count));
+        choices.ranks.fill(5);choices.master_sword=5;choices.dual_wield=true;choices.shield=9;
+        auto few=choices.roll_chest_offers(true);
+        assert(few[0]!=few[1]&&few[2]==ChestReward::Count);
+        assert((few[0]==ChestReward::Shield||few[1]==ChestReward::Shield));
+        few=choices.roll_chest_offers(false);
+        assert(few[0]==ChestReward::Shield&&few[1]==ChestReward::Count&&few[2]==ChestReward::Count);
+        choices.shield=10;few=choices.roll_chest_offers();
+        for(auto offered:few)assert(offered==ChestReward::Count);
+    }
     run.start(2);
     assert(!run.master_sword && run.sword_bonus() == 0);
     assert(run.chests_opened == 0 && run.chest_cost() == 20 && run.chest_rewards_left());

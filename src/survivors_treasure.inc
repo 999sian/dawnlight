@@ -18,6 +18,11 @@ struct TreasureDemo {
     Run result;
     unsigned price = 0;
 } s_treasure;
+ChestReward s_chosenTreasure = ChestReward::Count;
+void dismiss_treasure_choice() {
+    s_chosenTreasure = ChestReward::Count; s_selectedChest = kChestCount;
+    if (s_run.phase == Phase::TreasureChoice) s_run.phase = Phase::Running;
+}
 
 // Add a bottle before refilling any existing empty one. Never overwrite a
 // filled bottle, and never offer an unusable potion when all four are full.
@@ -50,6 +55,8 @@ void retire_treasure_actor() {
     s_treasure = {};
 }
 void cancel_treasure_demo() {
+    if (s_run.phase == Phase::TreasureChoice) { s_run.phase = Phase::Running; close_window(); }
+    s_chosenTreasure = ChestReward::Count;
     // A save/scene reset can already have installed another event. Only reset
     // our own event while its arena is still current.
     if (in_arena() && !transitioning() && owns_treasure_event()) dComIfGp_event_reset();
@@ -61,7 +68,7 @@ void cancel_treasure_demo() {
     s_selectedChest = kChestCount;
 }
 bool chest_interactable(const Chest& chest, daAlink_c* link) {
-    if (!chest.active || chest.opening || !s_loot.ready || s_run.phase != Phase::Running ||
+    if (!chest.active || chest.opening || !s_loot.ready || (s_run.phase != Phase::Running && s_run.phase != Phase::TreasureChoice) ||
         !playable() || s_treasure.item != kNone || !s_run.chest_rewards_left(potion_slot() >= 0) ||
         dComIfGs_getRupee() < s_run.chest_cost() || link->checkWolf() || dComIfGs_getLife() == 0) return false;
     const cXyz delta = chest.position - link->current.pos;
@@ -71,12 +78,36 @@ bool chest_interactable(const Chest& chest, daAlink_c* link) {
     dBgS_LinChk wall; wall.Set(&from, &to, link);
     return !dComIfG_Bgsp().LineCross(&wall);
 }
-bool begin_treasure_demo(unsigned index, daAlink_c* link) {
-    if (index >= s_chests.size() || !chest_interactable(s_chests[index], link)) return false;
+bool begin_treasure_choice(unsigned index, daAlink_c* link) {
+    if (s_run.phase != Phase::Running || index >= s_chests.size() || !chest_interactable(s_chests[index], link)) return false;
+    auto* layer = link->layer_tag.layer;
+    if (!layer || layer == fpcLy_RootLayer() || fpcLy_IsDeletingMesg(layer)) return false;
+    auto& chest = s_chests[index];
+    // Preserve offers on cancel. Reroll only when every cached reward became unusable.
+    if (std::none_of(chest.offers.begin(), chest.offers.end(), [](ChestReward reward) {
+            return s_run.chest_eligible(reward, potion_slot() >= 0);
+        })) chest.offers = s_run.roll_chest_offers(potion_slot() >= 0);
+    if (chest.offers[0] == ChestReward::Count) return false;
+    s_selectedChest = index; s_chosenTreasure = ChestReward::Count;
+    s_run.phase = Phase::TreasureChoice;
+    clear_attacks();
+    s_swordAction = SwordAction::None; s_wavePending = false;
+    s_comboStep = s_comboTimeout = 0;
+    for (auto& collider : link->mAtCps) { collider.OffAtSetBit(); collider.ResetAtHit(); }
+    link->mAtSph.OffAtSetBit(); link->mAtSph.ResetAtHit();
+    link->resetUpperAnime(daAlink_c::UPPER_2, 0);
+    link->procWaitInit(); // Open interrupts swings, rolls, damage and item actions.
+    return true;
+}
+bool begin_treasure_demo(unsigned index, daAlink_c* link, ChestReward reward) {
+    if (s_run.phase != Phase::TreasureChoice || index != s_selectedChest || index >= s_chests.size() ||
+        !chest_interactable(s_chests[index], link)) return false;
+    const auto& offers = s_chests[index].offers;
+    if (reward == ChestReward::Count || std::find(offers.begin(), offers.end(), reward) == offers.end()) return false;
     auto* layer = link->layer_tag.layer;
     if (!layer || layer == fpcLy_RootLayer() || fpcLy_IsDeletingMesg(layer)) return false;
     Run preview = s_run; preview.phase = Phase::Treasure;
-    unsigned rupees = dComIfGs_getRupee(); ChestReward reward = ChestReward::Count;
+    unsigned rupees = dComIfGs_getRupee();
     if (!preview.buy_chest(rupees, reward, potion_slot() >= 0)) return false;
     if (!prepare_treasure_message(reward, s_run, preview)) return false;
     auto* previous = fpcLy_CurrentLayer(); fpcLy_SetCurrentLayer(layer);
@@ -87,24 +118,30 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link) {
     if (item == kNone) return false;
     s_treasure = {}; s_treasure.item = item;
     s_treasure.result = preview; s_treasure.price = s_run.chest_cost();
-    s_selectedChest = index; s_chests[index].reward = reward;
+    s_chests[index].reward = reward;
     s_run.phase = Phase::Treasure;
-    clear_attacks();
-    s_swordAction = SwordAction::None; s_wavePending = false;
-    s_comboStep = s_comboTimeout = 0;
-    for (auto& collider : link->mAtCps) { collider.OffAtSetBit(); collider.ResetAtHit(); }
-    link->mAtSph.OffAtSetBit(); link->mAtSph.ResetAtHit();
-    link->resetUpperAnime(daAlink_c::UPPER_2, 0);
-    link->procWaitInit(); // Open interrupts swings, rolls, damage and item actions.
     return true;
+}
+void select_treasure(ModContext*, void* data) {
+    const auto choice = *static_cast<unsigned*>(data);
+    if (s_run.phase != Phase::TreasureChoice || s_chosenTreasure != ChestReward::Count ||
+        s_selectedChest >= s_chests.size() || choice >= 3) return;
+    const auto reward = s_chests[s_selectedChest].offers[choice];
+    if (!s_run.chest_eligible(reward, potion_slot() >= 0)) return;
+    s_chosenTreasure = reward;
+    close_window(); // Defer native actor/event creation until the UI has closed.
+}
+void update_treasure_choice(daAlink_c* link) {
+    if (s_run.phase != Phase::TreasureChoice || s_chosenTreasure == ChestReward::Count || !playable()) return;
+    if (!begin_treasure_demo(s_selectedChest, link, s_chosenTreasure)) dismiss_treasure_choice();
 }
 HookAction before_chest_action(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
-    if (!link || !in_arena() || fopAcM_GetID(link) != s_player) return HOOK_CONTINUE;
+    if (!link || !in_arena() || s_run.phase != Phase::Running || fopAcM_GetID(link) != s_player) return HOOK_CONTINUE;
     for (unsigned i = 0; i < s_chests.size(); ++i) {
         if (!chest_interactable(s_chests[i], link)) continue;
         dComIfGp_setDoStatusForce(BUTTON_STATUS_OPEN, 0);
-        if (mDoCPd_c::getTrigA(PAD_1) && begin_treasure_demo(i, link))
+        if (mDoCPd_c::getTrigA(PAD_1) && begin_treasure_choice(i, link))
             mDoCPd_c::getCpadInfo(PAD_1).mPressedButtonFlags &= ~PAD_BUTTON_A;
         return HOOK_CONTINUE; // Link must execute the native Get Item event.
     }

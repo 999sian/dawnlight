@@ -45,7 +45,8 @@ s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.14159265);}
 float cM_ssin(s16 angle){return std::sin(angle*3.14159265f/32768);}
 float cM_scos(s16 angle){return std::cos(angle*3.14159265f/32768);}
 struct Actor {unsigned id=1;int health=10;struct{cXyz pos;}current;cXyz eyePos;};
-struct daAlink_c:Actor {int tevStr=0;struct{short y=0;}shape_angle;}player;
+void mDoMtx_multVecZero(const cXyz* matrix,cXyz* out){*out=*matrix;}
+struct daAlink_c:Actor {cXyz hand{0,70,0};const cXyz* getLeftItemMatrix(){return &hand;}int tevStr=0;struct{short y=0;}shape_angle;}player;
 unsigned fopAcM_GetID(Actor* a){return a->id;}
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 std::unordered_map<unsigned,Actor*>actors;
@@ -109,10 +110,22 @@ unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned r){r
 main = r'''
 void reset(){
     s_run.start(123);s_attacks={};s_cooldowns={};s_chests={};s_loot.ready=true;
-    player.current.pos={};player.id=s_player=1;s_selectedChest=kChestCount;
+    player={};player.current.pos={};player.id=s_player=1;s_selectedChest=kChestCount;
     arena=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
 }
 int main(){
+    // Spawn at the current native hand matrix, independent of world height/facing.
+    for(auto hand:{cXyz(28,146,31),cXyz(-71,340,99),cXyz(15,-40,-200)}) {
+        reset();player.current.pos={50,10,50};player.hand=hand;s_run.ranks[8]=5;
+        const cXyz target=hand+cXyz(0,0,400);
+        assert(launch_item(&player,Upgrade::Bow,target));
+        assert(launch_item(&player,Upgrade::Bow,target,0.14f));
+        assert(launch_item(&player,Upgrade::Bow,target,-0.14f));
+        for(unsigned i=8;i<11;++i) {
+            assert(s_attacks[i].active&&(s_attacks[i].position-hand).abs()<0.001f);
+            assert(std::abs(s_attacks[i].velocity.y)<0.001f);
+        }
+    }
     reset();Actor near,far,occluded,dead;near.id=2;near.eyePos={0,70,150};far.id=3;far.eyePos={0,70,600};
     occluded.id=4;occluded.eyePos={20,70,0};dead.id=5;dead.eyePos={0,70,10};dead.health=0;
     actors={{2,&near},{3,&far},{4,&occluded},{5,&dead}};

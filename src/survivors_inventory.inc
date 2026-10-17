@@ -36,7 +36,7 @@ std::unique_ptr<SurvivorsMessage> override_survivors_message(unsigned id,
     }
     return message;
 }
-bool prepare_treasure_message(ChestReward reward, const Run& before, const Run& after) {
+std::vector<ItemChange> treasure_changes(ChestReward reward, const Run& before, const Run& after) {
     auto changes = reward_changes(reward, before, after);
     if (reward == ChestReward::RedPotion) {
         unsigned bottles = 0, red = 0;
@@ -47,6 +47,10 @@ bool prepare_treasure_message(ChestReward reward, const Run& before, const Run& 
         if (bottles < 4) changes.push_back({"Bottles", number(bottles), number(bottles + 1)});
         changes.push_back({"Red potions", number(red), number(red + 1)});
     }
+    return changes;
+}
+bool prepare_treasure_message(ChestReward reward, const Run& before, const Run& after) {
+    const auto changes = treasure_changes(reward, before, after);
     mods::flow::MessageBuilder builder;
     builder.box_kind(MESSAGE_BOX_ITEM_GET).box_position(MESSAGE_POSITION_MIDDLE)
         .text(reward_name(reward, after));

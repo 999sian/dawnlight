@@ -85,7 +85,14 @@ automatic attacks and other actions: press Open to interrupt them immediately.
 Auto-aim/spin facing cannot hide the prompt; distance and line of sight still apply.
 There is no purchase/confirmation dialog. The HUD
 shows the next chest price on a separate line: **20 rupees**, then **40**, **60**,
-and so on. Link receives the random reward through the native Get Item lift,
+and so on. Opening shows three distinct random rewards side by side, with native
+item icons, descriptions and red before/after upgrade values. Use controller
+Left/Right and Confirm, keyboard navigation, or tap/click anywhere on a card.
+Link, enemies and the run timer pause during selection. Cancel returns to combat
+without a charge; reopening the same chest keeps its offers. Capped/unusable
+rewards are excluded; if fewer than three remain, only those are shown. Cached
+offers reroll only after every offered reward has become unusable.
+Link receives only the selected reward through the native Get Item lift,
 holding pose and item message while enemies and the run timer pause. The lid
 opens during this sequence. Currency, reward and price are committed once the
 sequence completes; failed loading or cancellation does not charge rupees.
@@ -94,7 +101,7 @@ values are red and show before/after values, for example **Block chance: 5% -> 1
 The preview is frozen with the selected reward; an unavailable message cancels
 the attempt before creating the event or spending rupees.
 
-Each purchase chooses equally among the eligible reward types: Hero's Bow,
+Each chest samples its offers without replacement from the eligible reward types: Hero's Bow,
 Boomerang, Bombs, Ball and Chain, Master Sword, an Ordon Sword for Dual Wield,
 a shield upgrade and a bottle of Red Potion.
 The four automatic item weapons unlock at rank 1; duplicates add one rank up to
@@ -162,6 +169,8 @@ jumps, damage and item-get events retain their normal handling.
 Sword, shield bash and item animations take turns; due item weapons rotate fairly.
 The automatic iron-ball animation bypasses native manual iron-ball action and
 aim transitions, so lock-on cannot cancel the throw before its release frame.
+Arrows start at the native left-hand item matrix, including spread shots,
+so the release follows the animated bow pose rather than a fixed body offset.
 They aim at the nearest
 live tracked enemy within range and line of sight. Arrows stop on impact;
 boomerangs use the native Gale wind model/animation and particle trails. They
@@ -215,7 +224,8 @@ Spawns require a valid floor and unobstructed line from Link, and are staggered.
 A failed elite creation/despawn can be retried without counting as a victory.
 Only confirmed deaths of initialized, tracked actors award experience.
 
-Regression checks include native item-icon selection, global-archive message
+Regression checks include three-card UI construction and activation, cached offers,
+cancellation and deferred purchase, native arrow release positions, native item-icon selection, global-archive message
 IDs, localized replacement text, ball flight at different target elevations,
 and native movement/root-motion equations.
 
@@ -239,6 +249,9 @@ Before merging/releasing, test on Android and desktop:
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)
    does not heal and that restarting clears pickups and all weapon unlocks.
 10. Approach chests with 19/20 rupees: only the affordable chest offers Open.
+    Check three side-by-side cards with distinct icons/text and red upgrade deltas.
+    Select each position with controller and direct touch; cancel/reopen and check
+    unchanged offers/no charge. Check one/two remaining rewards near the caps.
     Check range/walls, native Get Item animation and lid motion, then
     prices 20/40/60 in the HUD with no purchase dialog or duplicate charges.
     Verify enemies/timer pause but Link and the item/camera finish normally.
@@ -248,7 +261,8 @@ Before merging/releasing, test on Android and desktop:
     bomb blasts, returning boomerangs/balls and walls. Verify rank upgrades and
     simultaneous movement/automatic sword combos. Check native bow draw/shoot,
     facing and boomerang throw poses while moving and locking on. Verify faster
-    animation with Haste, Gale wind effects and 2/6 distinct targets at ranks 1/5.
+    animation with Haste, arrows leaving the bow at all facings/heights (including
+    spread shots), Gale wind effects and 2/6 distinct targets at ranks 1/5.
 12. Restart/change modes with closed/open chests and active item projectiles;
     verify prices, ranks, models, particles and collisions reset. Verify story
     treasure flags are unaffected and the next run restores Ordon Sword/no bottles.

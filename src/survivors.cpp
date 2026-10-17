@@ -878,8 +878,11 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
     desc.label = text; desc.on_pressed = callback; desc.user_data = data; desc.help_rml = help;
     return svc_ui->pane_add_control(mod_ctx, pane, &desc, nullptr);
 }
+#include "survivors_chest_ui.inc"
+
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {
+    if (s_run.phase == Phase::TreasureChoice) return build_treasure_choices(left, right);
     if (s_run.phase == Phase::Upgrade) {
         svc_ui->pane_add_text(mod_ctx, right, "Combat is paused. Choose one upgrade. Closing this window keeps the same choices.", nullptr);
         for (unsigned i = 0; i < 3; ++i) {
@@ -898,7 +901,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         svc_ui->pane_add_text(mod_ctx, right,
             "Move and dodge while your weapons attack automatically. Collect the blue crystals to level up. "
             "Normal sword strikes are automatic. Unlock Sword Wave and Whirling Blade during the run. Enemies may drop hearts and rupees. "
-            "Face a treasure chest and press Open to receive an automatic item weapon. You need enough rupees to interact. Prices start at 20 rupees and rise by 20 after every purchase. "
+            "Approach a treasure chest and press Open to choose one of three random rewards. You need enough rupees to interact. Prices start at 20 rupees and rise by 20 after every purchase. "
             "Chest weapons can reach Level 5 through duplicate finds and level-up choices. Chests can also contain the Master Sword or a bottle of Red Potion.", nullptr);
         std::snprintf(text, sizeof(text), "Completed runs: %u | Wins: %u | Best kills: %u | Best level: %u",
             s_records.runs, s_records.wins, s_records.best_kills, s_records.best_level);
@@ -927,12 +930,16 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
 void open_window() {
     if (s_window || ui_visible()) return;
     UiTabDesc tab = UI_TAB_DESC_INIT;
-    tab.title = s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivors";
+    tab.title = s_run.phase == Phase::TreasureChoice ? "Choose a treasure" :
+        s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivors";
     tab.build = build_window;
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
     desc.tabs = &tab; desc.tab_count = 1;
+    if (s_run.phase == Phase::TreasureChoice) desc.rcss = kTreasureStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
         if (s_window == handle) s_window = 0;
+        if (s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count)
+            dismiss_treasure_choice();
     };
     if (svc_ui->window_push(mod_ctx, &desc, &s_window) != MOD_OK)
         svc_log->warn(mod_ctx, "Hyrule Survivors: could not open run window");
@@ -987,6 +994,7 @@ void update_survivors() {
         if (!playable() || ++s_warmup < 15) return;
         load_records(); s_run.phase = Phase::Ready;
     }
+    if (s_run.phase == Phase::TreasureChoice) update_treasure_choice(link);
     if (s_run.phase == Phase::Treasure) update_treasure_demo(link);
     if (s_saveRequested) {
         if (ui_visible() || dComIfGp_event_runCheck() || dMeter2Info_getGameOverType()) return;
@@ -998,7 +1006,8 @@ void update_survivors() {
         s_saveRequested = s_savePrompt == kNone;
         return;
     }
-    if (s_run.phase == Phase::Ready || s_run.phase == Phase::Upgrade ||
+    if ((s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count) ||
+        s_run.phase == Phase::Ready || s_run.phase == Phase::Upgrade ||
         s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) open_window();
 }
 ModResult initialize_survivors(ModError* error) {

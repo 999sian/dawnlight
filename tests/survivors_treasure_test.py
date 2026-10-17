@@ -143,7 +143,7 @@ void dMeter2Info_setShield(int item,bool){equippedShield=item;}
 void dMeter2Info_setSword(int item,bool){equippedSword=item;}
 void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
 Run s_run;unsigned rupees=0;int s_player=1;
-struct Chest{bool active=false,opening=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;};
+struct Chest{bool active=false,opening=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};};
 constexpr unsigned kChestCount=2;unsigned s_selectedChest=kChestCount;
 std::array<Chest,2>s_chests;
 struct {bool ready=true;}s_loot;
@@ -154,7 +154,8 @@ Background& dComIfG_Bgsp(){return background;}
 Actor* actor_by_id(int id){return !creating?fopAcM_SearchByID(id):nullptr;}
 bool in_arena(){return mode;}bool transitioning(){return stageChange;}
 bool ui_visible(){return window!=0;}
-bool playable(){return mode&&!stageChange&&!running&&!paused;}
+bool playable(){return mode&&!stageChange&&!running&&!paused&&!ui_visible();}
+void close_window(){window=0;}
 bool sword_action_available(daAlink_c* link){return link->mProcID==daAlink_c::PROC_WAIT;}
 unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned n){rupees=n;}
 void clear_attacks(){++cleared;}
@@ -164,7 +165,7 @@ main=r'''
 void fresh(){
     bottles.fill(dItemNo_NONE_e);equippedSword=swordGrants=potionGrants=0;
     s_run.start(123);s_treasure={};s_chests={};s_chests[0].active=true;s_chests[0].position={0,0,100};
-    s_selectedChest=kChestCount;rupees=100;s_loot.ready=true;
+    s_chosenTreasure=ChestReward::Count;s_selectedChest=kChestCount;rupees=100;s_loot.ready=true;
     prop={};player={};player.id=1;event.mPt2=-1;
     currentLayer=&rootLayer;sceneLayer.deleting=false;
     alive=creating=doing=running=paused=talking=stageChange=eventEnded=createFails=blocked=false;
@@ -172,10 +173,15 @@ void fresh(){
     created=ordered=reset=deleted=drawn=cleared=0;itemPartner=-1;
     g_fpcCtTg_Queue.mpHead=nullptr;
 }
+bool open_first(){
+    if(!begin_treasure_choice(0,&player))return false;
+    unsigned choice=0;select_treasure(nullptr,&choice);update_treasure_choice(&player);
+    return s_run.phase==Phase::Treasure;
+}
 void accept(){event.mPt2=prop.id;prop.eventInfo.command=true;running=true;}
 int main(){
     fresh();int result=0;
-    for(auto phase:{Phase::Ready,Phase::Running,Phase::Treasure,Phase::Upgrade,Phase::Defeat}){
+    for(auto phase:{Phase::Ready,Phase::Running,Phase::Treasure,Phase::TreasureChoice,Phase::Upgrade,Phase::Defeat}){
         s_run.phase=phase;
         assert(pause_run_actor(true)==(phase!=Phase::Running));
         assert(pause_run_actor(false)==(phase!=Phase::Running&&phase!=Phase::Treasure));
@@ -197,17 +203,38 @@ int main(){
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
         if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=true;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
-        assert(!begin_treasure_demo(0,&player)&&created==0&&rupees==100);
+        assert(!open_first()&&created==0&&rupees==100);
     }
+    // Cancel and reopen retain the same offers and never charge or reroll.
+    fresh();assert(begin_treasure_choice(0,&player));
+    const auto savedOffers=s_chests[0].offers;const auto savedRng=s_run.random;
+    dismiss_treasure_choice();assert(s_run.phase==Phase::Running&&rupees==100&&created==0);
+    assert(begin_treasure_choice(0,&player));assert(s_chests[0].offers==savedOffers&&s_run.random==savedRng);
+    window=1;cancel_treasure_demo();assert(window==0&&s_selectedChest==kChestCount&&s_run.phase==Phase::Running);
+    // Fully exhausted cached offers refresh, while partially usable ones stay fixed.
+    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=true;
+    assert(begin_treasure_choice(0,&player));
+    for(auto offer:s_chests[0].offers)assert(offer!=ChestReward::OrdonSword);
+    // Revalidate affordability and chosen eligibility after the UI closes.
+    fresh();assert(begin_treasure_choice(0,&player));rupees=0;
+    unsigned zero=0;select_treasure(nullptr,&zero);update_treasure_choice(&player);
+    assert(created==0&&s_run.phase==Phase::Running&&s_run.chests_opened==0);
     fresh();player.shape_angle.y=0x4000;assert(chest_interactable(s_chests[0],&player));
-    fresh();createFails=true;assert(!begin_treasure_demo(0,&player));
+    fresh();createFails=true;assert(!open_first());
     assert(currentLayer==&rootLayer&&s_run.phase==Phase::Running&&rupees==100);
-    fresh();messageAvailable=false;assert(!begin_treasure_demo(0,&player));
+    fresh();messageAvailable=false;assert(!open_first());
     assert(created==0&&rupees==100&&s_run.phase==Phase::Running);messageAvailable=true;
     fresh();player.trigger=true;
     assert(before_chest_action(nullptr,&player,&result,nullptr)==HOOK_CONTINUE);
-    assert(created==1&&cleared==1&&s_run.phase==Phase::Treasure&&rupees==100);
-    assert(!begin_treasure_demo(0,&player));
+    assert(created==0&&cleared==1&&s_run.phase==Phase::TreasureChoice&&rupees==100);
+    unsigned chosenIndex=2;const auto picked=s_chests[0].offers[chosenIndex];
+    window=1;select_treasure(nullptr,&chosenIndex);
+    unsigned another=0;select_treasure(nullptr,&another);assert(s_chosenTreasure==picked);
+    // Fade/another overlay must finish before the native event starts.
+    window=1;update_treasure_choice(&player);assert(created==0);
+    window=0;update_treasure_choice(&player);
+    assert(created==1&&s_run.phase==Phase::Treasure&&s_chests[0].reward==picked);
+    assert(!open_first());
     const auto reward=s_chests[0].reward;
     assert(!player.mAtCps[0].active && !player.mAtSph.active && player.mProcID==daAlink_c::PROC_WAIT);
     assert(!s_run.tick(true));
@@ -234,11 +261,11 @@ int main(){
     fresh();player.mProcID=daAlink_c::OTHER;player.trigger=true;mDoCPd_c::pad.mPressedButtonFlags=PAD_BUTTON_A;
     s_swordAction=SwordAction::Normal;s_wavePending=true;s_comboStep=3;
     before_chest_action(nullptr,&player,&result,nullptr);
-    assert(s_run.phase==Phase::Treasure&&player.mProcID==daAlink_c::PROC_WAIT);
+    assert(s_run.phase==Phase::TreasureChoice&&player.mProcID==daAlink_c::PROC_WAIT);
     assert(!mDoCPd_c::pad.mPressedButtonFlags&&!s_wavePending&&s_comboStep==0);
     // Sword ranks are chest-only and equip the native sword after presentation.
     fresh();s_run.dual_wield=true;s_run.shield=10;for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
-    assert(begin_treasure_demo(0,&player)&&s_chests[0].reward==ChestReward::MasterSword);
+    assert(open_first()&&s_chests[0].reward==ChestReward::MasterSword);
     assert(prop.itemNo==dItemNo_MASTER_SWORD_e && swordGrants==0);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.master_sword&&equippedSword==dItemNo_MASTER_SWORD_e&&swordGrants==1&&!s_chests[0].active);
@@ -246,7 +273,7 @@ int main(){
     // The fifth displayed/committed sword reward is Light Sword.
     for(unsigned n=2;n<=5;++n){
         s_chests[0].active=true;s_chests[0].position={0,0,100};rupees=1000;eventEnded=false;
-        assert(begin_treasure_demo(0,&player));
+        assert(open_first());
         const auto expected=n==5?dItemNo_LIGHT_SWORD_e:dItemNo_MASTER_SWORD_e;
         assert(prop.itemNo==expected);accept();eventEnded=true;update_treasure_demo(&player);
         assert(s_run.master_sword==n&&equippedSword==expected);
@@ -256,7 +283,7 @@ int main(){
     for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
     for(unsigned n=1;n<=10;++n){
         s_chests[0].active=true;s_chests[0].position={0,0,100};rupees=1000;eventEnded=false;
-        assert(begin_treasure_demo(0,&player));
+        assert(open_first());
         const auto expected=n>=7?dItemNo_HYLIA_SHIELD_e:n>=4?dItemNo_SHIELD_e:dItemNo_WOOD_SHIELD_e;
         assert(prop.itemNo==expected);accept();eventEnded=true;update_treasure_demo(&player);
         assert(s_run.block_chance()==5*n&&equippedShield==expected);
@@ -264,7 +291,7 @@ int main(){
     assert(!s_run.chest_rewards_left());
     fresh();s_run.master_sword=5;s_run.shield=10;
     for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
-    assert(begin_treasure_demo(0,&player)&&prop.itemNo==dItemNo_SWORD_e);
+    assert(open_first()&&prop.itemNo==dItemNo_SWORD_e);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dual_wield&&!s_run.chest_rewards_left());
     // Potion rewards fill a new slot first, even with an existing empty bottle.
@@ -274,7 +301,7 @@ int main(){
         if(n>0)bottles[0]=dItemNo_EMPTY_BOTTLE_e;
         assert(potion_slot()==int(SLOT_11+n));
         eventEnded=false;
-        assert(begin_treasure_demo(0,&player)&&s_chests[0].reward==ChestReward::RedPotion);
+        assert(open_first()&&s_chests[0].reward==ChestReward::RedPotion);
         assert(prop.itemNo==dItemNo_RED_BOTTLE_e);
         accept();eventEnded=true;update_treasure_demo(&player);
         assert(bottles[n]==dItemNo_RED_BOTTLE_e && potionGrants==int(n+1)&&!s_chests[0].active);
@@ -282,21 +309,21 @@ int main(){
     }
     assert(rupees==800&&s_run.chest_cost()==100&&potion_slot()==SLOT_11);
     s_chests[0].active=true;s_chests[0].position={0,0,100};
-    assert(begin_treasure_demo(0,&player));accept();update_treasure_demo(&player);
+    assert(open_first());accept();update_treasure_demo(&player);
     assert(potionGrants==5&&potion_slot()==-1&&rupees==700);
     s_chests[0].active=true;s_chests[0].position={0,0,100};
-    assert(!begin_treasure_demo(0,&player)); // Four full bottles: no wasted paid reward.
+    assert(!open_first()); // Four full bottles: no wasted paid reward.
     bottles[2]=dItemNo_EMPTY_BOTTLE_e;
-    assert(begin_treasure_demo(0,&player));accept();update_treasure_demo(&player);
+    assert(open_first());accept();update_treasure_demo(&player);
     assert(bottles[2]==dItemNo_RED_BOTTLE_e&&potionGrants==6&&rupees==580);
     // Another system filling the reserved bottle during loading must not be overwritten.
     s_chests[0].active=true;s_chests[0].position={0,0,100};bottles[1]=dItemNo_EMPTY_BOTTLE_e;
-    assert(begin_treasure_demo(0,&player));bottles[1]=99;
+    assert(open_first());bottles[1]=99;
     accept();update_treasure_demo(&player);
     assert(bottles[1]==99&&rupees==580&&s_run.chests_opened==6&&s_chests[0].active);
     // Async failure, order timeout, interrupted event: no charge or reward.
     for(unsigned reason=0;reason<3;++reason){
-        fresh();assert(begin_treasure_demo(0,&player));
+        fresh();assert(open_first());
         if(reason==0)alive=false;
         if(reason==1)s_treasure.waitFrames=300;
         if(reason==2){accept();before_treasure_get(nullptr,&player,nullptr,nullptr);event.mPt2=999;}
@@ -304,11 +331,11 @@ int main(){
         assert(s_run.phase==Phase::Running&&rupees==100&&s_run.chests_opened==0&&s_chests[0].active);
         if(reason==2)assert(reset==0&&event.mPt2==999);
     }
-    fresh();assert(begin_treasure_demo(0,&player));creating=true;doing=true;
+    fresh();assert(open_first());creating=true;doing=true;
     tag.base.mpTagData=&request;g_fpcCtTg_Queue.mpHead=&tag.base.node;
     cancel_treasure_demo();assert(s_treasure.retiring&&creating);
     doing=false;retire_treasure_actor();assert(!creating&&s_treasure.item==kNone);
-    fresh();assert(begin_treasure_demo(0,&player));deleteAllowed=false;
+    fresh();assert(open_first());deleteAllowed=false;
     cancel_treasure_demo();assert(s_treasure.retiring&&alive);
     deleteAllowed=true;retire_treasure_actor();assert(!alive&&s_treasure.item==kNone);
 }
