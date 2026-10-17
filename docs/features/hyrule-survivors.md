@@ -25,8 +25,10 @@ hit and cancel windows; interruptions or two seconds without a new strike reset
 the sequence. Normal swings, finishers and spin attacks all retain stick-controlled
 movement through the native ground and wall collision handling.
 
-Leveling up pauses Link and the encounter and offers three upgrades. Controller,
-keyboard and touch navigation use Dusklight's native mod window controls. Closing
+Leveling up pauses Link and the encounter and offers three upgrades in the same
+side-by-side card layout as chests. Every card uses the native Hidden Skills scroll
+icon, its power-up name/description and red before/after changes. Controller,
+keyboard and direct touch/click navigation use Dusklight's native mod window controls. Closing
 the choice window does not resume combat or reroll its offers. Excess experience
 is retained and multiple earned levels are offered consecutively.
 
@@ -191,6 +193,17 @@ props. The demo item uses the native presentation-only flag; successful
 completion explicitly grants Master Sword/bottles in the isolated Survivors
 save. Story treasure flags remain unaffected.
 
+## Power-up overview
+
+In Survivors, the Hidden Skills scroll is always visible at its normal Collection
+slot. Activating it with the controller or touch opens a read-only list of the
+run's collected power-ups. Select a name to see its current rank, description and
+effective values, including weapon ranks and dependent upgrades. No uncollected
+power-ups are listed; an empty run shows a hint. Rupee rewards have no lasting rank.
+Closing the overview returns to Collection. Actual Hidden Skill event flags and
+story-mode menus are unchanged. Resetting/changing modes or destroying Collection
+closes the overview and releases its window state.
+
 ## Records and saving
 
 **Save records** on the result screen opens the game's native save prompt.
@@ -234,7 +247,8 @@ Before merging/releasing, test on Android and desktop:
 1. Create and reload a separate Survivors slot; verify story and Boss Rush saves.
 2. Complete a run using all weapons and both dependent upgrades; check native enemy death, elite victory
    and no HP scaling leakage. Verify jump, dodge, controller and touch controls.
-3. Level up while surrounded, close/reopen the choice window, and earn several
+3. Level up while surrounded; check three scroll cards, names/descriptions and
+   red upgrade values with controller and touch. Close/reopen the choice window, and earn several
    levels at once. Verify Link/enemies and the timer stay paused during selection.
 4. Die, save the result, restart, reload the slot, and decline the save prompt.
 5. Reset, change modes and disable/reload Dawnlight while enemies or projectiles
@@ -283,7 +297,12 @@ Before merging/releasing, test on Android and desktop:
 18. Check each chest reward's Get Item text, including any additional pages.
     Verify only changed values are red, shield 5% -> 10%, spread-shot unlocks,
     fifth-sword evolution, new bottles/refills, and no grant after cancellation.
-19. Open the item wheel after each reward and after level-up upgrades. Check
+19. Open Collection at the start of a run: the native Hidden Skills scroll should
+    be visible and open an empty power-up list. Reopen after several upgrades and
+    select each row with controller/touch; verify names, levels and effective
+    descriptions, return to Collection and cleanup on reset. Test Twilight HD HUD
+    enabled/disabled and verify the story Hidden Skills screen remains unchanged.
+20. Open the item wheel after each reward and after level-up upgrades. Check
     weapon/sword/shield icons and current descriptions. Try X/Y, touch and
     external-mod extra bindings: automatic equipment must remain unassigned;
     full/empty bottles must remain assignable and usable. Check a story save

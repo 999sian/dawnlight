@@ -237,6 +237,8 @@ jobs:
           CXX=clang++ python3 tests/survivors_inventory_test.py dusklight
           python3 tests/survivors_chest_ui_test.py dusklight
           CXX=clang++ python3 tests/survivors_chest_ui_test.py dusklight
+          python3 tests/survivors_powerups_test.py dusklight
+          CXX=clang++ python3 tests/survivors_powerups_test.py dusklight
 
       - name: Test Survivors HUD native vertex layout
         if: matrix.platform == 'linux-x86_64'

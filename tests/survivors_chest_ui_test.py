@@ -12,7 +12,7 @@ item_enum = item_header[start:item_header.index('};', start) + 2]
 treasure = (root / 'src/survivors_treasure.inc').read_text().split('// Native DEFAULT_GETITEM')[0]
 inventory = (root / 'src/survivors_inventory.inc').read_text()
 changes = inventory[inventory.index('std::vector<ItemChange> treasure_changes'):inventory.index('bool prepare_treasure_message')]
-source = (root / 'src/survivors_chest_ui.inc').read_text()
+source = (root / 'src/survivors_choice_ui.inc').read_text() + (root / 'src/survivors_chest_ui.inc').read_text()
 fixture = r'''
 #include <cassert>
 #include <map>

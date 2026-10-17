@@ -1,0 +1,155 @@
+"""Exercise level-up cards and the native Collection request bridge with the SDK UI ABI."""
+from pathlib import Path
+import os
+import subprocess
+import sys
+import tempfile
+root = Path(__file__).resolve().parents[1]
+sdk = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dusklight'
+common = (root/'src/survivors_choice_ui.inc').read_text()
+source = (root/'src/survivors_powerups.inc').read_text()
+# Verify the unused ID and texture index against the pinned game's actual tables.
+items = (sdk/'include/d/d_item_data.h').read_text()
+assert '/* 0x92 */ dItemNo_NOENTRY_146_e' in items
+assert 'dRes_INDEX_ITEMICON_BTI_NI_ITEM_ICON_MAKIMONO_e=0x3D' in (sdk/'assets/GZ2E01/res/Layout/itemicon.h').read_text()
+collect = (sdk/'src/d/d_menu_collect.cpp').read_text()
+for name, end in [('wait_proc', 'pointerWait'), ('pointerActivateCurrent', 'save_open_init')]:
+    start = collect.index('void dMenu_Collect2D_c::'+name+'(')
+    body = collect[start:collect.index('\n}', start)]
+    assert 'mCursorX == 3 && mCursorY == 3' in body and 'mSubWindowOpenCheck = 5' in body
+assert 'field_0x22d[3][3] = isSkillIconVisible();' in collect
+core = (root/'src/survivors.cpp').read_text()
+a = core.index('void select_upgrade(')
+select = core[a:core.index('\nvoid start_run(', a)]
+fixture = r'''
+#include <any>
+#include <cassert>
+#include <map>
+#include <string>
+#include "survivors_items.hpp"
+#include "mods/svc/ui.h"
+using namespace dawnlight::survivors;
+using u8=uint8_t;
+constexpr u8 dItemNo_NOENTRY_146_e=0x92;
+enum HookAction {HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
+namespace mods {
+template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}
+template<class T>T& arg_ref(void* args,int n){return *std::any_cast<T>(&static_cast<std::any*>(args)[n]);}
+}
+struct dMenu_Collect2D_c{unsigned mSubWindowOpenCheck=0;};
+Run s_run;
+UiWindowHandle s_powerupsWindow=0;
+bool s_powerupsRequested=false,arena=true,visible=false,failPush=false;
+dMenu_Collect2D_c* s_powerupsMenu=nullptr;
+bool in_arena(){return arena;}bool ui_visible(){return visible;}
+std::array<unsigned,3>s_choices{0,1,2};
+unsigned money=100,lifeMax=15,closed=0,pushed=0;
+unsigned dComIfGs_getRupee(){return money;}unsigned dComIfGs_getRupeeMax(){return 1000;}
+void dComIfGs_setRupee(unsigned r){money=r;}void dComIfGs_setMaxLife(unsigned n){lifeMax=n;}
+void close_window(){++closed;}
+struct Element{UiElementHandle parent=0;std::string kind,text,css,help;UiPressedFn pressed=nullptr;void* data=nullptr;bool visible=true;};
+std::map<UiElementHandle,Element> elements;UiElementHandle next=3;
+ModResult add(UiElementHandle parent,const char* kind,const char* text,UiElementHandle* out){
+ assert(elements.count(parent));const auto id=next++;auto& e=elements[id];e.parent=parent;e.kind=kind;e.text=text;
+ if(out){*out=id;}return MOD_OK;
+}
+ModResult row(ModContext*,UiElementHandle parent,const UiRowDesc* desc,UiElementHandle* out){
+ assert(!desc->wrap);return add(parent,"row","",out);
+}
+ModResult rml(ModContext*,UiElementHandle parent,const char* text,UiElementHandle* out){return add(parent,"rml",text,out);}
+ModResult text(ModContext*,UiElementHandle parent,const char* text,UiElementHandle* out){return add(parent,"text",text,out);}
+ModResult control(ModContext*,UiElementHandle parent,const UiControlDesc* desc,UiElementHandle* out){
+ UiElementHandle id=0;auto result=add(parent,"button",desc->label,&id);
+ if(out){*out=id;}auto& e=elements.at(id);e.pressed=desc->on_pressed;e.data=desc->user_data;e.help=desc->help_rml?desc->help_rml:"";
+ return result;
+}
+ModResult css(ModContext*,UiElementHandle id,const char* name,bool active){assert(active);elements.at(id).css=name;return MOD_OK;}
+ModResult setVisible(ModContext*,UiElementHandle id,bool value){elements.at(id).visible=value;return MOD_OK;}
+UiWindowClosedFn onClosed=nullptr;
+ModResult push(ModContext*,const UiWindowDesc* desc,UiWindowHandle* out){
+ ++pushed;if(failPush)return MOD_UNAVAILABLE;
+ assert(desc->tab_count==1&&std::string(desc->tabs[0].title)=="Power-ups");
+ *out=42;onClosed=desc->on_closed;visible=true;return desc->tabs[0].build(nullptr,42,1,2,nullptr,nullptr);
+}
+ModResult close(ModContext*,UiWindowHandle h){assert(h==42);++closed;visible=false;onClosed(nullptr,h,nullptr);return MOD_OK;}
+struct Log{void warn(ModContext*,const char*){}}logService;auto* svc_log=&logService;
+UiService service{};
+extern "C" {ModContext* mod_ctx=nullptr;const UiService* svc_ui=&service;}
+'''
+main = r'''
+void fresh(){
+ s_run.start(123);s_powerupsWindow=0;s_powerupsRequested=false;s_powerupsMenu=nullptr;
+ arena=true;visible=failPush=false;money=100;lifeMax=15;closed=pushed=0;
+ elements.clear();elements[1].kind=elements[2].kind="pane";next=3;
+}
+int main(){
+ (void)kTreasureStyle;
+ service.pane_add_row=row;service.pane_add_rml=rml;service.pane_add_text=text;
+ service.pane_add_control=control;service.elem_set_class=css;service.elem_set_visible=setVisible;
+ service.window_push=push;service.window_close=close;
+ fresh();s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::Power,Upgrade::Heart,Upgrade::Wave};
+ const auto rng=s_run.random;assert(build_upgrade_choices(1,2)==MOD_OK);
+ std::vector<Element*> buttons;unsigned cards=0;
+ for(auto& [id,e]:elements){
+   if(e.css=="survivors-treasure-card")++cards;
+   if(e.kind=="button")buttons.push_back(&e);
+   if(e.kind=="rml")assert(e.text.find(kPowerupScrollIcon)!=std::string::npos&&e.text.find("survivors-treasure-delta")!=std::string::npos);
+ }
+ assert(cards==3&&buttons.size()==3&&!elements.at(2).visible&&s_run.random==rng);
+ assert(s_run.rank(Upgrade::Power)==0&&lifeMax==15&&money==100);
+ buttons[1]->pressed(nullptr,buttons[1]->data);
+ assert(s_run.rank(Upgrade::Heart)==1&&s_run.rank(Upgrade::Power)==0&&lifeMax==20&&closed==1);
+ buttons[1]->pressed(nullptr,buttons[1]->data);assert(lifeMax==20&&closed==1);
+ // All upgrade kinds produce a valid preview and don't mutate the live run.
+ for(unsigned i=0;i<unsigned(Upgrade::Count);++i){
+   fresh();s_run.phase=Phase::Upgrade;s_run.shield=1;s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;
+   s_run.offers.fill(Upgrade(i));assert(build_upgrade_choices(1,2)==MOD_OK);
+   assert(s_run.phase==Phase::Upgrade&&s_run.rank(Upgrade::Heart)==0&&money==100);
+ }
+ // Native controller/touch request is consumed before dMw's fade/subscreen transition.
+ fresh();dMenu_Collect2D_c menu,other;std::any args[]{&menu};bool shown=false;
+ after_powerup_scroll_visible(nullptr,nullptr,&shown,nullptr);assert(shown);
+ menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);
+ assert(menu.mSubWindowOpenCheck==0&&s_powerupsRequested&&s_powerupsMenu==&menu&&pushed==0);
+ assert(before_powerup_collection_wait(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+ open_powerup_window();assert(s_powerupsWindow==42&&pushed==1);
+ open_powerup_window();assert(pushed==1);
+ bool empty=false;for(const auto& [id,e]:elements)empty|=e.text.find("No power-ups collected")!=std::string::npos;
+ assert(empty);
+ close(nullptr,42);assert(!s_powerupsWindow&&!s_powerupsRequested&&!s_powerupsMenu);
+ assert(before_powerup_collection_wait(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+ // Overview is a read-only list of owned ranks with effective descriptions.
+ fresh();s_run.ranks[3]=2;s_run.ranks[8]=5;s_run.ranks[12]=3;
+ assert(build_powerup_overview(nullptr,42,1,2,nullptr,nullptr)==MOD_OK);unsigned count=0;
+ for(const auto& [id,e]:elements)if(e.kind=="button"){
+   ++count;assert(!e.pressed&&!e.help.empty());
+   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("3 arrows/shot")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
+   if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);
+ }
+ assert(count==3&&s_run.rank(Upgrade::Power)==2);
+ // Story-mode flags and other collection requests are unaffected.
+ fresh();arena=false;shown=false;after_powerup_scroll_visible(nullptr,nullptr,&shown,nullptr);assert(!shown);
+ menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);assert(menu.mSubWindowOpenCheck==5&&!s_powerupsRequested);
+ arena=true;for(unsigned request:{1u,2u,3u,4u,6u}){menu.mSubWindowOpenCheck=request;after_powerup_collection_action(nullptr,args,nullptr,nullptr);assert(menu.mSubWindowOpenCheck==request&&!s_powerupsRequested);}
+ // Owner destruction/reset closes only our window. Open failures leave the menu usable.
+ menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);open_powerup_window();
+ std::any otherArgs[]{&other};before_powerup_collection_delete(nullptr,otherArgs,nullptr,nullptr);assert(s_powerupsWindow);
+ before_powerup_collection_delete(nullptr,args,nullptr,nullptr);assert(!s_powerupsWindow&&!s_powerupsRequested&&!s_powerupsMenu);
+ menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);failPush=true;open_powerup_window();assert(!s_powerupsRequested&&!s_powerupsMenu);
+ // The native texture hook targets only our unused UI ID during these windows.
+ std::array<std::any,11> iconArgs;iconArgs[1]=u8(0x92);iconArgs[10]=-1;
+ fresh();before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
+ s_run.phase=Phase::Upgrade;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==0x3d);
+ iconArgs[1]=u8(0x43);iconArgs[10]=-1;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
+ iconArgs[1]=u8(0x92);arena=false;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
+ arena=true;s_run.phase=Phase::Running;s_powerupsRequested=true;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==0x3d);
+}
+'''
+with tempfile.TemporaryDirectory() as tmp:
+    cpp = Path(tmp)/'test.cpp'
+    binary = Path(tmp)/'test'
+    cpp.write_text(fixture + select + common + source + main)
+    subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes',
+                    '-I',str(root/'src'),'-I',str(sdk/'sdk/include'),str(cpp),'-o',str(binary)],check=True)
+    subprocess.run([str(binary)],check=True)
+print('Survivors power-ups: level-up cards, scroll mapping, native requests, overview, isolation and cleanup passed')

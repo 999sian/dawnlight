@@ -9,6 +9,7 @@
 #include "mods/service.hpp"
 #include "mods/svc/flow.hpp"
 #include "d/d_menu_ring.h"
+#include "d/d_menu_collect.h"
 #include "d/d_menu_item_explain.h"
 #include "d/d_msg_object.h"
 #include "d/d_msg_class.h"
@@ -75,6 +76,11 @@ DEFINE_HOOK(&daAlink_c::checkUpperItemActionBow, SurvivorsBowAction);
 DEFINE_HOOK(&daAlink_c::checkNextActionBow, SurvivorsBowNext);
 DEFINE_HOOK(&daAlink_c::checkUpperItemActionIronBall, SurvivorsBallAction);
 DEFINE_HOOK(&daAlink_c::checkNextActionIronBall, SurvivorsBallNext);
+DEFINE_HOOK(&dMenu_Collect2D_c::isSkillIconVisible, SurvivorsScrollVisible);
+DEFINE_HOOK(&dMenu_Collect2D_c::wait_proc, SurvivorsCollectionWait);
+DEFINE_HOOK(&dMenu_Collect2D_c::pointerActivateCurrent, SurvivorsCollectionClick);
+DEFINE_HOOK(&dMenu_Collect2D_c::_delete, SurvivorsCollectionDelete);
+DEFINE_HOOK(&dMeter2Info_c::readItemTexture, SurvivorsScrollTexture);
 DEFINE_HOOK(&dMenu_Ring_c::setActiveCursor, SurvivorsRingCursor);
 DEFINE_HOOK(&dMenu_Ring_c::setItem, SurvivorsRingAssign);
 DEFINE_HOOK(&dMenu_Ring_c::setMixItem, SurvivorsRingMix);
@@ -116,7 +122,10 @@ bool s_saveReady = false, s_gameStarted = false;
 bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 Run s_run;
 Records s_records;
-UiWindowHandle s_window = 0;
+UiWindowHandle s_window = 0, s_powerupsWindow = 0;
+bool s_powerupsRequested = false;
+dMenu_Collect2D_c* s_powerupsMenu = nullptr;
+void close_powerup_window();
 ActorId s_player = kNone;
 fpc_ProcID s_savePrompt = kNone;
 unsigned s_spawnCooldown = 0, s_spawnFailures = 0, s_warmup = 0;
@@ -272,7 +281,7 @@ void detach_attack_references() {
 }
 void reset_runtime() {
     s_saveReady = false; s_gameStarted = false;
-    close_window(); clear_attacks(); clear_loot(); detach_attack_references(); retire_enemies();
+    close_powerup_window(); close_window(); clear_attacks(); clear_loot(); detach_attack_references(); retire_enemies();
     if (s_savePrompt != kNone) {
         d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone;
         dComIfGp_setGameoverStatus(0);
@@ -878,23 +887,14 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
     desc.label = text; desc.on_pressed = callback; desc.user_data = data; desc.help_rml = help;
     return svc_ui->pane_add_control(mod_ctx, pane, &desc, nullptr);
 }
+#include "survivors_choice_ui.inc"
 #include "survivors_chest_ui.inc"
+#include "survivors_powerups.inc"
 
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {
     if (s_run.phase == Phase::TreasureChoice) return build_treasure_choices(left, right);
-    if (s_run.phase == Phase::Upgrade) {
-        svc_ui->pane_add_text(mod_ctx, right, "Combat is paused. Choose one upgrade. Closing this window keeps the same choices.", nullptr);
-        for (unsigned i = 0; i < 3; ++i) {
-            const auto u = s_run.offers[i]; const unsigned index = static_cast<unsigned>(u);
-            char text[80];
-            if (u == Upgrade::Rupees) std::snprintf(text, sizeof(text), "%s (+20)", names[index]);
-            else std::snprintf(text, sizeof(text), "%s - Level %u", names[index], s_run.rank(u) + 1);
-            const auto result = button(left, text, select_upgrade, &s_choices[i], descriptions[index]);
-            if (result != MOD_OK) return result;
-        }
-        return MOD_OK;
-    }
+    if (s_run.phase == Phase::Upgrade) return build_upgrade_choices(left, right);
     char text[240];
     if (s_run.phase == Phase::Ready) {
         svc_ui->pane_add_text(mod_ctx, left, "Survive for 10 minutes, then defeat the Elite Bokoblin.", nullptr);
@@ -935,7 +935,7 @@ void open_window() {
     tab.build = build_window;
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
     desc.tabs = &tab; desc.tab_count = 1;
-    if (s_run.phase == Phase::TreasureChoice) desc.rcss = kTreasureStyle;
+    if (s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Upgrade) desc.rcss = kTreasureStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
         if (s_window == handle) s_window = 0;
         if (s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count)
@@ -975,7 +975,7 @@ void update_survivors() {
         }
         return;
     }
-    if (!in_arena() || transitioning()) { clear_attacks(); clear_loot(); s_player = kNone; s_warmup = 0; return; }
+    if (!in_arena() || transitioning()) { close_powerup_window(); clear_attacks(); clear_loot(); s_player = kNone; s_warmup = 0; return; }
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
     if (s_restart) {
@@ -994,6 +994,7 @@ void update_survivors() {
         if (!playable() || ++s_warmup < 15) return;
         load_records(); s_run.phase = Phase::Ready;
     }
+    open_powerup_window();
     if (s_run.phase == Phase::TreasureChoice) update_treasure_choice(link);
     if (s_run.phase == Phase::Treasure) update_treasure_demo(link);
     if (s_saveRequested) {
@@ -1028,6 +1029,12 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBowNext, before_ranged_native);
     PRE(SurvivorsBallAction, before_ranged_native);
     PRE(SurvivorsBallNext, before_ranged_native);
+    POST(SurvivorsScrollVisible, after_powerup_scroll_visible);
+    PRE(SurvivorsCollectionWait, before_powerup_collection_wait);
+    POST(SurvivorsCollectionWait, after_powerup_collection_action);
+    POST(SurvivorsCollectionClick, after_powerup_collection_action);
+    PRE(SurvivorsCollectionDelete, before_powerup_collection_delete);
+    PRE(SurvivorsScrollTexture, before_powerup_icon);
     PRE(SurvivorsRingCursor, before_ring_assignment);
     PRE(SurvivorsRingAssign, before_ring_assignment);
     PRE(SurvivorsRingMix, before_ring_assignment);
