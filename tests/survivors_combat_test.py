@@ -264,6 +264,11 @@ int main(){
     after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==5);
     s_swordAction=SwordAction::Normal;
     for(auto& capsule:player.mAtCps){info={&capsule};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==5);}
+    s_run.master_sword=true;
+    info={&player.mAtCps[0]};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==8);
+    assert(s_run.attack_power(0)==7+s_run.ranks[0]);
+    s_swordAction=SwordAction::Spin;info={&player.mAtSph};after_power(nullptr,powerArgs,nullptr,nullptr);
+    assert(info.mAttackPower==s_run.attack_power(1));s_run.master_sword=false;
     cCcD_Obj unrelated;info={&unrelated};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==200);
     arena=false;info={&player.mAtCps[0]};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==200);arena=true;
     // Expired and missing emitters restart; all surviving emitters are invalidated on cleanup.

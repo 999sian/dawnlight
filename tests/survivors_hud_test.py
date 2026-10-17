@@ -97,6 +97,7 @@ struct J2DPrint {
     void printReturn(const char*,float,float,int,int,float,float,int){++labels;}
 };
 struct ModContext {};
+int potion_slot(){return -1;}
 Run s_run; unsigned s_spawnFailures=0;
 bool in_arena(){return arena;} bool transitioning(){return transition;} bool ui_visible(){return window;}
 J2DGrafContext* dComIfGp_getCurrentGrafPort(){return hasGraf?&context:nullptr;}

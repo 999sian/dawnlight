@@ -1,11 +1,23 @@
 // Native DEFAULT_GETITEM presentation, following the Glider reward's actor
-// ownership protocol. The prop never grants inventory or story treasure flags.
+// ownership protocol. The prop is presentation-only; completion explicitly
+// commits the run reward and, for swords/bottles, the isolated save inventory.
 struct TreasureDemo {
     ActorId item = kNone;
     bool started = false, poseStarted = false, retiring = false;
     unsigned waitFrames = 0;
+    Run result;
+    unsigned price = 0;
 } s_treasure;
 
+// Add a bottle before refilling any existing empty one. Never overwrite a
+// filled bottle, and never offer an unusable potion when all four are full.
+int potion_slot() {
+    for (int slot = SLOT_11; slot <= SLOT_14; ++slot)
+        if (dComIfGs_getItem(slot, true) == dItemNo_NONE_e) return slot;
+    for (int slot = SLOT_11; slot <= SLOT_14; ++slot)
+        if (dComIfGs_getItem(slot, true) == dItemNo_EMPTY_BOTTLE_e) return slot;
+    return -1;
+}
 daDitem_c* treasure_actor() {
     auto* actor = actor_by_id(s_treasure.item);
     return actor && fopAcM_GetName(actor) == fpcNm_Demo_Item_e ? static_cast<daDitem_c*>(actor) : nullptr;
@@ -33,14 +45,14 @@ void cancel_treasure_demo() {
     if (in_arena() && !transitioning() && owns_treasure_event()) dComIfGp_event_reset();
     s_treasure.retiring = true;
     retire_treasure_actor();
-    if (s_selectedChest < s_chests.size() && !s_chests[s_selectedChest].opened) {
+    if (s_selectedChest < s_chests.size() && s_chests[s_selectedChest].active) {
         s_chests[s_selectedChest].opening = false; s_chests[s_selectedChest].age = 0;
     }
     s_selectedChest = kChestCount;
 }
 bool chest_interactable(const Chest& chest, daAlink_c* link) {
-    if (!chest.active || chest.opened || !s_loot.ready || s_run.phase != Phase::Running ||
-        !playable() || s_treasure.item != kNone || !s_run.chest_rewards_left() ||
+    if (!chest.active || chest.opening || !s_loot.ready || s_run.phase != Phase::Running ||
+        !playable() || s_treasure.item != kNone || !s_run.chest_rewards_left(potion_slot() >= 0) ||
         dComIfGs_getRupee() < s_run.chest_cost() || !sword_action_available(link)) return false;
     const cXyz delta = chest.position - link->current.pos;
     const s16 facing = static_cast<s16>(cM_atan2s(delta.x, delta.z) - link->shape_angle.y);
@@ -54,16 +66,18 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link) {
     auto* layer = link->layer_tag.layer;
     if (!layer || layer == fpcLy_RootLayer() || fpcLy_IsDeletingMesg(layer)) return false;
     Run preview = s_run; preview.phase = Phase::Treasure;
-    unsigned rupees = dComIfGs_getRupee(); Upgrade reward = Upgrade::Count;
-    if (!preview.buy_chest(rupees, reward)) return false;
-    constexpr std::array<u8, 4> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e, dItemNo_IRONBALL_e};
+    unsigned rupees = dComIfGs_getRupee(); ChestReward reward = ChestReward::Count;
+    if (!preview.buy_chest(rupees, reward, potion_slot() >= 0)) return false;
+    constexpr std::array<u8, 6> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e,
+                                      dItemNo_IRONBALL_e, dItemNo_MASTER_SWORD_e, dItemNo_RED_BOTTLE_e};
     auto* previous = fpcLy_CurrentLayer(); fpcLy_SetCurrentLayer(layer);
     // 0x01 is native presentation-only: daDitem_c skips execItemGet.
-    const auto item = fopAcM_createDemoItem(&link->current.pos, items[unsigned(reward) - unsigned(Upgrade::Bow)],
+    const auto item = fopAcM_createDemoItem(&link->current.pos, items[unsigned(reward)],
                                           -1, nullptr, fopAcM_GetRoomNo(link), nullptr, 0x01);
     fpcLy_SetCurrentLayer(previous);
     if (item == kNone) return false;
     s_treasure = {}; s_treasure.item = item;
+    s_treasure.result = preview; s_treasure.price = s_run.chest_cost();
     s_selectedChest = index; s_chests[index].reward = reward;
     s_run.phase = Phase::Treasure;
     clear_attacks();
@@ -118,11 +132,24 @@ void update_treasure_demo(daAlink_c* link) {
         auto& chest = s_chests[s_selectedChest];
         chest.opening = true; ++chest.age;
         if (!dComIfGp_evmng_endCheck("DEFAULT_GETITEM")) return;
-        // RNG and ranks are frozen throughout the demo. Commit the same reward
-        // exactly once, only after the native animation/message completes.
-        unsigned rupees = dComIfGs_getRupee();
-        if (s_run.buy_chest(rupees, chest.reward)) {
-            dComIfGs_setRupee(rupees); chest.opened = true; chest.age = 0;
+        const int bottle = potion_slot();
+        const unsigned rupees = dComIfGs_getRupee();
+        // Commit the displayed reward, without rerolling against possibly
+        // changed inventory. No charge when a potion no longer has space.
+        if (rupees >= s_treasure.price && (chest.reward != ChestReward::RedPotion || bottle >= 0)) {
+            if (chest.reward == ChestReward::MasterSword) {
+                dComIfGs_setCollectSword(COLLECT_MASTER_SWORD);
+                dComIfGs_onItemFirstBit(dItemNo_MASTER_SWORD_e);
+                dMeter2Info_setSword(dItemNo_MASTER_SWORD_e, false);
+                dComIfGs_setBButtonItemKey(dItemNo_MASTER_SWORD_e);
+            } else if (chest.reward == ChestReward::RedPotion) {
+                dComIfGs_setItem(bottle, dItemNo_RED_BOTTLE_e);
+                dComIfGs_onItemFirstBit(dItemNo_EMPTY_BOTTLE_e);
+                dComIfGs_onItemFirstBit(dItemNo_RED_BOTTLE_e);
+            }
+            dComIfGs_setRupee(rupees - s_treasure.price);
+            s_run = s_treasure.result;
+            chest = {}; // Remove immediately after the native reward/camera ends.
         }
         cancel_treasure_demo(); s_run.phase = Phase::Running;
         return;
@@ -136,4 +163,25 @@ void update_treasure_demo(daAlink_c* link) {
         item->eventInfo.onCondition(dEvtCnd_CANGETITEM_e);
         fopAcM_orderItemEvent(item, 0, 0);
     }
+}
+
+HookAction before_treasure_draw(ModContext*, void* args, void* result, void*) {
+    auto* process = mods::arg<leafdraw_class*>(args, 0);
+    if (!process || s_selectedChest >= s_chests.size() ||
+        s_chests[s_selectedChest].reward != ChestReward::MasterSword ||
+        fopAcM_GetID(process) != s_treasure.item) return HOOK_CONTINUE;
+    auto* item = treasure_actor();
+    auto* model = s_loot.masterSword;
+    if (!s_treasure.retiring && s_treasure.started && owns_treasure_event() &&
+        model && item && item->mpModel && item->chkDraw() && !item->chkDead()) {
+        // Preserve the native item position/rotation/scale without ever moving
+        // Link's equipped model or changing the global item resource table.
+        model->setBaseTRMtx(item->mpModel->getBaseTRMtx());
+        model->setBaseScale(*item->mpModel->getBaseScale());
+        dKy_tevstr_c tev{}; g_env_light.settingTevStruct(0, &item->current.pos, &tev);
+        g_env_light.setLightTevColorType_MAJI(model, &tev);
+        mDoExt_modelUpdateDL(model);
+    }
+    *static_cast<int*>(result) = 1;
+    return HOOK_SKIP_ORIGINAL;
 }

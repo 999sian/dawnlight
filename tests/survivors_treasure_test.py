@@ -3,7 +3,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 root=Path(__file__).resolve().parents[1]
-source=(root/'src/survivors_treasure.inc').read_text()
+source=(root/'src/survivors_treasure.inc').read_text().split('HookAction before_treasure_draw')[0]
 core=(root/'src/survivors.cpp').read_text()
 start=core.index('bool pause_run_actor(')
 source+=core[start:core.index('\nHookAction before_process', start)]
@@ -19,6 +19,8 @@ constexpr int kNone=-1;
 using u8=uint8_t;
 using ActorId=int;
 constexpr int fpcM_ERROR_PROCESS_ID_e=-1, fpcNm_Demo_Item_e=20;
+constexpr int dItemNo_NONE_e=255,dItemNo_EMPTY_BOTTLE_e=20,dItemNo_RED_BOTTLE_e=21,dItemNo_MASTER_SWORD_e=22,
+    SLOT_11=11,SLOT_14=14,COLLECT_MASTER_SWORD=1;
 constexpr int dItemNo_BOMB_5_e=10, dItemNo_BOW_e=11,dItemNo_BOOMERANG_e=12,dItemNo_IRONBALL_e=13, dEvtCnd_CANGETITEM_e=8, BUTTON_STATUS_OPEN=6;
 struct ModContext{};
 enum HookAction {HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
@@ -90,7 +92,7 @@ void dComIfGp_event_reset(){++reset;running=false;event.mPt2=-1;}
 int fopAcM_GetRoomNo(Actor*){return 0;}
 int fopAcM_delete(Actor*){if(!deleteAllowed)return 0;alive=false;++deleted;return 1;}
 int fopAcM_createDemoItem(Vec*,int item,int bit,void*,int,void*,u8 flags){
-    assert(item>=10&&item<=13&&bit==-1&&flags==1);prop.itemNo=item; // Presentation-only, no inventory grant.
+    assert(item>=10&&item<=22&&bit==-1&&flags==1);prop.itemNo=item; // Presentation-only, no inventory grant.
     assert(currentLayer==player.layer_tag.layer&&currentLayer!=&rootLayer);
     ++created;if(createFails)return -1;
     alive=true;prop.id=100;prop.name=fpcNm_Demo_Item_e;return prop.id;
@@ -113,8 +115,16 @@ template<class T> T arg(void* args,int n){
 }
 
 
+std::array<int,4> bottles;
+int equippedSword=0,swordGrants=0,potionGrants=0;
+int dComIfGs_getItem(int slot,bool){return bottles.at(slot-SLOT_11);}
+void dComIfGs_setItem(int slot,int item){bottles.at(slot-SLOT_11)=item;++potionGrants;}
+void dComIfGs_onItemFirstBit(int){}
+void dComIfGs_setCollectSword(int){++swordGrants;}
+void dMeter2Info_setSword(int item,bool){equippedSword=item;}
+void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
 Run s_run;unsigned rupees=0;int s_player=1;
-struct Chest{bool active=false,opened=false,opening=false;cXyz position{};unsigned age=0;Upgrade reward=Upgrade::Count;};
+struct Chest{bool active=false,opening=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;};
 constexpr unsigned kChestCount=2;unsigned s_selectedChest=kChestCount;
 std::array<Chest,2>s_chests;
 struct {bool ready=true;}s_loot;
@@ -133,6 +143,7 @@ void clear_attacks(){++cleared;}
 main=r'''
 
 void fresh(){
+    bottles.fill(dItemNo_NONE_e);equippedSword=swordGrants=potionGrants=0;
     s_run.start(123);s_treasure={};s_chests={};s_chests[0].active=true;s_chests[0].position={0,0,100};
     s_selectedChest=kChestCount;rupees=100;s_loot.ready=true;
     prop={};player={};player.id=1;event.mPt2=-1;
@@ -167,7 +178,7 @@ int main(){
         if(reason==4)s_loot.ready=false;
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
-        if(reason==7)for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;
+        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=true;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!begin_treasure_demo(0,&player)&&created==0&&rupees==100);
     }
     fresh();createFails=true;assert(!begin_treasure_demo(0,&player));
@@ -192,8 +203,42 @@ int main(){
     update_treasure_demo(&player);assert(s_chests[0].opening&&s_chests[0].age==1&&rupees==100);
     eventEnded=true;update_treasure_demo(&player);
     assert(s_run.phase==Phase::Running&&rupees==80&&s_run.chest_cost()==40);
-    assert(s_chests[0].opened&&s_run.rank(reward)==1&&reset==1&&!alive);
+    assert(!s_chests[0].active&&s_run.rank(chest_weapon(reward))==1&&reset==1&&!alive);
     update_treasure_demo(&player);assert(rupees==80&&s_run.chests_opened==1);
+    // Master Sword is a one-time real equipment reward, not a level-up rank.
+    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;bottles.fill(dItemNo_RED_BOTTLE_e);
+    assert(begin_treasure_demo(0,&player)&&s_chests[0].reward==ChestReward::MasterSword);
+    assert(prop.itemNo==dItemNo_MASTER_SWORD_e && swordGrants==0);
+    accept();eventEnded=true;update_treasure_demo(&player);
+    assert(s_run.master_sword&&equippedSword==dItemNo_MASTER_SWORD_e&&swordGrants==1&&!s_chests[0].active);
+    update_treasure_demo(&player);assert(swordGrants==1&&rupees==80);
+    // Potion rewards fill a new slot first, even with an existing empty bottle.
+    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=true;rupees=1000;
+    for(unsigned n=0;n<4;++n){
+        s_chests[0]={};s_chests[0].active=true;s_chests[0].position={0,0,100};
+        if(n>0)bottles[0]=dItemNo_EMPTY_BOTTLE_e;
+        assert(potion_slot()==int(SLOT_11+n));
+        eventEnded=false;
+        assert(begin_treasure_demo(0,&player)&&s_chests[0].reward==ChestReward::RedPotion);
+        assert(prop.itemNo==dItemNo_RED_BOTTLE_e);
+        accept();eventEnded=true;update_treasure_demo(&player);
+        assert(bottles[n]==dItemNo_RED_BOTTLE_e && potionGrants==int(n+1)&&!s_chests[0].active);
+        if(n>0)assert(bottles[0]==dItemNo_EMPTY_BOTTLE_e);
+    }
+    assert(rupees==800&&s_run.chest_cost()==100&&potion_slot()==SLOT_11);
+    s_chests[0].active=true;s_chests[0].position={0,0,100};
+    assert(begin_treasure_demo(0,&player));accept();update_treasure_demo(&player);
+    assert(potionGrants==5&&potion_slot()==-1&&rupees==700);
+    s_chests[0].active=true;s_chests[0].position={0,0,100};
+    assert(!begin_treasure_demo(0,&player)); // Four full bottles: no wasted paid reward.
+    bottles[2]=dItemNo_EMPTY_BOTTLE_e;
+    assert(begin_treasure_demo(0,&player));accept();update_treasure_demo(&player);
+    assert(bottles[2]==dItemNo_RED_BOTTLE_e&&potionGrants==6&&rupees==580);
+    // Another system filling the reserved bottle during loading must not be overwritten.
+    s_chests[0].active=true;s_chests[0].position={0,0,100};bottles[1]=dItemNo_EMPTY_BOTTLE_e;
+    assert(begin_treasure_demo(0,&player));bottles[1]=99;
+    accept();update_treasure_demo(&player);
+    assert(bottles[1]==99&&rupees==580&&s_run.chests_opened==6&&s_chests[0].active);
     // Async failure, order timeout, interrupted event: no charge or reward.
     for(unsigned reason=0;reason<3;++reason){
         fresh();assert(begin_treasure_demo(0,&player));
@@ -201,7 +246,7 @@ int main(){
         if(reason==1)s_treasure.waitFrames=300;
         if(reason==2){accept();before_treasure_get(nullptr,&player,nullptr,nullptr);event.mPt2=999;}
         update_treasure_demo(&player);
-        assert(s_run.phase==Phase::Running&&rupees==100&&s_run.chests_opened==0&&!s_chests[0].opened);
+        assert(s_run.phase==Phase::Running&&rupees==100&&s_run.chests_opened==0&&s_chests[0].active);
         if(reason==2)assert(reset==0&&event.mPt2==999);
     }
     fresh();assert(begin_treasure_demo(0,&player));creating=true;doing=true;

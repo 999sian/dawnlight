@@ -73,22 +73,36 @@ Two treasure chests can be present at once. The first appears after 20–30 seco
 subsequent spawns are attempted at random 25–45 second intervals. Positions need
 flat ground, a clear footprint and an unobstructed line from Link. Failed/full
 placements retry after three seconds. Closed chests remain until purchased or the
-run ends; opened chests disappear after six seconds of resumed gameplay.
+run ends; opened chests disappear immediately when their native reward sequence finishes.
 
 Face a nearby chest and use the native **Open** action. Without enough rupees
 it has no interaction prompt. There is no purchase/confirmation dialog. The HUD
 shows the next chest price on a separate line: **20 rupees**, then **40**, **60**,
-and so on. Link receives the random weapon through the native Get Item lift,
+and so on. Link receives the random reward through the native Get Item lift,
 holding pose and item message while enemies and the run timer pause. The lid
 opens during this sequence. Currency, reward and price are committed once the
 sequence completes; failed loading or cancellation does not charge rupees.
 
-Each purchase chooses equally among Hero's Bow, Boomerang, Bombs and Ball and
-Chain that are below rank 5. A first find unlocks the weapon at rank 1; duplicates
-add one rank. Unlocked chest weapons also enter the normal level-up pool. Maxed
-weapons are excluded from chest rewards, and no further chests spawn once all
-four are maxed. The separate Survivors save starts each run with the giant wallet
-(at least 1000 capacity), zero rupees and reset chest prices/unlocks.
+Each purchase chooses equally among the eligible reward types: Hero's Bow,
+Boomerang, Bombs, Ball and Chain, Master Sword and a bottle of Red Potion.
+The four automatic item weapons unlock at rank 1; duplicates add one rank up to
+5, and unlocked weapons also enter the normal level-up pool.
+
+Master Sword is a one-time reward per run. Its Get Item presentation uses a
+private instance of Link's sword model instead of the native rupee placeholder.
+It equips automatically and adds 3
+Survivors damage to normal sword strikes, Whirling Blade and Sword Wave.
+A potion reward adds one new filled bottle while fewer than four bottles are
+owned, even if an existing bottle is empty. Once all four slots are occupied,
+it refills one empty bottle instead. Filled bottles are never overwritten. Red
+Potion can be used normally from the item inventory; drinking it makes that
+empty bottle eligible for a future refill. Four full bottles exclude potions
+from the reward pool until a bottle is emptied. These two rewards are chest-only.
+
+Maxed weapons and an already-owned Master Sword are excluded. New chests stop
+spawning only while no useful reward is available. Each run resets the separate
+Survivors inventory, Master Sword unlock, chest prices and weapon ranks, with
+a giant wallet (at least 1000 capacity) and zero rupees.
 
 All four weapons attack automatically alongside the sword, without equipping
 items, consuming ammunition or interrupting movement. They aim at the nearest
@@ -99,8 +113,9 @@ toward Link. Projectiles cannot pass through walls. Power, Haste and Reach also
 apply. Custom bomb/ball hits use the linear Survivors damage path to avoid
 vanilla Bokoblin instant-death/health-correction special cases. Native item/chest models and bomb particles are reused; the chest lid
 animates during the native reward presentation. These are run-local purchase
-props; the demo item uses the native presentation-only flag, so inventory and
-story treasure flags remain unaffected.
+props. The demo item uses the native presentation-only flag; successful
+completion explicitly grants Master Sword/bottles in the isolated Survivors
+save. Story treasure flags remain unaffected.
 
 ## Records and saving
 
@@ -163,7 +178,10 @@ Before merging/releasing, test on Android and desktop:
     simultaneous movement/automatic sword combos.
 12. Restart/change modes with closed/open chests and active item projectiles;
     verify prices, ranks, models, particles and collisions reset. Verify story
-    treasure flags and inventory are unaffected.
+    treasure flags are unaffected and the next run restores Ordon Sword/no bottles.
+13. Obtain Master Sword once and verify equipment and sword damage. Collect four
+    red-potion bottles, drink one, then obtain a refill. Check new-bottle priority
+    over empty bottles, exclusion with four full bottles, and instant chest removal.
 
 Automated tests cover rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared

@@ -89,6 +89,7 @@ stubs += r'''
 Run s_run;
 std::array<unsigned,12>s_cooldowns{};
 struct {bool ready=true;}s_loot;
+int potion_slot(){return -1;}
 bool prepare_loot(daAlink_c*){return s_loot.ready;}
 bool sword_action_available(daAlink_c*){return true;}
 bool arena=true,transition=false;
@@ -159,10 +160,7 @@ int main(){
     assert(s_chests[0].position.abs(s_chests[1].position)>=250);
     // Proximity alone never pauses combat or opens a purchase window.
     player.current.pos=s_chests[0].position;rupees=100;update_chests(&player);
-    assert(s_run.phase==Phase::Running && !s_chests[0].opened && rupees==100);
-    s_chests[0].opened=true;
-    for(unsigned i=0;i<181;++i)update_chests(&player);
-    assert(!s_chests[0].active);
+    assert(s_run.phase==Phase::Running && !s_chests[0].opening && rupees==100);
     std::cout<<"Survivors loot: targeting, four projectile types, caps, placement and proximity behavior passed\n";
 }
 '''

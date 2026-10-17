@@ -24,6 +24,7 @@
 #include "f_pc/f_pc_create_req.h"
 #include "f_pc/f_pc_create_tag.h"
 #include "f_pc/f_pc_layer.h"
+#include "f_pc/f_pc_leaf.h"
 #include "m_Do/m_Do_ext.h"
 #include "m_Do/m_Do_graphic.h"
 #include "m_Do/m_Do_Reset.h"
@@ -54,6 +55,7 @@ constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
 DEFINE_HOOK(&daAlink_c::checkNormalAction, SurvivorsChestAction);
 DEFINE_HOOK(&daAlink_c::procCoGetItemInit, SurvivorsGetItem);
+DEFINE_HOOK(&fpcLf_Draw, SurvivorsTreasureDraw);
 DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
 DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
@@ -93,6 +95,7 @@ bool s_wavePending = false, s_allowDrop = false;
 std::array<unsigned, 12> s_cooldowns{};
 void clear_loot();
 void cancel_treasure_demo();
+int potion_slot();
 std::array<unsigned, 3> s_choices{0, 1, 2};
 struct ProcessFrame { void* args; ActorId id; };
 std::vector<ProcessFrame> s_processFrames;
@@ -248,6 +251,8 @@ void prepare_save() {
     dComIfGs_onItemFirstBit(dItemNo_WEAR_KOKIRI_e);
     dComIfGs_setCollectClothes(KOKIRI_CLOTHES_FLAG);
     dComIfGs_setSelectEquipClothes(dItemNo_WEAR_KOKIRI_e);
+    dComIfGs_offCollectSword(COLLECT_MASTER_SWORD);
+    dComIfGs_offItemFirstBit(dItemNo_MASTER_SWORD_e);
     dComIfGs_onItemFirstBit(dItemNo_SWORD_e);
     dComIfGs_setCollectSword(COLLECT_ORDON_SWORD);
     dComIfGs_setSelectEquipSword(dItemNo_SWORD_e);
@@ -264,7 +269,7 @@ void prepare_save() {
         g_dComIfG_gameInfo.play.setSelectItem(i, dItemNo_NONE_e);
     }
     for (int i = 0; i < MAX_ITEM_SLOTS; ++i) dComIfGs_setItem(i, dItemNo_NONE_e);
-    dComIfGs_setWalletSize(2); // 1000 rupees: every price up to the 20th chest (400) is affordable.
+    dComIfGs_setWalletSize(2); // Giant wallet for escalating chest prices.
     dComIfGs_setMaxLife(15); // Three hearts; max life uses fifths, gauge uses quarters.
     dComIfGs_setLife(12);
     dComIfGs_setRupee(0);
@@ -604,7 +609,7 @@ void after_power(ModContext*, void* args, void*, void*) {
     if (!info || !info->mpCollider) return;
     if (native_sword_collider(info->mpCollider)) {
         info->mAttackPower = s_swordAction == SwordAction::Spin ? s_run.attack_power(1) :
-            3 + s_run.rank(Upgrade::Power);
+            3 + s_run.rank(Upgrade::Power) + s_run.sword_bonus();
         return;
     }
     for (const auto& attack : s_attacks) {
@@ -786,9 +791,9 @@ void draw_hud(ModContext*, void*, void*, void*) {
         s_run.rank(Upgrade::Bow), s_run.rank(Upgrade::Boomerang), s_run.rank(Upgrade::Bombs),
         s_run.rank(Upgrade::Ball));
     label(text, x, 96, 12);
-    if (s_run.chest_rewards_left())
+    if (s_run.chest_rewards_left(potion_slot() >= 0))
         std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
-    else std::snprintf(text, sizeof(text), "All chest weapons at maximum level");
+    else std::snprintf(text, sizeof(text), "No chest rewards available");
     label(text, x, 114, 14);
     if (s_run.ticks >= duration && s_run.phase == Phase::Running)
         label("Defeat the Elite Bokoblin!", x, 136, 16);
@@ -810,6 +815,7 @@ void select_upgrade(ModContext*, void* data) {
 void start_run(ModContext*, void*) {
     if (s_run.phase != Phase::Ready) return;
     close_window(); clear_attacks(); clear_loot(); prepare_save();
+    dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
     s_run.start(seed); s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
     s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
@@ -845,7 +851,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
             "Move and dodge while your weapons attack automatically. Collect the blue crystals to level up. "
             "Normal sword strikes are automatic. Unlock Sword Wave, Whirling Blade and Light Aura during the run. Enemies may drop hearts and rupees. "
             "Face a treasure chest and press Open to receive an automatic item weapon. You need enough rupees to interact. Prices start at 20 rupees and rise by 20 after every purchase. "
-            "Chest weapons can reach Level 5 through duplicate finds and level-up choices.", nullptr);
+            "Chest weapons can reach Level 5 through duplicate finds and level-up choices. Chests can also contain the Master Sword or a bottle of Red Potion.", nullptr);
         std::snprintf(text, sizeof(text), "Completed runs: %u | Wins: %u | Best kills: %u | Best level: %u",
             s_records.runs, s_records.wins, s_records.best_kills, s_records.best_level);
         svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
@@ -951,6 +957,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
     PRE(SurvivorsChestAction, before_chest_action);
+    PRE(SurvivorsTreasureDraw, before_treasure_draw);
     PRE(SurvivorsGetItem, before_treasure_get); POST(SurvivorsGetItem, after_treasure_get);
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
     PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_cut);

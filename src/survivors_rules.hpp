@@ -13,6 +13,10 @@ inline constexpr unsigned projectile_capacity = 24;
 inline constexpr unsigned orb_capacity = 64;
 enum class Phase { Loading, Ready, Running, Upgrade, Treasure, Victory, Defeat };
 enum class Upgrade : unsigned { Wave, Spin, Aura, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, Rupees, Count };
+enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, Count };
+inline constexpr Upgrade chest_weapon(ChestReward reward) {
+    return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
+}
 inline constexpr std::array names{
     "Sword Wave", "Whirling Blade", "Light Aura", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Rupees"};
 inline constexpr std::array descriptions{
@@ -32,7 +36,7 @@ struct Run {
     Phase phase = Phase::Loading;
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
-    bool elite_spawned = false;
+    bool elite_spawned = false, master_sword = false;
     std::array<unsigned, 12> ranks{};
     unsigned chests_opened = 0;
     std::array<Upgrade, 3> offers{};
@@ -78,23 +82,27 @@ struct Run {
         return true;
     }
     unsigned chest_cost() const { return 20 * (chests_opened + 1); }
-    bool chest_rewards_left() const {
+    bool chest_rewards_left(bool bottle_available = false) const {
+        if (!master_sword || bottle_available) return true;
         for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
             if (ranks[i] < 5) return true;
         return false;
     }
     // Atomic, run-local purchase. Unaffordable/all-maxed attempts do not roll,
     // consume currency, advance prices or change upgrades.
-    bool buy_chest(unsigned& rupees, Upgrade& reward) {
+    bool buy_chest(unsigned& rupees, ChestReward& reward, bool bottle_available = false) {
         if (phase != Phase::Treasure || rupees < chest_cost()) return false;
-        std::array<Upgrade, 4> pool{};
+        std::array<ChestReward, 6> pool{};
         unsigned count = 0;
         for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
-            if (ranks[i] < 5) pool[count++] = static_cast<Upgrade>(i);
+            if (ranks[i] < 5) pool[count++] = static_cast<ChestReward>(i - unsigned(Upgrade::Bow));
+        if (!master_sword) pool[count++] = ChestReward::MasterSword;
+        if (bottle_available) pool[count++] = ChestReward::RedPotion;
         if (!count) return false;
         reward = pool[next_random() % count];
         rupees -= chest_cost(); ++chests_opened;
-        ++ranks[unsigned(reward)];
+        if (reward == ChestReward::MasterSword) master_sword = true;
+        else if (reward <= ChestReward::Ball) ++ranks[unsigned(chest_weapon(reward))];
         return true;
     }
     unsigned item_cooldown(Upgrade weapon) const {
@@ -116,7 +124,8 @@ struct Run {
         return roll < 5 ? Drop::Heart : roll < 10 ? Drop::BlueRupee :
             roll < 50 ? Drop::GreenRupee : Drop::None;
     }
-    unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power); }
+    unsigned sword_bonus() const { return master_sword ? 3 : 0; }
+    unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0); }
     float radius(float base) const { return base * (1.0f + 0.15f * rank(Upgrade::Reach)); }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };

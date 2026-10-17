@@ -2,16 +2,17 @@
 // namespace; native assets are borrowed/refcounted, never added to the bundle.
 constexpr unsigned kChestCount = 2, kItemBegin = 8, kSlotsPerItem = 4;
 struct Chest {
-    bool active = false, opened = false, opening = false;
+    bool active = false, opening = false;
     cXyz position{};
     s16 yaw = 0;
     unsigned age = 0;
-    Upgrade reward = Upgrade::Count;
+    ChestReward reward = ChestReward::Count;
 };
 std::array<Chest, kChestCount> s_chests;
 unsigned s_chestDelay = 20 * ticks_per_second, s_selectedChest = kChestCount;
 struct LootModels {
     JKRSolidHeap* heap = nullptr;
+    J3DModel* masterSword = nullptr;
     request_of_phase_process_class chestPhase{}, linkPhase{};
     const char* linkArchive = nullptr;
     std::array<J3DModel*, projectile_capacity> projectiles{};
@@ -30,6 +31,7 @@ void clear_loot() {
         auto forget = reinterpret_cast<ForgetModel>(address);
         for (auto* model : s_loot.projectiles) if (model) forget(model);
         for (auto* model : s_loot.chests) if (model) forget(model);
+        if (s_loot.masterSword) forget(s_loot.masterSword);
     }
     if (s_loot.heap) mDoExt_destroySolidHeap(s_loot.heap);
     dComIfG_resDelete(&s_loot.chestPhase, "Dalways");
@@ -56,7 +58,10 @@ bool prepare_loot(daAlink_c* link) {
     };
     auto* chestData = static_cast<J3DModelData*>(dComIfG_getObjectRes("Dalways", 12));
     auto* lidData = static_cast<J3DAnmTransform*>(dComIfG_getObjectRes("Dalways", 7));
-    bool ready = chestData && lidData;
+    // Master Sword has only a rupee placeholder in native item_resource.
+    // Give its presentation a private model instance, borrowing Link's data.
+    s_loot.masterSword = model(link->mpSwMModel ? link->mpSwMModel->getModelData() : nullptr);
+    bool ready = chestData && lidData && s_loot.masterSword;
     for (unsigned i = 0; i < kChestCount; ++i) {
         s_loot.chests[i] = model(chestData);
         s_loot.lids[i] = JKR_NEW mDoExt_bckAnm();
@@ -236,13 +241,8 @@ bool spawn_chest(daAlink_c* link) {
 }
 void update_chests(daAlink_c* link) {
     if (s_run.phase != Phase::Running || !prepare_loot(link)) return;
-    for (unsigned i = 0; i < s_chests.size(); ++i) {
-        auto& c = s_chests[i];
-        if (!c.active) continue;
-        if (c.opened) { if (++c.age > 6 * ticks_per_second) c = {}; continue; }
-    }
     if (s_chestDelay) { --s_chestDelay; return; }
-    if (!s_run.chest_rewards_left()) return;
+    if (!s_run.chest_rewards_left(potion_slot() >= 0)) return;
     s_chestDelay = spawn_chest(link) ? (25 + s_run.next_random() % 21) * ticks_per_second : 3 * ticks_per_second;
 }
 void draw_loot_model(J3DModel* model, cXyz pos, s16 yaw, s16 pitch, float scale) {
@@ -260,7 +260,7 @@ void draw_loot() {
         const auto& c = s_chests[i]; if (!c.active) continue;
         auto* data = s_loot.chests[i]->getModelData();
         auto* root = data->getJointNodePointer(0); auto* previous = root->getMtxCalc();
-        s_loot.lids[i]->entry(data, (c.opened || c.opening) ? std::min(float(c.age), s_loot.lids[i]->getEndFrame()) : 0);
+        s_loot.lids[i]->entry(data, c.opening ? std::min(float(c.age), s_loot.lids[i]->getEndFrame()) : 0);
         draw_loot_model(s_loot.chests[i], c.position, c.yaw, 0, 1);
         root->setMtxCalc(previous); // Shared native chest data must not retain our animation pointer.
     }

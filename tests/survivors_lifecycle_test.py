@@ -93,6 +93,9 @@ void dComIfGs_setWalletSize(int){}
 void dComIfGs_setLife(int){} void dComIfGs_setRupee(int){}
 // A live third-slot hook can dereference the absent Link actor during file
 // select. Any live slot setter is forbidden in this pre-game fixture.
+constexpr int COLLECT_MASTER_SWORD=10,dItemNo_MASTER_SWORD_e=11;
+void dComIfGs_offCollectSword(int){}
+void dComIfGs_offItemFirstBit(int){}
 void dComIfGs_setSelectItemIndex(int,int){assert(false && "live item hook before Link exists");}
 void dComIfGs_setMixItemIndex(int,int){assert(false && "live mix hook during save preparation");}
 void dComIfGs_setItem(int i,int v){

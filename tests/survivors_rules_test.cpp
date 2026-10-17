@@ -53,34 +53,41 @@ int main() {
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
         assert(!run.eligible(static_cast<Upgrade>(i)));
     unsigned wallet = 19;
-    Upgrade reward = Upgrade::Count;
+    ChestReward reward = ChestReward::Count;
     run.phase = Phase::Treasure;
     const auto rng = run.random;
     assert(!run.buy_chest(wallet, reward) && wallet == 19 && run.random == rng && run.chest_cost() == 20);
     wallet = 20;
     assert(run.buy_chest(wallet, reward) && wallet == 0 && run.chest_cost() == 40);
-    assert(run.rank(reward) == 1 && run.eligible(reward)); // Even with four occupied passives.
-    assert(!run.tick(true)); // Treasure dialog cannot advance encounter time.
+    assert((reward == ChestReward::MasterSword && run.master_sword) ||
+           (run.rank(chest_weapon(reward)) == 1 && run.eligible(chest_weapon(reward)))); // Even with four occupied passives.
+    assert(!run.tick(true)); // Get Item cannot advance encounter time.
     run.start(20); run.phase = Phase::Treasure;
     wallet = 10000;
-    for (unsigned n = 0; n < 20; ++n) {
+    for (unsigned n = 0; n < 21; ++n) {
         assert(run.chest_cost() == 20 * (n + 1));
-        assert(run.buy_chest(wallet, reward) && run.rank(reward) <= 5);
+        assert(run.buy_chest(wallet, reward) && run.rank(chest_weapon(reward)) <= 5);
     }
-    assert(wallet == 5800 && !run.chest_rewards_left());
+    assert(wallet == 5380 && !run.chest_rewards_left());
+    assert(run.master_sword && run.sword_bonus() == 3);
+    assert(run.chest_rewards_left(true)); // A refill remains available after all weapons.
     const auto maxedRng = run.random;
-    assert(!run.buy_chest(wallet, reward) && wallet == 5800 && run.random == maxedRng);
+    assert(!run.buy_chest(wallet, reward) && wallet == 5380 && run.random == maxedRng);
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
         const auto weapon = static_cast<Upgrade>(i);
         assert(run.rank(weapon) == 5 && !run.eligible(weapon));
         const auto fast = run.item_cooldown(weapon);
         run.ranks[i] = 1;
         assert(run.item_cooldown(weapon) > fast);
+        run.ranks[i] = 5;
     }
+    wallet = 10000;
+    assert(run.buy_chest(wallet, reward, true) && reward == ChestReward::RedPotion);
     run.start(2);
+    assert(!run.master_sword && run.sword_bonus() == 0);
     assert(run.chests_opened == 0 && run.chest_cost() == 20 && run.chest_rewards_left());
     wallet = 100;
-    assert(!run.buy_chest(wallet, reward) && wallet == 100); // No purchase outside the dialog.
+    assert(!run.buy_chest(wallet, reward) && wallet == 100); // No purchase outside the reward phase.
     Records records;
     records.finish(run); assert(records.runs == 0); // Live runs cannot become records.
     run.end(false); assert(run.phase == Phase::Defeat && !run.tick(true));
