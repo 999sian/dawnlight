@@ -3,9 +3,9 @@ u8 shield_item(const Run& run) {
     return items[run.shield_tier()];
 }
 u8 treasure_item(ChestReward reward, const Run& run) {
-    const std::array<u8, 8> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e,
+    const std::array<u8, unsigned(ChestReward::Count)> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e,
         dItemNo_IRONBALL_e, u8(run.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e),
-        dItemNo_RED_BOTTLE_e, dItemNo_SWORD_e, shield_item(run)};
+        dItemNo_RED_BOTTLE_e, dItemNo_SWORD_e, shield_item(run), dItemNo_POU_SPIRIT_e};
     return items[unsigned(reward)];
 }
 // Native DEFAULT_GETITEM presentation, following the Glider reward's actor

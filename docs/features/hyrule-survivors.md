@@ -40,7 +40,7 @@ is retained and multiple earned levels are offered consecutively.
 | Sword Wave | Unlock aimed, piercing projectiles released during a normal sword swing; additional waves at levels 3 and 5 |
 | Whirling Blade | Unlock or improve a native Spin Attack with freely steerable movement |
 | Shield Attack | Requires a chest shield; automatic native shield bash, with damage, range and cooldown upgrades; retains stagger |
-| Fire Arrows | Requires Hero's Bow; burning arrows with native flame particles and +2 damage per rank |
+| Fire Arrows | Requires Hero's Bow; ignite enemies for 1 damage/second over 3 seconds; +1 periodic damage per rank and +1 second after every three further upgrades (rank 4) |
 | Hero's Bow | Chest unlock; stronger/faster arrows, spread shots at ranks 3 and 5 |
 | Boomerang | Chest unlock; Gale wind effect and one extra target at rank 1; each upgrade adds another hop and improves damage/size/cooldown |
 | Bombs | Chest unlock; aimed ballistic throws with larger, stronger blasts and shorter cooldowns |
@@ -112,7 +112,7 @@ Get Item names use the same rarity and quantity while changed values remain red.
 Upgrade caps are unchanged. Each unit exceeding the cap becomes **20 rupees**,
 shown in the preview/message and capped by the wallet when granted. This also
 applies to extra Ordon Sword units and potion units beyond available bottle slots.
-One chest still charges only once and increases the next chest price by 20 rupees.
+One chest still charges only once. Price increases are +5, +7, +9, +11 rupees, etc.
 
 Bokoblins and Keese appear first; Rats join after 30 seconds. Spawn frequency,
 population and Bokoblin health increase during the run. At ten minutes, ordinary
@@ -133,8 +133,8 @@ it has no interaction prompt. Opening an affordable chest takes priority over
 automatic attacks and other actions: press Open to interrupt them immediately.
 Auto-aim/spin facing cannot hide the prompt; distance and line of sight still apply.
 There is no purchase/confirmation dialog. The HUD
-shows the next chest price on a separate line: **20 rupees**, then **40**, **60**,
-and so on. Opening shows three distinct random rewards side by side, with native
+shows the next chest price on a separate line: **20 rupees**, then **25**, **32**, **41**, **52**,
+and so on (`20 + opened * (opened + 4)`). Opening shows three distinct random rewards side by side, with native
 item icons, descriptions and red before/after upgrade values. Use controller
 Left/Right and Confirm, keyboard navigation, or tap/click anywhere on a card.
 Link, enemies and the run timer pause during selection. Cancel returns to combat
@@ -152,7 +152,7 @@ the attempt before creating the event or spending rupees.
 
 Each chest samples its offers without replacement from the eligible reward types: Hero's Bow,
 Boomerang, Bombs, Ball and Chain, Master Sword, an Ordon Sword for Dual Wield,
-a shield upgrade and a bottle of Red Potion.
+a shield upgrade, Dark Link and a bottle of Red Potion.
 The four automatic item weapons unlock at rank 1; duplicates add their rarity's number of ranks up to 5, and unlocked weapons also enter the normal level-up pool.
 
 Master Sword has five chest ranks. Rank 1 equips it and adds 3 damage;
@@ -161,7 +161,30 @@ native light effect (7 bonus sword damage total). Sword damage applies to melee,
 Whirling Blade and Sword Wave, without the vanilla light-material 100-damage override.
 Get Item uses a private instance of Link's sword model instead of the native rupee placeholder.
 An Ordon Sword reward enables and equips Dawnlight's existing Dual Wield with an
-Ordon offhand sword. It is offered once per run and does not change story preferences.
+Ordon offhand sword. At rank 1 each accepted normal sword strike also hits the next nearest reachable
+enemy; each additional rank adds another target, up to six total at rank 5.
+Targets must be close to Link, at reachable height, and not behind a wall.
+A target receives at most one multihit per swing; the native sword capsule cannot
+also damage the same secondary target. Ranks do not change story preferences.
+
+Dark Link uses the native **Poe Soul** icon and Get Item presentation. Rank 1
+activates every 20 seconds of active gameplay for 5 seconds and doubles all
+Survivors damage, including burning and Dual Wield hits. Its chest upgrades
+alternate **−2 seconds activation interval** and **+1 second duration**. Rank 11
+becomes permanently active (10-second interval meets 10-second duration) and
+leaves the reward pool. Activation starts after the first interval; menus,
+level-up choices and chest presentations freeze both timers. It uses Dawnlight's
+existing Dark Link tint/eyes/aura without enabling manual activation, consuming
+the story gauge or changing clothing. Restarting clears it.
+
+Burns use the same native `LK_BURNS_A/B` particles, trace callback and 3x scale
+as [Fire-Arrows-Standalone](https://github.com/baxlek/Fire-Arrows-Standalone).
+A further arrow hit refreshes the duration without delaying the next damage tick.
+Rank 1–3 burn for 3 seconds, rank 4–5 for 4 seconds; damage is the Fire Arrows rank
+per second. Impact damage no longer receives the old Fire Arrows bonus. Damage
+uses native enemy hit/death processing, with nonlethal stagger suppressed as for
+normal sword hits. Burning particles and queued hits are cleared on death,
+actor replacement, reset and mode exit.
 
 Shields provide an automatic block roll against tracked enemy attacks. A successful
 block turns Link toward the attacker and plays the native guard reaction, interrupting
@@ -263,7 +286,7 @@ Saving during combat does not suspend a run. Loading a Survivors save always
 returns to a fresh start screen. Story and Boss Rush slots are not converted.
 
 Dawnlight's combat presets, progression locks, HP scaling, Bullet Time, Flurry
-Rush, Dark Link, stamina, sprint, glide and Gale are overridden for
+Rush, manual Dark Link, stamina, sprint, glide and Gale are overridden for
 this mode without rewriting their saved configuration. Manual Jump uses normal
 height. Other mods can still change gameplay; cross-mod balance is not enforced.
 
@@ -316,7 +339,7 @@ Before merging/releasing, test on Android and desktop:
     Select each position with controller and direct touch; cancel/reopen and check
     unchanged offers/no charge. Check one/two remaining rewards near the caps.
     Check range/walls, native Get Item animation and lid motion, then
-    prices 20/40/60 in the HUD with no purchase dialog or duplicate charges.
+    prices 20/25/32/41 in the HUD with no purchase dialog or duplicate charges.
     Verify enemies/timer pause but Link and the item/camera finish normally.
     Press Open during sword/spin attacks, bow draw, boomerang throw and damage
     reactions; the chest must interrupt immediately without a delayed projectile.
@@ -340,7 +363,7 @@ Before merging/releasing, test on Android and desktop:
     shield bashes and balls still stagger. Test a ball through a group, including
     outbound/return hits at the turnaround. Verify native chain and throw/pull/catch.
 16. Compare bomb rank/Reach blast visuals and radius. Unlock Fire Arrows after Bow,
-    then check flame, damage upgrades and cleanup on death/restart/mod unload.
+    then check 1 damage/second for 3 seconds, refresh while firing rapidly, higher periodic damage and the rank-4 duration increase. Check cleanup on death/restart/mod unload.
 17. Fire Ball and Chain while standing, moving and locking on. Check release,
     outbound travel, pull/catch, and interruption by damage or opening a chest.
 18. Check each chest reward's Get Item text, including any additional pages.
@@ -362,7 +385,16 @@ Before merging/releasing, test on Android and desktop:
     mixed empty/full/missing bottles, overflow currency and cancel/reopen stability.
     Check Luck's +10% increments, reset and appearance in the power-up overview.
 
-Automated tests cover rarity/drop distributions at 0/10/50% Luck, colored card
+22. Collect Dark Link, verify the Poe Soul icon/Get Item text and automatic-only
+    wheel slot, first activation at 20 seconds for 5 seconds, x2 damage for every
+    weapon/burn/multihit, pause behavior and permanent rank 11. Check that leaving
+    Survivors restores normal story Dark Link settings and gauge behavior.
+23. Compare Dual Wield ranks 1–5 against a close group (2–6 targets). Check walls,
+    high/far enemies, duplicate capsule hits and ordinary native death rewards.
+
+Automated tests cover burn timing/refresh/final ticks and emitter cleanup,
+Dark Link timing/pause/caps/visual isolation, nearest-target multihit selection,
+duplicate suppression and rarity/drop distributions at 0/10/50% Luck, colored card
 previews, multi-rank grants and overflow, potion transactions and cancellation,
 continuous melee facing while orbiting, target retention/replacement, rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared

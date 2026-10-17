@@ -105,23 +105,24 @@ int main() {
     const auto rng = run.random;
     assert(!run.buy_chest(wallet, reward) && wallet == 19 && run.random == rng && run.chest_cost() == 20);
     wallet = 20;
-    assert(run.buy_chest(wallet, reward) && wallet == 0 && run.chest_cost() == 40);
+    assert(run.buy_chest(wallet, reward) && wallet == 0 && run.chest_cost() == 25);
     assert((reward == ChestReward::OrdonSword && run.dual_wield) || (reward == ChestReward::Shield && run.shield==1) ||
+           (reward == ChestReward::DarkLink && run.dark_link) ||
            (reward == ChestReward::MasterSword && run.master_sword) ||
            (run.rank(chest_weapon(reward)) == 1 && run.eligible(chest_weapon(reward)))); // Even with four occupied passives.
     assert(!run.tick(true)); // Get Item cannot advance encounter time.
     run.start(20); run.phase = Phase::Treasure;
     wallet = 100000;
-    for (unsigned n = 0; n < 36; ++n) {
-        assert(run.chest_cost() == 20 * (n + 1));
+    for (unsigned n = 0; n < 51; ++n) {
+        assert(run.chest_cost() == 20+n*(n+4));
         reward = run.roll_chest_offers()[0];
         assert(run.buy_chest(wallet, reward) && run.rank(chest_weapon(reward)) <= 5);
     }
-    assert(wallet == 86680 && !run.chest_rewards_left());
+    assert(wallet == 50955 && !run.chest_rewards_left());
     assert(run.master_sword==5 && run.sword_bonus() == 7 && run.dual_wield && run.shield==10);
     assert(run.chest_rewards_left(true)); // A refill remains available after all weapons.
     const auto maxedRng = run.random;
-    assert(!run.buy_chest(wallet, reward) && wallet == 86680 && run.random == maxedRng);
+    assert(!run.buy_chest(wallet, reward) && wallet == 50955 && run.random == maxedRng);
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
         const auto weapon = static_cast<Upgrade>(i);
         assert(run.rank(weapon) == 5 && !run.eligible(weapon));
@@ -145,7 +146,7 @@ int main() {
         assert(!choices.master_sword&&!choices.dual_wield&&choices.rank(Upgrade::Bow)==0);
         assert(choices.random==rng&&money==0);
         assert(!choices.buy_chest(money,ChestReward::Count));
-        choices.ranks.fill(5);choices.master_sword=5;choices.dual_wield=true;choices.shield=9;
+        choices.ranks.fill(5);choices.master_sword=5;choices.dual_wield=5;choices.dark_link=11;choices.shield=9;
         auto few=choices.roll_chest_offers(true);
         assert(few[0]!=few[1]&&few[2]==ChestReward::Count);
         assert((few[0]==ChestReward::Shield||few[1]==ChestReward::Shield));
@@ -159,6 +160,35 @@ int main() {
     assert(run.chests_opened == 0 && run.chest_cost() == 20 && run.chest_rewards_left());
     wallet = 100;
     assert(!run.buy_chest(wallet, reward) && wallet == 100); // No purchase outside the reward phase.
+    // Exact pricing, burn ranks, timed Dark Link and capped multihit grants.
+    Run effects; effects.start(7);
+    for(unsigned n=0;n<5;++n){effects.chests_opened=n;assert((effects.chest_cost()==std::array<unsigned,5>{20,25,32,41,52}[n]));}
+    for(unsigned rank=1;rank<=5;++rank){effects.ranks[unsigned(Upgrade::FireArrows)]=rank;
+        assert(effects.burn_damage()==rank&&effects.burn_duration()==(rank<4?90u:120u));}
+    effects.dark_link=1;
+    for(unsigned i=0;i<599;++i)effects.tick(true);
+    assert(!effects.dark_active()&&effects.damage_multiplier()==1);
+    effects.tick(true);assert(effects.dark_active()&&effects.dark_remaining==150&&effects.damage_multiplier()==2);
+    for(auto phase:{Phase::Upgrade,Phase::TreasureChoice,Phase::Treasure}){
+        effects.phase=phase;for(int i=0;i<100;++i)effects.tick(true);
+        assert(effects.dark_remaining==150&&effects.dark_clock==0);
+    }
+    effects.phase=Phase::Running;effects.tick(false);assert(effects.dark_remaining==150);
+    for(unsigned i=0;i<150;++i)effects.tick(true);
+    assert(!effects.dark_active());
+    for(unsigned rank=2;rank<=11;++rank){effects.dark_link=rank;
+        assert(effects.dark_interval()==(20-2*(rank/2))*30);
+        assert(effects.dark_duration()==(5+(rank-1)/2)*30);
+        assert(effects.chest_eligible(ChestReward::DarkLink)==(rank<11));}
+    assert(effects.dark_permanent()&&effects.dark_active()&&effects.damage_multiplier()==2);
+    effects.dark_link=9;effects.phase=Phase::Treasure;effects.chests_opened=0;unsigned money=100;
+    assert(effects.buy_chest(money,ChestReward::DarkLink,false,Rarity::Orange));
+    assert(effects.dark_link==11&&effects.dark_permanent()&&money==140);
+    effects.dual_wield=0;effects.chests_opened=0;
+    assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Common)&&effects.melee_targets()==2);
+    assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Orange)&&effects.melee_targets()==6);
+    assert(!effects.chest_eligible(ChestReward::OrdonSword));
+    effects.start(7);assert(!effects.dark_active()&&!effects.dark_clock&&!effects.dual_wield&&effects.damage_multiplier()==1);
     Records records;
     records.finish(run); assert(records.runs == 0); // Live runs cannot become records.
     run.end(false); assert(run.phase == Phase::Defeat && !run.tick(true));

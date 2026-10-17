@@ -8,6 +8,7 @@ core=(root/'src/survivors.cpp').read_text()
 start=core.index('bool pause_run_actor(')
 source+=core[start:core.index('\nHookAction before_process', start)]
 fixture=r'''
+constexpr int dItemNo_POU_SPIRIT_e=0xe0;
 
 #include <cassert>
 #include <cstdint>
@@ -109,7 +110,7 @@ void dComIfGp_event_reset(){++reset;running=false;event.mPt2=-1;}
 int fopAcM_GetRoomNo(Actor*){return 0;}
 int fopAcM_delete(Actor*){if(!deleteAllowed)return 0;alive=false;++deleted;return 1;}
 int fopAcM_createDemoItem(Vec*,int item,int bit,void*,int,void*,u8 flags){
-    assert(item>=10&&item<=27&&bit==-1&&flags==1);prop.itemNo=item; // Presentation-only, no inventory grant.
+    assert(((item>=10&&item<=27)||item==dItemNo_POU_SPIRIT_e)&&bit==-1&&flags==1);prop.itemNo=item; // Presentation-only, no inventory grant.
     assert(currentLayer==player.layer_tag.layer&&currentLayer!=&rootLayer);
     ++created;if(createFails)return -1;
     alive=true;prop.id=100;prop.name=fpcNm_Demo_Item_e;return prop.id;
@@ -204,7 +205,7 @@ int main(){
         if(reason==4)s_loot.ready=false;
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
-        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=true;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
+        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=5;s_run.dark_link=11;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!open_first()&&created==0&&rupees==100);
     }
     // Cancel and reopen retain the same offers and never charge or reroll.
@@ -214,7 +215,7 @@ int main(){
     assert(begin_treasure_choice(0,&player));assert(s_chests[0].offers==savedOffers&&s_chests[0].rarities==savedRarities&&s_run.random==savedRng);
     window=1;cancel_treasure_demo();assert(window==0&&s_selectedChest==kChestCount&&s_run.phase==Phase::Running);
     // Fully exhausted cached offers refresh, while partially usable ones stay fixed.
-    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=true;
+    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=5;s_run.dark_link=11;
     assert(begin_treasure_choice(0,&player));
     for(auto offer:s_chests[0].offers)assert(offer!=ChestReward::OrdonSword);
     // Revalidate affordability and chosen eligibility after the UI closes.
@@ -255,7 +256,7 @@ int main(){
     update_treasure_demo(&player);assert(s_chests[0].opening&&s_chests[0].age==1&&rupees==100);
     const auto syncedBefore=inventorySyncs;
     eventEnded=true;update_treasure_demo(&player);assert(inventorySyncs==syncedBefore+1);
-    assert(s_run.phase==Phase::Running&&rupees==80&&s_run.chest_cost()==40);
+    assert(s_run.phase==Phase::Running&&rupees==80&&s_run.chest_cost()==25);
     assert(!s_chests[0].active&&s_run.chests_opened==1&&reset==1&&!alive);
     if (reward<=ChestReward::Ball) assert(s_run.rank(chest_weapon(reward))==1);
     update_treasure_demo(&player);assert(rupees==80&&s_run.chests_opened==1);
@@ -266,7 +267,7 @@ int main(){
     assert(s_run.phase==Phase::TreasureChoice&&player.mProcID==daAlink_c::PROC_WAIT);
     assert(!mDoCPd_c::pad.mPressedButtonFlags&&!s_wavePending&&s_comboStep==0);
     // Sword ranks are chest-only and equip the native sword after presentation.
-    fresh();s_run.dual_wield=true;s_run.shield=10;for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    fresh();s_run.dual_wield=5;s_run.dark_link=11;s_run.shield=10;for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
     assert(open_first()&&s_chests[0].reward==ChestReward::MasterSword);
     assert(prop.itemNo==dItemNo_MASTER_SWORD_e && swordGrants==0);
     accept();eventEnded=true;update_treasure_demo(&player);
@@ -281,7 +282,7 @@ int main(){
         assert(s_run.master_sword==n&&equippedSword==expected);
     }
     assert(!s_run.chest_rewards_left());
-    fresh();s_run.master_sword=5;s_run.dual_wield=true;
+    fresh();s_run.master_sword=5;s_run.dual_wield=5;s_run.dark_link=11;
     for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
     for(unsigned n=1;n<=10;++n){
         s_chests[0].active=true;s_chests[0].position={0,0,100};rupees=1000;eventEnded=false;
@@ -291,13 +292,20 @@ int main(){
         assert(s_run.block_chance()==5*n&&equippedShield==expected);
     }
     assert(!s_run.chest_rewards_left());
-    fresh();s_run.master_sword=5;s_run.shield=10;
+    fresh();s_run.master_sword=5;s_run.shield=10;s_run.dark_link=11;s_run.dual_wield=4;
     for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
     assert(open_first()&&prop.itemNo==dItemNo_SWORD_e);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dual_wield&&!s_run.chest_rewards_left());
+    // Dark Link is a deferred Poe Soul presentation, not a story Poe grant.
+    fresh();assert(begin_treasure_choice(0,&player));s_chests[0].offers[0]=ChestReward::DarkLink;
+    s_chests[0].rarities[0]=Rarity::Common;unsigned darkChoice=0;
+    select_treasure(nullptr,&darkChoice);update_treasure_choice(&player);
+    assert(prop.itemNo==dItemNo_POU_SPIRIT_e&&!s_run.dark_link&&rupees==100);
+    accept();eventEnded=true;update_treasure_demo(&player);
+    assert(s_run.dark_link==1&&rupees==80&&!s_chests[0].active&&swordGrants==0&&potionGrants==0);
     // Potion rewards fill a new slot first, even with an existing empty bottle.
-    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=true;s_run.shield=10;rupees=1000;
+    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=5;s_run.dark_link=11;s_run.shield=10;rupees=1000;
     for(unsigned n=0;n<4;++n){
         s_chests[0]={};s_chests[0].active=true;s_chests[0].position={0,0,100};
         if(n>0)bottles[0]=dItemNo_EMPTY_BOTTLE_e;
@@ -309,20 +317,20 @@ int main(){
         assert(bottles[n]==dItemNo_RED_BOTTLE_e && potionGrants==int(n+1)&&!s_chests[0].active);
         if(n>0)assert(bottles[0]==dItemNo_EMPTY_BOTTLE_e);
     }
-    assert(rupees==800&&s_run.chest_cost()==100&&potion_slot()==SLOT_11);
+    assert(rupees==882&&s_run.chest_cost()==52&&potion_slot()==SLOT_11);
     s_chests[0].active=true;s_chests[0].position={0,0,100};
     assert(open_first());accept();update_treasure_demo(&player);
-    assert(potionGrants==5&&potion_slot()==-1&&rupees==700);
+    assert(potionGrants==5&&potion_slot()==-1&&rupees==830);
     s_chests[0].active=true;s_chests[0].position={0,0,100};
     assert(!open_first()); // Four full bottles: no wasted paid reward.
     bottles[2]=dItemNo_EMPTY_BOTTLE_e;
     assert(open_first());accept();update_treasure_demo(&player);
-    assert(bottles[2]==dItemNo_RED_BOTTLE_e&&potionGrants==6&&rupees==580);
+    assert(bottles[2]==dItemNo_RED_BOTTLE_e&&potionGrants==6&&rupees==765);
     // Another system filling the reserved bottle during loading must not be overwritten.
     s_chests[0].active=true;s_chests[0].position={0,0,100};bottles[1]=dItemNo_EMPTY_BOTTLE_e;
     assert(open_first());bottles[1]=99;
     accept();update_treasure_demo(&player);
-    assert(bottles[1]==99&&rupees==580&&s_run.chests_opened==6&&s_chests[0].active);
+    assert(bottles[1]==99&&rupees==765&&s_run.chests_opened==6&&s_chests[0].active);
     // Orange potion grants four bottles, then pays the fifth unit as rupees.
     fresh();s_chests[0].offers={ChestReward::RedPotion,ChestReward::Count,ChestReward::Count};
     assert(open_first(Rarity::Orange)&&s_treasure.potions==4&&s_treasure.bonusRupees==20);
@@ -339,7 +347,7 @@ int main(){
     fresh();s_run.shield=5;s_chests[0].offers={ChestReward::Shield,ChestReward::Count,ChestReward::Count};
     assert(open_first(Rarity::Purple)&&prop.itemNo==dItemNo_HYLIA_SHIELD_e);
     accept();eventEnded=true;update_treasure_demo(&player);
-    assert(s_run.shield==9&&equippedShield==dItemNo_HYLIA_SHIELD_e&&rupees==80&&s_run.chest_cost()==40);
+    assert(s_run.shield==9&&equippedShield==dItemNo_HYLIA_SHIELD_e&&rupees==80&&s_run.chest_cost()==25);
     // Async failure, order timeout, interrupted event: no charge or reward.
     for(unsigned reason=0;reason<3;++reason){
         fresh();assert(open_first());

@@ -204,7 +204,7 @@ int main(){
     assert(ball.active&&ball.returning&&ball.ballVictimCount==0);
     reset();s_run.ranks[8]=1;s_run.ranks[12]=3;
     assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
-    assert(s_attacks[8].collider.material==dCcD_MTRL_FIRE&&s_attacks[8].collider.power==9);
+    assert(s_attacks[8].collider.material==dCcD_MTRL_NONE&&s_attacks[8].collider.power==3);
     update_item_attack(s_attacks[8],&player);assert(s_attacks[8].emitters[0]);
     for(unsigned rank:{1u,5u}){
         reset();s_run.ranks[10]=rank;s_run.ranks[5]=2;effectScales.clear();

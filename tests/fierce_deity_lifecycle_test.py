@@ -34,6 +34,9 @@ fixture = r'''
 #include <cstring>
 #include <map>
 #include <string>
+bool survivorsMode=false, survivorsDark=false;
+bool survivors_active(){return survivorsMode;}
+bool survivors_dark_link_active(){return survivorsDark;}
 using u8 = uint8_t;
 using u16 = uint16_t;
 using u32 = uint32_t;
@@ -428,6 +431,20 @@ int main() {
     tick(link);
     assert(link.modelAlive && !s_preload.archive);
     finish(link);
+    // Survivors owns activation and damage. Tint/aura do not reload clothing,
+    // consume the story meter, or restart the aura every frame while enabled=false.
+    start(link);enabled=false;survivorsMode=true;survivorsDark=true;
+    s_state.meter=37;const auto stops=auraStops;const auto swaps=loads;
+    const auto spins=spinUpdates,drains=drainUpdates;
+    ticks(link,20);
+    assert(fierce_deity_active()&&fierce_deity_dark_visual_active());
+    assert(fierce_deity_displayed_tint()==FierceDeityTint::Dark&&auraActive);
+    assert(s_state.meter==37&&!s_state.active&&auraStops==stops&&loads==swaps);
+    assert(spinUpdates==spins&&drainUpdates==drains);
+    survivorsDark=false;tick(link);
+    assert(!fierce_deity_active()&&!fierce_deity_dark_visual_active()&&!auraActive);
+    assert(fierce_deity_displayed_tint()==FierceDeityTint::None);
+    survivorsMode=false;finish(link);
 }
 '''
 

@@ -53,6 +53,7 @@ jobs:
           /tmp/survivors-rules-test
           python3 tests/survivors_lifecycle_test.py
           python3 tests/survivors_defense_test.py
+          python3 tests/survivors_status_test.py
           python3 tests/survivors_treasure_test.py
           python3 tests/survivors_loot_test.py
           python3 tests/survivors_loot_resources_test.py

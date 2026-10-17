@@ -22,7 +22,7 @@ fixture = r'''
 using namespace dawnlight::survivors;
 using u8=uint8_t;
 using u32=uint32_t;
-constexpr int SLOT_0=0,SLOT_4=4,SLOT_6=6,SLOT_11=11,SLOT_14=14,SLOT_15=15,SLOT_20=20,SLOT_21=21,SLOT_22=22,MAX_ITEM_SLOTS=24;
+constexpr int SLOT_0=0,SLOT_4=4,SLOT_6=6,SLOT_11=11,SLOT_14=14,SLOT_15=15,SLOT_20=20,SLOT_21=21,SLOT_22=22,SLOT_23=23,MAX_ITEM_SLOTS=24;
 // ITEM_ENUM
 std::array<u8,24> inventory;
 u8 dComIfGs_getItem(int slot,bool){return slot<24?inventory[slot]:u8(dItemNo_NONE_e);}
@@ -98,7 +98,7 @@ int main(){
   assert(prepare_treasure_message(reward,before,after,Rarity::Common));const auto changes=reward_changes(reward,before,after);
   auto red=red_segments(treasure_message_id());assert(red.size()==changes.size());
   for(unsigned i=0;i<changes.size();++i)assert(red[i]==changes[i].before+" -> "+changes[i].after&&changes[i].before!=changes[i].after);
-  if(reward==ChestReward::Bow&&level==2){auto text=plain(treasure_message_id());assert(text.find("Arrows: 1 -> 2")!=std::string::npos);assert(text.find("Damage: 10 -> 11")!=std::string::npos);}
+  if(reward==ChestReward::Bow&&level==2){auto text=plain(treasure_message_id());assert(text.find("Arrows: 1 -> 2")!=std::string::npos);assert(text.find("Damage: 6 -> 7")!=std::string::npos);}
  }
  before=s_run;before.master_sword=4;before.ranks[0]=3;after=before;after.master_sword=5;
  assert(prepare_treasure_message(ChestReward::MasterSword,before,after,Rarity::Common));
@@ -125,10 +125,11 @@ int main(){
  assert(plain(treasure_message_id()).find("Excess reward: 0 -> +20 rupees")!=std::string::npos);
  inventory=savedBottles;
  auto bottles=inventory;sync_survivors_inventory();assert(inventory==bottles);
- s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;s_run.master_sword=5;s_run.shield=7;s_run.dual_wield=true;
+ s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;s_run.master_sword=5;s_run.shield=7;s_run.dual_wield=1;s_run.dark_link=1;
  sync_survivors_inventory();
  assert(inventory[4]==dItemNo_BOW_e&&inventory[0]==dItemNo_BOOMERANG_e&&inventory[15]==dItemNo_NORMAL_BOMB_e&&inventory[6]==dItemNo_IRONBALL_e);
  assert(inventory[20]==dItemNo_LIGHT_SWORD_e&&inventory[21]==dItemNo_SWORD_e&&inventory[22]==dItemNo_HYLIA_SHIELD_e);
+ assert(inventory[23]==dItemNo_POU_SPIRIT_e&&inventory_reward(23)==ChestReward::DarkLink);
  for(int i=11;i<=14;++i)assert(inventory[i]==bottles[i]);
  auto* status=&g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA();
  for(int button=0;button<4;++button)for(unsigned slot=0;slot<256;++slot){
@@ -150,7 +151,7 @@ int main(){
  const auto oldDescription=explain.field_0xc8;s_run.ranks[12]=5;s_run.ranks[8]=5;
  after_item_explain(nullptr,explainArgs,&opened,nullptr);
  assert(explain.field_0xc8==oldDescription&&explain.field_0xd0==~0u);
- assert(plain(explain.field_0xc8).find("3 arrows/shot")!=std::string::npos&&plain(explain.field_0xc8).find("Fire Lv.5 (+10 dmg)")!=std::string::npos);
+ assert(plain(explain.field_0xc8).find("3 arrows/shot")!=std::string::npos&&plain(explain.field_0xc8).find("Fire Lv.5 (5/s, 4.00s)")!=std::string::npos);
  opened=0;const auto id=explain.field_0xc8;after_item_explain(nullptr,explainArgs,&opened,nullptr);assert(explain.field_0xc8==id);
  for(unsigned rank=0;rank<=5;++rank){
   Run run;run.ranks.fill(rank);run.master_sword=rank;run.shield=rank*2;
@@ -159,6 +160,14 @@ int main(){
    size_t start=0,end;do{end=text.find('\n',start);assert((end==std::string::npos?text.size():end)-start<=54);start=end+1;}while(end!=std::string::npos);
   }
  }
+ before=s_run;before.dark_link=10;after=before;after.dark_link=11;
+ assert(prepare_treasure_message(ChestReward::DarkLink,before,after,Rarity::Common));
+ assert(native_icon(treasure_message_id())==dItemNo_POU_SPIRIT_e);
+ assert(plain(treasure_message_id()).find("Duration: 9.00s -> infinite")!=std::string::npos);
+ assert(item_description(ChestReward::DarkLink,after).find("permanently active")!=std::string::npos);
+ before=s_run;after=before;after.dual_wield=2;
+ assert(prepare_treasure_message(ChestReward::OrdonSword,before,after,Rarity::Common));
+ assert(plain(treasure_message_id()).find("Melee targets: 2 -> 3")!=std::string::npos);
  assert(messages.size()==18); // Six languages per reward/name/description, never accumulated.
  // Native IDs work with the original global-archive selection and item-icon code.
  for(unsigned shield:{1u,4u,7u})for(unsigned master:{1u,5u})for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward){

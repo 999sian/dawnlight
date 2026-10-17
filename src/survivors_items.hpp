@@ -22,6 +22,7 @@ inline const char* reward_name(ChestReward reward, const Run& run) {
     if (reward <= ChestReward::Ball) return names[unsigned(chest_weapon(reward))];
     if (reward == ChestReward::MasterSword) return run.master_sword >= 5 ? "Light Sword" : "Master Sword";
     if (reward == ChestReward::OrdonSword) return "Ordon Sword";
+    if (reward == ChestReward::DarkLink) return "Dark Link";
     if (reward == ChestReward::Shield) return run.shield_tier() == 2 ? "Hylian Shield" : run.shield_tier() == 1 ? "Ordon Shield" : "Wooden Shield";
     return "Red Potion";
 }
@@ -45,7 +46,17 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
         for (auto weapon : {Upgrade::Wave, Upgrade::Spin}) if (after.rank(weapon))
             add(weapon == Upgrade::Wave ? "Wave damage" : "Spin damage", number(before.attack_power(unsigned(weapon))), number(after.attack_power(unsigned(weapon))));
         if (after.master_sword == 5) add("Light Sword", "off", "on");
-    } else if (reward == ChestReward::OrdonSword) add("Dual Wield", "off", "on");
+    } else if (reward == ChestReward::OrdonSword) {
+        add("Dual Wield level", number(before.dual_wield), number(after.dual_wield));
+        add("Melee targets", number(before.melee_targets()), number(after.melee_targets()));
+    } else if (reward == ChestReward::DarkLink) {
+        add("Level", number(before.dark_link), number(after.dark_link));
+        add("Damage multiplier", before.dark_link ? "x2" : "x1", "x2");
+        add("Activation interval", before.dark_link ? seconds(before.dark_interval()) : "off",
+            after.dark_permanent() ? "always active" : seconds(after.dark_interval()));
+        add("Duration", before.dark_link ? seconds(before.dark_duration()) : "off",
+            after.dark_permanent() ? "infinite" : seconds(after.dark_duration()));
+    }
     else if (reward == ChestReward::Shield) add("Block chance", number(before.block_chance()) + "%", number(after.block_chance()) + "%");
     return changes;
 }
@@ -56,7 +67,7 @@ inline std::string item_description(ChestReward reward, const Run& run) {
     if (reward <= ChestReward::Ball) {
         const auto weapon = chest_weapon(reward);
         const std::string stats = "Lv." + number(run.rank(weapon)) + " | Damage " + number(item_damage(run, weapon)) + " | Interval " + seconds(run.item_cooldown(weapon));
-        if (weapon == Upgrade::Bow) return "Auto-aim; no ammo. " + number(arrow_count(run)) + " arrows/shot.\n" + stats + "\nFire Lv." + number(run.rank(Upgrade::FireArrows)) + " (+" + number(run.rank(Upgrade::FireArrows) * 2) + " dmg); radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
+        if (weapon == Upgrade::Bow) return "Auto-aim; no ammo. " + number(arrow_count(run)) + " arrows/shot.\n" + stats + "\nFire Lv." + number(run.rank(Upgrade::FireArrows)) + " (" + number(run.burn_damage()) + "/s, " + seconds(run.burn_duration()) + ")" + "\n" + bonuses;
         if (weapon == Upgrade::Boomerang) return "Auto Gale throw; hits out and back.\n" + stats + "\n" + number(run.rank(weapon)) + " extra targets; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
         if (weapon == Upgrade::Bombs) return "Auto-aim throw; area explosion, no ammo.\n" + stats + "\nBlast radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
         return "Auto throw; pierces out/back, staggers.\n" + stats + "\nRange " + number(unsigned(run.radius(900))) + "; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
@@ -68,11 +79,15 @@ inline std::string item_description(ChestReward reward, const Run& run) {
     }
     if (reward == ChestReward::OrdonSword || reward == ChestReward::MasterSword) {
         const unsigned waves = run.rank(Upgrade::Wave) >= 5 ? 3 : run.rank(Upgrade::Wave) >= 3 ? 2 : 1;
-        return (reward == ChestReward::OrdonSword ? std::string("Dual Wield; auto combos") : "Sword Lv." + number(run.master_sword) + "; bonus +" + number(run.sword_bonus())) +
+        return (reward == ChestReward::OrdonSword ? "Dual Wield Lv." + number(run.dual_wield) + "; " + number(run.melee_targets()) + " targets" : "Sword Lv." + number(run.master_sword) + "; bonus +" + number(run.sword_bonus())) +
             "; melee " + number(3 + run.rank(Upgrade::Power) + run.sword_bonus()) +
             "\nWave Lv." + number(run.rank(Upgrade::Wave)) + ": " + (run.rank(Upgrade::Wave) ? number(waves) + " piercing, " + number(run.attack_power(0)) + " dmg/" + seconds(run.cooldown(40)) : "locked") +
             "\nSpin Lv." + number(run.rank(Upgrade::Spin)) + ": " + (run.rank(Upgrade::Spin) ? "moving, " + number(run.attack_power(1)) + " dmg/" + seconds(run.cooldown(100)) : "locked") + "\n" + bonuses;
     }
+    if (reward == ChestReward::DarkLink) return "Automatic Dark Link; all damage x2.\nLv." + number(run.dark_link) +
+        (run.dark_permanent() ? "; permanently active" : "; every " + seconds(run.dark_interval())) +
+        "\nDuration: " + (run.dark_permanent() ? std::string("infinite") : seconds(run.dark_duration())) +
+        "\nUpgrades alternate interval and duration.";
     return "Restores up to 8 hearts when used.\nBottles can be assigned to item buttons.\nChest rewards add bottles up to four,\nthen refill empty bottles.";
 }
 inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
@@ -83,7 +98,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::Reach: return "+" + number(15 * rank) + "% attack size";
     case Upgrade::Magnet: return number(150 + 65 * rank) + " pickup range";
     case Upgrade::Heart: return number(3 + rank) + " maximum hearts";
-    case Upgrade::FireArrows: return "+" + number(2 * rank) + " fire damage";
+    case Upgrade::FireArrows: return number(run.burn_damage()) + " damage/s for " + seconds(run.burn_duration());
     case Upgrade::Luck: return "+" + number(run.luck_percent() - 100) + "% Luck";
     case Upgrade::Rupees: return "+20 rupees";
     default: return "Level " + number(rank);

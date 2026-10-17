@@ -86,6 +86,7 @@ HookAction before_enemy_hit(ModContext*, void* args, void*, void*) {
     if (!actor || !in_arena() || s_run.phase != Phase::Running) return HOOK_CONTINUE;
     auto* enemy = tracked(fopAcM_GetID(actor));
     if (!enemy || !enemy->initialized || enemy->retiring || enemy->credited) return HOOK_CONTINUE;
+    prepare_effect_hit(actor, *enemy);
     HitState state; state.args = args; state.actor = actor; state.profile = enemy->profile;
     cCcD_Obj* attack = nullptr;
     if (state.profile == fpcNm_E_OC_e) {
@@ -125,6 +126,7 @@ HookAction before_enemy_hit(ModContext*, void* args, void*, void*) {
 void after_enemy_hit(ModContext*, void* args, void*, void*) {
     if (s_hitStates.empty() || s_hitStates.back().args != args) return;
     const auto state = s_hitStates.back(); s_hitStates.pop_back();
+    finish_effect_hit(state.actor, state.profile);
     if (!state.suppress || state.actor->health <= (state.profile == fpcNm_E_OC_e ? 1 : 0)) return;
     if (state.profile == fpcNm_E_OC_e) {
         auto* e = static_cast<daE_OC_c*>(state.actor);
@@ -166,6 +168,7 @@ HookAction before_hit_material(ModContext*, void* args, void*, void*) {
     return HOOK_CONTINUE;
 }
 void after_hit_material(ModContext*, void* args, void*, void*) {
+    record_status_hit(mods::arg<fopAc_ac_c*>(args, 0), mods::arg<dCcU_AtInfo*>(args, 1));
     if (s_hitMaterials.empty() || s_hitMaterials.back().args != args) return;
     s_hitMaterials.back().collider->SetAtMtrl(dCcD_MTRL_LIGHT);
     s_hitMaterials.pop_back();

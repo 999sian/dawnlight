@@ -95,16 +95,17 @@ HookAction before_treasure_text_update(ModContext*, void* args, void*, void*) {
 
 // Existing item slots for weapons; unused quest slots for the two swords and
 // shield. This inventory belongs only to the isolated Survivors save.
-constexpr std::array<int, 7> kSurvivorsSlots{SLOT_4, SLOT_0, SLOT_15, SLOT_6, SLOT_20, SLOT_21, SLOT_22};
+constexpr std::array<int, 8> kSurvivorsSlots{SLOT_4, SLOT_0, SLOT_15, SLOT_6, SLOT_20, SLOT_21, SLOT_22, SLOT_23};
 void sync_survivors_inventory() {
-    const std::array<u8, 7> items{
+    const std::array<u8, 8> items{
         u8(s_run.rank(Upgrade::Bow) ? dItemNo_BOW_e : dItemNo_NONE_e),
         u8(s_run.rank(Upgrade::Boomerang) ? dItemNo_BOOMERANG_e : dItemNo_NONE_e),
         u8(s_run.rank(Upgrade::Bombs) ? dItemNo_NORMAL_BOMB_e : dItemNo_NONE_e),
         u8(s_run.rank(Upgrade::Ball) ? dItemNo_IRONBALL_e : dItemNo_NONE_e),
         u8(s_run.master_sword ? (s_run.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e) : dItemNo_NONE_e),
         u8(s_run.dual_wield ? dItemNo_SWORD_e : dItemNo_NONE_e),
-        s_run.shield ? shield_item(s_run) : u8(dItemNo_NONE_e)};
+        s_run.shield ? shield_item(s_run) : u8(dItemNo_NONE_e),
+        u8(s_run.dark_link ? dItemNo_POU_SPIRIT_e : dItemNo_NONE_e)};
     for (unsigned i = 0; i < items.size(); ++i)
         if (dComIfGs_getItem(kSurvivorsSlots[i], false) != items[i])
             dComIfGs_setItem(kSurvivorsSlots[i], items[i]);
@@ -132,7 +133,7 @@ HookAction before_item_mix(ModContext*, void* args, void*, void*) {
 ChestReward inventory_reward(u8 slot) {
     for (unsigned i = 0; i < kSurvivorsSlots.size(); ++i) if (slot == kSurvivorsSlots[i]) {
         if (i < 4) return static_cast<ChestReward>(i);
-        return i == 4 ? ChestReward::MasterSword : i == 5 ? ChestReward::OrdonSword : ChestReward::Shield;
+        return i == 4 ? ChestReward::MasterSword : i == 5 ? ChestReward::OrdonSword : i == 6 ? ChestReward::Shield : ChestReward::DarkLink;
     }
     return slot >= SLOT_11 && slot <= SLOT_14 && dComIfGs_getItem(slot, false) == dItemNo_RED_BOTTLE_e ?
         ChestReward::RedPotion : ChestReward::Count;

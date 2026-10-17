@@ -58,6 +58,7 @@ unsigned s_spawnCooldown=0, s_spawnFailures=0, s_warmup=0;
 std::array<unsigned,3> s_cooldowns{};
 std::array<int,64> s_orbs{};
 Records s_records;
+void clear_enemy_effects(){}
 void close_powerup_window() {} void close_window() {} void clear_attacks() {} void clear_loot() {} void detach_attack_references() {}
 void d_GameOver_Delete(ActorId) {} void dComIfGp_setGameoverStatus(int) {}
 constexpr int MAX_SELECT_ITEM=4, MAX_ITEM_SLOTS=24, dItemNo_NONE_e=255;
@@ -122,6 +123,7 @@ daAlink_c* daAlink_getAlinkActorClass(){return nullptr;}
 bool native_sword_collider(const Collider*){return false;}
 struct Attack { Collider collider; };
 std::array<Attack,16> s_attacks;
+struct Effect{Collider collider;unsigned damage=0;};std::array<Effect,24>s_effects;
 constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
 struct dCcU_AtInfo { Collider* mpCollider; unsigned mAttackPower; int mHitType=0; };
 unsigned xp=0;

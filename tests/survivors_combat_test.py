@@ -12,7 +12,7 @@ native = (sdk / 'src/d/actor/d_a_alink_cut.inc').read_text()
 
 
 def extract(name, text=source):
-    match = re.search(r'^(?:void|bool|int|HookAction) ' + re.escape(name) + r'\(', text, re.M)
+    match = re.search(r'^(?:void|bool|int|HookAction) ' + re.escape(name) + r'\([^;{}]*\)\s*\{', text, re.M)
     assert match, name
     brace = text.index('{', match.start())
     depth = 0
@@ -134,6 +134,8 @@ u32 dComIfGp_particle_set(u32 id,u16 effect,cXyz*,int*,const csXyz*,void*,int,vo
 void dComIfGp_particle_levelEmitterOnEventMove(u32){}
 struct Attack {bool active=true;unsigned life=10;cXyz position,velocity;cCcD_Obj collider;std::array<u32,2>emitters{};};
 std::array<Attack,projectile_capacity>s_attacks;
+struct Effect{cCcD_Obj collider;unsigned damage=0;};std::array<Effect,24>s_effects;
+void new_melee_swing(){}
 constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
 struct dCcU_AtInfo {cCcD_Obj* mpCollider;unsigned mAttackPower=200;int mHitType=0;};
 HookAction before_drop(ModContext*,void*,void*,void*);

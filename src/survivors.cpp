@@ -138,6 +138,10 @@ ActorId s_meleeTarget = kNone;
 bool s_wavePending = false, s_allowDrop = false;
 std::array<unsigned, unsigned(Upgrade::Rupees)> s_cooldowns{};
 void clear_loot();
+void clear_enemy_effects();
+bool effect_collider(const cCcD_Obj*);
+bool native_sword_collider(const cCcD_Obj*);
+void new_melee_swing();
 void cancel_treasure_demo();
 int potion_slot();
 unsigned potion_capacity();
@@ -232,6 +236,7 @@ void close_window() {
     if (handle) svc_ui->window_close(mod_ctx, handle);
 }
 void retire_enemies() {
+    clear_enemy_effects();
     for (auto& e : s_enemies) if (e.id != kNone) e.retiring = true;
 }
 void cleanup_enemies() {
@@ -249,6 +254,7 @@ void cleanup_enemies() {
 }
 bool own_collider(const cCcD_Obj* collider) {
     if (!collider) return false;
+    if (effect_collider(collider)) return true;
     for (const auto& a : s_attacks) if (collider == &a.collider) return true;
     return false;
 }
@@ -617,6 +623,7 @@ void update_sword(daAlink_c* link) {
         }
     } else if (wave ? link->procCutNormalInit(1) : begin_sword_combo(link)) {
         s_swordAction = SwordAction::Normal; s_wavePending = wave; s_trackMelee = !wave;
+        new_melee_swing();
         if (wave) { s_comboStep = s_comboTimeout = 0; link->mComboCutCount = 0; }
         s_meleeCooldown = s_run.cooldown(30);
         if (wave) s_cooldowns[0] = s_run.cooldown(40);
@@ -642,6 +649,8 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 #include "survivors_ranged.inc"
 #include "survivors_treasure.inc"
 #include "survivors_inventory.inc"
+#include "survivors_status.inc"
+void new_melee_swing() { ++s_meleeSerial; }
 #include "survivors_defense.inc"
 #include "survivors_movement.inc"
 
@@ -679,14 +688,18 @@ void after_power(ModContext*, void* args, void*, void*) {
     if (!s_active) return;
     auto* info = mods::arg<dCcU_AtInfo*>(args, 0);
     if (!info || !info->mpCollider) return;
+    for (const auto& effect : s_effects) if (info->mpCollider == &effect.collider) {
+        info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
+        info->mAttackPower = effect.damage * s_run.damage_multiplier(); return;
+    }
     auto* link = daAlink_getAlinkActorClass();
     if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {
-        info->mAttackPower = s_run.attack_power(unsigned(Upgrade::ShieldAttack)); return;
+        info->mAttackPower = s_run.attack_power(unsigned(Upgrade::ShieldAttack)) * s_run.damage_multiplier(); return;
     }
     if (native_sword_collider(info->mpCollider)) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Keep cc_at_check from doubling the linear value for Master Sword.
-        info->mAttackPower = s_swordAction == SwordAction::Spin ? s_run.attack_power(1) :
-            3 + s_run.rank(Upgrade::Power) + s_run.sword_bonus();
+        info->mAttackPower = (s_swordAction == SwordAction::Spin ? s_run.attack_power(1) :
+            s_run.melee_power()) * s_run.damage_multiplier();
         return;
     }
     for (const auto& attack : s_attacks) {
@@ -695,7 +708,7 @@ void after_power(ModContext*, void* args, void*, void*) {
             // Keep native collision, defense, damage reactions and death handling,
             // but use a linear power value for our own weapons only.
             info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
-            info->mAttackPower = info->mpCollider->GetAtAtp();
+            info->mAttackPower = info->mpCollider->GetAtAtp() * s_run.damage_multiplier();
             return;
         }
     }
@@ -706,6 +719,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (!link || fopAcM_GetID(link) != s_player) return;
     if (dComIfGs_getLife() == 0) { finish(false); return; }
     s_run.tick(true);
+    update_enemy_effects();
     update_spawns(link); update_weapons(link); update_orbs(link);
     if (s_run.level_up()) clear_attacks();
     else update_chests(link);
@@ -975,6 +989,10 @@ bool survivors_dual_wield() {
     return in_arena() && s_run.dual_wield && !shield_pose(daAlink_getAlinkActorClass());
 }
 bool survivors_arena_active() { return in_arena(); }
+bool survivors_dark_link_active() {
+    return in_arena() && s_run.dark_active() && (s_run.phase == Phase::Running ||
+        s_run.phase == Phase::Upgrade || s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Treasure);
+}
 void update_survivors() {
     cleanup_enemies();
     if (s_treasure.retiring) retire_treasure_actor();
@@ -986,7 +1004,7 @@ void update_survivors() {
         }
         return;
     }
-    if (!in_arena() || transitioning()) { close_powerup_window(); clear_attacks(); clear_loot(); s_player = kNone; s_warmup = 0; return; }
+    if (!in_arena() || transitioning()) { close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
     if (s_restart) {

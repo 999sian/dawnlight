@@ -62,6 +62,9 @@ bool near=true;bool enemy_in_range(daAlink_c*,float){return near;}
 cXyz target_direction(daAlink_c*){return {1,0,0};}
 struct Attack{unsigned weapon=0,ballVictimCount=0;Collider collider;std::array<int,enemy_capacity>ballVictims{};};std::array<Attack,24>s_attacks;
 struct dCcU_AtInfo{Collider* mpCollider;};
+void prepare_effect_hit(fopAc_ac_c*,Enemy&){}
+void finish_effect_hit(fopAc_ac_c*,ProfileName){}
+void record_status_hit(fopAc_ac_c*,dCcU_AtInfo*){}
 struct Args{void* first;void* second;};
 namespace mods{template<class T>T arg(void* a,int i){return static_cast<T>(i?static_cast<Args*>(a)->second:static_cast<Args*>(a)->first);}}
 '''

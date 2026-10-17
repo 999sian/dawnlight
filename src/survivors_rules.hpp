@@ -17,7 +17,7 @@ enum class Rarity : unsigned { Common, Green, Blue, Purple, Orange };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
 inline constexpr std::array rarity_names{"Common", "Green", "Blue", "Purple", "Orange"};
 inline constexpr std::array rarity_colors{"#f4d78b", "#7bdd83", "#72b7ff", "#cb91ff", "#ffad54"};
-enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, OrdonSword, Shield, Count };
+enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, OrdonSword, Shield, DarkLink, Count };
 inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
@@ -34,7 +34,7 @@ inline constexpr std::array descriptions{
     "A damaging returning boomerang. Upgrades increase damage, size and firing rate.",
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
-    "Ignite arrows. Upgrades increase fire-arrow damage.",
+    "Ignite enemies for periodic damage. Hits refresh the burn; upgrades improve damage and duration.",
     "Improve reward rarities, heart drops, rupee drops and rupee colors. Each level adds +10% Luck.",
     "Receive 20 rupees."};
 
@@ -42,8 +42,9 @@ struct Run {
     Phase phase = Phase::Loading;
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
-    bool elite_spawned = false, dual_wield = false;
-    unsigned master_sword = 0, shield = 0;
+    bool elite_spawned = false;
+    unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
+    unsigned dark_clock = 0, dark_remaining = 0;
     std::array<unsigned, unsigned(Upgrade::Rupees)> ranks{};
     unsigned chests_opened = 0;
     std::array<Upgrade, 3> offers{};
@@ -112,11 +113,22 @@ struct Run {
         phase = Phase::Running;
         return true;
     }
-    unsigned chest_cost() const { return 20 * (chests_opened + 1); }
+    unsigned chest_cost() const { return 20 + chests_opened * (chests_opened + 4); }
+    unsigned burn_damage() const { return rank(Upgrade::FireArrows); }
+    unsigned burn_duration() const { return (3 + (std::max(1u, rank(Upgrade::FireArrows)) - 1) / 3) * ticks_per_second; }
+    unsigned melee_power() const { return 3 + rank(Upgrade::Power) + sword_bonus(); }
+    unsigned melee_targets() const { return 1 + dual_wield; }
+    static constexpr unsigned dark_max_rank = 11;
+    unsigned dark_interval() const { return (20 - 2 * (std::min(dark_max_rank, dark_link) / 2)) * ticks_per_second; }
+    unsigned dark_duration() const { return (5 + (std::max(1u, dark_link) - 1) / 2) * ticks_per_second; }
+    bool dark_permanent() const { return dark_link >= dark_max_rank; }
+    bool dark_active() const { return dark_link && (dark_permanent() || dark_remaining); }
+    unsigned damage_multiplier() const { return dark_active() ? 2 : 1; }
     bool chest_eligible(ChestReward reward, bool bottle_available = false) const {
         if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < 5;
         if (reward == ChestReward::MasterSword) return master_sword < 5;
-        if (reward == ChestReward::OrdonSword) return !dual_wield;
+        if (reward == ChestReward::OrdonSword) return dual_wield < 5;
+        if (reward == ChestReward::DarkLink) return !dark_permanent();
         if (reward == ChestReward::Shield) return shield < 10;
         return reward == ChestReward::RedPotion && bottle_available;
     }
@@ -144,7 +156,8 @@ struct Run {
         if (reward <= ChestReward::Ball) remaining = 5 - std::min(5u, rank(chest_weapon(reward)));
         else if (reward == ChestReward::MasterSword) remaining = 5 - std::min(5u, master_sword);
         else if (reward == ChestReward::Shield) remaining = 10 - std::min(10u, shield);
-        else if (reward == ChestReward::OrdonSword) remaining = !dual_wield;
+        else if (reward == ChestReward::OrdonSword) remaining = 5 - std::min(5u, dual_wield);
+        else if (reward == ChestReward::DarkLink) remaining = dark_max_rank - std::min(dark_max_rank, dark_link);
         else if (reward == ChestReward::RedPotion) remaining = bottle_capacity;
         return std::min(reward_units(rarity), remaining);
     }
@@ -158,7 +171,8 @@ struct Run {
         const unsigned gain = chest_gain(reward, rarity, bottle_capacity);
         rupees = rupees - chest_cost() + chest_rupees(reward, rarity, bottle_capacity); ++chests_opened;
         if (reward == ChestReward::MasterSword) master_sword += gain;
-        else if (reward == ChestReward::OrdonSword) dual_wield = true;
+        else if (reward == ChestReward::OrdonSword) dual_wield += gain;
+        else if (reward == ChestReward::DarkLink) dark_link += gain;
         else if (reward == ChestReward::Shield) shield += gain;
         else if (reward <= ChestReward::Ball) ranks[unsigned(chest_weapon(reward))] += gain;
         return true;
@@ -170,7 +184,12 @@ struct Run {
     }
     bool tick(bool playable) {
         if (phase != Phase::Running || !playable) return false;
-        ++ticks; return true;
+        ++ticks;
+        if (dark_remaining) --dark_remaining;
+        if (dark_link && !dark_permanent() && ++dark_clock >= dark_interval()) {
+            dark_clock = 0; dark_remaining = dark_duration();
+        }
+        return true;
     }
     unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), enemy_capacity - 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
@@ -194,7 +213,7 @@ struct Run {
     unsigned block_chance() const { return std::min(10u, shield) * 5; }
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }
     unsigned sword_bonus() const { return master_sword ? 2 + master_sword : 0; }
-    unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0) + (weapon == unsigned(Upgrade::Bow) ? rank(Upgrade::FireArrows) * 2 : 0); }
+    unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0); }
     float radius(float base) const { return base * (1.0f + 0.15f * rank(Upgrade::Reach)); }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };

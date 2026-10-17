@@ -212,7 +212,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     // for these custom hits (and damage rather than stun-only for Boomerang).
     a.collider.SetAtType(weapon == Upgrade::Bow ? AT_TYPE_ARROW : AT_TYPE_NORMAL_SWORD);
     a.collider.SetAtAtp(static_cast<u8>(s_run.attack_power(index) + (weapon == Upgrade::Ball ? 3 : 0)));
-    a.collider.SetAtMtrl(weapon == Upgrade::Bow && s_run.rank(Upgrade::FireArrows) ? dCcD_MTRL_FIRE : dCcD_MTRL_NONE);
+    a.collider.SetAtMtrl(dCcD_MTRL_NONE); // Burn is a separate timed status, not native elemental damage.
     a.collider.OnAtNoConHit(); a.collider.ResetAtHit();
     if (weapon == Upgrade::Bombs) a.collider.OffAtSetBit(); else a.collider.OnAtSetBit();
     a.active = true;

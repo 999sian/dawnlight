@@ -8,4 +8,5 @@ void shutdown_survivors();
 bool survivors_active();
 bool survivors_dual_wield();
 bool survivors_arena_active();
+bool survivors_dark_link_active();
 } // namespace dawnlight
