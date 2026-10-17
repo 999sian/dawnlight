@@ -1216,12 +1216,13 @@ bool mode_config_override(ConfigVarHandle var, int64_t& value) {
         case ModeSetting::SprintSpeed:
         case ModeSetting::WolfSpeed: value = 100; return true;
         case ModeSetting::Jump: value = 1; return true;
+        case ModeSetting::DualWield: value = survivors_dual_wield(); return true;
         case ModeSetting::Progression: case ModeSetting::Sprint: case ModeSetting::WolfSprint:
         case ModeSetting::FlurryRush: case ModeSetting::BulletTime: case ModeSetting::EnemyHardMode:
         case ModeSetting::BossHardMode: case ModeSetting::ManualShielding: case ModeSetting::ArrowModes:
         case ModeSetting::GreatSpin: case ModeSetting::NoNormalHitInvulnerability:
         case ModeSetting::Glide: case ModeSetting::Gale: case ModeSetting::FierceDeity:
-        case ModeSetting::Stamina: case ModeSetting::DualWield: case ModeSetting::DisableAutoJump:
+        case ModeSetting::Stamina: case ModeSetting::DisableAutoJump:
             value = 0; return true;
         default: return false;
         }
@@ -1380,7 +1381,7 @@ bool great_spin_projectile_enabled() {
 
 bool dual_wield_enabled() { return get_bool(s_dualWield, false); }
 ConfigVarHandle dual_wield_config_var() { return s_dualWield; }
-SecondSword second_sword() { return static_cast<SecondSword>(get_int(s_secondSword, 1, 0, 2)); }
+SecondSword second_sword() { if (survivors_active()) return SecondSword::Ordon; return static_cast<SecondSword>(get_int(s_secondSword, 1, 0, 2)); }
 ConfigVarHandle second_sword_config_var() { return s_secondSword; }
 
 bool arrow_modes_enabled() {

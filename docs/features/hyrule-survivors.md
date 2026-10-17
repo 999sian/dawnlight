@@ -13,7 +13,7 @@ to the title screen disarms the run until another save is selected and started.
 
 The first version is a ten-minute run in Dawnlight's isolated Darknut arena.
 Start with three hearts and automatic normal sword strikes. Sword Wave starts
-locked, like Whirling Blade and Light Aura. Move, dodge and collect blue experience
+locked, like Whirling Blade. Move, dodge and collect blue experience
 crystals while weapons attack automatically. Manual Jump remains available with
 your configured binding; manual sword attacks and arena exits are disabled.
 Normal strikes aim at nearby enemies and use Link's native sword animation and
@@ -34,11 +34,12 @@ is retained and multiple earned levels are offered consecutively.
 | --- | --- |
 | Sword Wave | Unlock aimed, piercing projectiles released during a normal sword swing; additional waves at levels 3 and 5 |
 | Whirling Blade | Unlock or improve a native Spin Attack with freely steerable movement |
-| Light Aura | Unlock or improve a smaller, more frequent area attack |
+| Shield Attack | Requires a chest shield; automatic native shield bash, with damage, range and cooldown upgrades; retains stagger |
+| Fire Arrows | Requires Hero's Bow; burning arrows with native flame particles and +2 damage per rank |
 | Hero's Bow | Chest unlock; stronger/faster arrows, spread shots at ranks 3 and 5 |
 | Boomerang | Chest unlock; Gale wind effect and one extra target at rank 1; each upgrade adds another hop and improves damage/size/cooldown |
 | Bombs | Chest unlock; aimed ballistic throws with larger, stronger blasts and shorter cooldowns |
-| Ball and Chain | Chest unlock; launch and retract a heavy ball, stronger/larger/faster with upgrades |
+| Ball and Chain | Native throw/pull/catch animation and chain links; pierces to full range, damages each enemy once per leg and retains stagger |
 | Power | Increase automatic weapon damage |
 | Haste | Reduce automatic weapon cooldowns |
 | Reach | Increase weapon size |
@@ -46,12 +47,15 @@ is retained and multiple earned levels are offered consecutively.
 | Heart Container | Add one maximum heart without healing |
 | Rupees | Receive 20 rupees without healing |
 
-Equip all three base weapons, all four chest weapons and up to four different
+Equip both base weapons, all four chest weapons and up to four different
 passive upgrades. Chest weapons do not consume passive slots.
-Weapons and passives have five levels. Rupees remain available after the
-other upgrades reach their caps. Native enemy invulnerability, defense and death
-reactions still apply; the mod replaces the native nonlinear damage table only
-for its own weapons and automatic sword strikes. Sword Wave uses the two smaller
+Weapons, Fire Arrows and Shield Attack have five levels. Rupees remain available after the
+other upgrades reach their caps. Native enemy defense and death reactions still apply. Ordinary nonlethal hits
+keep their hit effects and damage but do not interrupt enemy movement or attacks.
+Shield Attack and Ball and Chain retain native stagger. The ball can hit an enemy
+once on each leg, including a return hit during recovery from its outbound hit; the mod replaces the native nonlinear damage table only
+for its own weapons and automatic sword strikes. Sword Wave always uses the first normal swing, never the combo finisher.
+Sword Wave uses the two smaller
 normal-spin particle effects, following the moving-emitter approach of Great Spin
 Projectile. It does not use the large Great Spin effect or a debug sphere.
 
@@ -87,31 +91,51 @@ opens during this sequence. Currency, reward and price are committed once the
 sequence completes; failed loading or cancellation does not charge rupees.
 
 Each purchase chooses equally among the eligible reward types: Hero's Bow,
-Boomerang, Bombs, Ball and Chain, Master Sword and a bottle of Red Potion.
+Boomerang, Bombs, Ball and Chain, Master Sword, an Ordon Sword for Dual Wield,
+a shield upgrade and a bottle of Red Potion.
 The four automatic item weapons unlock at rank 1; duplicates add one rank up to
 5, and unlocked weapons also enter the normal level-up pool.
 
-Master Sword is a one-time reward per run. Its Get Item presentation uses a
-private instance of Link's sword model instead of the native rupee placeholder.
-It equips automatically and adds 3
-Survivors damage to normal sword strikes, Whirling Blade and Sword Wave.
+Master Sword has five chest ranks. The first find equips it and adds 3 damage;
+each later find adds 1, and the **fifth find equips the Light Sword** with its
+native light effect (7 bonus sword damage total). Sword damage applies to melee,
+Whirling Blade and Sword Wave, without the vanilla light-material 100-damage override.
+Get Item uses a private instance of Link's sword model instead of the native rupee placeholder.
+An Ordon Sword reward enables and equips Dawnlight's existing Dual Wield with an
+Ordon offhand sword. It is offered once per run and does not change story preferences.
+
+Shields provide an automatic block roll against tracked enemy attacks. A successful
+block turns Link toward the attacker and plays the native guard reaction, interrupting
+automatic attacks. Idle lock-on does not grant free blocks. Dual Wield temporarily
+uses the shield during block/bash actions and resumes afterward.
+
+| Shield finds | Block chance | Reward model |
+| --- | --- | --- |
+| 1–3 | 5–15% | Wooden Shield |
+| 4–6 | 20–30% | Ordon Shield |
+| 7–10 | 35–50% | Hylian Shield |
+
+Each shield find adds 5 percentage points. At 50%, shields leave the chest pool.
+After the first shield, Shield Attack can appear in level-up offers. These chest
+shield ranks are separate from the five Shield Attack ranks.
+
 A potion reward adds one new filled bottle while fewer than four bottles are
 owned, even if an existing bottle is empty. Once all four slots are occupied,
 it refills one empty bottle instead. Filled bottles are never overwritten. Red
 Potion can be used normally from the item inventory; drinking it makes that
 empty bottle eligible for a future refill. Four full bottles exclude potions
-from the reward pool until a bottle is emptied. These two rewards are chest-only.
+from the reward pool until a bottle is emptied. Equipment and potions are chest-only.
 
-Maxed weapons and an already-owned Master Sword are excluded. New chests stop
+Maxed weapons, a rank-5 Master Sword, an owned offhand sword and a 50% shield are excluded. New chests stop
 spawning only while no useful reward is available. Each run resets the separate
-Survivors inventory, Master Sword unlock, chest prices and weapon ranks, with
+Survivors inventory, sword/shield ranks, Dual Wield unlock, chest prices and weapon ranks, with
 a giant wallet (at least 1000 capacity) and zero rupees.
 
 All four weapons attack automatically alongside the sword without assigning
-item slots or consuming ammunition. Bow and boomerang use Link's native upper-body
-draw/shoot and throw animations while retaining movement. Link faces the target
+item slots or consuming ammunition. All four use Link's native upper-body animations while retaining movement: bow
+draw/shoot, boomerang throw, bomb throw and ball throw/pull/catch. Link faces the target
 and releases each projectile at its animation cue; higher fire rates accelerate
-the animation. Sword, bow and boomerang animations take turns.
+the animation. Sword, shield bash and item animations take turns; due item weapons rotate fairly.
 They aim at the nearest
 live tracked enemy within range and line of sight. Arrows stop on impact;
 boomerangs use the native Gale wind model/animation and particle trails. They
@@ -119,10 +143,12 @@ chain to one additional enemy at rank 1, then one more per rank (up to six
 different targets at rank 5), before returning to Link. Each hop needs a live
 target within range and line of sight, and cannot revisit an earlier target.
 They deal Survivors damage on their outward/return paths. Bombs follow an
-arc and explode at the target or a wall; the ball launches outward and retracts
-toward Link. Projectiles cannot pass through walls. Power, Haste and Reach also
+arc and explode at the target or a wall; the ball pierces outward to its full range and retracts toward Link.
+Its chain uses the native iron-ball chain geometry/material. Bomb explosions use
+all nine native normal-bomb particle effects, including splash/debris/smoke. Their
+scale follows the upgraded blast radius, while the damage window stays bounded. Projectiles cannot pass through walls. Power, Haste and Reach also
 apply. Custom bomb/ball hits use the linear Survivors damage path to avoid
-vanilla Bokoblin instant-death/health-correction special cases. Native item/chest models and bomb particles are reused; the chest lid
+vanilla Bokoblin instant-death/health-correction special cases. Native item/chest/chain models and bomb particles are reused; the chest lid
 animates during the native reward presentation. These are run-local purchase
 props. The demo item uses the native presentation-only flag; successful
 completion explicitly grants Master Sword/bottles in the isolated Survivors
@@ -140,14 +166,14 @@ Saving during combat does not suspend a run. Loading a Survivors save always
 returns to a fresh start screen. Story and Boss Rush slots are not converted.
 
 Dawnlight's combat presets, progression locks, HP scaling, Bullet Time, Flurry
-Rush, Dark Link, Dual Wield, stamina, sprint, glide and Gale are overridden for
+Rush, Dark Link, stamina, sprint, glide and Gale are overridden for
 this mode without rewriting their saved configuration. Manual Jump uses normal
 height. Other mods can still change gameplay; cross-mod balance is not enforced.
 
 ## Initial scope and device testing
 
 This is the initial arena implementation. It retains the native camera and uses
-code-drawn crystals, aura rings and chain lines, plus native chest/item models,
+code-drawn crystals plus native chest/item/chain models,
 sword animations and particle effects. No additional textures, models or music
 are required. Larger arenas, camera changes, weapon evolutions, persistent
 unlock trees and mid-run suspend are not part of this version.
@@ -164,7 +190,7 @@ Only confirmed deaths of initialized, tracked actors award experience.
 Before merging/releasing, test on Android and desktop:
 
 1. Create and reload a separate Survivors slot; verify story and Boss Rush saves.
-2. Complete a run using all seven weapons; check native enemy death, elite victory
+2. Complete a run using all weapons and both dependent upgrades; check native enemy death, elite victory
    and no HP scaling leakage. Verify jump, dodge, controller and touch controls.
 3. Level up while surrounded, close/reopen the choice window, and earn several
    levels at once. Verify Link/enemies and the timer stay paused during selection.
@@ -194,9 +220,18 @@ Before merging/releasing, test on Android and desktop:
 12. Restart/change modes with closed/open chests and active item projectiles;
     verify prices, ranks, models, particles and collisions reset. Verify story
     treasure flags are unaffected and the next run restores Ordon Sword/no bottles.
-13. Obtain Master Sword once and verify equipment and sword damage. Collect four
+13. Obtain Master Sword five times: verify native Light Sword on the fifth find,
+    its glow and linear damage, and exclusion after rank 5. Collect four
     red-potion bottles, drink one, then obtain a refill. Check new-bottle priority
     over empty bottles, exclusion with four full bottles, and instant chest removal.
+14. Obtain Ordon Sword and confirm Dual Wield. Obtain all ten shield ranks, checking
+    5–50% block chance and models at 20%/35%. Check attack-facing native block/bash
+    animation, return to Dual Wield, and Shield Attack unlock only after a shield.
+15. Confirm ordinary nonlethal hits preserve enemy movement/attacks and hit particles;
+    shield bashes and balls still stagger. Test a ball through a group, including
+    outbound/return hits at the turnaround. Verify native chain and throw/pull/catch.
+16. Compare bomb rank/Reach blast visuals and radius. Unlock Fire Arrows after Bow,
+    then check flame, damage upgrades and cleanup on death/restart/mod unload.
 
 Automated tests cover rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared
@@ -206,5 +241,7 @@ particle cleanup, drop gating and level-up rewards. Loot tests additionally cove
 purchase pricing/caps, guarded transactions, placement, all four trajectories,
 target selection, boomerang chains, native ranged-animation release timing,
 interruption/priority, fairness, model-load failures and shared-animation/heap
-cleanup. They do not replace the
-in-game checks above.
+cleanup. Defense tests cover block probabilities/direction, nonlethal reaction
+restoration, stagger exceptions, lethal hits and Light Sword material isolation.
+Equipment tests cover all sword/shield tiers and run-only Dual Wield overrides.
+They do not replace the in-game checks above.

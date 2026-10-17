@@ -15,6 +15,9 @@ struct LootModels {
     J3DModel* masterSword = nullptr;
     J3DModel* bow = nullptr;
     J3DModel* heldBoomerang = nullptr;
+    J3DModel* heldBomb = nullptr;
+    J3DModel* heldBall = nullptr;
+    J3DModelData* chainData = nullptr;
     std::array<J3DModel*, kSlotsPerItem> wind{};
     std::array<mDoExt_bckAnm*, 2> bowAnims{};
     mDoExt_bckAnm* windAnim = nullptr;
@@ -39,6 +42,8 @@ void clear_loot() {
         if (s_loot.masterSword) forget(s_loot.masterSword);
         if (s_loot.bow) forget(s_loot.bow);
         if (s_loot.heldBoomerang) forget(s_loot.heldBoomerang);
+        if (s_loot.heldBomb) forget(s_loot.heldBomb);
+        if (s_loot.heldBall) forget(s_loot.heldBall);
         for (auto* model : s_loot.wind) if (model) forget(model);
     }
     if (s_loot.heap) mDoExt_destroySolidHeap(s_loot.heap);
@@ -92,7 +97,11 @@ bool prepare_loot(daAlink_c* link) {
     }
     // Read the ball into this heap, not Link's equipment heap. loadAramBmd
     // allocates its own resource buffer and does not equip/change Link's item.
-    auto* ball = dComIfGp_getAnmArchive() ? link->loadAramBmd(dRes_ID_ALANM_BMD_AL_IB_e, 0x2800) : nullptr;
+    auto* ball = link->loadAramBmd(dRes_ID_ALANM_BMD_AL_IB_e, 0x2800);
+    s_loot.heldBall = model(ball, true);
+    s_loot.heldBomb = model(static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1e)));
+    s_loot.chainData = link->loadAramBmd(dRes_ID_ALANM_BMD_AL_HS_KUSARI_e, 0x1000);
+    ready = ready && s_loot.heldBall && s_loot.heldBomb && s_loot.chainData;
     const std::array<J3DModelData*, 4> data{
         static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1c)),
         static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1f)),
@@ -166,14 +175,14 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     auto& a = *slot;
     a.weapon = index; a.age = 0; a.life = 100;
     a.returning = a.exploding = false; a.travel = 0;
-    a.target = kNone; a.visitedCount = 0; a.hops = 0;
+    a.target = kNone; a.visitedCount = 0; a.hops = 0; a.ballVictimCount = 0;
     a.position = link->current.pos + cXyz(0, 70, 0);
     cXyz delta = target - a.position;
     const float distance = std::max(1.0f, delta.abs());
     cXyz direction = delta * (1.0f / distance);
     const cXyz aimed(direction.x * std::cos(spread) + direction.z * std::sin(spread), direction.y,
                      direction.z * std::cos(spread) - direction.x * std::sin(spread));
-    a.limit = std::min(distance + 80.0f, weapon == Upgrade::Ball ? 900.0f : 1400.0f);
+    a.limit = weapon == Upgrade::Ball ? s_run.radius(900.0f) : std::min(distance + 80.0f, 1400.0f);
     a.velocity = aimed * (weapon == Upgrade::Bow ? 70.0f : weapon == Upgrade::Ball ? 40.0f : 42.0f);
     const unsigned rank = s_run.rank(weapon);
     if (weapon == Upgrade::Boomerang) {
@@ -193,18 +202,18 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     // for these custom hits (and damage rather than stun-only for Boomerang).
     a.collider.SetAtType(weapon == Upgrade::Bow ? AT_TYPE_ARROW : AT_TYPE_NORMAL_SWORD);
     a.collider.SetAtAtp(static_cast<u8>(s_run.attack_power(index) + (weapon == Upgrade::Ball ? 3 : 0)));
-    a.collider.SetAtMtrl(dCcD_MTRL_NONE);
+    a.collider.SetAtMtrl(weapon == Upgrade::Bow && s_run.rank(Upgrade::FireArrows) ? dCcD_MTRL_FIRE : dCcD_MTRL_NONE);
     a.collider.OnAtNoConHit(); a.collider.ResetAtHit();
     if (weapon == Upgrade::Bombs) a.collider.OffAtSetBit(); else a.collider.OnAtSetBit();
     a.active = true;
     return true;
 }
 void explode_item(Attack& a, daAlink_c* link) {
-    a.exploding = true; a.life = 12; a.velocity = cXyz(0, 0, 0);
+    a.exploding = true; a.life = 60; a.age = 0; a.velocity = cXyz(0, 0, 0);
     a.radius = s_run.radius(170 + 30 * s_run.rank(Upgrade::Bombs));
     a.collider.ResetAtHit(); a.collider.OnAtSetBit();
-    // Native bomb flash/smoke. Emitters are tracked and removed with the attack.
-    constexpr std::array<u16, 2> effects{0x161, 0x162};
+    // Complete native normal-bomb burst, including splash, debris and smoke.
+    constexpr std::array<u16, 9> effects{0x161, 0x162, 0x163, 0x164, 0x165, 0x166, 0x167, 0x168, 0x1ec};
     const float size = a.radius / 200.0f;
     const cXyz scale(size, size, size);
     for (unsigned i = 0; i < effects.size(); ++i)
@@ -235,8 +244,10 @@ void update_item_attack(Attack& a, daAlink_c* link) {
             }
         }
         if (weapon == Upgrade::Ball &&
-            (shield || a.travel >= a.limit) && !a.returning) {
+            a.travel >= a.limit && !a.returning) {
             a.returning = true; a.collider.ResetAtHit();
+            a.ballVictimCount = 0;
+            a.status.Init(120, 0xff, link); // Fresh pass: the last outbound victim can be hit again.
         }
         if (a.returning) {
             const cXyz delta = link->current.pos + cXyz(0, 70, 0) - a.position;
@@ -258,6 +269,12 @@ void update_item_attack(Attack& a, daAlink_c* link) {
         }
     }
     if (weapon == Upgrade::Boomerang) update_boom_wind(a, link);
+    if (weapon == Upgrade::Bow && s_run.rank(Upgrade::FireArrows)) {
+        if (const u16 effect = bow_fire_effect())
+            a.emitters[0] = dComIfGp_particle_set(a.emitters[0], effect, &a.position, nullptr,
+                nullptr, nullptr, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
+    }
+    if (a.exploding && a.age > 12) { a.collider.OffAtSetBit(); return; }
     if (weapon != Upgrade::Bombs || a.exploding) {
         a.collider.SetC(a.position); a.collider.SetR(a.radius); a.collider.SetAtVec(a.velocity);
         dComIfG_Ccsp()->Set(&a.collider);
@@ -270,12 +287,7 @@ void fire_items(daAlink_c* link) {
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
         if (!s_run.ranks[i] || s_cooldowns[i]) continue;
         const auto weapon = static_cast<Upgrade>(i);
-        if (weapon == Upgrade::Bow || weapon == Upgrade::Boomerang) {
-            queue_ranged(link, weapon); continue;
-        }
-        if (!launch_item(link, weapon, target)) continue;
-        s_cooldowns[i] = s_run.item_cooldown(weapon);
-
+        queue_ranged(link, weapon);
     }
 }
 bool spawn_chest(daAlink_c* link) {
@@ -324,6 +336,7 @@ void draw_loot_model(J3DModel* model, cXyz pos, s16 yaw, s16 pitch, float scale)
     g_env_light.setLightTevColorType_MAJI(model, &tev);
     mDoExt_modelUpdateDL(model);
 }
+#include "survivors_chain.inc"
 void draw_loot() {
     if (!s_loot.ready) return;
     for (unsigned i = 0; i < s_chests.size(); ++i) {
@@ -353,9 +366,6 @@ void draw_loot() {
             draw_loot_model(model, a.position, 0, 0, 1);
             root->setMtxCalc(oldCalc); joint->setCallBack(oldCallback);
         }
-        if (weapon == Upgrade::Ball && link) {
-            cXyz from = link->current.pos + cXyz(0, 60, 0), to = a.position;
-            dDbVw_drawLineXlu(from, to, GXColor{170,170,180,255}, 1, 5);
-        }
+        if (weapon == Upgrade::Ball && link) draw_chain(i - kItemBegin - 3 * kSlotsPerItem, link, a.position);
     }
 }

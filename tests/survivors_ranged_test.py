@@ -12,13 +12,13 @@ fixture=r'''
 using namespace dawnlight::survivors;
 using u16=unsigned short;using s16=short;
 constexpr int FALSE=0,dItemNo_NONE_e=255;
-constexpr u16 dRes_ID_ALANM_BCK_ARELORD_e=1,dRes_ID_ALANM_BCK_ASHOOT_e=2,dRes_ID_ALANM_BCK_BOOMTHROW_e=3;
+constexpr u16 dRes_ID_ALANM_BCK_ARELORD_e=1,dRes_ID_ALANM_BCK_ASHOOT_e=2,dRes_ID_ALANM_BCK_BOOMTHROW_e=3,dRes_ID_ALANM_BCK_BOMBTHROW_e=4,dRes_ID_ALANM_BCK_IBTHROW_e=5,dRes_ID_ALANM_BCK_IBPULL_e=6,dRes_ID_ALANM_BCK_IBCATCH_e=7;
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-p.z};}float absXZ()const{return std::sqrt(x*x+z*z);}};
 s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.14159265);}
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* p,int){return static_cast<T>(p);}}
-struct Frame{float frame=0,rate=1;int end=12;float getFrame(){return frame;}int getEnd(){return end;}void setRate(float n){rate=n;}};
+struct Frame{float frame=0,rate=1;int end=12;float getFrame(){return frame;}int getEnd(){return end;}void setRate(float n){rate=n;}void setFrame(float n){frame=n;}};
 struct daAlink_c{
  enum{UPPER_2=2};int id=1,mEquipItem=0x103,proc=0;u16 animation=0;
  bool equipping=false;bool checkEquipAnime(){return equipping;}
@@ -43,12 +43,14 @@ Run s_run;std::array<unsigned,12>s_cooldowns{};int s_player=1;
 enum class SwordAction{None,Normal};SwordAction s_swordAction=SwordAction::Normal;
 bool s_wavePending=false;unsigned s_comboStep=0,s_comboTimeout=0;
 bool nearest_item_target(daAlink_c*,cXyz& target){target={300,100,0};return targetExists;}
+constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
+struct Attack{bool active=false,returning=false;unsigned age=0;};std::array<Attack,projectile_capacity>s_attacks;
 std::vector<Upgrade>shots;std::vector<float>spread;
-bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0){shots.push_back(weapon);spread.push_back(angle);return true;}
+bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0){shots.push_back(weapon);spread.push_back(angle);if(weapon==Upgrade::Ball)s_attacks[20].active=true;return true;}
 '''
 main=r'''
 void fresh(){player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;s_lastRanged=Upgrade::Boomerang;
- shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;s_run.ranks[8]=s_run.ranks[9]=1;}
+ s_attacks={};shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;s_run.ranks[8]=s_run.ranks[9]=1;}
 void tick(){auto& f=player.mUpperFrameCtrl[2];f.frame=std::min(float(f.end),f.frame+f.rate);update_ranged(&player);}
 int main(){
  fresh();assert(queue_ranged(&player,Upgrade::Bow));
@@ -83,7 +85,23 @@ int main(){
  player.mUnderFrameCtrl[0].frame=10;assert(queue_ranged(&player,Upgrade::Bow)&&player.proc==0);
  cancel_ranged();s_rangedRest=0;s_cooldowns={};
  assert(!queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
- // Equal due times cannot starve the boomerang behind rapid arrows.
+ // Equal due times cannot starve any of the four weapons.
+ fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[10]=1;
+ assert(queue_ranged(&player,Upgrade::Bombs)&&player.animation==dRes_ID_ALANM_BCK_BOMBTHROW_e);
+ player.mUpperFrameCtrl[2].frame=3;update_ranged(&player);assert(shots.empty());
+ player.mUpperFrameCtrl[2].frame=4;update_ranged(&player);assert(shots.size()==1&&shots[0]==Upgrade::Bombs);
+ fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[11]=1;
+ assert(queue_ranged(&player,Upgrade::Ball)&&player.animation==dRes_ID_ALANM_BCK_IBTHROW_e);
+ player.mUpperFrameCtrl[2].frame=5;update_ranged(&player);assert(shots.empty());
+ player.mUpperFrameCtrl[2].frame=6;update_ranged(&player);assert(shots.size()==1);
+ s_attacks[20].returning=true;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBPULL_e);
+ s_attacks[20].active=false;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBCATCH_e);
+ for(unsigned i=0;i<30;++i){tick();}assert(!s_ranged.active&&shots.size()==1);
+ fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=1;s_lastRanged=Upgrade::Ball;
+ for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}){
+  assert(queue_ranged(&player,weapon));cancel_ranged();s_rangedRest=0;s_cooldowns={};
+ }
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

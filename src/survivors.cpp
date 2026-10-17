@@ -1,6 +1,7 @@
 #include "survivors.hpp"
 #include "survivors_rules.hpp"
 #include "enemy_spawner.hpp"
+#include "bow_fire_resource.hpp"
 #include "save_state.hpp"
 #include "service_imports.hpp"
 #include "mods/hook.hpp"
@@ -35,6 +36,8 @@
 #include "JSystem/JKernel/JKRSolidHeap.h"
 #include "JSystem/J3DGraphAnimator/J3DModel.h"
 #include "JSystem/J3DGraphAnimator/J3DJoint.h"
+#include "JSystem/J3DGraphBase/J3DMaterial.h"
+#include "JSystem/J3DGraphBase/J3DDrawBuffer.h"
 #include "res/Object/AlAnm.h"
 #include "d/d_particle_name.h"
 #include <algorithm>
@@ -54,9 +57,15 @@ constexpr char kStage[] = "D_DLBR0";
 constexpr char kBlob[] = "hyrule-survivors-records-v1";
 constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
+DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
+DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
+DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#damage_check", void(e_ba_class*), SurvivorsKeeseHit);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#damage_check", void(e_ms_class*), SurvivorsRatHit);
 DEFINE_HOOK(&daAlink_c::setMatrix, SurvivorsRangedAim);
 DEFINE_HOOK(&daAlink_c::checkUpperItemActionBow, SurvivorsBowAction);
 DEFINE_HOOK(&daAlink_c::checkNextActionBow, SurvivorsBowNext);
+DEFINE_HOOK(&daAlink_c::checkUpperGrabItemThrow, SurvivorsBombThrow);
 DEFINE_HOOK(&daAlink_c::cancelUpperItemReadyAnime, SurvivorsRangedCancel);
 DEFINE_HOOK(&daAlink_c::procCoGetItemInit, SurvivorsGetItem);
 DEFINE_HOOK(&fpcLf_Draw, SurvivorsTreasureDraw);
@@ -70,6 +79,8 @@ DEFINE_HOOK(&daAlink_c::procCutFinish, SurvivorsFinishMove);
 DEFINE_HOOK(&daAlink_c::checkCutLargeTurnState, SurvivorsLargeSpin);
 DEFINE_HOOK(&fopAcM_orderDoorEvent, SurvivorsDoor);
 DEFINE_HOOK(&at_power_check, SurvivorsPower);
+DEFINE_HOOK(&cc_at_check, SurvivorsHitMaterial);
+DEFINE_HOOK(&daAlink_c::checkLightSwordMtrl, SurvivorsLightSword);
 DEFINE_HOOK(&dMeter2Draw_c::draw, SurvivorsHud);
 DEFINE_HOOK(&dComIfGs_gameStart, SurvivorsGameStart);
 DEFINE_HOOK(&dComIfG_changeOpeningScene, SurvivorsOpening);
@@ -96,7 +107,7 @@ unsigned s_meleeCooldown = 0;
 unsigned s_comboStep = 0, s_comboTimeout = 0;
 bool s_autoSwordCall = false;
 bool s_wavePending = false, s_allowDrop = false;
-std::array<unsigned, 12> s_cooldowns{};
+std::array<unsigned, unsigned(Upgrade::Rupees)> s_cooldowns{};
 void clear_loot();
 void cancel_treasure_demo();
 int potion_slot();
@@ -122,12 +133,14 @@ struct Attack {
     ActorId target = kNone;
     unsigned hops = 0, visitedCount = 0;
     std::array<ActorId, 6> visited{};
+    std::array<ActorId, enemy_capacity> ballVictims{};
+    unsigned ballVictimCount = 0;
     float travel = 0, limit = 0;
     cXyz position{}, velocity{};
     float radius = 0;
     dCcD_Stts status{};
     dCcD_Sph collider{};
-    std::array<u32, 2> emitters{};
+    std::array<u32, 9> emitters{};
 };
 // Stable addresses: collision server retains pointers until its next frame.
 std::array<Attack, projectile_capacity> s_attacks;
@@ -261,6 +274,9 @@ void prepare_save() {
     dComIfGs_onItemFirstBit(dItemNo_WEAR_KOKIRI_e);
     dComIfGs_setCollectClothes(KOKIRI_CLOTHES_FLAG);
     dComIfGs_setSelectEquipClothes(dItemNo_WEAR_KOKIRI_e);
+    dComIfGs_offCollectSword(COLLECT_LIGHT_SWORD);
+    dComIfGs_offItemFirstBit(dItemNo_LIGHT_SWORD_e);
+    for (int shield = COLLECT_WOODEN_SHIELD; shield <= COLLECT_HYLIAN_SHIELD; ++shield) dComIfGs_offCollectShield(shield);
     dComIfGs_offCollectSword(COLLECT_MASTER_SWORD);
     dComIfGs_offItemFirstBit(dItemNo_MASTER_SWORD_e);
     dComIfGs_onItemFirstBit(dItemNo_SWORD_e);
@@ -434,15 +450,15 @@ void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
     auto slot = std::find_if(s_attacks.begin(), s_attacks.begin() + 8, [](const auto& a) { return !a.active; });
     if (slot == s_attacks.begin() + 8) return;
     auto& a = *slot;
-    a.weapon = weapon; a.life = weapon == 0 ? 35 : 3;
+    a.weapon = weapon; a.life = 35;
     a.position = link->current.pos + cXyz(0, 65, 0);
-    a.velocity = weapon == 0 ? direction * 42.0f : cXyz(0, 0, 0);
-    a.radius = s_run.radius(weapon == 0 ? 65.0f : 130.0f);
+    a.velocity = direction * 42.0f;
+    a.radius = s_run.radius(65.0f);
     a.status.Init(120, 0xff, link);
     a.collider.Set(kAttackSource); a.collider.SetStts(&a.status);
     a.collider.SetAtType(AT_TYPE_NORMAL_SWORD);
     a.collider.SetAtAtp(static_cast<u8>(s_run.attack_power(weapon)));
-    // LIGHT material hardcodes 100 damage in cc_at_check; aura color is visual.
+    // Keep the native material neutral so linear Survivors damage applies.
     a.collider.SetAtMtrl(dCcD_MTRL_NONE);
     a.collider.OnAtNoConHit(); a.collider.ResetAtHit(); a.collider.OnAtSetBit();
     a.active = true;
@@ -557,8 +573,9 @@ void update_sword(daAlink_c* link) {
             link->field_0x3478 = s_run.radius(link->field_0x3478);
             s_cooldowns[1] = s_run.cooldown(100);
         }
-    } else if (begin_sword_combo(link)) {
+    } else if (wave ? link->procCutNormalInit(1) : begin_sword_combo(link)) {
         s_swordAction = SwordAction::Normal; s_wavePending = wave;
+        if (wave) { s_comboStep = s_comboTimeout = 0; link->mComboCutCount = 0; }
         s_meleeCooldown = s_run.cooldown(30);
         if (wave) s_cooldowns[0] = s_run.cooldown(40);
     }
@@ -582,6 +599,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 #include "survivors_loot.inc"
 #include "survivors_ranged.inc"
 #include "survivors_treasure.inc"
+#include "survivors_defense.inc"
 
 void update_weapons(daAlink_c* link) {
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
@@ -600,12 +618,10 @@ void update_weapons(daAlink_c* link) {
         dComIfG_Ccsp()->Set(&a.collider);
     }
     update_ranged(link);
-    fire_items(link);
-    if (!s_ranged.active) update_sword(link);
-    if (s_run.ranks[2] && !s_cooldowns[2]) {
-        launch(link, 2, cXyz(0, 0, 0));
-        s_cooldowns[2] = s_run.cooldown(65);
-    }
+    const bool shieldAttack = update_shield_attack(link);
+    if (!shieldAttack) fire_items(link);
+    if (!s_ranged.active && !shieldAttack) update_sword(link);
+
 }
 bool native_sword_collider(const cCcD_Obj* collider) {
     auto* link = daAlink_getAlinkActorClass();
@@ -619,7 +635,12 @@ void after_power(ModContext*, void* args, void*, void*) {
     if (!s_active) return;
     auto* info = mods::arg<dCcU_AtInfo*>(args, 0);
     if (!info || !info->mpCollider) return;
+    auto* link = daAlink_getAlinkActorClass();
+    if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {
+        info->mAttackPower = s_run.attack_power(unsigned(Upgrade::ShieldAttack)); return;
+    }
     if (native_sword_collider(info->mpCollider)) {
+        info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Keep cc_at_check from doubling the linear value for Master Sword.
         info->mAttackPower = s_swordAction == SwordAction::Spin ? s_run.attack_power(1) :
             3 + s_run.rank(Upgrade::Power) + s_run.sword_bonus();
         return;
@@ -629,6 +650,7 @@ void after_power(ModContext*, void* args, void*, void*) {
             // The native table maps 3 to 30 and >=4 to up to 200 damage.
             // Keep native collision, defense, damage reactions and death handling,
             // but use a linear power value for our own weapons only.
+            info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
             info->mAttackPower = info->mpCollider->GetAtAtp();
             return;
         }
@@ -754,18 +776,7 @@ void after_draw(ModContext*, void*, void*, void*) {
     }
     draw_loot();
     draw_ranged();
-    for (auto& a : s_attacks) {
-        if (!a.active || a.weapon != 2) continue;
-        const GXColor color{255, 235, 160, 180};
-        // Only Light Aura uses a ring; Sword Wave uses native spin particles.
-        for (unsigned i = 0; i < 24; ++i) {
-            const s16 p = static_cast<s16>(i * 65536 / 24);
-            const s16 q = static_cast<s16>((i + 1) * 65536 / 24);
-            cXyz from = a.position + cXyz(cM_ssin(p) * a.radius, -35, cM_scos(p) * a.radius);
-            cXyz to = a.position + cXyz(cM_ssin(q) * a.radius, -35, cM_scos(q) * a.radius);
-            dDbVw_drawLineXlu(from, to, color, 1, 8);
-        }
-    }
+
 }
 void label(const char* text, float x, float y, float size) {
     auto* font = mDoExt_getMesgFont(); if (!font) return;
@@ -785,8 +796,8 @@ void draw_hud(ModContext*, void*, void*, void*) {
     std::snprintf(text, sizeof(text), "%02u:%02u / 10:00   Level %u   Kills %u",
         s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.level, s_run.kills);
     label(text, x, 40, 17);
-    std::snprintf(text, sizeof(text), "XP %u / %u   Wave %u   Spin %u   Aura %u",
-        s_run.xp, s_run.required_xp(), s_run.ranks[0], s_run.ranks[1], s_run.ranks[2]);
+    std::snprintf(text, sizeof(text), "XP %u / %u   Wave %u   Spin %u   Block %u%%",
+        s_run.xp, s_run.required_xp(), s_run.ranks[0], s_run.ranks[1], s_run.block_chance());
     label(text, x, 62, 14);
     // J2DPrint enables direct TEX0 attributes. fillBox emits only position and
     // color, so reset the vertex layout before its quads or the GX FIFO reads
@@ -862,7 +873,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         svc_ui->pane_add_text(mod_ctx, left, "Survive for 10 minutes, then defeat the Elite Bokoblin.", nullptr);
         svc_ui->pane_add_text(mod_ctx, right,
             "Move and dodge while your weapons attack automatically. Collect the blue crystals to level up. "
-            "Normal sword strikes are automatic. Unlock Sword Wave, Whirling Blade and Light Aura during the run. Enemies may drop hearts and rupees. "
+            "Normal sword strikes are automatic. Unlock Sword Wave and Whirling Blade during the run. Enemies may drop hearts and rupees. "
             "Face a treasure chest and press Open to receive an automatic item weapon. You need enough rupees to interact. Prices start at 20 rupees and rise by 20 after every purchase. "
             "Chest weapons can reach Level 5 through duplicate finds and level-up choices. Chests can also contain the Master Sword or a bottle of Red Potion.", nullptr);
         std::snprintf(text, sizeof(text), "Completed runs: %u | Wins: %u | Best kills: %u | Best level: %u",
@@ -874,7 +885,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         s_run.phase == Phase::Victory ? "Victory" : "Defeat", s_run.ticks / 1800,
         s_run.ticks / 30 % 60, s_run.kills, s_run.level);
     svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
-    std::snprintf(text, sizeof(text), "Sword Wave %u | Whirling Blade %u | Light Aura %u",
+    std::snprintf(text, sizeof(text), "Sword Wave %u | Whirling Blade %u | Shield Attack %u",
         s_run.ranks[0], s_run.ranks[1], s_run.ranks[2]);
     svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
     std::snprintf(text, sizeof(text), "Bow %u | Boomerang %u | Bombs %u | Ball and Chain %u | Chests %u",
@@ -918,6 +929,9 @@ ModResult reset(void*, ModError*) { reset_runtime(); return MOD_OK; }
 } // namespace
 
 bool survivors_active() { return s_active; }
+bool survivors_dual_wield() {
+    return in_arena() && s_run.dual_wield && !shield_pose(daAlink_getAlinkActorClass());
+}
 bool survivors_arena_active() { return in_arena(); }
 void update_survivors() {
     cleanup_enemies();
@@ -970,15 +984,22 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
     PRE(SurvivorsPlayer, before_chest_action);
+    PRE(SurvivorsBlock, before_shield_block); PRE(SurvivorsGuard, before_survivors_guard);
+    PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
+    PRE(SurvivorsKeeseHit, before_enemy_hit); POST(SurvivorsKeeseHit, after_enemy_hit);
+    PRE(SurvivorsRatHit, before_enemy_hit); POST(SurvivorsRatHit, after_enemy_hit);
     PRE(SurvivorsRangedAim, before_ranged_aim);
     PRE(SurvivorsBowAction, before_ranged_native);
     PRE(SurvivorsBowNext, before_ranged_native);
+    PRE(SurvivorsBombThrow, before_ranged_native);
     PRE(SurvivorsRangedCancel, before_ranged_native);
     PRE(SurvivorsTreasureDraw, before_treasure_draw);
     PRE(SurvivorsGetItem, before_treasure_get); POST(SurvivorsGetItem, after_treasure_get);
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
     PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_cut);
     POST(SurvivorsPower, after_power);
+    PRE(SurvivorsHitMaterial, before_hit_material); POST(SurvivorsHitMaterial, after_hit_material);
+    POST(SurvivorsLightSword, after_light_sword);
     POST(SurvivorsSpinMove, after_sword_move); PRE(SurvivorsLargeSpin, before_large_spin);
     POST(SurvivorsNormalMove, after_sword_move); POST(SurvivorsFinishMove, after_sword_move);
     PRE(SurvivorsStage, before_stage); POST(SurvivorsHud, draw_hud);

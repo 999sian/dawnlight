@@ -5,9 +5,11 @@ struct RangedAction {
     Upgrade weapon = Upgrade::Bow;
     u16 animation = 0;
     cXyz target{};
+    unsigned projectile = projectile_capacity;
+    bool pulling = false, catching = false;
 } s_ranged;
 unsigned s_rangedRest = 0;
-Upgrade s_lastRanged = Upgrade::Boomerang;
+Upgrade s_lastRanged = Upgrade::Ball;
 
 void cancel_ranged() {
     auto* link = daAlink_getAlinkActorClass();
@@ -28,8 +30,14 @@ void ranged_anime(daAlink_c* link, u16 animation, unsigned ticks) {
 bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     if (s_ranged.active || s_rangedRest || !s_loot.ready || !playable() || link->checkEquipAnime() ||
         (link->mEquipItem != dItemNo_NONE_e && link->mEquipItem != 0x103)) return false;
-    const auto other = weapon == Upgrade::Bow ? Upgrade::Boomerang : Upgrade::Bow;
-    if (weapon == s_lastRanged && s_run.rank(other) && !s_cooldowns[unsigned(other)]) return false;
+    // Round-robin among all due item weapons so high-rate arrows cannot starve throws.
+    for (unsigned step = 1; step <= 4; ++step) {
+        const unsigned candidate = unsigned(Upgrade::Bow) + (unsigned(s_lastRanged) - unsigned(Upgrade::Bow) + step) % 4;
+        if (s_run.ranks[candidate] && !s_cooldowns[candidate]) {
+            if (candidate != unsigned(weapon)) return false;
+            break;
+        }
+    }
     const bool recover = normal_sword_proc(link) && link->mUnderFrameCtrl[0].getFrame() >
         std::max(link->field_0x347c, link->field_0x3484);
     if (!sword_action_available(link) && !recover) return false;
@@ -43,7 +51,10 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     s_ranged.active = true; s_ranged.weapon = weapon; s_ranged.target = target;
     const unsigned interval = s_run.item_cooldown(weapon);
     s_cooldowns[unsigned(weapon)] = interval;
-    ranged_anime(link, weapon == Upgrade::Bow ? dRes_ID_ALANM_BCK_ARELORD_e : dRes_ID_ALANM_BCK_BOOMTHROW_e,
+    const u16 animation = weapon == Upgrade::Bow ? dRes_ID_ALANM_BCK_ARELORD_e :
+        weapon == Upgrade::Boomerang ? dRes_ID_ALANM_BCK_BOOMTHROW_e :
+        weapon == Upgrade::Bombs ? dRes_ID_ALANM_BCK_BOMBTHROW_e : dRes_ID_ALANM_BCK_IBTHROW_e;
+    ranged_anime(link, animation,
                  interval / (weapon == Upgrade::Bow ? 3 : 2));
     return true;
 }
@@ -52,6 +63,10 @@ void release_ranged(daAlink_c* link) {
     if (!nearest_item_target(link, target)) return;
     s_ranged.target = target;
     if (!launch_item(link, s_ranged.weapon, target)) return;
+    if (s_ranged.weapon == Upgrade::Ball) {
+        for (unsigned i = kItemBegin + 3 * kSlotsPerItem; i < s_attacks.size(); ++i)
+            if (s_attacks[i].active && s_attacks[i].age == 0) { s_ranged.projectile = i; break; }
+    }
     if (s_ranged.weapon == Upgrade::Bow && s_run.rank(Upgrade::Bow) >= 3) {
         launch_item(link, Upgrade::Bow, target, 0.14f);
         if (s_run.rank(Upgrade::Bow) >= 5) launch_item(link, Upgrade::Bow, target, -0.14f);
@@ -64,13 +79,29 @@ void update_ranged(daAlink_c* link) {
         cancel_ranged(); return; // Damage, drinking, jumping or another native action wins.
     }
     auto& frame = link->mUpperFrameCtrl[2];
+    if (s_ranged.weapon == Upgrade::Ball && s_ranged.released) {
+        const auto* ball = s_ranged.projectile < s_attacks.size() ? &s_attacks[s_ranged.projectile] : nullptr;
+        if (s_ranged.catching) { if (link->checkAnmEnd(&frame)) cancel_ranged(); return; }
+        if (!ball || !ball->active) {
+            s_ranged.catching = true;
+            ranged_anime(link, dRes_ID_ALANM_BCK_IBCATCH_e, s_run.item_cooldown(Upgrade::Ball) / 4);
+        } else if (ball->returning && !s_ranged.pulling) {
+            s_ranged.pulling = true;
+            ranged_anime(link, dRes_ID_ALANM_BCK_IBPULL_e, s_run.item_cooldown(Upgrade::Ball) / 4);
+        } else if (link->checkAnmEnd(&frame)) {
+            if (s_ranged.pulling) frame.setFrame(0);
+            else frame.setRate(0); // Hold the throw pose until the chain starts retracting.
+        }
+        return;
+    }
     if (s_ranged.weapon == Upgrade::Bow && !s_ranged.released) {
         if (!link->checkAnmEnd(&frame)) return;
         ranged_anime(link, dRes_ID_ALANM_BCK_ASHOOT_e, s_run.item_cooldown(Upgrade::Bow) / 3);
         s_ranged.released = true; release_ranged(link);
     } else {
-        // Native boomerang leaves the hand at frame 5.5; >= also handles fast playback.
-        if (!s_ranged.released && frame.getFrame() >= 5.5f) {
+        // Native release frames: boomerang 5.5, side-thrown bomb 4, iron ball 6.
+        const float release = s_ranged.weapon == Upgrade::Bombs ? 4 : s_ranged.weapon == Upgrade::Ball ? 6 : 5.5f;
+        if (!s_ranged.released && frame.getFrame() >= release) {
             s_ranged.released = true; release_ranged(link);
         }
         if (link->checkAnmEnd(&frame)) cancel_ranged();
@@ -100,10 +131,11 @@ void draw_ranged() {
     if (!s_ranged.active || !s_loot.ready || !link || fopAcM_GetID(link) != s_player ||
         !link->checkUpperAnime(s_ranged.animation)) return;
     const bool bow = s_ranged.weapon == Upgrade::Bow;
-    if (!bow && s_ranged.released) return;
-    auto* model = bow ? s_loot.bow : s_loot.heldBoomerang;
+    if (!bow && s_ranged.released && !s_ranged.catching) return;
+    auto* model = bow ? s_loot.bow : s_ranged.weapon == Upgrade::Bombs ? s_loot.heldBomb :
+        s_ranged.weapon == Upgrade::Ball ? s_loot.heldBall : s_loot.heldBoomerang;
     mDoMtx_stack_c::copy(bow ? link->getRightItemMatrix() : link->getLeftItemMatrix());
-    if (!bow) { // Native daBoomerang_c::setKeepMatrix hand attachment.
+    if (s_ranged.weapon == Upgrade::Boomerang) { // Native hand attachment.
         mDoMtx_stack_c::transM(32, -5, -6);
         mDoMtx_stack_c::XYZrotM(cM_deg2s(-4), cM_deg2s(39), cM_deg2s(-9));
     }

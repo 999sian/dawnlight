@@ -93,6 +93,8 @@ void dComIfGs_setWalletSize(int){}
 void dComIfGs_setLife(int){} void dComIfGs_setRupee(int){}
 // A live third-slot hook can dereference the absent Link actor during file
 // select. Any live slot setter is forbidden in this pre-game fixture.
+constexpr int COLLECT_LIGHT_SWORD=12,dItemNo_LIGHT_SWORD_e=13,COLLECT_WOODEN_SHIELD=0,COLLECT_HYLIAN_SHIELD=2;
+void dComIfGs_offCollectShield(int){}
 constexpr int COLLECT_MASTER_SWORD=10,dItemNo_MASTER_SWORD_e=11;
 void dComIfGs_offCollectSword(int){}
 void dComIfGs_offItemFirstBit(int){}
@@ -115,10 +117,13 @@ int dComIfGp_getStartStageRoomNo(){return arena?51:0;}
 unsigned restartParam=123;
 void dComIfGs_setRestartRoomParam(unsigned value){restartParam=value;}
 struct Collider { unsigned power=0; unsigned GetAtAtp(){return power;} };
+struct daAlink_c{Collider mGuardAtCps;};
+daAlink_c* daAlink_getAlinkActorClass(){return nullptr;}
 bool native_sword_collider(const Collider*){return false;}
 struct Attack { Collider collider; };
 std::array<Attack,16> s_attacks;
-struct dCcU_AtInfo { Collider* mpCollider; unsigned mAttackPower; };
+constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
+struct dCcU_AtInfo { Collider* mpCollider; unsigned mAttackPower; int mHitType=0; };
 unsigned xp=0;
 void add_orb(int,unsigned value){xp+=value;}
 unsigned rewards=0;

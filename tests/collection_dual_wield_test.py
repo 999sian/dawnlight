@@ -38,6 +38,8 @@ constexpr int MOD_OK=0,dItemNo_NONE_e=255,PAD_1=0;
 using ConfigVarHandle=int;
 struct ConfigVarValue {bool bool_value;};
 bool s_serviceBackend=false;
+bool testSurvivors=false,testSurvivorsDual=false;
+bool survivors_active(){return testSurvivors;}bool survivors_dual_wield(){return testSurvivorsDual;}
 bool teEquipped=false;
 bool collection_service_equipped(){return teEquipped;}
 bool enabled=true,boss=false,pressA=false,pageLeft=false,pageRight=false;
@@ -229,6 +231,9 @@ void draw_icon(){
 }
 // REGISTRATION
 int main(){
+    testSurvivors=true;s_serviceBackend=true;teEquipped=true;assert(!dual_wield_equipped());
+    testSurvivorsDual=true;teEquipped=false;assert(dual_wield_equipped());
+    testSurvivors=testSurvivorsDual=s_serviceBackend=false;
     // Once TE owns the slot, the legacy backend must not consume pointer,
     // controller or shield actions, render ornaments, or reuse its saved choice.
     s_serviceBackend=true;s_selection.chosen=true;s_selection.boss=false;

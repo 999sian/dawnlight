@@ -20,7 +20,8 @@ using u8=uint8_t;
 using ActorId=int;
 constexpr int fpcM_ERROR_PROCESS_ID_e=-1, fpcNm_Demo_Item_e=20;
 constexpr int dItemNo_NONE_e=255,dItemNo_EMPTY_BOTTLE_e=20,dItemNo_RED_BOTTLE_e=21,dItemNo_MASTER_SWORD_e=22,
-    SLOT_11=11,SLOT_14=14,COLLECT_MASTER_SWORD=1;
+    SLOT_11=11,SLOT_14=14,COLLECT_MASTER_SWORD=1,COLLECT_LIGHT_SWORD=3,
+ dItemNo_LIGHT_SWORD_e=23,dItemNo_SWORD_e=24,dItemNo_WOOD_SHIELD_e=25,dItemNo_SHIELD_e=26,dItemNo_HYLIA_SHIELD_e=27;
 constexpr int dItemNo_BOMB_5_e=10, dItemNo_BOW_e=11,dItemNo_BOOMERANG_e=12,dItemNo_IRONBALL_e=13, dEvtCnd_CANGETITEM_e=8, BUTTON_STATUS_OPEN=6;
 struct ModContext{};
 enum HookAction {HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
@@ -69,6 +70,7 @@ struct daAlink_c:Actor {
     struct {s16 y=0;}shape_angle;int doStatus=0;bool trigger=false;
     void setDoStatus(int s){doStatus=s;}bool doTrigger(){return trigger;}
     bool checkWolf(){return wolf;}bool checkDeadHP(){return dead;}bool checkEventRun(){return inEvent;}
+    void onLightSwordGetEffect(){}
     void setSingleAnimeBase(int a){animation=a;}
 } player;
 constexpr int PAD_1=0,PAD_BUTTON_A=1;
@@ -102,7 +104,7 @@ void dComIfGp_event_reset(){++reset;running=false;event.mPt2=-1;}
 int fopAcM_GetRoomNo(Actor*){return 0;}
 int fopAcM_delete(Actor*){if(!deleteAllowed)return 0;alive=false;++deleted;return 1;}
 int fopAcM_createDemoItem(Vec*,int item,int bit,void*,int,void*,u8 flags){
-    assert(item>=10&&item<=22&&bit==-1&&flags==1);prop.itemNo=item; // Presentation-only, no inventory grant.
+    assert(item>=10&&item<=27&&bit==-1&&flags==1);prop.itemNo=item; // Presentation-only, no inventory grant.
     assert(currentLayer==player.layer_tag.layer&&currentLayer!=&rootLayer);
     ++created;if(createFails)return -1;
     alive=true;prop.id=100;prop.name=fpcNm_Demo_Item_e;return prop.id;
@@ -131,6 +133,8 @@ int dComIfGs_getItem(int slot,bool){return bottles.at(slot-SLOT_11);}
 void dComIfGs_setItem(int slot,int item){bottles.at(slot-SLOT_11)=item;++potionGrants;}
 void dComIfGs_onItemFirstBit(int){}
 void dComIfGs_setCollectSword(int){++swordGrants;}
+int equippedShield=0;void dComIfGs_setCollectShield(int){}
+void dMeter2Info_setShield(int item,bool){equippedShield=item;}
 void dMeter2Info_setSword(int item,bool){equippedSword=item;}
 void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
 Run s_run;unsigned rupees=0;int s_player=1;
@@ -187,7 +191,7 @@ int main(){
         if(reason==4)s_loot.ready=false;
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
-        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=true;bottles.fill(dItemNo_RED_BOTTLE_e);}
+        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=true;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!begin_treasure_demo(0,&player)&&created==0&&rupees==100);
     }
     fresh();player.shape_angle.y=0x4000;assert(chest_interactable(s_chests[0],&player));
@@ -214,7 +218,8 @@ int main(){
     update_treasure_demo(&player);assert(s_chests[0].opening&&s_chests[0].age==1&&rupees==100);
     eventEnded=true;update_treasure_demo(&player);
     assert(s_run.phase==Phase::Running&&rupees==80&&s_run.chest_cost()==40);
-    assert(!s_chests[0].active&&s_run.rank(chest_weapon(reward))==1&&reset==1&&!alive);
+    assert(!s_chests[0].active&&s_run.chests_opened==1&&reset==1&&!alive);
+    if (reward<=ChestReward::Ball) assert(s_run.rank(chest_weapon(reward))==1);
     update_treasure_demo(&player);assert(rupees==80&&s_run.chests_opened==1);
     // Pre-execute Open has priority even in damage/roll/sword/item procedures.
     fresh();player.mProcID=daAlink_c::OTHER;player.trigger=true;mDoCPd_c::pad.mPressedButtonFlags=PAD_BUTTON_A;
@@ -222,15 +227,39 @@ int main(){
     before_chest_action(nullptr,&player,&result,nullptr);
     assert(s_run.phase==Phase::Treasure&&player.mProcID==daAlink_c::PROC_WAIT);
     assert(!mDoCPd_c::pad.mPressedButtonFlags&&!s_wavePending&&s_comboStep==0);
-    // Master Sword is a one-time real equipment reward, not a level-up rank.
-    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;bottles.fill(dItemNo_RED_BOTTLE_e);
+    // Sword ranks are chest-only and equip the native sword after presentation.
+    fresh();s_run.dual_wield=true;s_run.shield=10;for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
     assert(begin_treasure_demo(0,&player)&&s_chests[0].reward==ChestReward::MasterSword);
     assert(prop.itemNo==dItemNo_MASTER_SWORD_e && swordGrants==0);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.master_sword&&equippedSword==dItemNo_MASTER_SWORD_e&&swordGrants==1&&!s_chests[0].active);
     update_treasure_demo(&player);assert(swordGrants==1&&rupees==80);
+    // The fifth displayed/committed sword reward is Light Sword.
+    for(unsigned n=2;n<=5;++n){
+        s_chests[0].active=true;s_chests[0].position={0,0,100};rupees=1000;eventEnded=false;
+        assert(begin_treasure_demo(0,&player));
+        const auto expected=n==5?dItemNo_LIGHT_SWORD_e:dItemNo_MASTER_SWORD_e;
+        assert(prop.itemNo==expected);accept();eventEnded=true;update_treasure_demo(&player);
+        assert(s_run.master_sword==n&&equippedSword==expected);
+    }
+    assert(!s_run.chest_rewards_left());
+    fresh();s_run.master_sword=5;s_run.dual_wield=true;
+    for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    for(unsigned n=1;n<=10;++n){
+        s_chests[0].active=true;s_chests[0].position={0,0,100};rupees=1000;eventEnded=false;
+        assert(begin_treasure_demo(0,&player));
+        const auto expected=n>=7?dItemNo_HYLIA_SHIELD_e:n>=4?dItemNo_SHIELD_e:dItemNo_WOOD_SHIELD_e;
+        assert(prop.itemNo==expected);accept();eventEnded=true;update_treasure_demo(&player);
+        assert(s_run.block_chance()==5*n&&equippedShield==expected);
+    }
+    assert(!s_run.chest_rewards_left());
+    fresh();s_run.master_sword=5;s_run.shield=10;
+    for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    assert(begin_treasure_demo(0,&player)&&prop.itemNo==dItemNo_SWORD_e);
+    accept();eventEnded=true;update_treasure_demo(&player);
+    assert(s_run.dual_wield&&!s_run.chest_rewards_left());
     // Potion rewards fill a new slot first, even with an existing empty bottle.
-    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=true;rupees=1000;
+    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=true;s_run.shield=10;rupees=1000;
     for(unsigned n=0;n<4;++n){
         s_chests[0]={};s_chests[0].active=true;s_chests[0].position={0,0,100};
         if(n>0)bottles[0]=dItemNo_EMPTY_BOTTLE_e;

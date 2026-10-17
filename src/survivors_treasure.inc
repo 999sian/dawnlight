@@ -1,3 +1,7 @@
+u8 shield_item(const Run& run) {
+    constexpr std::array<u8, 3> items{dItemNo_WOOD_SHIELD_e, dItemNo_SHIELD_e, dItemNo_HYLIA_SHIELD_e};
+    return items[run.shield_tier()];
+}
 // Native DEFAULT_GETITEM presentation, following the Glider reward's actor
 // ownership protocol. The prop is presentation-only; completion explicitly
 // commits the run reward and, for swords/bottles, the isolated save inventory.
@@ -68,8 +72,9 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link) {
     Run preview = s_run; preview.phase = Phase::Treasure;
     unsigned rupees = dComIfGs_getRupee(); ChestReward reward = ChestReward::Count;
     if (!preview.buy_chest(rupees, reward, potion_slot() >= 0)) return false;
-    constexpr std::array<u8, 6> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e,
-                                      dItemNo_IRONBALL_e, dItemNo_MASTER_SWORD_e, dItemNo_RED_BOTTLE_e};
+    const std::array<u8, 8> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e,
+                                      dItemNo_IRONBALL_e, u8(preview.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e), dItemNo_RED_BOTTLE_e,
+                                      dItemNo_SWORD_e, shield_item(preview)};
     auto* previous = fpcLy_CurrentLayer(); fpcLy_SetCurrentLayer(layer);
     // 0x01 is native presentation-only: daDitem_c skips execItemGet.
     const auto item = fopAcM_createDemoItem(&link->current.pos, items[unsigned(reward)],
@@ -143,10 +148,18 @@ void update_treasure_demo(daAlink_c* link) {
         // changed inventory. No charge when a potion no longer has space.
         if (rupees >= s_treasure.price && (chest.reward != ChestReward::RedPotion || bottle >= 0)) {
             if (chest.reward == ChestReward::MasterSword) {
-                dComIfGs_setCollectSword(COLLECT_MASTER_SWORD);
-                dComIfGs_onItemFirstBit(dItemNo_MASTER_SWORD_e);
-                dMeter2Info_setSword(dItemNo_MASTER_SWORD_e, false);
-                dComIfGs_setBButtonItemKey(dItemNo_MASTER_SWORD_e);
+                const bool light = s_treasure.result.master_sword >= 5;
+                const u8 sword = light ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e;
+                dComIfGs_setCollectSword(light ? COLLECT_LIGHT_SWORD : COLLECT_MASTER_SWORD);
+                dComIfGs_onItemFirstBit(sword);
+                dMeter2Info_setSword(sword, false);
+                dComIfGs_setBButtonItemKey(sword);
+                if (light) link->onLightSwordGetEffect();
+            } else if (chest.reward == ChestReward::Shield) {
+                const u8 shield = shield_item(s_treasure.result);
+                dComIfGs_setCollectShield(s_treasure.result.shield_tier());
+                dComIfGs_onItemFirstBit(shield);
+                dMeter2Info_setShield(shield, false);
             } else if (chest.reward == ChestReward::RedPotion) {
                 dComIfGs_setItem(bottle, dItemNo_RED_BOTTLE_e);
                 dComIfGs_onItemFirstBit(dItemNo_EMPTY_BOTTLE_e);

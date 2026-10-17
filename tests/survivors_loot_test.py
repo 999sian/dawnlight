@@ -28,6 +28,7 @@ stubs = r'''
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned;constexpr ActorId kNone=~0u;
+constexpr int dCcD_MTRL_FIRE=2;unsigned short bow_fire_effect(){return 0x1234;}
 using s16=short;using u16=unsigned short;using u8=unsigned char;
 struct ModContext {};
 struct cXyz {
@@ -65,16 +66,16 @@ struct Collider {
     bool active=false,hit=false,shield=false;unsigned type=0,power=0,resets=0;float radius=0;
     cXyz pos,velocity;Status* status=nullptr;
     void Set(int){}void SetStts(Status* s){status=s;}void SetAtType(unsigned t){type=t;}
-    void SetAtAtp(unsigned p){power=p;}void SetAtMtrl(int){}void OnAtNoConHit(){}
+    int material=0;void SetAtAtp(unsigned p){power=p;}void SetAtMtrl(int m){material=m;}void OnAtNoConHit(){}
     void ResetAtHit(){hit=false;shield=false;++resets;}void OnAtSetBit(){active=true;}void OffAtSetBit(){active=false;}
     bool ChkAtHit(){return hit;}bool ChkAtShieldHit(){return shield;}
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
 struct Attack {
-    ActorId target=kNone;unsigned hops=0,visitedCount=0;std::array<ActorId,6>visited{};
+    ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,6>visited{};
     bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
-    std::array<unsigned,2>emitters{};
+    std::array<unsigned,9>emitters{};
 };
 constexpr int kAttackSource=0;constexpr unsigned kChestCount=2,kItemBegin=8,kSlotsPerItem=4;
 std::array<Attack,projectile_capacity>s_attacks;
@@ -84,10 +85,12 @@ void clear_attacks(){++cleared;for(auto& a:s_attacks)stop_attack(a);}
 void close_window(){++closed;}
 struct Server {unsigned registrations=0;void Set(Collider* c){assert(c->active && c->status->owner==&player);++registrations;}}server;
 Server* dComIfG_Ccsp(){return &server;}
-std::array<unsigned,2>queued{};
+std::array<unsigned,4>queued{};
 bool queue_ranged(daAlink_c*,Upgrade w){++queued[unsigned(w)-8];return true;}
 unsigned particles=0;
-template<class... Args> unsigned dComIfGp_particle_set(Args...){return ++particles;}
+std::vector<float>effectScales;
+unsigned dComIfGp_particle_set(unsigned,u16,const cXyz*,int*,const csXyz*,const cXyz* scale,int,void*,int,void*,void*,void*){
+ if(scale){effectScales.push_back(scale->x);}return ++particles;}
 '''
 # Use the production state definition; no duplicate fixture version of its flags.
 stubs += source[source.index('struct Chest {'):source.index('struct LootModels {')]
@@ -123,9 +126,11 @@ int main(){
     fire_items(&player);for(auto& a:s_attacks)assert(!a.active); // Locked items cannot fire.
     for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball})s_run.ranks[unsigned(weapon)]=1;
     fire_items(&player);
-    assert(queued[0]==1&&queued[1]==1);
+    assert(queued[0]==1&&queued[1]==1&&queued[2]==1&&queued[3]==1);
+    assert(launch_item(&player,Upgrade::Bombs,{0,70,300}));
+    assert(launch_item(&player,Upgrade::Ball,{0,70,300}));
     for(unsigned type=2;type<4;++type){
-        assert(s_attacks[8+4*type].active && s_cooldowns[8+type]>0);
+        assert(s_attacks[8+4*type].active);
         assert(s_attacks[8+4*type].status.owner==&player);
     }
     assert(s_attacks[20].collider.type==AT_TYPE_NORMAL_SWORD &&
@@ -142,8 +147,8 @@ int main(){
     for(unsigned i=0;i<29;++i){update_item_attack(bomb,&player);assert(!bomb.exploding && server.registrations==0);}
     update_item_attack(bomb,&player);
     assert(bomb.exploding && std::abs(bomb.position.z-600)<0.01f && std::abs(bomb.position.y-70)<0.01f);
-    assert(bomb.collider.radius==200 && server.registrations==1 && particles==2);
-    for(unsigned i=0;i<13;++i)update_item_attack(bomb,&player);
+    assert(bomb.collider.radius==200 && server.registrations==1 && particles==9);
+    for(unsigned i=0;i<61;++i)update_item_attack(bomb,&player);
     assert(!bomb.active);
     reset();s_run.ranks[10]=5;assert(launch_item(&player,Upgrade::Bombs,{0,70,600}));blocked=true;
     update_item_attack(s_attacks[16],&player);assert(s_attacks[16].exploding && s_attacks[16].radius==320);
@@ -167,6 +172,21 @@ int main(){
         for(unsigned tick=0;tick<200&&!a.returning;++tick)update_item_attack(a,&player);
         assert(a.returning&&a.visitedCount==rank+1&&a.emitters[0]&&a.emitters[1]);
         for(unsigned i=0;i<a.visitedCount;++i)for(unsigned j=i+1;j<a.visitedCount;++j)assert(a.visited[i]!=a.visited[j]);
+    }
+    reset();s_run.ranks[11]=1;assert(launch_item(&player,Upgrade::Ball,{0,70,100}));
+    auto& ball=s_attacks[20];assert(ball.limit==900);
+    ball.collider.hit=true;ball.collider.shield=true;update_item_attack(ball,&player);
+    assert(ball.active&&!ball.returning);ball.ballVictimCount=2;
+    while(ball.active&&!ball.returning)update_item_attack(ball,&player);
+    assert(ball.active&&ball.returning&&ball.ballVictimCount==0);
+    reset();s_run.ranks[8]=1;s_run.ranks[12]=3;
+    assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
+    assert(s_attacks[8].collider.material==dCcD_MTRL_FIRE&&s_attacks[8].collider.power==9);
+    update_item_attack(s_attacks[8],&player);assert(s_attacks[8].emitters[0]);
+    for(unsigned rank:{1u,5u}){
+        reset();s_run.ranks[10]=rank;s_run.ranks[5]=2;effectScales.clear();
+        assert(launch_item(&player,Upgrade::Bombs,{0,70,300}));explode_item(s_attacks[16],&player);
+        assert(effectScales.size()==9);for(auto scale:effectScales)assert(std::abs(scale-s_attacks[16].radius/200)<0.001f);
     }
     reset();s_run.ranks[8]=1;
     for(unsigned i=0;i<4;++i)assert(launch_item(&player,Upgrade::Bow,{0,70,300}));

@@ -35,10 +35,10 @@ int main() {
     assert(run.level_up()); // Excess XP remains available.
     for (uint32_t seed = 1; seed < 1000; ++seed) {
         run.start(seed);
-        run.ranks.fill(5); run.ranks[2] = 4; run.xp = 100;
+        run.ranks.fill(5); run.shield=1; run.ranks[2] = 4; run.xp = 100;
         assert(run.level_up());
-        for (const auto offer : run.offers) assert(offer == Upgrade::Aura || offer == Upgrade::Rupees);
-        assert(std::count(run.offers.begin(), run.offers.end(), Upgrade::Aura) == 1);
+        for (const auto offer : run.offers) assert(offer == Upgrade::ShieldAttack || offer == Upgrade::Rupees);
+        assert(std::count(run.offers.begin(), run.offers.end(), Upgrade::ShieldAttack) == 1);
         run.start(seed); run.ranks.fill(5); run.xp = 100;
         assert(run.level_up());
         for (const auto offer : run.offers) assert(offer == Upgrade::Rupees);
@@ -52,6 +52,13 @@ int main() {
     // Chest weapons cannot be acquired from level-up offers before a purchase.
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
         assert(!run.eligible(static_cast<Upgrade>(i)));
+    assert(!run.eligible(Upgrade::FireArrows) && !run.eligible(Upgrade::ShieldAttack));
+    run.ranks[8]=1;run.shield=1;
+    assert(run.eligible(Upgrade::FireArrows) && run.eligible(Upgrade::ShieldAttack));
+    run.ranks[8]=0;run.shield=0;
+    for(unsigned rank=1;rank<=10;++rank){run.shield=rank;assert(run.block_chance()==rank*5);
+        assert(run.shield_tier()==(rank>=7?2u:rank>=4?1u:0u));}
+    run.shield=0;
     unsigned wallet = 19;
     ChestReward reward = ChestReward::Count;
     run.phase = Phase::Treasure;
@@ -59,20 +66,21 @@ int main() {
     assert(!run.buy_chest(wallet, reward) && wallet == 19 && run.random == rng && run.chest_cost() == 20);
     wallet = 20;
     assert(run.buy_chest(wallet, reward) && wallet == 0 && run.chest_cost() == 40);
-    assert((reward == ChestReward::MasterSword && run.master_sword) ||
+    assert((reward == ChestReward::OrdonSword && run.dual_wield) || (reward == ChestReward::Shield && run.shield==1) ||
+           (reward == ChestReward::MasterSword && run.master_sword) ||
            (run.rank(chest_weapon(reward)) == 1 && run.eligible(chest_weapon(reward)))); // Even with four occupied passives.
     assert(!run.tick(true)); // Get Item cannot advance encounter time.
     run.start(20); run.phase = Phase::Treasure;
-    wallet = 10000;
-    for (unsigned n = 0; n < 21; ++n) {
+    wallet = 100000;
+    for (unsigned n = 0; n < 36; ++n) {
         assert(run.chest_cost() == 20 * (n + 1));
         assert(run.buy_chest(wallet, reward) && run.rank(chest_weapon(reward)) <= 5);
     }
-    assert(wallet == 5380 && !run.chest_rewards_left());
-    assert(run.master_sword && run.sword_bonus() == 3);
+    assert(wallet == 86680 && !run.chest_rewards_left());
+    assert(run.master_sword==5 && run.sword_bonus() == 7 && run.dual_wield && run.shield==10);
     assert(run.chest_rewards_left(true)); // A refill remains available after all weapons.
     const auto maxedRng = run.random;
-    assert(!run.buy_chest(wallet, reward) && wallet == 5380 && run.random == maxedRng);
+    assert(!run.buy_chest(wallet, reward) && wallet == 86680 && run.random == maxedRng);
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
         const auto weapon = static_cast<Upgrade>(i);
         assert(run.rank(weapon) == 5 && !run.eligible(weapon));

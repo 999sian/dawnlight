@@ -15,6 +15,7 @@ const UiService* svc_ui=nullptr;
 const LogService* svc_log=nullptr;
 namespace dawnlight {
 bool survivors_active() { return false; }
+bool survivors_dual_wield() { return false; }
 bool g_configCheckForUpdatesEnabled=false;
 ProgressionState progression_state() { return {}; }
 }

@@ -67,7 +67,7 @@ struct daAlink_c : fopAc_ac_c {
     float field_0x3478=0,field_0x347c=10,field_0x3484=15,mNormalSpeed=0,mStickValue=0;short mMoveAngle=0;csXyz shape_angle;
     struct HIO {struct {struct {float mMaxSpeed=20;}m;}mMove;}hio;
     HIO* mpHIO=&hio;
-    cCcD_Obj mAtCps[3],mAtSph;int tevStr=0;
+    cCcD_Obj mAtCps[3],mAtSph,mGuardAtCps;int tevStr=0;
     unsigned normals=0,spins=0,equips=0,finishes=0,mComboCutCount=0;
     enum {FLG0_UNK_1000000,FLG0_UNK_8000,DIR_FORWARD=0,DIR_BACKWARD=1};
     struct {int field_0x300a=4;}mProcVar1;
@@ -127,7 +127,8 @@ u32 dComIfGp_particle_set(u32 id,u16 effect,cXyz*,int*,const csXyz*,void*,int,vo
 void dComIfGp_particle_levelEmitterOnEventMove(u32){}
 struct Attack {bool active=true;unsigned life=10;cXyz position,velocity;cCcD_Obj collider;std::array<u32,2>emitters{};};
 std::array<Attack,projectile_capacity>s_attacks;
-struct dCcU_AtInfo {cCcD_Obj* mpCollider;unsigned mAttackPower=200;};
+constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
+struct dCcU_AtInfo {cCcD_Obj* mpCollider;unsigned mAttackPower=200;int mHitType=0;};
 HookAction before_drop(ModContext*,void*,void*,void*);
 std::vector<int>drops;
 fpc_ProcID fopAcM_createItem(const cXyz*,int item,int bit,int room,void*,void*,int mode){
@@ -243,6 +244,13 @@ int main(){
         unsigned expected=(rank+1)/2;assert(waves==expected && !s_wavePending);
         update_sword(&player);assert(waves==expected && player.normals==1);
     }
+    reset();s_run.ranks[0]=1;enemy.current.pos.z=900;
+    for(unsigned shot=0;shot<4;++shot){
+        player.mProcID=daAlink_c::PROC_WAIT;s_cooldowns[0]=0;s_comboStep=3;player.mComboCutCount=3;
+        update_sword(&player);assert(player.normalTypes.back()==1&&player.mComboCutCount==0&&s_comboStep==0);
+        player.mUnderFrameCtrl[0].frame=5;update_sword(&player);
+    }
+    assert(waves==4&&player.finishes==0);
     reset();s_run.ranks[0]=1;update_sword(&player);player.mProcID=daAlink_c::PROC_DAMAGE;
     player.mUnderFrameCtrl[0].frame=9;update_sword(&player);assert(waves==0 && !s_wavePending);
     // Native spin has priority, receives Reach and follows the stick at normal speed.
@@ -266,10 +274,11 @@ int main(){
     for(auto& capsule:player.mAtCps){info={&capsule};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==5);}
     s_run.master_sword=true;
     info={&player.mAtCps[0]};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==8);
+    assert(info.mHitType==HIT_TYPE_LINK_HEAVY_ATTACK); // Native Master Sword multiplier must not apply again.
     assert(s_run.attack_power(0)==7+s_run.ranks[0]);
     s_swordAction=SwordAction::Spin;info={&player.mAtSph};after_power(nullptr,powerArgs,nullptr,nullptr);
     assert(info.mAttackPower==s_run.attack_power(1));s_run.master_sword=false;
-    cCcD_Obj unrelated;info={&unrelated};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==200);
+    cCcD_Obj unrelated;info={&unrelated};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==200 && info.mHitType==0);
     arena=false;info={&player.mAtCps[0]};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==200);arena=true;
     // Expired and missing emitters restart; all surviving emitters are invalidated on cleanup.
     Attack a;update_wave_effects(a,&player);auto first=a.emitters;

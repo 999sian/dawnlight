@@ -28,6 +28,7 @@ fixture=r'''
 using namespace dawnlight;
 bool testSurvivors=false;
 bool survivors_active(){return testSurvivors;}
+bool testSurvivorsDual=false;bool survivors_dual_wield(){return testSurvivorsDual;}
 namespace dawnlight { bool teActive=false;bool twilit_stamina_active(){return teActive;} }
 namespace dawnlight {
 bool teHumanSprint=false,teWolfSprint=false;
@@ -350,6 +351,7 @@ int main(){
     }
     assert(mode_config_override(s_healthScale,effective)&&effective==100);
     assert(mode_config_override(s_rJump,effective)&&effective==1);
+    testSurvivorsDual=true;assert(mode_config_override(s_dualWield,effective)&&effective==1);testSurvivorsDual=false;
     assert(configService.values==beforeSurvivors);
     testSurvivors=false;assert(dawnlight_mode_enabled());
 

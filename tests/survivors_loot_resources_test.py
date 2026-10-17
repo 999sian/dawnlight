@@ -30,7 +30,7 @@ stubs=r'''
 using namespace dawnlight::survivors;
 using s16=short;using u32=unsigned;
 constexpr int MOD_OK=0,TRUE=1,cPhs_ERROR_e=-1,cPhs_COMPLEATE_e=4;
-constexpr unsigned dRes_ID_ALANM_BMD_AL_IB_e=0x311,dRes_ID_ALANM_BMD_AL_BOW_e=0x312,
+constexpr unsigned dRes_ID_ALANM_BMD_AL_IB_e=0x311,dRes_ID_ALANM_BMD_AL_BOW_e=0x312,dRes_ID_ALANM_BMD_AL_HS_KUSARI_e=0x313,
  dRes_ID_ALANM_BCK_BARELORD_e=1,dRes_ID_ALANM_BCK_BASHOOT_e=2;
 struct ModContext{};ModContext* mod_ctx=nullptr;
 struct cXyz {float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
@@ -96,10 +96,11 @@ struct mDoExt_bckAnm {
 J3DModel nativeSword(&data[4]);
 struct daAlink_c {struct{cXyz pos;}current;J3DModel* mpSwMModel=&nativeSword;
     static const char* getAlinkArcName(){return "Alink";}
-    J3DModelData* loadAramBmd(unsigned id,unsigned size){assert(currentHeap!=&defaultHeap && ((id==0x311 && size==0x2800)||(id==0x312&&size==0x4c00)));return &data[4];}
+    J3DModelData* loadAramBmd(unsigned id,unsigned size){assert(currentHeap!=&defaultHeap && ((id==0x311 && size==0x2800)||(id==0x312&&size==0x4c00)||(id==0x313&&size==0x1000)));return &data[4];}
     void* loadAram(unsigned,unsigned size){assert(size==0x4000);return &lidData;}
 }player;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
+void draw_chain(unsigned,daAlink_c*,cXyz){}
 namespace mDoMtx_stack_c{void transS(cXyz){}void YrotM(s16){}void XrotM(s16){}void* get(){return nullptr;}}
 struct dKy_tevstr_c{};
 struct Light{void settingTevStruct(int,cXyz*,dKy_tevstr_c*){}void setLightTevColorType_MAJI(J3DModel*,dKy_tevstr_c*){}}g_env_light;
@@ -128,7 +129,7 @@ int main(){
     failHeap=false;clear_loot();missingLid=true;assert(!prepare_loot(&player) && references==0 && liveModels.empty());
     missingLid=false;clear_loot();failModel=int(modelsMade)+3;
     assert(!prepare_loot(&player) && references==0 && liveModels.empty());
-    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==25);
+    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==27);
     assert(currentHeap==&defaultHeap);
     const auto creations=heapCreates;assert(prepare_loot(&player) && heapCreates==creations);
     s_chests[0].active=true;s_chests[1].active=true;s_chests[1].opening=true;s_chests[1].age=45;
