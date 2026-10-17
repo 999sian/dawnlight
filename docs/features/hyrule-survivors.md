@@ -118,7 +118,11 @@ shown in the preview/message and capped by the wallet when granted. This also
 applies to extra Ordon Sword units and potion units beyond available bottle slots.
 One chest still charges only once. Price increases are +5, +7, +9, +11 rupees, etc.
 
-Bokoblins and Keese appear first; Rats join after 30 seconds. Spawn frequency,
+Bokoblins and Keese appear first; Rats join after 30 seconds.
+All three enemy types pursue Link regardless of distance, including elites.
+Bokoblins have no home-position leash, and enemies are not despawned for being
+far from Link. Native attack distances, collision, recovery and death states remain.
+Spawn frequency,
 population and Bokoblin health increase during the run. At ten minutes, ordinary
 spawning stops and an Elite Bokoblin appears at twice the normal size, with
 matching hitboxes so it is easy to recognize. Defeat it to win. Death opens a

@@ -69,6 +69,9 @@ DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
 DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
 DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
+DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#pl_check", int(e_ms_class*, f32), SurvivorsRatAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#damage_check", void(e_ba_class*), SurvivorsKeeseHit);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#damage_check", void(e_ms_class*), SurvivorsRatHit);
 DEFINE_HOOK(&daAlink_c::setMatrix, SurvivorsRangedAim);
@@ -212,6 +215,7 @@ Enemy* tracked(ActorId id) {
     for (auto& e : s_enemies) if (e.id != kNone && e.id == id) return &e;
     return nullptr;
 }
+#include "survivors_aggro.inc"
 void stop_attack(Attack& a) {
     for (auto& id : a.emitters) {
         if (id) {
@@ -454,7 +458,7 @@ void update_spawns(daAlink_c* link) {
         if (!actor || !e.initialized) continue;
         ++e.age;
         // Cleanup is never a reward. A lost elite can be attempted again.
-        if (!e.retiring && (actor->current.pos.absXZ(link->current.pos) > 2500 || e.age > 5400)) {
+        if (!e.retiring && e.age > 5400) {
             e.retiring = true;
             if (e.elite && !e.credited) s_run.elite_spawned = false;
         }
@@ -776,16 +780,7 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
                 static_cast<s16>(8 + std::min(24u, s_run.ticks / 900));
         }
     }
-    if (enemy && !enemy->retiring && !enemy->credited && s_run.phase == Phase::Running && playable()) {
-        // Keep mobile enemies engaged without altering their native damage/death states.
-        if (enemy->profile == fpcNm_E_MS_e) {
-            auto* rat = static_cast<e_ms_class*>(actor);
-            if (rat->mAction == 0 && rat->health > 0) { rat->mAction = 1; rat->mMode = 0; }
-        } else if (enemy->profile == fpcNm_E_OC_e) {
-            auto* bokoblin = static_cast<daE_OC_c*>(actor);
-            if (bokoblin->getActionMode() <= 2) bokoblin->setActionMode(3, 0);
-        }
-    }
+    if (enemy) engage_enemy(actor, *enemy);
     if ((enemy && enemy->retiring) || pause_run_actor(enemy != nullptr)) {
         *static_cast<int*>(result) = 1;
         return HOOK_SKIP_ORIGINAL;
@@ -1056,6 +1051,9 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsPlayer, before_chest_action);
     PRE(SurvivorsBlock, before_shield_block); PRE(SurvivorsGuard, before_survivors_guard);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
+    PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
+    PRE(SurvivorsKeeseAggro, before_keese_aggro);
+    PRE(SurvivorsRatAggro, before_rat_aggro);
     PRE(SurvivorsKeeseHit, before_enemy_hit); POST(SurvivorsKeeseHit, after_enemy_hit);
     PRE(SurvivorsRatHit, before_enemy_hit); POST(SurvivorsRatHit, after_enemy_hit);
     PRE(SurvivorsMovement, before_auto_movement); POST(SurvivorsMovement, after_auto_movement);
