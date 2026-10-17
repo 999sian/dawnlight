@@ -12,23 +12,37 @@ int main() {
         assert(!arena_matches(i,arenas[i].stage,arenas[i].room+1));
     }
     assert(!arena_matches(99,"F_SP121",6));
-    // Two floor triangles: internal diagonal/material seam is not a wall.
+    // Ordinary floor, including open edges/cliffs, must not acquire curtains.
     const Point a{0,0,0},b{100,0,0},c{100,0,100},d{0,0,100};
     Boundary mesh;
     mesh.triangle({a,b,c},true,false);
     mesh.triangle({a,c,d},true,false);
-    assert(mesh.walls().size()==4);
+    assert(mesh.walls().empty());
     // A native solid wall removes the need for an additional curtain.
     mesh.triangle({a,b,Point{100,200,0}},false,false);
-    assert(mesh.walls().size()==3);
+    assert(mesh.walls().empty());
     // An exit floor adjacent to playable ground produces a barrier at the seam.
     mesh.triangle({b,c,Point{200,0,100}},true,true);
-    assert(mesh.walls().size()==3);
+    assert(mesh.walls().size()==1);
+    const auto exitWalls=mesh.walls();
+    assert(near(exitWalls[0].a.x,100)&&near(exitWalls[0].b.x,100));
+    // Crossing the actual exit is blocked; the unrelated open side stays free.
+    auto exitCrossing=slide({50,0,50},{150,0,50},10,exitWalls);
+    assert(exitCrossing.x<91);
+    auto openEdge=slide({50,0,50},{50,0,-100},10,exitWalls);
+    assert(near(openEdge.x,50)&&near(openEdge.z,-100));
+    // Adjacent exit triangles must not generate internal curtain diagonals.
+    Boundary exitPatch;
+    exitPatch.triangle({a,b,c},true,true);
+    exitPatch.triangle({a,c,d},true,true);
+    assert(exitPatch.walls().empty());
     // A slightly split vertex is welded; it cannot create a false interior wall.
     Boundary split;
     split.triangle({a,b,c},true,false);
     split.triangle({Point{0.1f,0,0},Point{100.1f,0,100},d},true,false);
-    assert(split.walls().size()==4);
+    assert(split.walls().empty());
+    split.triangle({Point{100.1f,0,0},Point{100.1f,0,100},Point{200,0,100}},true,true);
+    assert(split.walls().size()==1);
     const std::vector<Wall> walls{{{0,0,-1000},{0,0,1000}}};
     for (float speed:{20.f,100.f,2000.f}) {
         const auto p=slide({-100,0,0},{speed,0,100},40,walls);

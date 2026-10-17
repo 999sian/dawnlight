@@ -102,15 +102,16 @@ void collect_arena_mesh(fopAc_ac_c* actor) {
         cXyz a,b,c;
         if (!mesh->GetTriPnt(polygon,&a,&b,&c)) continue;
         const auto normal=mesh->GetTriPla(polygon);
-        const int room=mesh->GetGrpRoomIndex(polygon);
-        const bool outside=(room!=0xff && room>=0 && room!=arena().room) || mesh->GetExitId(polygon)!=0x3f;
-        boundary.triangle({map_point(a),map_point(b),map_point(c)},normal.GetNP()->y>0.25f,outside);
+        // A mesh edge or another room group is not necessarily an exit. Only
+        // native scene-exit polygons justify an additional curtain here.
+        const bool exit=mesh->GetExitId(polygon)!=0x3f;
+        boundary.triangle({map_point(a),map_point(b),map_point(c)},normal.GetNP()->y>0.25f,exit);
     }
     auto walls=boundary.walls();
     s_barriers.insert(s_barriers.end(),walls.begin(),walls.end());
     s_arenaBackgrounds.push_back(id); s_arenaMeshReady=true;
     char message[160];
-    std::snprintf(message,sizeof(message),"Hyrule Survivors: arena %s room %d, %u boundary segments",
+    std::snprintf(message,sizeof(message),"Hyrule Survivors: arena %s room %d, %u exit barrier segments",
         arena().stage,arena().room,unsigned(s_barriers.size()));
     svc_log->info(mod_ctx,message);
 }

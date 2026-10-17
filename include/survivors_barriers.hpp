@@ -9,11 +9,12 @@ namespace dawnlight::survivors::barriers {
 struct Point { float x, y, z; };
 struct Wall { Point a, b; };
 // Weld coincident mesh vertices: room meshes can split vertex indices at material
-// seams. A seam between ordinary floor triangles must not become an arena wall.
+// seams. Only the seam between playable floor and an authored exit becomes a
+// curtain. Open edges, cliffs and ordinary room/material seams remain unblocked.
 class Boundary {
     using Vertex = std::array<long, 3>;
     using Key = std::array<Vertex, 2>;
-    struct Edge { Wall wall; unsigned count = 0, floor = 0, exit = 0; };
+    struct Edge { Wall wall; unsigned floor = 0, exit = 0; };
     std::map<Key, Edge> edges;
     static Vertex vertex(Point p) {
         return {std::lround(p.x * 2), std::lround(p.y * 2), std::lround(p.z * 2)};
@@ -25,7 +26,6 @@ public:
             if (key[1] < key[0]) std::swap(key[0], key[1]);
             auto& edge = edges[key];
             edge.wall = {p[i], p[(i + 1) % 3]};
-            ++edge.count;
             edge.floor += walkable && !exit;
             edge.exit += exit;
         }
@@ -34,7 +34,7 @@ public:
         std::vector<Wall> result;
         for (const auto& entry : edges) {
             const auto& e = entry.second;
-            if (!e.floor || (!e.exit && e.count != 1)) continue;
+            if (!e.floor || !e.exit) continue;
             const float dx = e.wall.a.x - e.wall.b.x, dz = e.wall.a.z - e.wall.b.z;
             if (dx * dx + dz * dz > 1) result.push_back(e.wall);
         }

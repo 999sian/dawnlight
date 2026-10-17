@@ -31,9 +31,11 @@ and the native stage loader. No guessed world-space spawn coordinates are used.
 
 Stage enemies, NPCs, story-event triggers and vanilla reward chests are filtered
 before creation only in the active Survivors arena. Native geometry, lighting and
-doors remain. Magical curtains seal open collision-mesh boundaries and exit
-triggers, tinted green in the field, amber in the desert, violet in the palace and
-red in the throne room. Door interactions and native scene exits are disabled.
+doors remain. Magical curtains seal only native scene-exit polygons, exit
+triggers and doorways. Open mesh edges, cliffs and ordinary room/material seams
+do not create curtains. Curtains are tinted green in the field, amber in the
+desert, violet in the palace and red in the throne room. Door interactions and
+native scene exits are disabled.
 Enemy and chest placement reject other rooms and paths across these barriers.
 If the arena collision cannot be prepared, Start run stays disabled and another
 map can still be selected. Story mode and Boss Rush retain their own rules.
