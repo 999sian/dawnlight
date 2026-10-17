@@ -39,13 +39,13 @@ unsigned treasure_message_id() { return s_treasureMessage.id(); }
 constexpr std::array<int, 7> kSurvivorsSlots{SLOT_4, SLOT_0, SLOT_15, SLOT_6, SLOT_20, SLOT_21, SLOT_22};
 void sync_survivors_inventory() {
     const std::array<u8, 7> items{
-        s_run.rank(Upgrade::Bow) ? dItemNo_BOW_e : dItemNo_NONE_e,
-        s_run.rank(Upgrade::Boomerang) ? dItemNo_BOOMERANG_e : dItemNo_NONE_e,
-        s_run.rank(Upgrade::Bombs) ? dItemNo_NORMAL_BOMB_e : dItemNo_NONE_e,
-        s_run.rank(Upgrade::Ball) ? dItemNo_IRONBALL_e : dItemNo_NONE_e,
-        s_run.master_sword ? (s_run.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e) : dItemNo_NONE_e,
-        s_run.dual_wield ? dItemNo_SWORD_e : dItemNo_NONE_e,
-        u8(s_run.shield ? shield_item(s_run) : dItemNo_NONE_e)};
+        u8(s_run.rank(Upgrade::Bow) ? dItemNo_BOW_e : dItemNo_NONE_e),
+        u8(s_run.rank(Upgrade::Boomerang) ? dItemNo_BOOMERANG_e : dItemNo_NONE_e),
+        u8(s_run.rank(Upgrade::Bombs) ? dItemNo_NORMAL_BOMB_e : dItemNo_NONE_e),
+        u8(s_run.rank(Upgrade::Ball) ? dItemNo_IRONBALL_e : dItemNo_NONE_e),
+        u8(s_run.master_sword ? (s_run.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e) : dItemNo_NONE_e),
+        u8(s_run.dual_wield ? dItemNo_SWORD_e : dItemNo_NONE_e),
+        s_run.shield ? shield_item(s_run) : u8(dItemNo_NONE_e)};
     for (unsigned i = 0; i < items.size(); ++i)
         if (dComIfGs_getItem(kSurvivorsSlots[i], false) != items[i])
             dComIfGs_setItem(kSurvivorsSlots[i], items[i]);

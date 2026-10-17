@@ -1,11 +1,16 @@
 """Run inventory guards and reward text through the real SDK message builder."""
 from pathlib import Path
+import os
 import subprocess
 import sys
 import tempfile
 root = Path(__file__).resolve().parents[1]
 sdk = Path(sys.argv[1]) if len(sys.argv) > 1 else root / 'dusklight'
 source = (root / 'src/survivors_inventory.inc').read_text()
+# Preserve the real enum type: u8 stand-ins hide Clang's narrowing diagnostics.
+item_header = (sdk / 'include/d/d_item_data.h').read_text()
+enum_start = item_header.rfind('enum {', 0, item_header.index('dItemNo_HEART_e'))
+item_enum = item_header[enum_start:item_header.index('};', enum_start) + 2]
 fixture = r'''
 #include <cassert>
 #include <any>
@@ -17,11 +22,9 @@ using namespace dawnlight::survivors;
 using u8=uint8_t;
 using u32=uint32_t;
 constexpr int SLOT_0=0,SLOT_4=4,SLOT_6=6,SLOT_11=11,SLOT_14=14,SLOT_15=15,SLOT_20=20,SLOT_21=21,SLOT_22=22,MAX_ITEM_SLOTS=24;
-constexpr u8 dItemNo_NONE_e=255,dItemNo_BOW_e=1,dItemNo_BOOMERANG_e=2,dItemNo_NORMAL_BOMB_e=3,dItemNo_IRONBALL_e=4,
- dItemNo_MASTER_SWORD_e=5,dItemNo_LIGHT_SWORD_e=6,dItemNo_SWORD_e=7,dItemNo_WOOD_SHIELD_e=8,dItemNo_SHIELD_e=9,dItemNo_HYLIA_SHIELD_e=10,
- dItemNo_RED_BOTTLE_e=20,dItemNo_EMPTY_BOTTLE_e=21;
+// ITEM_ENUM
 std::array<u8,24> inventory;
-u8 dComIfGs_getItem(int slot,bool){return slot<24?inventory[slot]:dItemNo_NONE_e;}
+u8 dComIfGs_getItem(int slot,bool){return slot<24?inventory[slot]:u8(dItemNo_NONE_e);}
 void dComIfGs_setItem(int slot,u8 item){inventory[slot]=item;}
 bool arena=true;bool in_arena(){return arena;}
 Run s_run;
@@ -119,8 +122,8 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp, binary = Path(tmp)/'test.cpp', Path(tmp)/'test'
-    cpp.write_text(fixture + source + main)
-    subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes','-Wno-missing-field-initializers',
+    cpp.write_text(fixture.replace('// ITEM_ENUM', item_enum) + source + main)
+    subprocess.run([os.environ.get('CXX', 'c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes','-Wno-missing-field-initializers',
                     '-I',str(root/'src'),'-I',str(sdk/'sdk/include'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
 print('Survivors inventory: reward deltas/red tags, message lifetime, inventory, binding guards and live descriptions passed')
