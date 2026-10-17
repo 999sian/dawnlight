@@ -854,8 +854,7 @@ void draw_hud(ModContext*, void*, void*, void*) {
     std::snprintf(text, sizeof(text), "%02u:%02u / 10:00   Level %u   Kills %u",
         s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.level, s_run.kills);
     label(text, x, 40, 17);
-    std::snprintf(text, sizeof(text), "XP %u / %u   Wave %u   Spin %u   Block %u%%",
-        s_run.xp, s_run.required_xp(), s_run.ranks[0], s_run.ranks[1], s_run.block_chance());
+    std::snprintf(text, sizeof(text), "XP %u / %u", s_run.xp, s_run.required_xp());
     label(text, x, 62, 14);
     // J2DPrint enables direct TEX0 attributes. fillBox emits only position and
     // color, so reset the vertex layout before its quads or the GX FIFO reads
@@ -869,18 +868,14 @@ void draw_hud(ModContext*, void*, void*, void*) {
     graf->setColor(JUtility::TColor(80, 220, 245, 240));
     graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x - 160 + 320 * fraction, 88));
     graf->setColor(oldTL, oldTR, oldBR, oldBL);
-    std::snprintf(text, sizeof(text), "Bow %u | Boomerang %u | Bombs %u | Ball %u",
-        s_run.rank(Upgrade::Bow), s_run.rank(Upgrade::Boomerang), s_run.rank(Upgrade::Bombs),
-        s_run.rank(Upgrade::Ball));
-    label(text, x, 96, 12);
     if (s_run.chest_rewards_left(potion_slot() >= 0))
         std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
     else std::snprintf(text, sizeof(text), "No chest rewards available");
-    label(text, x, 114, 14);
+    label(text, x, 96, 14);
     if (s_run.ticks >= duration && s_run.phase == Phase::Running)
-        label("Defeat the Elite Bokoblin!", x, 136, 16);
+        label("Defeat the Elite Bokoblin!", x, 118, 16);
     else if (s_spawnFailures >= 10)
-        label("Waiting for a clear enemy spawn position", x, 136, 13);
+        label("Waiting for a clear enemy spawn position", x, 118, 13);
     graf->setup2D();
 }
 void select_upgrade(ModContext*, void* data) {

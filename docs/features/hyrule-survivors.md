@@ -28,6 +28,10 @@ swings and finishers, facing follows the same live enemy every frame after movem
 without changing travel direction or camera lock-on. Dead, blocked, out-of-range
 or elevated targets are released; a nearby reachable target can replace them.
 
+The HUD shows time, level, kills, experience and the next chest price.
+Weapon ranks and power-up details are available in the item wheel and Collection
+overview; they are not repeated during combat.
+
 Leveling up pauses Link and the encounter and offers three upgrades in the same
 side-by-side card layout as chests. Every card uses the native Hidden Skills scroll
 icon, its power-up name/description and red before/after changes. Controller,
