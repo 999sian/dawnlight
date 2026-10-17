@@ -6,7 +6,7 @@ import tempfile
 root = Path(__file__).resolve().parents[1]
 source = (root / 'src/survivors.cpp').read_text()
 def extract(name):
-    match = re.search(r'^(?:void|HookAction) ' + name + r'\(', source, re.M)
+    match = re.search(r'^(?:void|bool|HookAction|ModResult) ' + name + r'\(', source, re.M)
     assert match, name
     start = source.index('{', match.start())
     depth = 0
@@ -28,6 +28,9 @@ using ActorId=unsigned; using ProfileName=int; using s8=signed char; using s16=s
 constexpr ActorId kNone=~0u;
 constexpr int fpcNm_E_OC_e=1, fpcNm_E_BA_e=2;
 struct ModContext {};
+struct ModError {};
+using ModResult=int;
+constexpr ModResult MOD_OK=0;
 enum HookAction { HOOK_CONTINUE, HOOK_SKIP_ORIGINAL };
 namespace mods {
 template<class T> T arg(void* args, int n) { return std::any_cast<T>(static_cast<std::any*>(args)[n]); }
@@ -44,12 +47,26 @@ struct Enemy {
 std::array<Enemy,enemy_capacity> s_enemies;
 Run s_run;
 bool arena=true, transition=false, s_active=true, s_restart=false;
+bool s_saveReady=false, s_gameStarted=true;
+bool s_loaded=false, s_resultsStored=false, s_storeFailed=false, s_saveRequested=false;
+ActorId s_player=kNone, s_savePrompt=kNone;
+unsigned s_spawnCooldown=0, s_spawnFailures=0, s_warmup=0;
+std::array<unsigned,3> s_cooldowns{};
+std::array<int,64> s_orbs{};
+Records s_records;
+void close_window() {} void clear_attacks() {} void detach_attack_references() {}
+void d_GameOver_Delete(ActorId) {} void dComIfGp_setGameoverStatus(int) {}
+unsigned preparations=0;
+void prepare_save() { ++preparations; }
+constexpr char kBlob[]="records";
 struct mDoRst {
     static inline bool resetting=false, menu=false;
     static bool isReset(){return resetting;} static bool isReturnToMenu(){return menu;}
 };
-bool in_arena(){return arena;} bool transitioning(){return transition;}
+bool transitioning(){return transition;}
 const char kStage[]="D_DLBR0";
+const char* dComIfGp_getStartStageName(){return arena?kStage:"F_SP102";}
+int dComIfGp_getStartStageRoomNo(){return arena?51:0;}
 unsigned restartParam=123;
 void dComIfGs_setRestartRoomParam(unsigned value){restartParam=value;}
 struct Collider { unsigned power=0; unsigned GetAtAtp(){return power;} };
@@ -63,7 +80,12 @@ std::set<ActorId> pending;
 std::unordered_map<ActorId,fopAc_ac_c*> actors;
 bool fpcM_IsCreating(ActorId id){return pending.contains(id);}
 fopAc_ac_c* actor_by_id(ActorId id){auto it=actors.find(id); return it==actors.end()?nullptr:it->second;}
-struct Service { unsigned attempts=0; void delete_actor(ModContext*,ActorId){++attempts;} } service;
+struct Service {
+    unsigned attempts=0;
+    void delete_actor(ModContext*,ActorId){++attempts;}
+    ModResult set_blob(ModContext*,const char*,const void*,size_t){return MOD_OK;}
+} service;
+Service* svc_save=&service;
 Service* svc_actor=&service; ModContext* mod_ctx=nullptr;
 '''
 main = r'''
@@ -103,6 +125,54 @@ int main() {
     assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
     mDoRst::resetting=false;mDoRst::menu=true;
     assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+    mDoRst::menu=false;
+
+    // Actual lifecycle callbacks: selecting/playing a mode is not selecting a save.
+    activated(nullptr,nullptr);
+    assert(s_active && !s_saveReady && !s_gameStarted && !in_arena());
+    auto opening = [&] {
+        args[0]=static_cast<const char*>("F_SP102");args[1]=s16(100);args[2]=s8(0);args[3]=s8(10);
+        restartParam=123;
+        assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+        assert(std::strcmp(std::any_cast<const char*>(args[0]),"F_SP102")==0);
+        assert(std::any_cast<s16>(args[1])==100 && std::any_cast<s8>(args[3])==10 && restartParam==123);
+    };
+    opening(); // Logo -> opening scene must not start an arena beneath the title UI.
+    before_game_start(nullptr,nullptr,nullptr,nullptr);
+    assert(!s_gameStarted); // No selected slot, including failed direct-save loads.
+    for (bool brightnessScreen : {false,true}) {
+        new_save(nullptr,nullptr); // Native callback is after Link AND Epona names.
+        assert(s_saveReady && !s_gameStarted && !in_arena());
+        opening(); // Preparation alone cannot redirect stages or unlock gameplay.
+        if (brightnessScreen) opening(); // Optional TV screen still owns the scene.
+        loaded(nullptr,nullptr); // Native new-save flow also calls on_save_loaded.
+        assert(s_saveReady && !s_gameStarted);
+        before_game_start(nullptr,nullptr,nullptr,nullptr);
+        assert(s_gameStarted && in_arena());
+        args[0]=static_cast<const char*>(kStage);
+        assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+        args[0]=static_cast<const char*>("F_SP108");args[1]=s16(21);args[2]=s8(1);args[3]=s8(13);
+        assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+        assert(std::strcmp(std::any_cast<const char*>(args[0]),kStage)==0);
+        assert(std::any_cast<s16>(args[1])==0 && std::any_cast<s8>(args[2])==51 && std::any_cast<s8>(args[3])==0);
+        s_run.start(1);
+        before_opening(nullptr,nullptr,nullptr,nullptr);
+        assert(!s_saveReady && !s_gameStarted && !in_arena());
+        opening(); // Return to title disarms even without a reset callback.
+    }
+    loaded(nullptr,nullptr); // Existing slot / successful command-line load.
+    before_game_start(nullptr,nullptr,nullptr,nullptr);
+    assert(s_gameStarted);
+    reset(nullptr,nullptr);
+    assert(!s_saveReady && !s_gameStarted && !in_arena());
+    opening();
+    loaded(nullptr,nullptr);mDoRst::resetting=true;
+    before_game_start(nullptr,nullptr,nullptr,nullptr);assert(!s_gameStarted);
+    mDoRst::resetting=false;mDoRst::menu=true;
+    before_game_start(nullptr,nullptr,nullptr,nullptr);assert(!s_gameStarted);
+    mDoRst::menu=false;
+    deactivated(nullptr,nullptr);
+    assert(!s_active && !s_saveReady && !s_gameStarted);
     s_active=true;
     for (unsigned power=1;power<=12;++power) {
         s_attacks[0].collider.power=power;
@@ -118,6 +188,8 @@ int main() {
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'; binary=Path(tmp)/'test'
-    cpp.write_text(stubs+'\n'+ '\n'.join(extract(n) for n in ['cleanup_enemies','credit_death','before_stage','after_power'])+'\n'+main)
+    cpp.write_text(stubs+'\n'+ '\n'.join(extract(n) for n in [
+        'in_arena','retire_enemies','reset_runtime','activated','deactivated','new_save','loaded','reset',
+        'cleanup_enemies','credit_death','before_game_start','before_opening','before_stage','after_power'])+'\n'+main)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

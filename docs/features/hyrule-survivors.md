@@ -5,6 +5,9 @@
 Hyrule Survivor's is a separate game mode included in `dawnlight_mod.dusk`.
 Select it in Dusklight's game-mode menu and create or load a Survivors save.
 It uses `gczelda2-survivors`, separate from the story and Boss Rush save files.
+The title screen, save selection, Link/Epona names and optional TV settings finish
+before the arena loads. Selecting the mode alone cannot start a run. Returning
+to the title screen disarms the run until another save is selected and started.
 
 ## First arena
 

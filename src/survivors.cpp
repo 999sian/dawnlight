@@ -50,6 +50,8 @@ DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
 DEFINE_HOOK(&fopAcM_orderDoorEvent, SurvivorsDoor);
 DEFINE_HOOK(&at_power_check, SurvivorsPower);
 DEFINE_HOOK(&dMeter2Draw_c::draw, SurvivorsHud);
+DEFINE_HOOK(&dComIfGs_gameStart, SurvivorsGameStart);
+DEFINE_HOOK(&dComIfG_changeOpeningScene, SurvivorsOpening);
 DEFINE_HOOK(&fpcMtd_Method, SurvivorsProcess);
 DEFINE_HOOK(&fopAcM_createItemFromTable, SurvivorsDrops);
 DEFINE_HOOK(&fopAcM_createItem, SurvivorsDirectDrops);
@@ -57,6 +59,9 @@ DEFINE_HOOK(static_cast<void (*)(const char*, s16, s8, s8, f32, u32, int, s8, s1
     &dComIfGp_setNextStage), SurvivorsStage);
 
 bool s_active = false, s_registered = false, s_loaded = false, s_restart = false;
+// Selecting a mode starts the title flow, not a game. A slot callback prepares
+// the save; only gameStart commits it after names and optional TV settings.
+bool s_saveReady = false, s_gameStarted = false;
 bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 Run s_run;
 Records s_records;
@@ -96,7 +101,7 @@ const dCcD_SrcSph kAttackSource = {
 };
 
 bool in_arena() {
-    return s_active && std::strcmp(dComIfGp_getStartStageName(), kStage) == 0 &&
+    return s_active && s_gameStarted && std::strcmp(dComIfGp_getStartStageName(), kStage) == 0 &&
         dComIfGp_getStartStageRoomNo() == 51;
 }
 bool ui_visible() {
@@ -181,6 +186,7 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    s_saveReady = false; s_gameStarted = false;
     close_window(); clear_attacks(); detach_attack_references(); retire_enemies();
     if (s_savePrompt != kNone) {
         d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone;
@@ -494,9 +500,19 @@ HookAction before_drop(ModContext*, void*, void* result, void*) {
     *static_cast<fpc_ProcID*>(result) = kNone;
     return HOOK_SKIP_ORIGINAL;
 }
+HookAction before_game_start(ModContext*, void*, void*, void*) {
+    if (s_active && s_saveReady && !mDoRst::isReset() && !mDoRst::isReturnToMenu())
+        s_gameStarted = true;
+    return HOOK_CONTINUE;
+}
+HookAction before_opening(ModContext*, void*, void*, void*) {
+    if (s_active) reset_runtime();
+    return HOOK_CONTINUE;
+}
 HookAction before_stage(ModContext*, void* args, void*, void*) {
-    if (!s_active || mDoRst::isReset() || mDoRst::isReturnToMenu()) return HOOK_CONTINUE;
-    // Initial name/file-select routes are redirected; arena exits cannot enter story.
+    if (!s_active || !s_gameStarted || mDoRst::isReset() || mDoRst::isReturnToMenu()) return HOOK_CONTINUE;
+    // gameStart and the subsequent new-file F_SP108 override must both target
+    // the arena. The earlier opening/title request must remain untouched.
     if (in_arena() && !s_restart && s_run.phase != Phase::Loading) return HOOK_SKIP_ORIGINAL;
     dComIfGs_setRestartRoomParam(0);
     mods::arg_ref<const char*>(args, 0) = kStage;
@@ -646,11 +662,14 @@ ModResult activated(void*, ModError*) { s_active = true; reset_runtime(); return
 ModResult deactivated(void*, ModError*) { s_active = false; reset_runtime(); return MOD_OK; }
 ModResult new_save(void*, ModError*) {
     reset_runtime(); s_records = {}; prepare_save();
+    s_saveReady = true;
     const auto bytes = s_records.encode();
     svc_save->set_blob(mod_ctx, kBlob, bytes.data(), bytes.size());
     return MOD_OK;
 }
-ModResult loaded(void*, ModError*) { reset_runtime(); prepare_save(); return MOD_OK; }
+ModResult loaded(void*, ModError*) {
+    reset_runtime(); prepare_save(); s_saveReady = true; return MOD_OK;
+}
 ModResult reset(void*, ModError*) { reset_runtime(); return MOD_OK; }
 } // namespace
 
@@ -658,7 +677,7 @@ bool survivors_active() { return s_active; }
 bool survivors_arena_active() { return in_arena(); }
 void update_survivors() {
     cleanup_enemies();
-    if (!s_active) return;
+    if (!s_active || !s_gameStarted) return;
     if (s_savePrompt != kNone) {
         if (d_GameOver_CheckDelete(s_savePrompt) && dComIfGp_getGameoverStatus() == 1) {
             d_GameOver_Delete(s_savePrompt); dComIfGp_setGameoverStatus(0);
@@ -708,6 +727,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsSwordAttack, before_cut); PRE(SurvivorsDoor, before_cut);
     POST(SurvivorsPower, after_power);
     PRE(SurvivorsStage, before_stage); POST(SurvivorsHud, draw_hud);
+    PRE(SurvivorsGameStart, before_game_start); PRE(SurvivorsOpening, before_opening);
     PRE(SurvivorsDrops, before_drop); PRE(SurvivorsDirectDrops, before_drop);
 #undef PRE
 #undef POST
