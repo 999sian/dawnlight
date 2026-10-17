@@ -51,6 +51,7 @@
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include <memory>
 
 namespace dawnlight {
 namespace {
@@ -85,6 +86,8 @@ DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
 DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
+DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
+DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
 DEFINE_HOOK(&daAlink_c::procCutTurn, SurvivorsSpinMove);
 DEFINE_HOOK(&daAlink_c::procCutNormal, SurvivorsNormalMove);
 DEFINE_HOOK(&daAlink_c::procCutFinish, SurvivorsFinishMove);
@@ -616,6 +619,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 #include "survivors_treasure.inc"
 #include "survivors_inventory.inc"
 #include "survivors_defense.inc"
+#include "survivors_movement.inc"
 
 void update_weapons(daAlink_c* link) {
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
@@ -1004,6 +1008,8 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
     PRE(SurvivorsKeeseHit, before_enemy_hit); POST(SurvivorsKeeseHit, after_enemy_hit);
     PRE(SurvivorsRatHit, before_enemy_hit); POST(SurvivorsRatHit, after_enemy_hit);
+    PRE(SurvivorsMovement, before_auto_movement); POST(SurvivorsMovement, after_auto_movement);
+    POST(SurvivorsPosition, after_auto_position);
     PRE(SurvivorsRangedAim, before_ranged_aim);
     PRE(SurvivorsBowAction, before_ranged_native);
     PRE(SurvivorsBowNext, before_ranged_native);

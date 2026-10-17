@@ -45,7 +45,7 @@ s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.14159265);}
 float cM_ssin(s16 angle){return std::sin(angle*3.14159265f/32768);}
 float cM_scos(s16 angle){return std::cos(angle*3.14159265f/32768);}
 struct Actor {unsigned id=1;int health=10;struct{cXyz pos;}current;cXyz eyePos;};
-struct daAlink_c:Actor {int tevStr=0;}player;
+struct daAlink_c:Actor {int tevStr=0;struct{short y=0;}shape_angle;}player;
 unsigned fopAcM_GetID(Actor* a){return a->id;}
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 std::unordered_map<unsigned,Actor*>actors;
@@ -159,6 +159,16 @@ int main(){
         assert(a.returning && a.active);
         player.current.pos.x=100;update_item_attack(a,&player);assert(a.velocity.x>0 && a.velocity.z<0);
         for(unsigned i=0;i<80 && a.active;++i)update_item_attack(a,&player);
+        assert(!a.active);
+    }
+    // High, low and vertically aligned targets never tilt or slow the ball.
+    for(cXyz target : {cXyz(0,700,400),cXyz(0,-300,400),cXyz(0,900,0)}) {
+        reset();s_run.ranks[11]=1;assert(launch_item(&player,Upgrade::Ball,target));
+        auto& a=s_attacks[20];assert(a.velocity.y==0&&std::abs(a.velocity.abs()-40)<0.001f);
+        const float height=a.position.y;
+        while(a.active&&!a.returning){update_item_attack(a,&player);assert(a.position.y==height);}
+        player.current.pos={100,300,0};
+        for(unsigned i=0;i<80&&a.active;++i){update_item_attack(a,&player);assert(a.position.y==height&&a.velocity.y==0);}
         assert(!a.active);
     }
     // Rank 1 visits two targets, rank 5 visits six distinct targets, then returns.

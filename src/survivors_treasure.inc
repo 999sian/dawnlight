@@ -2,6 +2,12 @@ u8 shield_item(const Run& run) {
     constexpr std::array<u8, 3> items{dItemNo_WOOD_SHIELD_e, dItemNo_SHIELD_e, dItemNo_HYLIA_SHIELD_e};
     return items[run.shield_tier()];
 }
+u8 treasure_item(ChestReward reward, const Run& run) {
+    const std::array<u8, 8> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e,
+        dItemNo_IRONBALL_e, u8(run.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e),
+        dItemNo_RED_BOTTLE_e, dItemNo_SWORD_e, shield_item(run)};
+    return items[unsigned(reward)];
+}
 // Native DEFAULT_GETITEM presentation, following the Glider reward's actor
 // ownership protocol. The prop is presentation-only; completion explicitly
 // commits the run reward and, for swords/bottles, the isolated save inventory.
@@ -73,12 +79,9 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link) {
     unsigned rupees = dComIfGs_getRupee(); ChestReward reward = ChestReward::Count;
     if (!preview.buy_chest(rupees, reward, potion_slot() >= 0)) return false;
     if (!prepare_treasure_message(reward, s_run, preview)) return false;
-    const std::array<u8, 8> items{dItemNo_BOW_e, dItemNo_BOOMERANG_e, dItemNo_BOMB_5_e,
-                                      dItemNo_IRONBALL_e, u8(preview.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e), dItemNo_RED_BOTTLE_e,
-                                      dItemNo_SWORD_e, shield_item(preview)};
     auto* previous = fpcLy_CurrentLayer(); fpcLy_SetCurrentLayer(layer);
     // 0x01 is native presentation-only: daDitem_c skips execItemGet.
-    const auto item = fopAcM_createDemoItem(&link->current.pos, items[unsigned(reward)],
+    const auto item = fopAcM_createDemoItem(&link->current.pos, treasure_item(reward, preview),
                                           -1, nullptr, fopAcM_GetRoomNo(link), nullptr, 0x01);
     fpcLy_SetCurrentLayer(previous);
     if (item == kNone) return false;

@@ -15,6 +15,7 @@ fixture = r'''
 #include <cassert>
 #include <any>
 #include <map>
+#include <memory>
 #include <string>
 #include "survivors_items.hpp"
 #include "mods/svc/flow.hpp"
@@ -34,24 +35,31 @@ struct Player{dSv_player_status_a_c status;auto& getPlayerStatusA(){return statu
 struct Info{Player player;auto& getPlayer(){return player;}};
 struct{Info info;}g_dComIfG_gameInfo;
 struct dMenu_Ring_c{bool mPlayerIsWolf=false;unsigned mCurrentSlot=0;std::array<u8,24>mItemSlots{};};
-struct dMenu_ItemExplain_c{u32 field_0xcc=0,field_0xc8=0,field_0xc4=0;u8 field_0xde=1,field_0xdf=10;unsigned numberUpdates=0;void setNumber(){++numberUpdates;}};
+struct dMenu_ItemExplain_c{u32 field_0xcc=0,field_0xc8=0,field_0xc4=0,field_0xd0=0;u8 field_0xde=1,field_0xdf=10;unsigned numberUpdates=0;void setNumber(){++numberUpdates;}};
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
-struct Message{std::vector<uint8_t> text;};
-std::map<MessageId,Message> messages;MessageId nextId=0x8000;bool failMessage=false;
-ModResult register_message(ModContext*,uint16_t group,const MessageVariantData* variants,size_t count,MessageId* id,MessageHandle* handle){
- assert(group==0&&count==6);if(failMessage)return MOD_UNAVAILABLE;
- for(size_t i=0;i<count;++i){assert(variants[i].text_size>1);assert(variants[i].text[variants[i].text_size-1]==0);}
- *id=nextId++;*handle=*id;messages[*id]={{variants[0].text,variants[0].text+variants[0].text_size}};return MOD_OK;
+bool treasureOwned=true;bool owns_treasure_event(){return treasureOwned;}
+// TREASURE_ITEM
+struct Message{unsigned id;uint8_t language;MessageOverrideFn fn;void* data;};
+std::map<MessageOverrideHandle,Message> messages;MessageOverrideHandle nextId=1;bool failMessage=false;
+ModResult override_message_fn(ModContext*,uint16_t group,uint16_t id,uint8_t language,MessageOverrideFn fn,void* data,MessageOverrideHandle* handle){
+ assert(group==0&&id<5000);if(failMessage)return MOD_UNAVAILABLE;
+ *handle=nextId++;messages[*handle]={id,language,fn,data};return MOD_OK;
 }
-ModResult remove_message(ModContext*,MessageHandle id){messages.erase(id);return MOD_OK;}
-MessageService messageService{.register_message=register_message,.remove_message=remove_message};
+ModResult remove_override(ModContext*,MessageOverrideHandle id){messages.erase(id);return MOD_OK;}
+MessageService messageService{.override_message_fn=override_message_fn,.remove_override=remove_override};
 extern "C"{ModContext* mod_ctx=nullptr;const MessageService* svc_message=&messageService;const FlowService* svc_flow=nullptr;}
 '''
 main = r'''
-std::string plain(MessageId id){std::string text;const auto& bytes=messages.at(id).text;for(size_t i=0;i+1<bytes.size();){if(bytes[i]==0x1a)i+=bytes[i+1];else text+=char(bytes[i++]);}return text;}
+std::vector<uint8_t> bytes_for(MessageId id,MessageLanguage language=MESSAGE_LANGUAGE_ENGLISH){
+ for(auto it=messages.rbegin();it!=messages.rend();++it){auto& m=it->second;if(m.id!=id||m.language!=language)continue;
+  MessageOverrideContext context{0,id,uint8_t(language),nullptr,0};MessageTextData text{};
+  if(m.fn(nullptr,&context,&text,m.data)){assert(text.text_size>1&&text.text[text.text_size-1]==0);return {text.text,text.text+text.text_size};}
+ }return {0};
+}
+std::string plain(MessageId id){std::string text;const auto& bytes=bytes_for(id);for(size_t i=0;i+1<bytes.size();){if(bytes[i]==0x1a)i+=bytes[i+1];else text+=char(bytes[i++]);}return text;}
 std::vector<std::string> red_segments(MessageId id){
- std::vector<std::string> out;bool red=false;const auto& bytes=messages.at(id).text;
+ std::vector<std::string> out;bool red=false;const auto& bytes=bytes_for(id);
  for(size_t i=0;i+1<bytes.size();){if(bytes[i]==0x1a){if(bytes[i+1]==6&&bytes[i+2]==255&&bytes[i+3]==0&&bytes[i+4]==0){red=bytes[i+5]==MESSAGE_COLOR_RED;if(red)out.emplace_back();}i+=bytes[i+1];}else{if(red)out.back()+=char(bytes[i]);++i;}}
  return out;
 }
@@ -101,12 +109,12 @@ int main(){
  inventory[11]=dItemNo_NONE_e;assert(!survivors_slot_assignable(11));
  arena=false;ring.mItemSlots[0]=4;assert(before_ring_assignment(nullptr,ringArgs,nullptr,nullptr)==HOOK_CONTINUE);
  std::any bindArgs[]={status,0,u8(4)};assert(before_item_binding(nullptr,bindArgs,nullptr,nullptr)==HOOK_CONTINUE);arena=true;
- dMenu_ItemExplain_c explain;u8 opened=1;std::any explainArgs[]={&explain,u8(4)};
+ dMenu_ItemExplain_c explain;explain.field_0xcc=dItemNo_BOW_e+0x165;explain.field_0xc8=explain.field_0xc4=dItemNo_BOW_e+0x265;u8 opened=1;std::any explainArgs[]={&explain,u8(4)};
  after_item_explain(nullptr,explainArgs,&opened,nullptr);assert(explain.numberUpdates==1&&explain.field_0xdf==0);
  assert(plain(explain.field_0xcc)=="Hero's Bow"&&plain(explain.field_0xc8).find("Fire Lv.0")!=std::string::npos);
  const auto oldDescription=explain.field_0xc8;s_run.ranks[12]=5;s_run.ranks[8]=5;
  after_item_explain(nullptr,explainArgs,&opened,nullptr);
- assert(explain.field_0xc8!=oldDescription&&!messages.count(oldDescription));
+ assert(explain.field_0xc8==oldDescription&&explain.field_0xd0==~0u);
  assert(plain(explain.field_0xc8).find("3 arrows/shot")!=std::string::npos&&plain(explain.field_0xc8).find("Fire Lv.5 (+10 dmg)")!=std::string::npos);
  opened=0;const auto id=explain.field_0xc8;after_item_explain(nullptr,explainArgs,&opened,nullptr);assert(explain.field_0xc8==id);
  for(unsigned rank=0;rank<=5;++rank){
@@ -116,13 +124,30 @@ int main(){
    size_t start=0,end;do{end=text.find('\n',start);assert((end==std::string::npos?text.size():end)-start<=54);start=end+1;}while(end!=std::string::npos);
   }
  }
- assert(messages.size()==3); // One reward and one name/description pair, never accumulated.
+ assert(messages.size()==18); // Six languages per reward/name/description, never accumulated.
+ // Native IDs work with the original global-archive selection and item-icon code.
+ for(unsigned shield:{1u,4u,7u})for(unsigned master:{1u,5u})for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward){
+  after=s_run;after.shield=shield;after.master_sword=master;
+  assert(prepare_treasure_message(ChestReward(reward),s_run,after));
+  assert(native_icon(treasure_message_id())==treasure_item(ChestReward(reward),after));
+  for(auto language:{MESSAGE_LANGUAGE_ENGLISH,MESSAGE_LANGUAGE_GERMAN,MESSAGE_LANGUAGE_JAPANESE})assert(bytes_for(treasure_message_id(),language).size()>1);
+ }
+ assert(native_icon(0x8123)==dItemNo_BOW_e); // Reproduces the previous wrong-icon fallback.
+ treasureOwned=false;assert(plain(treasure_message_id()).empty());treasureOwned=true;
+ arena=false;assert(plain(explain.field_0xc8).empty());assert(plain(treasure_message_id()).empty());arena=true;
  s_treasureMessage.reset();s_itemNameMessage.reset();s_itemDescriptionMessage.reset();assert(messages.empty());
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp, binary = Path(tmp)/'test.cpp', Path(tmp)/'test'
-    cpp.write_text(fixture.replace('// ITEM_ENUM', item_enum) + source + main)
+    treasure = (root/'src/survivors_treasure.inc').read_text()
+    reward_item = treasure[treasure.index('u8 treasure_item('):treasure.index('// Native DEFAULT_GETITEM')]
+    native = (sdk/'src/d/d_msg_scrn_item.cpp').read_text()
+    icon = native[native.index('    int iVar6 ='):native.index('    for (int i = 0; i < 3; i++)')]
+    icon = icon.replace('dMsgObject_getMessageID()', 'id').replace('isOugiID()', 'false').replace("*dComIfGp_getNextStageName() != 'T'", 'false')
+    icon_function = '#define JUT_WARN(...)\nint native_icon(int id){int mItemIndex=0;\n'+icon+'return mItemIndex;}\n'
+    assert 'if (param_1 > 5000)' in (sdk/'src/d/d_msg_string_base.cpp').read_text()
+    cpp.write_text(fixture.replace('// ITEM_ENUM', item_enum).replace('// TREASURE_ITEM', reward_item) + source + icon_function + main)
     subprocess.run([os.environ.get('CXX', 'c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes','-Wno-missing-field-initializers',
                     '-I',str(root/'src'),'-I',str(sdk/'sdk/include'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

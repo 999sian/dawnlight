@@ -126,7 +126,8 @@ HookAction before_ranged_aim(ModContext*, void* args, void*, void*) {
     const cXyz delta = s_ranged.target - link->current.pos - cXyz(0, 70, 0);
     link->shape_angle.y = cM_atan2s(delta.x, delta.z);
     link->mBodyAngle.y = 0;
-    link->mBodyAngle.x = -cM_atan2s(delta.y, std::max(1.0f, delta.absXZ()));
+    link->mBodyAngle.x = s_ranged.weapon == Upgrade::Ball ? 0 :
+        -cM_atan2s(delta.y, std::max(1.0f, delta.absXZ()));
     // current.angle controls travel; changing only shape/body preserves movement.
     return HOOK_CONTINUE;
 }

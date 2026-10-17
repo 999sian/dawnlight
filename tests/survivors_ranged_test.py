@@ -73,6 +73,8 @@ int main(){
  assert(!queue_ranged(&player,Upgrade::Boomerang));
  before_ranged_aim(nullptr,&player,nullptr,nullptr);
  assert(player.shape_angle.y==0x4000&&player.mBodyAngle.x<0&&player.current.angle.y==123);
+ s_ranged.weapon=Upgrade::Ball;before_ranged_aim(nullptr,&player,nullptr,nullptr);
+ assert(player.mBodyAngle.x==0&&player.current.angle.y==123);s_ranged.weapon=Upgrade::Bow;
  int result=1;assert(before_ranged_native(nullptr,&player,&result,nullptr)==HOOK_SKIP_ORIGINAL&&result==0);
  for(unsigned i=0;i<11;++i){tick();assert(shots.empty());}
  tick();assert(shots.size()==1&&s_ranged.released&&player.animation==dRes_ID_ALANM_BCK_ASHOOT_e);

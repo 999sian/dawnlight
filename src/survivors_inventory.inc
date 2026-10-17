@@ -1,12 +1,38 @@
-// Keep message handles alive until the next presentation has replaced them.
-// Native message processing can retain the text after the reward camera ends.
-mods::flow::RegisteredMessage s_treasureMessage, s_itemNameMessage, s_itemDescriptionMessage;
-mods::flow::RegisteredMessage register_survivors_message(const mods::flow::MessageBuilder& builder) {
+// Keep native IDs: the item screen derives its icon from ID - 0x65, and
+// ItemExplain selects the global/stage text archive by the numeric ID.
+// Callback-owned buffers outlive rendering; overrides only apply in this mode.
+struct SurvivorsMessage {
+    unsigned id = 0;
+    bool treasure = false;
     std::vector<mods::flow::MessageVariant> variants;
+    std::vector<mods::flow::MessageOverride> overrides;
+};
+std::unique_ptr<SurvivorsMessage> s_treasureMessage, s_itemNameMessage, s_itemDescriptionMessage;
+bool survivors_message_text(ModContext*, const MessageOverrideContext* message,
+        MessageTextData* out, void* data) {
+    const auto& replacement = *static_cast<SurvivorsMessage*>(data);
+    if (!in_arena() || (replacement.treasure && !owns_treasure_event())) return false;
+    for (const auto& variant : replacement.variants) if (variant.language() == message->language) {
+        out->text = variant.text().data(); out->text_size = variant.text().size();
+        return true;
+    }
+    return false;
+}
+std::unique_ptr<SurvivorsMessage> override_survivors_message(unsigned id,
+        const mods::flow::MessageBuilder& builder, bool treasure = false) {
+    auto message = std::make_unique<SurvivorsMessage>();
+    message->id = id; message->treasure = treasure;
     for (auto language : {MESSAGE_LANGUAGE_ENGLISH, MESSAGE_LANGUAGE_GERMAN,
             MESSAGE_LANGUAGE_FRENCH, MESSAGE_LANGUAGE_SPANISH, MESSAGE_LANGUAGE_ITALIAN,
-            MESSAGE_LANGUAGE_JAPANESE}) variants.push_back(builder.build(language));
-    return mods::flow::register_message(0, variants);
+            MESSAGE_LANGUAGE_JAPANESE}) {
+        auto variant = builder.build(language);
+        if (!variant) return {};
+        message->variants.push_back(std::move(variant));
+        auto handle = mods::flow::override_message_fn(0, id, language, survivors_message_text, message.get());
+        if (!handle) return {};
+        message->overrides.push_back(std::move(handle));
+    }
+    return message;
 }
 bool prepare_treasure_message(ChestReward reward, const Run& before, const Run& after) {
     auto changes = reward_changes(reward, before, after);
@@ -27,12 +53,12 @@ bool prepare_treasure_message(ChestReward reward, const Run& before, const Run& 
             .text_color(MESSAGE_COLOR_RED).text(change.before).text(" -> ").text(change.after)
             .text_color(MESSAGE_COLOR_DEFAULT);
     }
-    auto message = register_survivors_message(builder);
+    auto message = override_survivors_message(treasure_item(reward, after) + 0x65, builder, true);
     if (!message) return false; // No event or payment with an unavailable reward message.
     s_treasureMessage = std::move(message);
     return true;
 }
-unsigned treasure_message_id() { return s_treasureMessage.id(); }
+unsigned treasure_message_id() { return s_treasureMessage ? s_treasureMessage->id : 0; }
 
 // Existing item slots for weapons; unused quest slots for the two swords and
 // shield. This inventory belongs only to the isolated Survivors save.
@@ -83,14 +109,15 @@ void after_item_explain(ModContext*, void* args, void* result, void*) {
     auto* explain = mods::arg<dMenu_ItemExplain_c*>(args, 0);
     const auto reward = inventory_reward(mods::arg<u8>(args, 1));
     if (!explain || reward == ChestReward::Count) return;
-    auto name = register_survivors_message(mods::flow::MessageBuilder{}
+    auto name = override_survivors_message(explain->field_0xcc, mods::flow::MessageBuilder{}
         .box_kind(MESSAGE_BOX_ITEM_NAME).text(reward_name(reward, s_run)));
-    auto description = register_survivors_message(mods::flow::MessageBuilder{}
+    auto description = override_survivors_message(explain->field_0xc8, mods::flow::MessageBuilder{}
         .box_kind(MESSAGE_BOX_ITEM_NAME).text_scale(80).text(item_description(reward, s_run)));
     if (!name || !description) return;
     s_itemNameMessage = std::move(name); s_itemDescriptionMessage = std::move(description);
-    explain->field_0xcc = s_itemNameMessage.id();
-    explain->field_0xc8 = explain->field_0xc4 = s_itemDescriptionMessage.id();
+    // Reopening the same item after an upgrade must invalidate the native draw
+    // cache (also used by Twilight HD HUD), even though its ID stays the same.
+    explain->field_0xd0 = ~0u;
     // Automatic weapons have unlimited run ammo, not the native save's counts.
     if (reward <= ChestReward::Ball) { explain->field_0xde = explain->field_0xdf = 0; explain->setNumber(); }
 }

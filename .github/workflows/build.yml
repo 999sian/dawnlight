@@ -232,6 +232,7 @@ jobs:
         run: |
           python3 tests/survivors_combat_test.py dusklight
           python3 tests/survivors_ranged_test.py dusklight
+          python3 tests/survivors_movement_test.py dusklight
           python3 tests/survivors_inventory_test.py dusklight
           CXX=clang++ python3 tests/survivors_inventory_test.py dusklight
 

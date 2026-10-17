@@ -134,6 +134,9 @@ Obtained weapons, swords and the current shield also appear in the native item
 wheel. Their explanation shows their current rank, automatic behavior, damage,
 cooldown, range/area or block chance, including applicable collected upgrades.
 Open the explanation again after a level-up to see the updated values.
+Reward and inventory text retain native item message IDs, so reward icons match
+all weapons, sword/shield tiers and potions. Wheel descriptions use the normal
+text path, including Twilight HD HUD's item explanation panes.
 Only bottles can be assigned to item buttons; automatic equipment cannot be
 assigned or combined. This also applies to extra bindings supplied by other mods.
 These inventory entries belong only to the isolated Survivors save and reset
@@ -148,7 +151,11 @@ All four weapons attack automatically alongside the sword without assigning
 item slots or consuming ammunition. All four use Link's native upper-body animations while retaining movement: bow
 draw/shoot, boomerang throw, bomb throw and ball throw/pull/catch. Link faces the target
 and releases each projectile at its animation cue; higher fire rates accelerate
-the animation. Sword, shield bash and item animations take turns; due item weapons rotate fairly.
+the animation. During automatic sword, spin, shield and item actions, the stick
+controls horizontal movement independently of animation lunges and slowdown;
+releasing the stick stops that travel. Native floor/wall collision, gravity,
+jumps, damage and item-get events retain their normal handling.
+Sword, shield bash and item animations take turns; due item weapons rotate fairly.
 The automatic iron-ball animation bypasses native manual iron-ball action and
 aim transitions, so lock-on cannot cancel the throw before its release frame.
 They aim at the nearest
@@ -159,6 +166,8 @@ different targets at rank 5), before returning to Link. Each hop needs a live
 target within range and line of sight, and cannot revisit an earlier target.
 They deal Survivors damage on their outward/return paths. Bombs follow an
 arc and explode at the target or a wall; the ball pierces outward to its full range and retracts toward Link.
+The ball stays at its launch height on both passes, even when aiming at a flying
+enemy or returning to a jumping Link; it may miss elevated targets.
 Its chain uses the native iron-ball chain geometry/material. Bomb explosions use
 all nine native normal-bomb particle effects, including splash/debris/smoke. Their
 scale follows the upgraded blast radius, while the damage window stays bounded. Projectiles cannot pass through walls. Power, Haste and Reach also
@@ -201,6 +210,10 @@ These limits are starting budgets, not a measured Android performance guarantee.
 Spawns require a valid floor and unobstructed line from Link, and are staggered.
 A failed elite creation/despawn can be retried without counting as a victory.
 Only confirmed deaths of initialized, tracked actors award experience.
+
+Regression checks include native item-icon selection, global-archive message
+IDs, localized replacement text, ball flight at different target elevations,
+and native movement/root-motion equations.
 
 Before merging/releasing, test on Android and desktop:
 
@@ -270,3 +283,9 @@ cleanup. Defense tests cover block probabilities/direction, nonlethal reaction
 restoration, stagger exceptions, lethal hits and Light Sword material isolation.
 Equipment tests cover all sword/shield tiers and run-only Dual Wield overrides.
 They do not replace the in-game checks above.
+
+For these presentation/movement fixes, verify chest icons for every reward and
+shield/sword tier, and reopen upgraded item descriptions with Twilight HD HUD
+both enabled and disabled. Move, reverse direction and release the stick during
+all automatic attacks (including block, bash, and ball pull/catch), then verify
+that damage, jumping and chest item-get still finish normally.

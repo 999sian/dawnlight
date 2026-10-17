@@ -178,6 +178,11 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     a.target = kNone; a.visitedCount = 0; a.hops = 0; a.ballVictimCount = 0;
     a.position = link->current.pos + cXyz(0, 70, 0);
     cXyz delta = target - a.position;
+    if (weapon == Upgrade::Ball) {
+        delta.y = 0;
+        if (delta.abs() < 1.0f)
+            delta = cXyz(cM_ssin(link->shape_angle.y), 0, cM_scos(link->shape_angle.y));
+    }
     const float distance = std::max(1.0f, delta.abs());
     cXyz direction = delta * (1.0f / distance);
     const cXyz aimed(direction.x * std::cos(spread) + direction.z * std::sin(spread), direction.y,
@@ -250,7 +255,8 @@ void update_item_attack(Attack& a, daAlink_c* link) {
             a.status.Init(120, 0xff, link); // Fresh pass: the last outbound victim can be hit again.
         }
         if (a.returning) {
-            const cXyz delta = link->current.pos + cXyz(0, 70, 0) - a.position;
+            cXyz delta = link->current.pos + cXyz(0, 70, 0) - a.position;
+            if (weapon == Upgrade::Ball) delta.y = 0; // Keep the launch height on both passes.
             const float distance = delta.abs();
             if (distance < 65) { stop_attack(a); return; }
             a.velocity = delta * (55.0f / distance);
