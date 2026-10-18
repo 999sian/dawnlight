@@ -155,9 +155,6 @@ void apply_treasure_inventory(daAlink_c* link,ChestReward reward,const Run& resu
         dComIfGs_setCollectShield(result.shield_tier());
         dComIfGs_onItemFirstBit(shield);
         dMeter2Info_setShield(shield, false);
-    } else if (reward == ChestReward::OrdonSword) {
-        for (int i=COLLECT_WOODEN_SHIELD;i<=COLLECT_HYLIAN_SHIELD;++i) dComIfGs_offCollectShield(i);
-        dMeter2Info_setShield(dItemNo_NONE_e,false);
     } else if (reward == ChestReward::RedPotion) {
         for (unsigned i = 0; i < potions; ++i)
             dComIfGs_setItem(potion_slot(), dItemNo_RED_BOTTLE_e);

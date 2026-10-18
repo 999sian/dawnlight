@@ -79,7 +79,7 @@ namespace mods{template<class T>T arg(void* a,int i){return static_cast<T>(i?sta
 '''
 main=r'''
 int main(){
- s_run.start(123);player.id=1;fopAc_ac_c attacker;attacker.current.pos={100,0,0};Collider hit;
+ s_run.start(123);s_run.dual_wield=30;player.id=1;fopAc_ac_c attacker;attacker.current.pos={100,0,0};Collider hit;
  Args args{&player,nullptr};int result=0;
  // Zero rank never blocks; each rolled rank has its promised probability.
  for(unsigned rank:{0u,1u,4u,7u,10u}){

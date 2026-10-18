@@ -95,7 +95,6 @@ struct Run {
     unsigned drop_progress = 0, maximum_hearts = 3;
     unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
     bool red_potion = false, starting_item_pending = false;
-    ChestReward offhand = ChestReward::Count;
     unsigned free_rerolls = 1, banishes = 1, paid_rerolls = 0;
     std::array<bool,unsigned(Upgrade::Count)> banned_upgrades{};
     std::array<bool,unsigned(ChestReward::Count)> banned_items{};
@@ -243,17 +242,13 @@ struct Run {
         if (reward==ChestReward::MasterSword) return master_sword!=0;
         if (reward==ChestReward::DarkLink) return dark_link!=0;
         if (reward==ChestReward::RedPotion) return red_potion;
-        if (reward==ChestReward::OrdonSword) return dual_wield || offhand==reward;
-        if (reward==ChestReward::Shield) return shield || offhand==reward;
+        if (reward==ChestReward::OrdonSword) return dual_wield != 0;
+        if (reward==ChestReward::Shield) return shield != 0;
         return false;
     }
     unsigned equipment_count() const {
         unsigned count=0;for(unsigned i=0;i<unsigned(ChestReward::Count);++i) count+=owns(ChestReward(i));
         return count;
-    }
-    bool replaces_offhand(ChestReward reward) const {
-        return (reward==ChestReward::Shield && owns(ChestReward::OrdonSword)) ||
-               (reward==ChestReward::OrdonSword && owns(ChestReward::Shield));
     }
     unsigned reroll_cost() const { return free_rerolls ? 0 : 50*(paid_rerolls+1); }
     bool pay_reroll(unsigned& rupees, unsigned reserved=0) {
@@ -287,7 +282,7 @@ struct Run {
     }
     bool chest_eligible(ChestReward reward, bool bottle_available = false) const {
         if (reward>=ChestReward::Count || banned_items[unsigned(reward)]) return false;
-        if (!owns(reward) && !replaces_offhand(reward) && equipment_count()>=4) return false;
+        if (!owns(reward) && equipment_count()>=4) return false;
         if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < upgrade_cap(chest_weapon(reward));
         if (reward == ChestReward::MasterSword) return master_sword < master_sword_max_rank;
         if (reward == ChestReward::OrdonSword) return dual_wield < upgrade_cap(Upgrade::DualWield);
@@ -315,7 +310,6 @@ struct Run {
         return result;
     }
     unsigned chest_gain(ChestReward reward, Rarity rarity, unsigned bottle_capacity = 0) const {
-        if (replaces_offhand(reward)) return 0; // A replacement starts at rank zero.
         unsigned remaining = 0;
         if (reward <= ChestReward::Ball) remaining = upgrade_cap(chest_weapon(reward)) - std::min(upgrade_cap(chest_weapon(reward)), rank(chest_weapon(reward)));
         else if (reward == ChestReward::MasterSword) remaining = master_sword_max_rank - std::min(master_sword_max_rank, master_sword);
@@ -336,8 +330,6 @@ struct Run {
         const unsigned gain = chest_gain(reward, rarity, bottle_capacity);
         rupees = rupees - price + chest_rupees(reward, rarity, bottle_capacity);
         if (!free && !fixed) ++chests_opened;
-        if (replaces_offhand(reward)) { shield=dual_wield=0; offhand=reward; }
-        if (reward == ChestReward::Shield || reward == ChestReward::OrdonSword) offhand=reward;
         if (reward == ChestReward::RedPotion) red_potion = true;
         if (reward == ChestReward::MasterSword) master_sword += gain;
         else if (reward == ChestReward::OrdonSword) dual_wield += gain;

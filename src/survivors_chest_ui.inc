@@ -1,8 +1,7 @@
 std::string treasure_card_rml(ChestReward reward, const Run& preview, Rarity rarity) {
     char icon[48];
     std::snprintf(icon, sizeof(icon), "item://item/%02x", unsigned(treasure_item(reward, preview)));
-    const char* replacement=s_run.replaces_offhand(reward) ? (reward==ChestReward::OrdonSword ? "replaces Shield" : "replaces Dual Wield") : "";
-    std::string rml = choice_rml_start(icon, reward==ChestReward::OrdonSword ? "Dual Wield" : reward_name(reward, preview), rarity, replacement);
+    std::string rml = choice_rml_start(icon, reward==ChestReward::OrdonSword ? "Dual Wield" : reward_name(reward, preview), rarity);
     auto effect = item_description(reward, preview);
     effect = effect.substr(0, effect.find('\n'));
     rml += "<div class=\"survivors-treasure-effect\">" + treasure_rml_escape(effect) + "</div>";

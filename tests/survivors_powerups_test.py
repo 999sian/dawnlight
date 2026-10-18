@@ -134,7 +134,7 @@ int main(){
    assert(s_run.phase==Phase::Upgrade&&s_run.rank(Upgrade::Heart)==0&&money==100);
  }
  // Dual Wield cards preview and commit the same rank as equipment chests.
- fresh();s_run.dual_wield=9;s_run.offhand=ChestReward::OrdonSword;s_run.phase=Phase::Upgrade;
+ fresh();s_run.dual_wield=9;s_run.phase=Phase::Upgrade;
  s_run.offers={Upgrade::DualWield,Upgrade::Count,Upgrade::Count};
  assert(build_upgrade_choices(1,2)==MOD_OK);bool dualSpeed=false,dualTargets=false;Element* dualButton=nullptr;
  for(auto& [id,e]:elements){

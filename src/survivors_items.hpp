@@ -76,9 +76,6 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
     else if (reward == ChestReward::RedPotion && !before.red_potion && after.red_potion)
         add("Healing", "off", potion_healing(after));
     else if (reward == ChestReward::Shield) add("Block chance", number(before.block_chance()) + "%", number(after.block_chance()) + "%");
-    if (before.replaces_offhand(reward)) {
-        add("Replaces", reward==ChestReward::Shield ? "Dual Wield" : "Shield", "removed; new item level 0");
-    }
     return changes;
 }
 // Compact four-line descriptions fit the native explanation pane. Effective

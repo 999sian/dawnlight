@@ -156,15 +156,15 @@ int main(){
  assert(build_treasure_choices(1,2)==MOD_OK);unsigned actual=0;
  for(const auto& [id,e]:elements)actual+=e.css=="survivors-treasure-pick";
  assert(actual==2); // Skip a reward capped after a canceled visit.
- // Replacement warnings sit immediately under the name, before rarity/effects.
+ // Both offhand items coexist, with no replacement warning or lost levels.
  for(bool shield:{false,true}){
    fresh();if(shield)s_run.shield=8;else s_run.dual_wield=8;
    const auto reward=shield?ChestReward::OrdonSword:ChestReward::Shield;
    Run preview=s_run;preview.phase=Phase::Treasure;unsigned money=500;
    assert(preview.buy_chest(money,reward));
    const auto card=treasure_card_rml(reward,preview,Rarity::Common);
-   const auto warning=card.find(shield?"replaces Shield":"replaces Dual Wield");
-   assert(warning!=std::string::npos&&card.find("survivors-treasure-name")<warning&&warning<card.find("survivors-treasure-effect"));
+   assert(card.find("replaces ")==std::string::npos);
+   assert(preview.shield==(shield?8u:1u)&&preview.dual_wield==(shield?1u:8u));
    s_run=preview;
    assert(treasure_card_rml(reward,preview,Rarity::Common).find("replaces ")==std::string::npos);
  }

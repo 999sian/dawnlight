@@ -29,7 +29,7 @@ int main() {
     hp.phase=Phase::Running;for(unsigned i=0;i<1800;++i)hp.tick(false);
     assert(hp.enemy_health(8,false)==8);
     // Dual Wield uses one rank for chest and level-up upgrades, including rarity
-    // caps/excess refunds, shield replacement and cross-source banishment.
+    // caps/excess refunds, shield coexistence and cross-source banishment.
     Run dual;dual.start(1);assert(!dual.eligible(Upgrade::DualWield));
     unsigned dualMoney=1000;dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::OrdonSword,true));
     assert(dual.dual_wield==1&&dual.rank(Upgrade::DualWield)==1&&dual.melee_speed_percent()==105);
@@ -41,17 +41,16 @@ int main() {
     assert(dual.upgrade_rupees(Upgrade::DualWield,Rarity::Legendary)==40);
     assert(dual.choose(0)&&dual.dual_wield==30&&!dual.eligible(Upgrade::DualWield));
     assert(dual.melee_targets()==5&&dual.melee_speed_percent()==250);
-    dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::Shield,true)&&!dual.dual_wield&&!dual.eligible(Upgrade::DualWield));
-    assert(dual.melee_speed_percent()==100);
+    dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::Shield,true)&&dual.dual_wield==30&&dual.shield==1&&!dual.eligible(Upgrade::DualWield));
+    assert(dual.melee_speed_percent()==250);
     for(bool chest:{false,true}) {
         dual.start(1);dual.dual_wield=1;dual.phase=chest?Phase::TreasureChoice:Phase::Upgrade;
         assert(chest?dual.banish(ChestReward::OrdonSword,false):dual.banish(Upgrade::DualWield));
         assert(!dual.eligible(Upgrade::DualWield)&&!dual.chest_eligible(ChestReward::OrdonSword));
     }
 
-    dual.start(1);dual.offhand=ChestReward::OrdonSword; // Replacing a shield starts at rank zero.
-    assert(dual.eligible(Upgrade::DualWield));dual.phase=Phase::Upgrade;dual.offers[0]=Upgrade::DualWield;
-    assert(dual.choose(0)&&dual.dual_wield==1);
+    dual.start(1);dual.dual_wield=1;dual.shield=1;
+    assert(dual.eligible(Upgrade::DualWield)&&dual.eligible(Upgrade::ShieldAttack));
     dual.talents.ranks[unsigned(Talent::MeleeHaste)]=5;dual.ranks[unsigned(Upgrade::Haste)]=5;
     assert(dual.melee_speed_percent()==130&&dual.melee_cooldown()==11&&dual.cooldown(30)==15);
 
@@ -151,9 +150,9 @@ int main() {
     for(unsigned rarity=0;rarity<5;++rarity) {
         for(unsigned u=0;u<unsigned(Upgrade::Rupees);++u)for(unsigned initial:{0u,4u}) {
             Run r;r.start(13);r.shield=1;r.red_potion=true;r.master_sword=1;r.ranks[8]=1;r.ranks[u]=initial;
-            if(Upgrade(u)==Upgrade::DualWield){r.shield=0;r.offhand=ChestReward::OrdonSword;r.dual_wield=initial;}
+            if(Upgrade(u)==Upgrade::DualWield){r.shield=0;r.dual_wield=initial;}
             // Weapons must be chest-unlocked first.
-            if(u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)&&!initial)continue;
+            if(!initial && ((u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)) || Upgrade(u)==Upgrade::DualWield))continue;
             r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);
             const auto random=r.random;const unsigned gain=std::min(upgrade_cap(Upgrade(u))-initial,rarity+1);
             assert(r.upgrade_rupees(Upgrade(u),Rarity(rarity))==20*(rarity+1-gain));
@@ -413,20 +412,23 @@ int main() {
     RunOptions invalid{0,100,100,0,1000};invalid.clamp();
     assert(invalid.enemy_hp==1&&invalid.enemy_damage==10&&invalid.enemy_speed==3&&invalid.horde==1&&invalid.camera_distance==500);
     assert(RunOptions{}.camera_distance==200);
-    // Equipment slots never cap passives; the offhand replaces within a full build.
+    // Shield and Ordon Sword use independent equipment slots and retain ranks.
     Run slots;slots.start(51);slots.ranks.fill(1);slots.ranks[unsigned(Upgrade::Ball)]=0;
     slots.dual_wield=8;assert(slots.equipment_count()==4);
     assert(slots.eligible(Upgrade::Heart)&&slots.eligible(Upgrade::Magnet));
+    assert(!slots.chest_eligible(ChestReward::Shield));
     assert(!slots.chest_eligible(ChestReward::Ball)&&!slots.chest_eligible(ChestReward::MasterSword));
     assert(slots.chest_eligible(ChestReward::Bow)&&!slots.chest_eligible(ChestReward::RedPotion,true));
-    wallet=10000;
-    for(auto reward:{ChestReward::Shield,ChestReward::OrdonSword,ChestReward::Shield}) {
-        assert(slots.chest_eligible(reward)&&slots.replaces_offhand(reward));
-        slots.phase=Phase::Treasure;assert(slots.buy_chest(wallet,reward,0,Rarity::Legendary));
-        assert(slots.owns(reward)&&slots.equipment_count()==4&&slots.shield==0&&slots.dual_wield==0);
-        assert(slots.owns(ChestReward::Shield)!=slots.owns(ChestReward::OrdonSword));
-        assert(slots.buy_chest(wallet,reward)&&slots.equipment_count()==4);
-        assert((reward==ChestReward::Shield?slots.shield:slots.dual_wield)==1);
+    for(bool shieldFirst:{false,true}) {
+        slots.start(51);slots.master_sword=1;slots.dark_link=1;wallet=10000;slots.phase=Phase::Treasure;
+        const auto first=shieldFirst?ChestReward::Shield:ChestReward::OrdonSword;
+        const auto second=shieldFirst?ChestReward::OrdonSword:ChestReward::Shield;
+        assert(slots.buy_chest(wallet,first,0,Rarity::Legendary));
+        assert(slots.buy_chest(wallet,second,0,Rarity::Rare));
+        assert(slots.shield==(shieldFirst?5u:3u)&&slots.dual_wield==(shieldFirst?3u:5u));
+        assert(slots.equipment_count()==4&&slots.eligible(Upgrade::ShieldAttack)&&slots.eligible(Upgrade::DualWield));
+        assert(!slots.chest_eligible(ChestReward::Bow));
+        assert(slots.buy_chest(wallet,second)&&slots.equipment_count()==4);
     }
     for(unsigned rank=1;rank<=30;++rank){
         slots.ranks[unsigned(Upgrade::Bow)]=slots.ranks[unsigned(Upgrade::Boomerang)]=rank;
@@ -446,8 +448,7 @@ int main() {
         assert((reward==ChestReward::OrdonSword?item.dual_wield:item.dark_link)==rank+gain);
         assert(wallet==(rank<30?20*(tier+1-gain):0));
     }
-    slots.shield=0;slots.offhand=ChestReward::OrdonSword;
-    assert(!slots.chest_eligible(ChestReward::OrdonSword)&&slots.chest_eligible(ChestReward::Shield));
+    slots.shield=0;assert(!slots.chest_eligible(ChestReward::OrdonSword)&&!slots.chest_eligible(ChestReward::Shield));
     // Shared reroll budget, increasing paid costs and reservation of the purchase price.
     Run actions;actions.start(7);actions.phase=Phase::Upgrade;wallet=250;
     assert(actions.pay_reroll(wallet)&&wallet==250&&actions.reroll_cost()==50);

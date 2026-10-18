@@ -367,15 +367,15 @@ int main(){
     assert(open_first()&&prop.itemNo==dItemNo_SWORD_e);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dual_wield&&!s_run.chest_rewards_left());
-    // Offhand replacement is deferred until the native get animation completes.
+    // Acquiring the other offhand item preserves the first, including native shield equipment.
     for(bool toShield:{true,false}){
-        fresh();if(toShield)s_run.dual_wield=8;else s_run.shield=8;
+        fresh();if(toShield)s_run.dual_wield=8;else {s_run.shield=8;equippedShield=dItemNo_HYLIA_SHIELD_e;}
         const auto reward=toShield?ChestReward::Shield:ChestReward::OrdonSword;
         s_chests[0].offers={reward,ChestReward::Count,ChestReward::Count};
         assert(open_first());assert(toShield?s_run.dual_wield==8:s_run.shield==8);
         accept();eventEnded=true;update_treasure_demo(&player);
-        assert(s_run.owns(reward)&&s_run.shield==0&&s_run.dual_wield==0&&s_run.equipment_count()==1);
-        assert(equippedShield==(toShield?dItemNo_WOOD_SHIELD_e:dItemNo_NONE_e));
+        assert(s_run.shield==(toShield?1u:8u)&&s_run.dual_wield==(toShield?8u:1u)&&s_run.equipment_count()==2);
+        assert(equippedShield==(toShield?dItemNo_WOOD_SHIELD_e:dItemNo_HYLIA_SHIELD_e));
     }
     // Dark Link is a deferred Poe Soul presentation, not a story Poe grant.
     fresh();assert(begin_treasure_choice(0,&player));s_chests[0].offers[0]=ChestReward::DarkLink;
