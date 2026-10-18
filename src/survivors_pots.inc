@@ -4,6 +4,7 @@ struct ArenaPot {
     ActorId id=kNone;
     bool initialized=false, broken=false, retiring=false;
     cXyz position{};
+    unsigned respawnAt=0;
 };
 std::array<ArenaPot,pot_capacity> s_pots;
 unsigned s_potTarget=0, s_potDelay=0;
@@ -49,9 +50,10 @@ void update_pots(daAlink_c* link) {
     if (s_potDelay) {--s_potDelay;return;}
     for (unsigned i=0;i<s_potTarget;++i) {
         auto& pot=s_pots[i];
-        if (pot.id!=kNone || pot.broken) continue;
+        if (pot.id!=kNone || (pot.broken && s_run.ticks < pot.respawnAt)) continue;
         cXyz pos;bool found=false;
-        for (unsigned attempt=0;attempt<32 && !found;++attempt) found=pot_position(link,pos);
+        for (unsigned attempt=0;attempt<32 && !found;++attempt)
+            found=pot_position(link,pos) && (!pot.broken || pos.absXZ(pot.position)>=300);
         s_potDelay=found ? 5 : 30;
         if (!found) return;
         // Same native small-pot parameters as the mirror-hub pots. No save bit,
@@ -78,6 +80,8 @@ HookAction before_pot_break(ModContext*, void* args, void*, void*) {
     if (pot->broken || pot->retiring || !pot->initialized || !in_arena() ||
         transitioning() || s_run.phase!=Phase::Running) return HOOK_CONTINUE;
     pot->broken=true;
+    pot->position=actor->current.pos;
+    pot->respawnAt=s_run.ticks+pot_respawn_interval;
     if (!createItem) return HOOK_CONTINUE; // Sinking/hazards do not grant loot.
     constexpr std::array<int,unsigned(Run::PotDrop::Count)> items{
         dItemNo_KAKERA_HEART_e,dItemNo_GREEN_RUPEE_e,dItemNo_BLUE_RUPEE_e,

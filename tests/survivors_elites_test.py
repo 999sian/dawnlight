@@ -86,13 +86,13 @@ bool create_enemy_at(cXyz pos,s16,unsigned,bool elite,int slot=-1,bool dormant=f
  return false;
 }
 bool spawn_enemy(daAlink_c*,bool elite,int slot=-1){if(!elite)++ordinarySpawns;return create_enemy_at({0,0,500},0,0,elite,slot);}
-constexpr unsigned kPaidChestCount=2,kChestCount=2+elite_reward_capacity;
+constexpr unsigned kPaidChestCount=2,kSmallChestCount=kPaidChestCount,kChestCount=2+elite_reward_capacity;
 struct Chest{bool active=false,free=false;s16 yaw=0;cXyz position;};
 std::array<Chest,kChestCount>s_chests;
 bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes=0;
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
 void finish(bool victory){++finishes;s_run.end(victory);}
-void update_enemy_effects(){}void update_weapons(daAlink_c*){}void update_orbs(daAlink_c*){} void update_flutes(daAlink_c*){}
+void update_enemy_effects(){}void update_weapons(daAlink_c*){}void update_orbs(daAlink_c*){} void update_exp_magnets(daAlink_c*){}
 void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c*){}
 
 '''
@@ -121,6 +121,13 @@ int main(){
  assert(s_chests[2].position.x==100&&s_chests[2].position.z==200);groundMissing=false;
  // Exact milestone bypasses ordinary spawn cooldown, ordinary horde continues.
  fresh(0);s_run.ticks=elite_interval;s_spawnCooldown=30;update_spawns(&player);assert(waves()==1&&ordinarySpawns==1);
+ // Burst spawns are tripled but respect the current normal-enemy cap.
+ fresh(0);s_run.horde_remaining=horde_duration;s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==3);
+ fresh(0);s_run.options.horde=5;s_run.horde_remaining=horde_duration;s_run.ticks=duration-1;
+ for(unsigned n=0;n<s_run.target_population()-1;++n)assert(create_enemy_at({},0,0,false));
+ s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1);
+ unsigned normal=0;for(const auto& e:s_enemies)normal+=e.id!=kNone&&!e.elite;
+ assert(normal==345);s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1);
  // Four spread-out random guards, from the entire current room rather than Link's spawn ring.
  for(unsigned map:{1u,2u}){fresh(map);add_floor(10000);update_elite_spawns(&player);assert(guards()==4);
   for(unsigned i=0;i<4;++i)for(unsigned j=i+1;j<4;++j)assert(s_enemies[i].lootPosition.absXZ(s_enemies[j].lootPosition)>=1800);

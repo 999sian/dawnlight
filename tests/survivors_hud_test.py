@@ -107,8 +107,8 @@ main = r'''
 int main(){
     // First visible HUD after the entrance, ordinary runs, and both messages.
     for(auto phase:{Phase::Running,Phase::Upgrade,Phase::Treasure,Phase::Victory,Phase::Defeat}){
-        for(bool availableFont:{false,true})for(unsigned ticks:{0u,duration})for(unsigned failures:{0u,10u}){
-            s_run.phase=phase;s_run.ticks=ticks;s_run.xp=4;s_spawnFailures=failures;hasFont=availableFont;
+        for(bool availableFont:{false,true})for(unsigned ticks:{0u,duration})for(unsigned failures:{0u,10u})for(unsigned horde:{0u,450u}){
+            s_run.phase=phase;s_run.ticks=ticks;s_run.horde_remaining=horde;s_run.xp=4;s_spawnFailures=failures;hasFont=availableFont;
             boxes=labels=0;textureCoordinates=true;
             draw_hud(nullptr,nullptr,nullptr,nullptr);
             assert(boxes==2 && !textureCoordinates && texGens==0);

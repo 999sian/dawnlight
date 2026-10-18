@@ -1,4 +1,4 @@
-"""Native pickup magnet, scheduled-elite flute and XP snapshot/lifecycle regression."""
+"""Native pickup magnet, scheduled-elite EXP crystal and XP snapshot/lifecycle regression."""
 from pathlib import Path
 import os, subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
@@ -20,7 +20,8 @@ struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),
  cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}cXyz operator-(cXyz b)const{return{x-b.x,y-b.y,z-b.z};}
  cXyz operator*(float f)const{return{x*f,y*f,z*f};}void operator+=(cXyz b){x+=b.x;y+=b.y;z+=b.z;}
  void operator*=(float f){x*=f;y*=f;z*=f;}
- float abs()const{return std::sqrt(x*x+y*y+z*z);}};
+ float abs()const{return std::sqrt(x*x+y*y+z*z);}
+ float abs2(cXyz p)const{auto d=*this-p;return d.x*d.x+d.y*d.y+d.z*d.z;}};
 struct fopAc_ac_c{ActorId id=0;struct{cXyz pos;}current,old;cXyz speed;float speedF=0;};
 struct daAlink_c:fopAc_ac_c{}player;ActorId s_player=1;
 auto* daAlink_getAlinkActorClass(){return &player;}ActorId fopAcM_GetID(fopAc_ac_c* p){return p->id;}
@@ -29,7 +30,7 @@ struct daItem_c:fopAc_ac_c{enum{TYPE_FIXED_PLACE_e=1,TYPE_LAUNCH_e=0,STATUS_NORM
  void setFlag(int f){flags|=f;}void hide(){hidden=true;}};
 struct daObjLife_c:daItem_c{enum{STATUS_WAIT_e=0};bool chkStatus(int s){return status==s;}};
 struct Enemy{bool elite=false;int eliteSlot=-1;cXyz lootPosition;};
-struct Orb{cXyz position;unsigned value=0;bool summoned=false;};std::array<Orb,orb_capacity>s_orbs;
+struct Orb{cXyz position;unsigned value=0;bool summoned=false,merged=false;};std::array<Orb,orb_capacity>s_orbs;
 Run s_run;bool s_allowDrop=false,playing=true,failCreate=false,dry=true,path=true;
 bool playable(){return playing;}
 struct Arena{int room=6;}data;const Arena& arena(){return data;}
@@ -40,7 +41,7 @@ std::map<ActorId,daObjLife_c>actors;std::set<ActorId>pending;unsigned nextId=2,c
 fopAc_ac_c* actor_by_id(ActorId id){auto it=actors.find(id);return it==actors.end()?nullptr:&it->second;}
 bool fpcM_IsCreating(ActorId id){return pending.count(id);}
 ActorId fopAcM_createItem(const cXyz* pos,int item,int bit,int room,void*,void*,int type){
- assert(s_allowDrop&&bit==-1&&room==6);assert(type==(item==132?1:0));++creates;
+ assert(s_allowDrop&&bit==-1&&room==6);assert(type==0);(void)item;++creates;
  if(failCreate)return kNone;
  const auto id=nextId++;actors[id].id=id;actors[id].current.pos=*pos;return id;
 }
@@ -48,11 +49,26 @@ struct Service{void delete_actor(ModContext*,ActorId id){actors.erase(id);}}serv
 bool dry_arena_floor(cXyz& pos,float,float){pos.y=0;return dry;}
 bool walkable_spawn_path(cXyz,cXyz& pos,float){pos.y=0;return path;}
 float cM_ssin(s16 a){return std::sin(float(a)*3.14159265f/32768);}float cM_scos(s16 a){return std::cos(float(a)*3.14159265f/32768);}
+struct dBgS_ObjGndChk{void SetPos(cXyz*){}};
+struct Bg{float GroundCross(dBgS_ObjGndChk*){return 0;}}bg;Bg& dComIfG_Bgsp(){return bg;}
+bool in_arena(){return true;}bool transitioning(){return false;}
+struct csXyz{csXyz(int,int,int){}};struct GXColor{unsigned char r,g,b,a;};
+std::vector<GXColor>colors;std::vector<cXyz>sizes;
+void dDbVw_drawCubeOpa(cXyz&,cXyz size,csXyz,GXColor color){colors.push_back(color);sizes.push_back(size);}
+void draw_loot(){}void draw_ranged(){}void draw_arena_barriers(){}
 '''
 main=r'''
-void fresh(){s_run.start(123);s_orbs={};s_pickups.clear();s_flutes={};actors.clear();pending.clear();
+void fresh(){s_run.start(123);s_orbs={};s_pickups.clear();s_expMagnets={};actors.clear();pending.clear();
  player={};player.id=1;playing=dry=path=true;failCreate=false;s_allowDrop=false;creates=0;}
 int main(){
+ fresh();
+ for(unsigned i=0;i<orb_capacity;++i)add_orb({float(i*1000),0,0},i==0?20:1);
+ assert(!s_orbs[0].merged); // A naturally larger reward is not a merged crystal.
+ add_orb({2,0,0},7);assert(s_orbs[0].value==27&&s_orbs[0].merged);
+ after_draw(nullptr,nullptr,nullptr,nullptr);assert(colors.size()==orb_capacity);
+ assert(colors[0].r==255&&colors[0].g==70&&colors[1].r==90&&colors[1].g==235);
+ player.current.pos=s_orbs[0].position;update_orbs(&player);assert(s_run.xp==27&&!s_orbs[0].merged);
+ add_orb({0,0,0},1);assert(!s_orbs[0].merged&&s_orbs[0].value==1);
  for(int item:{0,1,2,3,4,5,6,7,33}){
   fresh();auto id=create_run_pickup({300,20,0},item);auto* p=tracked_pickup(id);auto* actor=actor_by_id(id);
   assert(p&&!s_allowDrop);move_pickup(*p,actor);assert(actor->current.pos.x==300);
@@ -62,34 +78,34 @@ int main(){
   assert(!pickup_waiting(*p,actor));actors[id].status=0;assert(pickup_waiting(*p,actor));
  }
  fresh();s_allowDrop=true;create_run_pickup({},0);assert(s_allowDrop);s_allowDrop=false;
- fresh();Enemy guard{true,int(timed_elite_count),{}};queue_flute(guard,&player);update_flutes(&player);assert(creates==0);
- Enemy timed{true,0,{1000,0,0}};player.current.pos={1000,0,0};queue_flute(timed,&player);queue_flute(timed,&player);
- path=false;update_flutes(&player);assert(creates==0);path=true;failCreate=true;update_flutes(&player);assert(s_flutes[0].pending);
- failCreate=false;update_flutes(&player);const auto id=s_flutes[0].id;assert(id!=kNone&&!s_flutes[0].pending);
- update_flutes(&player);assert(creates==2);auto* p=tracked_pickup(id);auto* actor=actor_by_id(id);
- assert(std::abs((actor->current.pos-player.current.pos).abs()-160.7f)<2);
- std::any args[]={static_cast<daItem_c*>(&actors[id])};assert(before_flute_get(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
- daItem_c foreign;std::any other[]={&foreign};assert(before_flute_get(nullptr,other,nullptr,nullptr)==HOOK_CONTINUE);
- move_pickup(*p,actor);move_pickup(*p,actor);assert(actors[id].scale.x==5&&actors[id].mItemScale.z==5);
+ fresh();Enemy guard{true,int(timed_elite_count),{}};queue_exp_magnet(guard,&player);update_exp_magnets(&player);
+ for(const auto& d:s_expMagnets)assert(!d.active&&!d.pending);
+ Enemy timed{true,0,{1000,0,0}};player.current.pos={1000,0,0};queue_exp_magnet(timed,&player);queue_exp_magnet(timed,&player);
+ path=false;update_exp_magnets(&player);assert(s_expMagnets[0].pending&&!s_expMagnets[0].active);
+ path=true;update_exp_magnets(&player);assert(!s_expMagnets[0].pending&&s_expMagnets[0].active&&creates==0);
+ const auto pos=s_expMagnets[0].position;update_exp_magnets(&player);
+ colors.clear();sizes.clear();after_draw(nullptr,nullptr,nullptr,nullptr);
+ assert(colors.size()==1&&colors[0].r==255&&colors[0].g==210&&colors[0].b==45&&sizes[0].x==50&&sizes[0].y==80);
+ assert(std::abs((pos-player.current.pos).abs()-167.6f)<2);
  s_orbs[0]={{50000,30,0},8,false};s_orbs[1]={{-50000,30,0},9,false};
- player.current.pos=actor->current.pos;playing=false;move_pickup(*p,actor);assert(!p->retiring&&!s_orbs[0].summoned);
- playing=true;move_pickup(*p,actor);assert(p->retiring&&s_flutes[0].collected&&s_orbs[0].summoned&&s_orbs[1].summoned);
+ player.current.pos=pos;playing=false;update_exp_magnets(&player);assert(s_expMagnets[0].active&&!s_orbs[0].summoned);
+ playing=true;update_exp_magnets(&player);assert(!s_expMagnets[0].active&&s_expMagnets[0].collected&&s_orbs[0].summoned&&s_orbs[1].summoned);
  s_orbs[2]={{40000,30,0},10,false}; // Future XP is not part of the one-time sweep.
  for(int i=0;i<200;++i)update_orbs(&player);
  assert(s_run.xp==17&&s_orbs[2].value==10&&!s_orbs[2].summoned);
- cleanup_pickups();cleanup_pickups();assert(!tracked_pickup(id));update_flutes(&player);assert(creates==2);
+ queue_exp_magnet(timed,&player);update_exp_magnets(&player);assert(!s_expMagnets[0].active&&creates==0);
  // Pending native actor creation is retained until it can be deleted, never rewarded.
  fresh();auto pendingId=create_run_pickup({},132);actors.erase(pendingId);pending.insert(pendingId);
  retire_pickups();cleanup_pickups();assert(tracked_pickup(pendingId));
  pending.erase(pendingId);actors[pendingId].id=pendingId;cleanup_pickups();cleanup_pickups();assert(s_pickups.empty());
- // Lost/failed flute actors retry, but teardown clears the request.
- fresh();queue_flute(timed,&player);update_flutes(&player);actors.clear();cleanup_pickups();update_flutes(&player);assert(creates==2);
- retire_pickups();cleanup_pickups();cleanup_pickups();update_flutes(&player);assert(creates==2&&s_run.xp==0);
- std::cout<<"Survivors pickups: native magnet, flute scoping, XP snapshot, pause and deferred cleanup passed\n";
+ // Retiring the run removes pending/active drops without granting XP.
+ fresh();queue_exp_magnet(timed,&player);retire_pickups();update_exp_magnets(&player);
+ assert(!s_expMagnets[0].active&&!s_expMagnets[0].pending&&s_run.xp==0);
+ std::cout<<"Survivors pickups: native magnet, EXP crystal scoping, XP snapshot, pause and deferred cleanup passed\n";
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+(root/'src/survivors_pickups.inc').read_text()+orbs+main)
+ cpp.write_text(fixture+(root/'src/survivors_pickups.inc').read_text()+core[core.index('void add_orb('):core.index('void drop_reward(')]+orbs+core[core.index('void after_draw('):core.index('void label(')]+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)

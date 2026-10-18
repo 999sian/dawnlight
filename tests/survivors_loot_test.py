@@ -39,6 +39,7 @@ struct cXyz {
     cXyz operator*(float n)const{return {x*n,y*n,z*n};}
     float abs2()const{return x*x+y*y+z*z;}float abs()const{return std::sqrt(abs2());}
     float abs(cXyz p)const{return (*this-p).abs();}
+    float absXZ(cXyz p)const{return std::hypot(x-p.x,z-p.z);}
 };
 struct csXyz{csXyz(int,int,int){}};
 s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.14159265);}
@@ -83,7 +84,7 @@ struct Attack {
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
 };
-constexpr int kAttackSource=0;constexpr unsigned kPaidChestCount=2,kChestCount=2,kItemBegin=8,kSlotsPerItem=4;
+constexpr int kAttackSource=0;constexpr unsigned kPaidChestCount=6,kSmallChestCount=6+map_chest_capacity,kChestCount=kSmallChestCount+elite_reward_capacity,kItemBegin=8,kSlotsPerItem=4;
 std::array<Attack,projectile_capacity>s_attacks;
 void stop_attack(Attack& a){a.active=false;a.collider.OffAtSetBit();a.emitters={};}
 unsigned cleared=0,closed=0;
@@ -109,12 +110,15 @@ bool prepare_loot(daAlink_c*){return s_loot.ready;}
 bool sword_action_available(daAlink_c*){return true;}
 bool arenaPresent=true,transition=false;
 unsigned s_player=1,rupees=0;
+bool s_arenaMeshReady=true;unsigned s_map=0,placement=0;
+bool walkable_spawn_path(cXyz,cXyz&,float){return !blocked&&!invalidFloor&&!arenaBlocked;}
+bool random_arena_floor(cXyz& p){p={2000.f+float(placement++%30)*500,0,2000};return !invalidFloor;}
 bool in_arena(){return arenaPresent;}bool transitioning(){return transition;}
 unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned r){rupees=r;}
 '''
 main = r'''
 void reset(){
-    s_run.start(123);s_attacks={};s_cooldowns={};s_chests={};s_loot.ready=true;
+    s_run.start(123);s_attacks={};s_cooldowns={};s_chests={};s_mapChestPlaced={};s_loot.ready=true;s_map=placement=0;s_arenaMeshReady=true;
     player={};player.current.pos={};player.id=s_player=1;s_selectedChest=kChestCount;
     arenaPresent=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
 }
@@ -224,16 +228,31 @@ int main(){
     arenaBlocked=true;assert(!spawn_chest(&player));arenaBlocked=false;
     floorRoom=50;assert(!spawn_chest(&player));floorRoom=51;
     assert(spawn_chest(&player));assert(s_chests[0].active && s_chests[0].position.y==0);
-    assert(spawn_chest(&player));assert(!spawn_chest(&player));
+    for(unsigned i=1;i<kPaidChestCount;++i)assert(spawn_chest(&player));
+    assert(!spawn_chest(&player));
     assert(s_chests[0].position.abs(s_chests[1].position)>=250);
     // Proximity alone never pauses combat or opens a purchase window.
     player.current.pos=s_chests[0].position;rupees=100;update_chests(&player);
     assert(s_run.phase==Phase::Running && !s_chests[0].opening && rupees==100);
+    // Seed every map budget independently; fixed chests do not replenish after purchase.
+    for(unsigned map=0;map<5;++map) {
+        reset();s_map=map;invalidFloor=true;seed_map_chests(&player);
+        for(const auto& c:s_chests)assert(!c.active);
+        invalidFloor=false;blocked=true;seed_map_chests(&player);
+        for(const auto& c:s_chests)assert(!c.active);
+        blocked=false;seed_map_chests(&player);
+        unsigned count=0;for(const auto& c:s_chests)if(c.active){++count;assert(c.fixed&&!c.free);}
+        assert(count==map_chest_budget(map));
+        for(unsigned i=0;i<kPaidChestCount;++i)assert(!s_chests[i].active);
+        s_chests[kPaidChestCount]={};seed_map_chests(&player);
+        assert(!s_chests[kPaidChestCount].active);
+        assert(spawn_chest(&player)&&!s_chests[0].fixed);
+    }
     std::cout<<"Survivors loot: targeting, four projectile types, caps, placement and proximity behavior passed\n";
 }
 '''
 functions = ['nearest_item_target','next_boom_target','update_boom_wind','launch_item','explode_item','update_item_attack','fire_items',
-             'spawn_chest','update_chests']
+             'spawn_chest','seed_map_chests','update_chests']
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'
     binary=Path(tmp)/'test'

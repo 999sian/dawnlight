@@ -107,7 +107,6 @@ DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#e_ms_damage", void(e_ms_class*), Su
 DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
 DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
 DEFINE_HOOK(&daObjCarry_c::obj_break, SurvivorsPotBreak);
-DEFINE_HOOK(&daItem_c::itemGetNextExecute, SurvivorsFluteGet);
 DEFINE_HOOK(&renderingAmap_c::afterDrawPath, SurvivorsEliteMinimap);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#pl_check", int(e_ms_class*, f32), SurvivorsRatAggro);
@@ -229,7 +228,7 @@ struct Enemy {
     cXyz lootPosition{};
 };
 std::array<Enemy, enemy_capacity> s_enemies;
-struct Orb { cXyz position{}; unsigned value = 0; bool summoned = false; };
+struct Orb { cXyz position{}; unsigned value = 0; bool summoned = false, merged = false; };
 std::array<Orb, orb_capacity> s_orbs;
 struct Attack {
     bool active = false;
@@ -472,6 +471,7 @@ void add_orb(cXyz position, unsigned value) {
     }
     // Preserve XP at the cap without spawning more game actors or particles.
     nearest->value += value;
+    nearest->merged = true;
 }
 void drop_reward(fopAc_ac_c* actor) {
     const auto drop = s_run.roll_drop();
@@ -502,7 +502,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         if (!e.elite) drop_reward(actor);
         add_orb(actor->current.pos, e.elite ? 30 : (e.profile == fpcNm_E_OC_e || e.profile == fpcNm_E_RD_e) ? 3 : 1);
     }
-    if (e.elite) { drop_elite_chest(e, actor); queue_flute(e, actor); }
+    if (e.elite) { drop_elite_chest(e, actor); queue_exp_magnet(e, actor); }
 }
 void update_orbs(daAlink_c* link) {
     const float range = magnet_range();
@@ -574,7 +574,7 @@ void update_spawns(daAlink_c* link) {
     s_spawnCooldown = s_run.spawn_interval();
     update_elite_spawns(link);
     if (s_run.ticks >= duration) return; // Final elite fight: no new horde or guard respawns.
-    for (unsigned i=0; i<s_run.options.horde && population<s_run.target_population(); ++i) {
+    for (unsigned i=0; i<s_run.spawn_batch() && population<s_run.target_population(); ++i) {
         if (spawn_enemy(link,false)) ++population;
         else { ++s_spawnFailures; break; }
     }
@@ -847,7 +847,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     s_run.tick(true);
     if (s_run.ticks >= duration && s_run.timed_elites == timed_elite_count) { finish(true); return; }
     update_enemy_effects();
-    update_spawns(link); update_pots(link); update_flutes(link); update_weapons(link); update_orbs(link);
+    update_spawns(link); update_pots(link); update_exp_magnets(link); update_weapons(link); update_orbs(link);
     s_run.maximum_hearts = dComIfGs_getMaxLife() / 5;
     if (s_run.level_up()) clear_attacks();
     else update_chests(link);
@@ -981,7 +981,13 @@ void after_draw(ModContext*, void*, void*, void*) {
     for (auto& orb : s_orbs) {
         if (!orb.value) continue;
         cXyz size(10, 16, 10); csXyz angle(0, static_cast<s16>(s_run.ticks * 300), 0);
-        dDbVw_drawCubeOpa(orb.position, size, angle, GXColor{90, 235, 255, 255});
+        dDbVw_drawCubeOpa(orb.position, size, angle, orb.merged ? GXColor{255,70,70,255} : GXColor{90,235,255,255});
+    }
+    for (const auto& drop:s_expMagnets) {
+        if (!drop.active) continue;
+        cXyz size(50,80,50); csXyz angle(0,static_cast<s16>(s_run.ticks*300),0);
+        cXyz pos=drop.position+cXyz(0,8*cM_ssin(s16(s_run.ticks*700)),0);
+        dDbVw_drawCubeOpa(pos,size,angle,GXColor{255,210,45,255});
     }
     draw_loot();
     draw_ranged();
@@ -1026,8 +1032,12 @@ void draw_hud(ModContext*, void*, void*, void*) {
         std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
     else std::snprintf(text, sizeof(text), "No chest rewards available");
     label(text, x, 96, 14);
+    if (s_run.horde_remaining) {
+        std::snprintf(text,sizeof(text),"HORDE!  3x enemy spawns  %us",(s_run.horde_remaining+29)/30);
+        label(text,x,118,17);
+    }
     if (s_spawnFailures >= 10)
-        label("Waiting for a clear enemy spawn position", x, 118, 13);
+        label("Waiting for a clear enemy spawn position", x, s_run.horde_remaining ? 140 : 118, 13);
     graf->setup2D();
 }
 void select_upgrade(ModContext*, void* data) {
@@ -1250,7 +1260,6 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
     PRE(SurvivorsBokoblinWait, before_bokoblin_wait);
     PRE(SurvivorsPotBreak, before_pot_break);
-    PRE(SurvivorsFluteGet, before_flute_get);
     POST(SurvivorsEliteMinimap, after_elite_minimap);
     PRE(SurvivorsKeeseAggro, before_keese_aggro);
     PRE(SurvivorsRatAggro, before_rat_aggro);

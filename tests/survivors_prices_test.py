@@ -14,8 +14,8 @@ fixture=r'''
 using namespace dawnlight::survivors;using s16=short;
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}};
-Run s_run;constexpr unsigned kPaidChestCount=2;
-struct Chest{bool active=false,opening=false;cXyz position;};std::array<Chest,3>s_chests;
+Run s_run;constexpr unsigned kSmallChestCount=2;
+struct Chest{bool active=false,opening=false;cXyz position;bool free=false,fixed=false;};std::array<Chest,3>s_chests;
 bool event=false,view=true;bool dComIfGp_event_runCheck(){return event;}bool dComIfGd_getView(){return view;}
 float matrix[4][4]={{},{},{},{0,0,1,0}};auto* dComIfGd_getProjViewMtx(){return &matrix;}
 float cM_ssin(s16 a){return std::sin(float(a)*3.14159265f/32768);}
@@ -28,6 +28,7 @@ int main(){
  s_run.start(1);for(auto& c:s_chests)c={true,false,{320,0,1000}};
  draw_chest_prices();assert((labels==std::vector<std::string>{"20","20"}));
  labels.clear();s_run.chests_opened=2;draw_chest_prices();assert((labels==std::vector<std::string>{"32","32"}));
+ labels.clear();s_chests[1].fixed=true;draw_chest_prices();assert((labels==std::vector<std::string>{"32","40"}));
  labels.clear();s_chests[0].opening=true;draw_chest_prices();assert(labels.size()==1);
  labels.clear();s_chests[1].position.z=-1000;draw_chest_prices();assert(labels.empty());
  s_chests[1].position={900,0,1000};draw_chest_prices();assert(labels.empty());

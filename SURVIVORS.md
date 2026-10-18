@@ -90,13 +90,13 @@ writes the native save in the background and keeps the menu open; wait for
 
 ## Maps, elites and pots
 
-| Map | Additional dormant elites | Breakable pots |
-| --- | --- | ---: |
-| Darknut Arena | None | 6–10 |
-| Hyrule Field | Four at random positions | 40–72 |
-| Gerudo Desert | Four at random positions | 40–72 |
-| Palace of Twilight | One per building doorway | 12–24 |
-| Hyrule Castle Throne Room | None | 8–12 |
+| Map | Additional dormant elites | Pots at once | Starting 40-rupee chests |
+| --- | --- | ---: | ---: |
+| Darknut Arena | None | 6–10 | 3 |
+| Hyrule Field | Four at random positions | 40–72 | 18 |
+| Gerudo Desert | Four at random positions | 40–72 | 18 |
+| Palace of Twilight | One per building doorway | 12–24 | 6 |
+| Hyrule Castle Throne Room | None | 8–12 | 4 |
 
 Normal enemies include Bokoblins, Keese, Rats, club Bulblins and bow Bulblins.
 Bulblins take regular damage from arrows, without the native instant-kill rule.
@@ -118,16 +118,28 @@ elites wake only after taking damage; after a kill they respawn in three minutes
 with new positions in Field/Desert. Timed elites do not respawn.
 
 Every elite drops a **free large chest**. The four timed elites also drop an
-**Epona flute** at five times normal size nearby: walk over it to pull all currently lying XP crystals
+**large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals
 to Link from anywhere on the map. It is a one-time pickup, not an inventory item. Pots are scattered according to floor
 area and safe placement, drop rupees of different values or rare heart pieces,
-and do not refill during a run. Ordinary enemies can drop healing hearts and
+and respawn at a different safe position 20 seconds after breaking (menus pause the timer). Ordinary enemies can drop healing hearts and
 rupees; level-ups do not heal.
+
+Normal enemy population grows from **18 to 69 × the Horde difficulty setting**
+(up to 345). Random **HORDE!** events triple spawn batches for 15 seconds, within
+that population limit. They average two events per five minutes, without a quota;
+overlaps add 15 seconds instead of stacking the multiplier. The HUD shows the
+remaining duration. Events stop at 20:00 and pause with the run.
+
+Up to **64 EXP crystals** can lie on the ground. Further XP merges into the nearest
+crystal without loss; merged crystals turn **red**, ordinary crystals stay turquoise.
+The large gold-yellow elite crystal collects existing XP globally, without giving inventory items.
 
 ## Chests and equipment
 
-Paid chests cost **20, 25, 32, 41, 52… rupees**: increases of +5, +7, +9, +11…
-Their current price floats above each small chest.
+Up to **six replenishing small chests** can be present. These cost **20, 25, 32, 41, 52… rupees**: increases of +5, +7, +9, +11…
+Each arena also starts with randomly placed **40-rupee small chests** (counts above),
+which never respawn or affect the replenishing chests' price. Both kinds show
+their own price floating overhead. Placement requires reachable dry ground.
 They are interactable only when affordable. Opening takes priority over automatic
 attacks and offers three items; choose one to receive it through the native Get
 Item animation. Cancelling preserves offers. Opened chests disappear; free elite

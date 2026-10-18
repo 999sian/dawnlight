@@ -15,7 +15,7 @@ fixture = r'''
 using namespace dawnlight::survivors;
 Run s_run;unsigned rupees=500,s_selectedChest=0;
 ChestReward s_chosenTreasure=ChestReward::Count;
-struct Chest {bool free=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
+struct Chest {bool free=false,fixed=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
 std::array<Chest,2>s_chests;
 std::array<unsigned,3>s_choices{0,1,2};
 UiWindowHandle s_window=7,s_refreshChoices=0;
@@ -61,6 +61,9 @@ int main(){
  assert(rupees==20&&s_run.paid_rerolls==1&&s_run.phase==Phase::TreasureChoice&&s_refreshChoices==8);
  s_window=9;s_chests[0].free=true;rupees=100;reroll_choices(nullptr,nullptr);
  assert(rupees==0&&s_run.paid_rerolls==2&&s_run.reroll_cost()==150);
+ fresh();s_run.phase=Phase::TreasureChoice;s_chests[0].fixed=true;s_run.chests_opened=20;
+ s_run.free_rerolls=0;rupees=89;reroll_choices(nullptr,nullptr);assert(rupees==89&&s_window==7);
+ rupees=90;reroll_choices(nullptr,nullptr);assert(rupees==40&&s_run.chests_opened==20&&s_window==0);
  fresh();s_run.phase=Phase::TreasureChoice;s_run.ranks[unsigned(Upgrade::Bow)]=4;
  s_chests[0].offers={ChestReward::Bow,ChestReward::Shield,ChestReward::MasterSword};
  unsigned bow=0;banish_choice(nullptr,&bow);

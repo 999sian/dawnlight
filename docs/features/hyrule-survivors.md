@@ -227,16 +227,15 @@ controller/touch selection as paid chests, labelled as free. Choose one item;
 only then does its native Get Item sequence start. Cancel keeps the offers.
 Free chests cost zero rupees, never advance the paid-chest price, and disappear
 once the reward completes. A separate pool retains all unopened drops from earlier guard lives, independent
-of the two paid chests. Failed creation is retried; deletion, cleanup and repeated
+of the six replenishing paid chests and the one-use map chests. Failed creation is retried; deletion, cleanup and repeated
 death callbacks never generate extra loot. Guards and elites do not age-despawn.
 
-The four scheduled elites additionally leave a native Epona-flute model about
-160 units from their death position, on connected dry floor. Failed placement or
-creation retries. Walking within 80 units consumes it without granting a story
-item or starting Get Item, and marks every existing XP orb for global attraction.
-Marked orbs keep following Link until collected, accelerating over long distances;
-new XP retains normal Magnet behavior. Map guards do not drop flutes. The four
-requests and owned pickup actors are cleared/retired with the run.
+The four scheduled elites additionally leave a gold-yellow EXP crystal, five times
+ordinary crystal size, about 160 units from the corpse on connected dry floor.
+Failed safe placement retries. Walking within 100 units consumes it and marks all
+existing XP orbs for global attraction; later XP uses normal Magnet behavior.
+The drop uses the same code drawing as EXP, without a native item actor, story
+flag or Get Item hook. Map guards do not drop it. All four slots reset with the run.
 
 Spawn frequency, ordinary population and Bokoblin/Bulblin health increase during the run.
 Death opens a result screen with time, kills, level and weapon levels. **New run**
@@ -248,7 +247,7 @@ Each run distributes native small pots at random safe floor positions throughout
 the arena. Counts scale with loaded floor area (one per 2,000,000 square world
 units), clamped to these map-specific budgets:
 
-| Map | Pots per run |
+| Map | Simultaneous pots |
 | --- | --- |
 | Darknut Arena | 6–10 |
 | Hyrule Castle Throne Room | 8–12 |
@@ -266,7 +265,8 @@ Heart pieces use the native Get Item sequence and five-piece heart progression;
 subsequent Heart Container upgrades preserve already collected pieces. Their
 capacity is reset with the rest of the run on restart.
 
-Destroyed pots do not refill during a run. Failed creation is retried, while
+Destroyed pots retry spawning after 600 playable ticks (20 seconds), at least
+300 units from their break position. The old actor must finish deletion first. Failed creation is retried, while
 unloading/deleting a pot never grants loot. Only these tracked pots bypass the
 Survivors suppression of vanilla drops. Pots and enemies pause during menus and
 native Get Item; the native reward event itself continues. Run end, mode changes
@@ -274,7 +274,13 @@ and restart retire the pots, including actors still loading.
 
 ## Treasure chests
 
-Two paid treasure chests can be present at once, in addition to free elite chests. The first appears after 20–30 seconds;
+At run start, seed 3/18/18/6/4 one-use small chests in Darknut/Field/Desert/Palace/
+Throne Room. Their separate 18-slot pool retains placement flags after purchase;
+they always cost 40, never advance regular prices, and share selection/Get Item.
+Safe-position retries are bounded to 24 candidates per update. Affordability,
+preview, payment, floating labels and paid-reroll reservations use the same price.
+
+Six replenishing paid treasure chests can be present at once, in addition to free elite and one-use map chests. The first appears after 20–30 seconds;
 subsequent spawns are attempted at random 25–45 second intervals. Positions need
 flat ground, a clear footprint and an unobstructed line from Link. Failed/full
 placements retry after three seconds. Closed chests remain until purchased or the
@@ -453,13 +459,14 @@ sword animations and particle effects. No additional textures, models or music
 are required. Larger arenas, camera changes, weapon evolutions, persistent
 unlock trees and mid-run suspend are not part of this version.
 
-The budgets are 132 tracked enemies (120 ordinary slots plus four scheduled
+The budgets are 372 tracked enemies (360 ordinary slots plus four scheduled
 elites and up to eight guards, including pending/deleting actors), 40 attack
-objects (eight base-weapon slots, twenty arrow slots and four per other chest weapon), two paid chest props,
+objects (eight base-weapon slots, twenty arrow slots and four per other chest weapon), six replenishing chest props, up to 18 one-use map chest props,
 up to 60 free chest props, 64 experience crystals and up to 72 native pot actors. The free pool covers seven
-lives per guard plus the four scheduled elites; opened slots are reused. Model allocation is bounded by a 2 MiB heap,
-trimmed after loading; native pot actors use their own engine-managed heaps. Excess crystals merge their value.
-Native enemy arrows have a separate cap of 396, including pending/deleting actors.
+lives per guard plus the four scheduled elites; opened slots are reused. Model allocation is bounded by a 3 MiB heap,
+trimmed after loading; native pot actors use their own engine-managed heaps. Excess crystals merge their value and mark the recipient red; freeing/reusing a
+slot resets that color. The gold-yellow global-magnet drop has four separate slots.
+Native enemy arrows have a separate cap of 1116, including pending/deleting actors.
 These limits are starting budgets, not a measured Android performance guarantee.
 Spawns require a valid floor and unobstructed line from Link, and are staggered.
 A failed elite creation/despawn can be retried without granting loot or counting as a kill.
@@ -600,8 +607,14 @@ once at initialization. Movement is scaled before native ground/wall correction,
 excluding dormant, dying and knocked-back actors. Enemy damage scales at Link's
 native damage entry, restricted to owned enemy contacts.
 
-Horde multiplies population and per-wave spawns (up to 115 normal enemies);
+Random horde events roll independently once per playable second (1/150 chance),
+for about two events per five minutes, with no quota. Each adds 450 ticks to
+remaining duration; active events multiply spawn batches by three, never by nine.
+The normal population cap remains enforced. The HUD shows a warning/countdown;
+menus freeze both trials and duration, and 20:00 clears/stops random hordes.
+
+Horde difficulty multiplies population and per-wave spawns (up to 345 normal enemies);
 every Nth normal kill generates XP and rolls loot. Elites and pots are exempt.
 Camera distance ranges from 100–500% (default 200%), scales the rendered view
 with a wall check and restores native input before the next camera tick to avoid
-feedback. Event/aim cameras stay native. Timed-elite flutes scale to 5x once.
+feedback. Event/aim cameras stay native. Timed-elite EXP magnets are drawn at 5x ordinary crystal size.

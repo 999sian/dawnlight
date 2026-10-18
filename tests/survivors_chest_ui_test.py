@@ -34,7 +34,7 @@ Run s_run;unsigned rupees=500,selected=99,banished=99;
 void reroll_choices(ModContext*,void*){}
 void banish_choice(ModContext*,void* data){banished=*static_cast<unsigned*>(data);}
 unsigned dComIfGs_getRupee(){return rupees;}
-struct Chest {bool free=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
+struct Chest {bool free=false,fixed=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
 std::array<Chest,2>s_chests;unsigned s_selectedChest=0;
 std::array<unsigned,3>s_choices{0,1,2};
 void select_treasure(ModContext*,void* data){selected=*static_cast<unsigned*>(data);}
@@ -116,6 +116,8 @@ int main(){
  assert(treasure_rml_escape("<&\">")=="&lt;&amp;&quot;&gt;");
  // Free elite chest uses the same three native controller/touch buttons,
  // even with an empty wallet. Rendering does not commit any reward/payment.
+ fresh();s_chests[0].fixed=true;s_run.chests_opened=20;rupees=40;
+ assert(build_treasure_choices(1,2)==MOD_OK); // Preview cannot charge the regular 500-rupee price.
  fresh();s_chests[0].free=true;rupees=0;
  assert(build_treasure_choices(1,2)==MOD_OK);unsigned freeCards=0;bool freeLabel=false;
  for(const auto& [id,e]:elements){

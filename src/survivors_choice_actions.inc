@@ -6,7 +6,7 @@ void reroll_choices(ModContext*,void*) {
     const bool chest=s_run.phase==Phase::TreasureChoice;
     if (chest && (s_selectedChest>=s_chests.size() || s_chosenTreasure!=ChestReward::Count)) return;
     unsigned rupees=dComIfGs_getRupee();
-    const unsigned reserved=chest && !s_chests[s_selectedChest].free ? s_run.chest_cost() : 0;
+    const unsigned reserved=chest ? s_run.chest_price(s_chests[s_selectedChest].free,s_chests[s_selectedChest].fixed) : 0;
     if (!s_run.pay_reroll(rupees,reserved)) return;
     dComIfGs_setRupee(rupees);
     if (chest) {
@@ -47,7 +47,7 @@ ModResult add_choice_header(UiElementHandle pane) {
     UiControlDesc control=UI_CONTROL_DESC_INIT;control.label=label.c_str();control.on_pressed=reroll_choices;
     control.is_disabled=[](ModContext*,void*) {
         const bool chest=s_run.phase==Phase::TreasureChoice;
-        const unsigned reserved=chest && s_selectedChest<s_chests.size() && !s_chests[s_selectedChest].free ? s_run.chest_cost() : 0;
+        const unsigned reserved=chest && s_selectedChest<s_chests.size() ? s_run.chest_price(s_chests[s_selectedChest].free,s_chests[s_selectedChest].fixed) : 0;
         return dComIfGs_getRupee()<reserved+s_run.reroll_cost();
     };
     result=svc_ui->pane_add_control(mod_ctx,row,&control,&button);if(result!=MOD_OK)return result;

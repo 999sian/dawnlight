@@ -19,12 +19,19 @@ inline constexpr unsigned guard_respawn_interval = 3 * 60 * ticks_per_second;
 // Guard respawns stop at 20 minutes; the final timed elite can be defeated later.
 inline constexpr unsigned elite_reward_capacity = timed_elite_count +
     guard_capacity * (1 + (duration - 1) / guard_respawn_interval);
-inline constexpr unsigned enemy_capacity = 24 * 5 + elite_capacity;
+inline constexpr unsigned enemy_capacity = 24 * 5 * 3 + elite_capacity;
 inline constexpr unsigned projectile_capacity = 40;
 inline constexpr unsigned item_projectile_begin(unsigned type) { return type ? 28 + (type - 1) * 4 : 8; }
 inline constexpr unsigned item_projectile_count(unsigned type) { return type ? 4 : 20; }
 inline constexpr unsigned orb_capacity = 64;
 inline constexpr unsigned pot_capacity = 72;
+inline constexpr unsigned pot_respawn_interval = 20 * ticks_per_second;
+inline constexpr unsigned horde_duration = 15 * ticks_per_second;
+inline constexpr unsigned map_chest_capacity = 18;
+inline unsigned map_chest_budget(unsigned map) {
+    constexpr std::array<unsigned,5> counts{3,18,18,6,4};
+    return map < counts.size() ? counts[map] : 0;
+}
 inline unsigned pot_budget(unsigned map, float floorArea) {
     // Density follows the loaded floor area, bounded per arena for native actor
     // budgets. Outdoor maps always have substantially more pots than indoors.
@@ -93,6 +100,7 @@ struct Run {
     std::array<bool,unsigned(Upgrade::Count)> banned_upgrades{};
     std::array<bool,unsigned(ChestReward::Count)> banned_items{};
     unsigned dark_clock = 0, dark_remaining = 0;
+    unsigned horde_remaining = 0;
     std::array<unsigned, unsigned(Upgrade::Rupees)> ranks{};
     unsigned chests_opened = 0;
     std::array<Upgrade, 3> offers{};
@@ -200,6 +208,7 @@ struct Run {
         phase = Phase::Running;
         return true;
     }
+    unsigned chest_price(bool free, bool fixed = false) const { return free ? 0 : fixed ? 40 : chest_cost(); }
     unsigned chest_cost() const { return 20 + chests_opened * (chests_opened + 4); }
     unsigned burn_damage() const { return rank(Upgrade::FireArrows); }
     unsigned burn_duration() const { return (3 + (std::max(1u, rank(Upgrade::FireArrows)) - 1) / 3) * ticks_per_second; }
@@ -301,12 +310,12 @@ struct Run {
     }
     // Apply exactly the selected reward. No reroll, payment or rank change on
     // an invalid/stale selection; presentation commits this preview only once.
-    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common, bool free = false) {
-        const unsigned price = free ? 0 : chest_cost();
+    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common, bool free = false, bool fixed = false) {
+        const unsigned price = chest_price(free, fixed);
         if (phase != Phase::Treasure || rupees < price || !chest_eligible(reward, bottle_capacity != 0)) return false;
         const unsigned gain = chest_gain(reward, rarity, bottle_capacity);
         rupees = rupees - price + chest_rupees(reward, rarity, bottle_capacity);
-        if (!free) ++chests_opened;
+        if (!free && !fixed) ++chests_opened;
         if (replaces_offhand(reward)) { shield=dual_wield=0; offhand=reward; }
         if (reward == ChestReward::Shield || reward == ChestReward::OrdonSword) offhand=reward;
         if (reward == ChestReward::RedPotion) red_potion = true;
@@ -325,13 +334,20 @@ struct Run {
     bool tick(bool playable) {
         if (phase != Phase::Running || !playable) return false;
         ++ticks;
+        if (horde_remaining) --horde_remaining;
+        // Independent one-second trials: E(events / 5 minutes) = 300 / 150 = 2.
+        // Overlaps add time, never multiply the active spawn boost.
+        if (ticks < duration && ticks % ticks_per_second == 0 && next_random() % 150 == 0)
+            horde_remaining += horde_duration;
+        if (ticks >= duration) horde_remaining = 0;
         if (dark_remaining) --dark_remaining;
         if (dark_link && !dark_permanent() && ++dark_clock >= dark_interval()) {
             dark_clock = 0; dark_remaining = dark_duration();
         }
         return true;
     }
-    unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u) * options.horde; }
+    unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u) * 3 * options.horde; }
+    unsigned spawn_batch() const { return options.horde * (horde_remaining ? 3 : 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
     unsigned cooldown_percent() const {
         const auto rank = std::min(30u, this->rank(Upgrade::Haste));

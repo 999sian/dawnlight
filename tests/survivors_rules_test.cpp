@@ -295,10 +295,41 @@ int main() {
     assert(heart.choose(0)&&heart.maximum_hearts==20&&!heart.eligible(Upgrade::Heart));
     for(unsigned horde=1;horde<=5;++horde){
         Run swarm;RunOptions settings;settings.horde=horde;swarm.start(3,settings);
-        assert(swarm.target_population()==6*horde);
+        assert(swarm.target_population()==18*horde);
         for(unsigned kill=1;kill<=50;++kill)assert(swarm.normal_kill_drops()==(kill%horde==0));
-        swarm.ticks=duration;assert(swarm.target_population()==23*horde&&swarm.target_population()+elite_capacity<enemy_capacity);
+        swarm.ticks=duration;assert(swarm.target_population()==69*horde&&swarm.target_population()+elite_capacity<enemy_capacity);
     }
+    // Fixed-price exploration chests neither follow nor raise the regular price.
+    Run fixed;fixed.start(8);fixed.chests_opened=10;fixed.phase=Phase::Treasure;
+    unsigned fixedWallet=39;
+    assert(!fixed.buy_chest(fixedWallet,ChestReward::Bow,0,Rarity::Common,false,true));
+    assert(fixedWallet==39&&fixed.chests_opened==10);
+    fixedWallet=40;assert(fixed.buy_chest(fixedWallet,ChestReward::Bow,0,Rarity::Common,false,true));
+    assert(fixedWallet==0&&fixed.chests_opened==10&&fixed.chest_cost()==160);
+    // Random hordes have no per-window quota, pause with simulation and extend only time.
+    unsigned events=0,overlaps=0,maxEvents=0;
+    for(unsigned seed=1;seed<=1000;++seed) {
+        Run h;h.start(seed);unsigned count=0;
+        for(unsigned second=1;second<300;++second) {
+            h.ticks=second*ticks_per_second-1;
+            const auto before=h.horde_remaining;
+            h.tick(true);
+            const unsigned baseline=before ? before-1 : 0;
+            if(h.horde_remaining>baseline){++events;++count;overlaps+=before!=0;
+                assert(h.horde_remaining==baseline+horde_duration);}
+            assert(h.spawn_batch()==(h.horde_remaining ? 3u : 1u));
+            const auto saved=h.horde_remaining,rng=h.random;
+            h.tick(false);assert(h.horde_remaining==saved&&h.random==rng);
+            h.phase=Phase::Upgrade;h.tick(true);assert(h.horde_remaining==saved&&h.random==rng);
+            h.phase=Phase::Running;
+            for(unsigned n=1;n<ticks_per_second;++n)h.tick(true);
+        }
+        maxEvents=std::max(maxEvents,count);
+    }
+    assert(events>1800&&events<2200&&overlaps>0&&maxEvents>2);
+    Run ending;ending.start(3);ending.ticks=duration-1;ending.horde_remaining=300;ending.tick(true);
+    assert(!ending.horde_remaining&&ending.spawn_batch()==1);
+    ending.start(5);assert(!ending.horde_remaining);
     RunOptions invalid{0,100,100,0,1000};invalid.clamp();
     assert(invalid.enemy_hp==1&&invalid.enemy_damage==10&&invalid.enemy_speed==3&&invalid.horde==1&&invalid.camera_distance==500);
     assert(RunOptions{}.camera_distance==200);

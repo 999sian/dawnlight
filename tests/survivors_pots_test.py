@@ -95,7 +95,17 @@ int main(){
  // Only initialized, owned, actually broken pots grant a single native pickup.
  ready(0);break_pot(0);assert(drops.size()==1&&!s_allowDrop&&s_run.kills==0&&s_run.xp==0);
  break_pot(0);assert(drops.size()==1);actors.erase(s_pots[0].id);cleanup_pots();
- for(unsigned i=0;i<1000;++i)update_pots(&player);assert(creates==s_potTarget&&s_pots[0].id==kNone);
+ const auto oldPosition=s_pots[0].position;
+ for(unsigned i=0;i<pot_respawn_interval-1;++i){++s_run.ticks;update_pots(&player);}
+ assert(s_pots[0].id==kNone&&creates==s_potTarget);
+ ++s_run.ticks;s_potDelay=0;update_pots(&player);
+ assert(s_pots[0].id!=kNone&&!s_pots[0].broken&&creates==s_potTarget+1);
+ assert(s_pots[0].position.absXZ(oldPosition)>=300);
+ // Repeated attempts at the old location cannot bypass relocation.
+ ready(0);break_pot(0);actors.erase(s_pots[0].id);cleanup_pots();
+ s_run.ticks+=pot_respawn_interval;s_potDelay=0;badFloor=true;update_pots(&player);
+ assert(s_pots[0].id==kNone&&s_pots[0].broken);badFloor=false;
+
  // Every currency tier and rare heart pieces occur, and Luck improves both.
  std::array<unsigned,8> plain{},lucky{};
  for(unsigned trial=0;trial<2;++trial){fresh();if(trial)s_run.ranks[unsigned(Upgrade::Luck)]=5;

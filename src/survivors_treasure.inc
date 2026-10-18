@@ -78,7 +78,7 @@ void cancel_treasure_demo() {
 bool chest_interactable(const Chest& chest, daAlink_c* link) {
     if (!chest.active || chest.opening || !s_loot.ready || (s_run.phase != Phase::Running && s_run.phase != Phase::TreasureChoice) ||
         !playable() || s_treasure.item != kNone || !s_run.chest_rewards_left(potion_slot() >= 0) ||
-        (!chest.free && dComIfGs_getRupee() < s_run.chest_cost()) || link->checkWolf() || dComIfGs_getLife() == 0) return false;
+        (dComIfGs_getRupee() < s_run.chest_price(chest.free,chest.fixed)) || link->checkWolf() || dComIfGs_getLife() == 0) return false;
     const cXyz delta = chest.position - link->current.pos;
     // Auto-aim/spin changes facing; it must never hide a nearby Open action.
     if (delta.absXZ() >= 150 || std::abs(delta.y) >= 20) return false;
@@ -123,7 +123,7 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link, ChestReward reward) {
     unsigned rupees = dComIfGs_getRupee();
     const auto choice = unsigned(std::find(offers.begin(), offers.end(), reward) - offers.begin());
     const auto rarity = s_chests[index].rarities[choice];
-    if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity, s_chests[index].free)) return false;
+    if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity, s_chests[index].free, s_chests[index].fixed)) return false;
     if (!prepare_treasure_message(reward, s_run, preview, rarity)) return false;
     auto* previous = fpcLy_CurrentLayer(); fpcLy_SetCurrentLayer(layer);
     // 0x01 is native presentation-only: daDitem_c skips execItemGet.
@@ -132,7 +132,7 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link, ChestReward reward) {
     fpcLy_SetCurrentLayer(previous);
     if (item == kNone) return false;
     s_treasure = {}; s_treasure.item = item;
-    s_treasure.result = preview; s_treasure.price = s_chests[index].free ? 0 : s_run.chest_cost();
+    s_treasure.result = preview; s_treasure.price = s_run.chest_price(s_chests[index].free,s_chests[index].fixed);
     s_treasure.bonusRupees = s_run.chest_rupees(reward, rarity, potion_capacity());
     if (reward == ChestReward::RedPotion) s_treasure.potions = s_run.chest_gain(reward, rarity, potion_capacity());
     s_chests[index].reward = reward;

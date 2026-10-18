@@ -129,9 +129,9 @@ int main(){
     failHeap=false;clear_loot();missingLid=true;assert(!prepare_loot(&player) && references==0 && liveModels.empty());
     missingLid=false;clear_loot();failModel=int(modelsMade)+3;
     assert(!prepare_loot(&player) && references==0 && liveModels.empty());
-    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==43+elite_reward_capacity);
+    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==41+kChestCount);
     assert(s_loot.chests[0]->getModelData()==&data[0]);
-    assert(s_loot.chests[kPaidChestCount]->getModelData()==&data[4]);
+    assert(s_loot.chests[kSmallChestCount]->getModelData()==&data[4]);
     assert(currentHeap==&defaultHeap);
     const auto creations=heapCreates;assert(prepare_loot(&player) && heapCreates==creations);
     s_chests[0].active=true;s_chests[1].active=true;s_chests[1].opening=true;s_chests[1].age=45;

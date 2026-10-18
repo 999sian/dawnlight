@@ -1,9 +1,9 @@
 // Run-local treasure and item projectiles. Included inside Survivors' private
 // namespace; native assets are borrowed/refcounted, never added to the bundle.
-constexpr unsigned kPaidChestCount = 2, kChestCount = kPaidChestCount + elite_reward_capacity, kItemBegin = 8, kSlotsPerItem = 4;
+constexpr unsigned kPaidChestCount = 6, kSmallChestCount = kPaidChestCount + map_chest_capacity, kChestCount = kSmallChestCount + elite_reward_capacity, kItemBegin = 8, kSlotsPerItem = 4;
 struct Chest {
     bool active = false, opening = false;
-    bool free = false;
+    bool free = false, fixed = false;
     cXyz position{};
     s16 yaw = 0;
     unsigned age = 0;
@@ -12,6 +12,7 @@ struct Chest {
     std::array<Rarity, 3> rarities{};
 };
 std::array<Chest, kChestCount> s_chests;
+std::array<bool,map_chest_capacity> s_mapChestPlaced{};
 unsigned s_chestDelay = 20 * ticks_per_second, s_selectedChest = kChestCount;
 struct LootModels {
     JKRSolidHeap* heap = nullptr;
@@ -52,7 +53,7 @@ void clear_loot() {
     if (s_loot.heap) mDoExt_destroySolidHeap(s_loot.heap);
     dComIfG_resDelete(&s_loot.chestPhase, "Dalways");
     if (s_loot.linkArchive) dComIfG_resDelete(&s_loot.linkPhase, s_loot.linkArchive);
-    s_loot = {}; s_chests = {}; s_selectedChest = kChestCount;
+    s_loot = {}; s_chests = {}; s_mapChestPlaced = {}; s_selectedChest = kChestCount;
     s_chestDelay = 20 * ticks_per_second;
 }
 bool prepare_loot(daAlink_c* link) {
@@ -66,7 +67,7 @@ bool prepare_loot(daAlink_c* link) {
     }
     if (chestPhase != cPhs_COMPLEATE_e || linkPhase != cPhs_COMPLEATE_e) return false;
     if (!dComIfGp_getAnmArchive()) { clear_loot(); s_loot.failed = true; return false; }
-    s_loot.heap = mDoExt_createSolidHeapFromGame(0x200000, 0x20);
+    s_loot.heap = mDoExt_createSolidHeapFromGame(0x300000, 0x20);
     if (!s_loot.heap) { clear_loot(); s_loot.failed = true; return false; }
     auto* previous = mDoExt_setCurrentHeap(s_loot.heap);
     const auto model = [](J3DModelData* data, bool environment = false) {
@@ -95,10 +96,10 @@ bool prepare_loot(daAlink_c* link) {
         s_loot.bowAnims[0] && s_loot.bowAnims[1] && s_loot.windAnim;
     for (auto* wind : s_loot.wind) ready = ready && wind;
     for (unsigned i = 0; i < kChestCount; ++i) {
-        s_loot.chests[i] = model(i < kPaidChestCount ? chestData : bigChestData);
+        s_loot.chests[i] = model(i < kSmallChestCount ? chestData : bigChestData);
         s_loot.lids[i] = JKR_NEW mDoExt_bckAnm();
         ready = ready && s_loot.chests[i] && s_loot.lids[i] &&
-            s_loot.lids[i]->init(i < kPaidChestCount ? lidData : bigLidData, TRUE, J3DFrameCtrl::EMode_NONE, 0, 0, -1, false);
+            s_loot.lids[i]->init(i < kSmallChestCount ? lidData : bigLidData, TRUE, J3DFrameCtrl::EMode_NONE, 0, 0, -1, false);
     }
     // Read the ball into this heap, not Link's equipment heap. loadAramBmd
     // allocates its own resource buffer and does not equip/change Link's item.
@@ -137,7 +138,7 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
         encounter.respawnAt=s_run.ticks+guard_respawn_interval;
     // Keep unopened drops from earlier lives. The pool covers every possible
     // kill in a full run, even if no rewards are collected.
-    auto available=std::find_if(s_chests.begin()+kPaidChestCount,s_chests.end(),
+    auto available=std::find_if(s_chests.begin()+kSmallChestCount,s_chests.end(),
         [](const Chest& chest){return !chest.active;});
     if (available==s_chests.end()) return;
     auto& chest=*available;
@@ -349,14 +350,37 @@ bool spawn_chest(daAlink_c* link) {
             const float corner = dComIfG_Bgsp().GroundCross(&ground);
             if (!std::isfinite(corner) || std::abs(corner - floor) > 20) clear = false;
         }
-        if (!clear) continue;
+        if (!clear || !walkable_spawn_path(link->current.pos,pos,85)) continue;
         *slot = {}; slot->active = true; slot->position = pos; slot->yaw = yaw + 0x8000;
         return true;
     }
     return false;
 }
+// Separate, one-use map chests never consume the six replenishing slots.
+void seed_map_chests(daAlink_c* link) {
+    if (!s_arenaMeshReady) return;
+    unsigned attempts=0;
+    for (unsigned n=0;n<map_chest_budget(s_map);++n) {
+        if (s_mapChestPlaced[n]) continue;
+        cXyz pos; bool found=false;
+        while (!found && attempts<24) {
+            ++attempts;
+            if (!random_arena_floor(pos) || pos.absXZ(link->current.pos)<300 ||
+                !walkable_spawn_path(link->current.pos,pos,85)) continue;
+            found=std::none_of(s_chests.begin(),s_chests.end(),[&](const Chest& c) {
+                return c.active && c.position.abs(pos)<250;
+            });
+        }
+        if (!found) return; // Retry missing safe positions on later frames.
+        auto& chest=s_chests[kPaidChestCount+n];
+        chest={}; chest.active=true; chest.fixed=true;
+        chest.position=pos; chest.yaw=s16(s_run.next_random());
+        s_mapChestPlaced[n]=true;
+    }
+}
 void update_chests(daAlink_c* link) {
     if (s_run.phase != Phase::Running || !prepare_loot(link)) return;
+    seed_map_chests(link);
     if (s_chestDelay) { --s_chestDelay; return; }
     if (!s_run.chest_rewards_left(potion_slot() >= 0)) return;
     s_chestDelay = spawn_chest(link) ? (25 + s_run.next_random() % 21) * ticks_per_second : 3 * ticks_per_second;

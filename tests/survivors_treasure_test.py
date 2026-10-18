@@ -145,7 +145,7 @@ void dMeter2Info_setShield(int item,bool){equippedShield=item;}
 void dMeter2Info_setSword(int item,bool){equippedSword=item;}
 void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
 Run s_run;unsigned rupees=0;int s_player=1;
-struct Chest{bool active=false,opening=false,free=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};std::array<Rarity,3> rarities{};};
+struct Chest{bool active=false,opening=false,free=false,fixed=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};std::array<Rarity,3> rarities{};};
 constexpr unsigned kChestCount=2;unsigned s_selectedChest=kChestCount;
 std::array<Chest,2>s_chests;
 struct {bool ready=true;}s_loot;
@@ -295,6 +295,12 @@ int main(){
     assert(!s_chests[0].active&&s_run.chests_opened==1&&reset==1&&!alive);
     if (reward<=ChestReward::Ball) assert(s_run.rank(chest_weapon(reward))==1);
     update_treasure_demo(&player);assert(rupees==80&&s_run.chests_opened==1);
+    // A fixed-price chest checks and commits exactly 40 through the native event.
+    fresh();s_chests[0].fixed=true;s_run.chests_opened=10;rupees=39;
+    assert(!open_first()&&rupees==39&&s_run.chests_opened==10);
+    rupees=40;assert(open_first());accept();eventEnded=true;update_treasure_demo(&player);
+    assert(s_run.phase==Phase::Running&&rupees==0&&s_run.chests_opened==10&&!s_chests[0].active);
+    update_treasure_demo(&player);assert(rupees==0&&s_run.chests_opened==10);
     // Pre-execute Open has priority even in damage/roll/sword/item procedures.
     fresh();player.mProcID=daAlink_c::OTHER;player.trigger=true;mDoCPd_c::pad.mPressedButtonFlags=PAD_BUTTON_A;
     s_swordAction=SwordAction::Normal;s_wavePending=true;s_comboStep=3;
