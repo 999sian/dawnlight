@@ -49,7 +49,7 @@ dialog and opens the existing results screen without awarding a victory. Run tim
 automatic attacks and enemies pause while talking. Calling Midna interrupts
 automatic attacks; chest interaction keeps priority if both are pressed together.
 
-Every arena hosts a ten-minute run.
+Every arena hosts a twenty-minute run.
 Start with three hearts and automatic normal sword strikes. Sword Wave starts
 locked, like Whirling Blade. Move, dodge and collect blue experience
 crystals while weapons attack automatically. Manual Jump remains available with
@@ -178,14 +178,30 @@ skip idle detection/social alerts. Only a damaging hit from Link wakes them.
 Once provoked they pursue Link at any distance, just like ordinary and scheduled
 enemies. Standing nearby alone does not provoke a guard. Placement uses loaded
 DZB/KCL floor geometry and authored chest/door records, with floor, room, hazard,
-footprint and exit-barrier checks. No map archives or assets are bundled.
+footprint and exit-barrier checks. Retained native TRES/door records recover
+landmarks even when actor creation or name lookup is suppressed; door room pairs
+identify Palace entrances. Throne guards use an immutable entry landmark and
+interpolated floor searches at the entrance and near the far wall/throne,
+including raised landings. No map archives or assets are bundled.
+
+Killed map guards respawn after **three minutes of active run time**, dormant
+until attacked again. Hyrule Field and Gerudo Desert choose a new safe random
+position, at least 1,800 units from the previous position and other guards;
+indoor guards return to their landmark. Failed placement/creation retries without
+resetting the timer. Scheduled five-minute elites do not respawn.
+Living elites (guards and scheduled enemies) appear on the minimap using the
+native Tear-of-Light bug marker: same texture, palette and size, updated to their
+current position with the native room rotation/offset. Markers disappear on death
+and return when the replacement has loaded. No story flags or treasure records
+are modified.
 
 Each killed elite leaves **one free large chest** at its death position (or its
 last safe floor position). It uses native Dalways large-chest model 13 and lid
-animation 8, not a scaled small chest. Open immediately gives one random eligible
-item through the native Get Item sequence, without the paid three-choice screen.
+animation 8, not a scaled small chest. Opening shows the same three-card
+controller/touch selection as paid chests, labelled as free. Choose one item;
+only then does its native Get Item sequence start. Cancel keeps the offers.
 Free chests cost zero rupees, never advance the paid-chest price, and disappear
-once the reward completes. Each encounter reserves its own chest slot, independent
+once the reward completes. A separate pool retains all unopened drops from earlier guard lives, independent
 of the two paid chests. Failed creation is retried; deletion, cleanup and repeated
 death callbacks never generate extra loot. Guards and elites do not age-despawn.
 
@@ -371,9 +387,11 @@ sword animations and particle effects. No additional textures, models or music
 are required. Larger arenas, camera changes, weapon evolutions, persistent
 unlock trees and mid-run suspend are not part of this version.
 
-The budgets are 24 tracked enemies (including pending/deleting actors),
-24 attack objects (eight base-weapon slots and four per chest weapon), two chest
-props and 64 experience crystals. Model allocation is bounded by a 2 MiB heap,
+The budgets are 35 tracked enemies (24 ordinary slots plus three scheduled
+elites and up to eight guards, including pending/deleting actors), 24 attack
+objects (eight base-weapon slots and four per chest weapon), two paid chest props,
+up to 59 free chest props and 64 experience crystals. The free pool covers seven
+lives per guard plus the three scheduled elites; opened slots are reused. Model allocation is bounded by a 2 MiB heap,
 trimmed after loading. Excess crystals merge their value.
 These limits are starting budgets, not a measured Android performance guarantee.
 Spawns require a valid floor and unobstructed line from Link, and are staggered.
@@ -388,7 +406,12 @@ and native movement/root-motion equations.
 Before merging/releasing, test on Android and desktop:
 
 1. Create and reload a separate Survivors slot; verify story and Boss Rush saves.
-2. Complete a run using all weapons and both dependent upgrades; check native enemy death, elite drops and automatic 20-minute victory
+2. Kill map guards and check their three-minute respawn, including pauses; check
+   new Field/Desert positions and fixed indoor positions. Leave earlier free
+   chests unopened and confirm later drops remain separate. Verify native
+   Leuchtkaefer/Tear-of-Light minimap markers follow living elites and disappear
+   on death in every map and with Twilight HD HUD.
+   Complete a run using all weapons and both dependent upgrades; check native enemy death, elite drops and automatic 20-minute victory
    and no HP scaling leakage. Verify jump, dodge, controller and touch controls.
 3. Level up while surrounded; check three scroll cards, names/descriptions and
    red upgrade values with controller and touch. Close/reopen the choice window, and earn several

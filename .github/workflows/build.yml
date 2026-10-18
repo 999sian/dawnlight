@@ -54,6 +54,7 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_maps_test.cpp -o /tmp/survivors-maps-test
           /tmp/survivors-maps-test
           python3 tests/survivors_elites_test.py
+          python3 tests/survivors_minimap_test.py
           python3 tests/survivors_lifecycle_test.py
           python3 tests/survivors_defense_test.py
           python3 tests/survivors_status_test.py
@@ -241,6 +242,7 @@ jobs:
           python3 tests/survivors_aggro_test.py dusklight
           CXX=clang++ python3 tests/survivors_aggro_test.py dusklight
           CXX=clang++ python3 tests/survivors_elites_test.py
+          CXX=clang++ python3 tests/survivors_minimap_test.py
           python3 tests/survivors_combat_test.py dusklight
           python3 tests/survivors_ranged_test.py dusklight
           python3 tests/survivors_movement_test.py dusklight

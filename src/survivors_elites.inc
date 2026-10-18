@@ -3,14 +3,16 @@
 // without treating a deletion as a kill or issuing another chest.
 struct EliteEncounter {
     bool placed = false, defeated = false;
+    unsigned respawnAt = 0;
     cXyz position{};
     s16 yaw = 0;
 };
 std::array<EliteEncounter, elite_capacity> s_eliteEncounters;
+EliteLandmark s_eliteEntrance{};
 void reset_elite_encounters() {
     s_eliteEncounters = {};
     if (auto* link = daAlink_getAlinkActorClass())
-        s_eliteEncounters[timed_elite_count].position = link->current.pos;
+        s_eliteEntrance = {link->current.pos,link->shape_angle.y};
 }
 
 bool elite_floor_position(cXyz& pos) {
@@ -52,56 +54,79 @@ bool random_guard_position(cXyz& pos) {
     pos = tile->a + (tile->b-tile->a)*a + (tile->c-tile->a)*b;
     return elite_floor_position(pos) && separated_guard(pos,1800);
 }
-bool landmark_guard_position(const EliteLandmark& site, cXyz& pos, bool door) {
-    // Test both door faces; the native room check selects the exterior side.
-    // Reject the hidden/blocked side of the exit curtain, but allow a guard
-    // on a distant platform without requiring line of sight to Link.
-    for (unsigned attempt=0;attempt<16;++attempt) {
-        const s16 yaw = s16(site.yaw + (attempt%8)*0x2000);
-        const float radius = door ? (attempt<8 ? 450.f : 650.f) : (attempt ? 160.f : 0.f);
-        pos = site.position + cXyz(cM_ssin(yaw)*radius,0,cM_scos(yaw)*radius);
-        if (elite_floor_position(pos) && separated_guard(pos,500)) return true;
+bool guard_floor_near(cXyz anchor, float radius, cXyz& pos) {
+    // Interpolate actual floor triangles, instead of assuming an authored
+    // chest/door's Y equals its floor. Search landings around steps/door walls.
+    for (unsigned ring=0;ring<=unsigned(radius/80);++ring) {
+        const unsigned count=ring ? 16 : 1;
+        for (unsigned direction=0;direction<count;++direction) {
+            const s16 yaw=s16(direction*0x1000);
+            const float x=anchor.x+cM_ssin(yaw)*float(ring)*80;
+            const float z=anchor.z+cM_scos(yaw)*float(ring)*80;
+            bool found=false; float highest=-1.e30f;
+            for (const auto& tile : s_eliteFloors) {
+                const cXyz u=tile.b-tile.a,v=tile.c-tile.a;
+                const float determinant=u.x*v.z-u.z*v.x;
+                if (std::abs(determinant)<1) continue;
+                const float a=((x-tile.a.x)*v.z-(z-tile.a.z)*v.x)/determinant;
+                const float b=(u.x*(z-tile.a.z)-u.z*(x-tile.a.x))/determinant;
+                if (a<0 || b<0 || a+b>1) continue;
+                cXyz candidate(x,tile.a.y+a*u.y+b*v.y,z);
+                if (candidate.y<=highest || std::abs(candidate.y-anchor.y)>1000 || !separated_guard(candidate,500)) continue;
+                if (elite_floor_position(candidate)) {pos=candidate;highest=candidate.y;found=true;}
+            }
+            if (found) return true; // Prefer the landing over overlapping floor underneath it.
+        }
     }
     return false;
 }
-bool throne_guard_position(unsigned guard, daAlink_c* link, cXyz& pos) {
-    // Capture the entrance at run start, then select the opposite end from
-    // real room floor. The score is independent of Link's later movement.
-    const auto& entry = s_eliteEncounters[timed_elite_count].position;
-    if (guard == 0) {
-        return landmark_guard_position({entry, link->shape_angle.y},pos,true);
+bool landmark_guard_position(const EliteLandmark& site, cXyz& pos, bool door) {
+    if (!door && elite_floor_position(pos=site.position) && separated_guard(pos,500)) return true;
+    if (!door) return guard_floor_near(site.position,640,pos);
+    // Prefer the exterior door face. Check both faces for map-only Door records
+    // whose angle is reversed; GroundCross still requires the arena's room.
+    for (const s16 yaw : {site.yaw,s16(site.yaw+0x8000)}) {
+        const cXyz anchor=site.position+cXyz(cM_ssin(yaw)*450,0,cM_scos(yaw)*450);
+        if (guard_floor_near(anchor,640,pos)) return true;
     }
-    cXyz low=entry, high=entry;
+    return false;
+}
+bool throne_guard_position(unsigned guard, cXyz& pos) {
+    if (s_eliteFloors.empty()) return false;
+    const cXyz entry=s_eliteEntrance.position;
+    cXyz low=entry,high=entry;
     for (const auto& tile : s_eliteFloors) for (const auto& point : {tile.a,tile.b,tile.c}) {
+        // Ignore decorative roof surfaces above the playable chamber.
+        if (std::abs(point.y-entry.y)>1000) continue;
         low.x=std::min(low.x,point.x);low.z=std::min(low.z,point.z);
         high.x=std::max(high.x,point.x);high.z=std::max(high.z,point.z);
     }
     const bool alongX=high.x-low.x > high.z-low.z;
-    const float middle=alongX ? (low.z+high.z)*0.5f : (low.x+high.x)*0.5f;
-    const float axisCenter=alongX ? (low.x+high.x)*0.5f : (low.z+high.z)*0.5f;
-    const float direction=(alongX ? entry.x : entry.z)<axisCenter ? 1.f : -1.f;
-    float best=-1.e30f; bool found=false;
-    for (const auto& tile : s_eliteFloors) {
-        const cXyz center=(tile.a+tile.b+tile.c)*(1.f/3);
-        // Probe near the vertices too: a large floor triangle's centroid can
-        // otherwise leave the far guard halfway down the throne room.
-        for (const auto& point : {center,tile.a,tile.b,tile.c}) {
-            cXyz candidate=center*0.2f+point*0.8f;
-            const float score=direction*(alongX ? candidate.x : candidate.z) -
-                0.5f*std::abs((alongX ? candidate.z : candidate.x)-middle);
-            if (score<=best || !separated_guard(candidate,600) || !elite_floor_position(candidate)) continue;
-            pos=candidate;best=score;found=true;
-        }
+    const float center=alongX ? (low.x+high.x)*0.5f : (low.z+high.z)*0.5f;
+    const float direction=(alongX ? entry.x : entry.z)<center ? 1.f : -1.f;
+    cXyz anchor=entry;
+    if (!guard) {
+        // Entrance landmark is immutable; retrying cannot drift with Link or
+        // reuse the other guard's position. Search beyond the entry stairs.
+        if (alongX) anchor.x+=direction*240; else anchor.z+=direction*240;
+    } else {
+        // Place on the room centerline near the far wall/throne, independent
+        // of mesh triangulation (centroids used to put this guard in the middle).
+        const float farEnd=alongX ? (direction>0 ? high.x : low.x) : (direction>0 ? high.z : low.z);
+        if (alongX) {anchor.x=farEnd-direction*240;anchor.z=(low.z+high.z)*0.5f;}
+        else {anchor.z=farEnd-direction*240;anchor.x=(low.x+high.x)*0.5f;}
     }
-    return found;
+    return guard_floor_near(anchor,640,pos);
 }
 void update_elite_spawns(daAlink_c* link) {
+    if (s_run.phase != Phase::Running || s_run.ticks >= duration) return;
+    if (s_map==0 || s_map==3) refresh_elite_sites();
     const unsigned guards = s_map==0 ? 1 : s_map==1 || s_map==2 ? 4 :
         s_map==4 ? 2 : std::min<unsigned>(guard_capacity,s_eliteDoorSites.size());
     for (unsigned i=0;i<timed_elite_count+guards;++i) {
         auto& encounter = s_eliteEncounters[i];
-        if (encounter.defeated) continue;
         const bool guard = i>=timed_elite_count;
+        if (encounter.defeated && (!guard || s_run.ticks < encounter.respawnAt)) continue;
         if (!guard && s_run.ticks < (i+1)*elite_interval) continue;
         bool exists = false;
         for (const auto& enemy : s_enemies) if (enemy.id!=kNone && enemy.eliteSlot==int(i)) {exists=true;break;}
@@ -110,20 +135,26 @@ void update_elite_spawns(daAlink_c* link) {
             if (!spawn_enemy(link,true,int(i))) ++s_spawnFailures;
             continue;
         }
-        if (!encounter.placed) {
+        const bool relocate = encounter.defeated && (s_map==1 || s_map==2);
+        cXyz pos=encounter.position;
+        s16 yaw=encounter.yaw;
+        if (!encounter.placed || relocate) {
             const unsigned n=i-timed_elite_count;
-            bool found=false; cXyz pos;
+            bool found=false;
             if (s_map==1 || s_map==2) {
                 for (unsigned attempt=0;attempt<64 && !found;++attempt) found=random_guard_position(pos);
             } else if (s_map==0 && !s_eliteChestSites.empty()) {
                 found=landmark_guard_position(s_eliteChestSites.front(),pos,false);
             } else if (s_map==3) {
                 found=landmark_guard_position(s_eliteDoorSites[n],pos,true);
-            } else if (s_map==4) found=throne_guard_position(n,link,pos);
+            } else if (s_map==4) found=throne_guard_position(n,pos);
             if (!found) {++s_spawnFailures;continue;}
-            encounter.position=pos; encounter.yaw=s16(s_run.next_random()); encounter.placed=true;
+            yaw=s16(s_run.next_random());
         }
-        if (!create_enemy_at(encounter.position,encounter.yaw,0,true,int(i),true)) ++s_spawnFailures;
+        if (create_enemy_at(pos,yaw,0,true,int(i),true)) {
+            encounter.position=pos; encounter.yaw=yaw; encounter.placed=true;
+            encounter.defeated=false; encounter.respawnAt=0;
+        } else ++s_spawnFailures;
     }
 }
 // Skip only the idle AI, never Execute: native damage, animation, physics and

@@ -12,6 +12,10 @@ inline constexpr unsigned elite_interval = 5 * 60 * ticks_per_second;
 inline constexpr unsigned timed_elite_count = duration / elite_interval - 1;
 inline constexpr unsigned guard_capacity = 8;
 inline constexpr unsigned elite_capacity = timed_elite_count + guard_capacity;
+inline constexpr unsigned guard_respawn_interval = 3 * 60 * ticks_per_second;
+// Even instant kills cannot produce more drops before the 20-minute run ends.
+inline constexpr unsigned elite_reward_capacity = timed_elite_count +
+    guard_capacity * (1 + (duration - 1) / guard_respawn_interval);
 inline constexpr unsigned enemy_capacity = 24 + elite_capacity;
 inline constexpr unsigned projectile_capacity = 24;
 inline constexpr unsigned orb_capacity = 64;

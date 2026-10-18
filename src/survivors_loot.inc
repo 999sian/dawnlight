@@ -1,6 +1,6 @@
 // Run-local treasure and item projectiles. Included inside Survivors' private
 // namespace; native assets are borrowed/refcounted, never added to the bundle.
-constexpr unsigned kPaidChestCount = 2, kChestCount = kPaidChestCount + elite_capacity, kItemBegin = 8, kSlotsPerItem = 4;
+constexpr unsigned kPaidChestCount = 2, kChestCount = kPaidChestCount + elite_reward_capacity, kItemBegin = 8, kSlotsPerItem = 4;
 struct Chest {
     bool active = false, opening = false;
     bool free = false;
@@ -133,7 +133,14 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
     auto& encounter=s_eliteEncounters[enemy.eliteSlot];
     if (encounter.defeated) return;
     encounter.defeated=true;
-    auto& chest=s_chests[kPaidChestCount+unsigned(enemy.eliteSlot)];
+    if (unsigned(enemy.eliteSlot)>=timed_elite_count)
+        encounter.respawnAt=s_run.ticks+guard_respawn_interval;
+    // Keep unopened drops from earlier lives. The pool covers every possible
+    // kill in a full run, even if no rewards are collected.
+    auto available=std::find_if(s_chests.begin()+kPaidChestCount,s_chests.end(),
+        [](const Chest& chest){return !chest.active;});
+    if (available==s_chests.end()) return;
+    auto& chest=*available;
     chest={}; chest.active=true; chest.free=true; chest.yaw=actor->shape_angle.y;
     cXyz pos=actor->current.pos;
     if (!elite_floor_position(pos)) pos=enemy.lootPosition;

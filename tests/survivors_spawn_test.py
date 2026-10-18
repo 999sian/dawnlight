@@ -57,7 +57,7 @@ unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}int fopAcM_GetRoomNo(fopAc_ac
 void fopAcM_SetRoomNo(fopAc_ac_c* a,int n){a->room=n;}
 void load_records(){++recordsLoaded;}
 void clear_elite_sites(){}
-void capture_elite_site(int,const fopAcM_prm_class&){}
+void capture_elite_actor(const char*,const fopAcM_prm_class&){}
 void reset_midna_dialog(){}
 void update_midna_dialog(){}
 constexpr int fopAc_ENEMY_e=2,fopAc_NPC_e=4;

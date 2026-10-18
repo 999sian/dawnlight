@@ -13,6 +13,7 @@
 #include "d/d_menu_ring.h"
 #include "d/d_menu_collect.h"
 #include "d/d_menu_item_explain.h"
+#include "d/d_map.h"
 #include "d/d_msg_object.h"
 #include "d/d_msg_class.h"
 #include "JSystem/JMessage/control.h"
@@ -82,6 +83,7 @@ DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
 DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
 DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
+DEFINE_HOOK(&renderingAmap_c::afterDrawPath, SurvivorsEliteMinimap);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#pl_check", int(e_ms_class*, f32), SurvivorsRatAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#damage_check", void(e_ba_class*), SurvivorsKeeseHit);
@@ -483,6 +485,7 @@ bool spawn_enemy(daAlink_c* link, bool elite, int eliteSlot = -1) {
     return false;
 }
 #include "survivors_elites.inc"
+#include "survivors_minimap.inc"
 void update_spawns(daAlink_c* link) {
     unsigned population = 0;
     for (auto& e : s_enemies) {
@@ -495,6 +498,8 @@ void update_spawns(daAlink_c* link) {
         if (!e.elite && !e.retiring && e.age > 5400) e.retiring = true;
     }
     if (s_run.ticks % elite_interval == 0) s_spawnCooldown = 0;
+    for (const auto& encounter : s_eliteEncounters)
+        if (encounter.defeated && encounter.respawnAt == s_run.ticks) s_spawnCooldown = 0;
     if (s_spawnCooldown) { --s_spawnCooldown; return; }
     s_spawnCooldown = s_run.spawn_interval();
     update_elite_spawns(link);
@@ -1102,6 +1107,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
     PRE(SurvivorsBokoblinWait, before_bokoblin_wait);
+    POST(SurvivorsEliteMinimap, after_elite_minimap);
     PRE(SurvivorsKeeseAggro, before_keese_aggro);
     PRE(SurvivorsRatAggro, before_rat_aggro);
     PRE(SurvivorsKeeseHit, before_enemy_hit); POST(SurvivorsKeeseHit, after_enemy_hit);

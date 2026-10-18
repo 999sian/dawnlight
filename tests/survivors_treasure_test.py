@@ -226,10 +226,16 @@ int main(){
     fresh();s_chests[0].free=true;rupees=0;
     assert(chest_interactable(s_chests[0],&player));
     assert(begin_treasure_choice(0,&player));
-    assert(s_chosenTreasure!=ChestReward::Count);
-    assert(s_chests[0].offers[1]==ChestReward::Count && s_chests[0].offers[2]==ChestReward::Count);
+    assert(s_chosenTreasure==ChestReward::Count);
+    assert(s_chests[0].offers[1]!=ChestReward::Count && s_chests[0].offers[2]!=ChestReward::Count);
     assert(s_chests[0].rarities[0]==Rarity::Common);
+    update_treasure_choice(&player);assert(s_run.phase==Phase::TreasureChoice && created==0);
+    const auto freeOffers=s_chests[0].offers;const auto freeRng=s_run.random;
+    dismiss_treasure_choice();assert(rupees==0 && s_run.chests_opened==0);
+    assert(begin_treasure_choice(0,&player) && s_chests[0].offers==freeOffers && s_run.random==freeRng);
+    unsigned freeChoice=2;select_treasure(nullptr,&freeChoice);
     update_treasure_choice(&player);assert(s_run.phase==Phase::Treasure && s_treasure.price==0);
+    assert(s_chests[0].reward==freeOffers[2]);
     accept();
     update_treasure_demo(&player);eventEnded=true;update_treasure_demo(&player);
     assert(!s_chests[0].active && rupees==0 && s_run.chests_opened==0);

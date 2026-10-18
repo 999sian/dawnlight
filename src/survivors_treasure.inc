@@ -97,10 +97,9 @@ bool begin_treasure_choice(unsigned index, daAlink_c* link) {
         })) {
         chest.offers = s_run.roll_chest_offers(potion_slot() >= 0);
         for (auto& rarity : chest.rarities) rarity = chest.free ? Rarity::Common : s_run.roll_rarity();
-        if (chest.free) chest.offers[1] = chest.offers[2] = ChestReward::Count;
     }
     if (chest.offers[0] == ChestReward::Count) return false;
-    s_selectedChest = index; s_chosenTreasure = chest.free ? chest.offers[0] : ChestReward::Count;
+    s_selectedChest = index; s_chosenTreasure = ChestReward::Count;
     s_run.phase = Phase::TreasureChoice;
     clear_attacks();
     s_swordAction = SwordAction::None; s_wavePending = false;

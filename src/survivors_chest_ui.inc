@@ -15,15 +15,18 @@ std::string treasure_card_rml(ChestReward reward, const Run& preview, Rarity rar
 ModResult build_treasure_choices(UiElementHandle left, UiElementHandle right) {
     if (s_selectedChest >= s_chests.size()) return MOD_INVALID_ARGUMENT;
     UiElementHandle row = 0;
-    auto result = begin_choice_cards(left, right, "Choose one reward for " + number(s_run.chest_cost()) +
-        " rupees. Left/Right + Confirm, or tap a card. Cancel keeps these offers.", row);
+    const bool free = s_chests[s_selectedChest].free;
+    const std::string price = free ? "Choose one free reward." :
+        "Choose one reward for " + number(s_run.chest_cost()) + " rupees.";
+    auto result = begin_choice_cards(left, right, price +
+        " Left/Right + Confirm, or tap a card. Cancel keeps these offers.", row);
     if (result != MOD_OK) return result;
     for (unsigned i = 0; i < 3; ++i) {
         const auto reward = s_chests[s_selectedChest].offers[i];
         const auto rarity = s_chests[s_selectedChest].rarities[i];
         Run preview = s_run; preview.phase = Phase::Treasure;
         unsigned rupees = dComIfGs_getRupee();
-        if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity)) continue;
+        if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity, free)) continue;
         result = add_choice_card(row, treasure_card_rml(reward, preview, rarity), reward_name(reward, preview),
                                  select_treasure, &s_choices[i]);
         if (result != MOD_OK) return result;

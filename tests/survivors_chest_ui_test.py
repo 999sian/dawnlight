@@ -29,7 +29,7 @@ int potion_slot(){for(int i=0;i<4;++i)if(bottles[i]==dItemNo_NONE_e||bottles[i]=
 unsigned potion_capacity(){unsigned count=0;for(auto item:bottles)count+=item==dItemNo_NONE_e||item==dItemNo_EMPTY_BOTTLE_e;return count;}
 Run s_run;unsigned rupees=500,selected=99;
 unsigned dComIfGs_getRupee(){return rupees;}
-struct Chest {std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
+struct Chest {bool free=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
 std::array<Chest,2>s_chests;unsigned s_selectedChest=0;
 std::array<unsigned,3>s_choices{0,1,2};
 void select_treasure(ModContext*,void* data){selected=*static_cast<unsigned*>(data);}
@@ -62,7 +62,7 @@ main = r'''
 void fresh(){
  elements.clear();elements[1].kind=elements[2].kind="pane";next=3;
  s_run.start(123);s_run.phase=Phase::TreasureChoice;s_selectedChest=0;selected=99;rupees=500;
- bottles.fill(dItemNo_NONE_e);failControl=false;s_chests[0].rarities={};
+ bottles.fill(dItemNo_NONE_e);failControl=false;s_chests[0]={};s_chests[0].rarities={};
  s_chests[0].offers={ChestReward::Bow,ChestReward::Shield,ChestReward::MasterSword};
 }
 int main(){
@@ -92,6 +92,16 @@ int main(){
  assert(texts[2].find("Light Sword")!=std::string::npos);
  assert(s_run.random==rng&&s_run.shield==1&&s_run.master_sword==4&&s_run.rank(Upgrade::Bow)==0&&rupees==500);
  assert(treasure_rml_escape("<&\">")=="&lt;&amp;&quot;&gt;");
+ // Free elite chest uses the same three native controller/touch buttons,
+ // even with an empty wallet. Rendering does not commit any reward/payment.
+ fresh();s_chests[0].free=true;rupees=0;
+ assert(build_treasure_choices(1,2)==MOD_OK);unsigned freeCards=0;bool freeLabel=false;
+ for(const auto& [id,e]:elements){
+   if(e.kind=="button"){++freeCards;e.pressed(nullptr,e.data);assert(selected<3);}
+   freeLabel=freeLabel || e.text.find("Choose one free reward.")!=std::string::npos;
+   assert(e.text.find("20 rupees")==std::string::npos);
+ }
+ assert(freeCards==3&&freeLabel&&rupees==0&&s_run.chests_opened==0);
  // Every reward/tier uses its real native icon, including final evolutions.
  for(unsigned n=0;n<unsigned(ChestReward::Count);++n){
    fresh();auto reward=static_cast<ChestReward>(n);s_run.shield=6;s_run.master_sword=4;
