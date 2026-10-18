@@ -17,7 +17,7 @@ ModResult build_treasure_choices(UiElementHandle left, UiElementHandle right) {
     if (s_selectedChest >= s_chests.size()) return MOD_INVALID_ARGUMENT;
     UiElementHandle row = 0;
     const bool free = s_chests[s_selectedChest].free;
-    auto result = begin_choice_cards(left, right, "", row);
+    auto result = begin_choice_cards(left, right, s_run.starting_item_pending ? "Choose one free starting item." : "", row);
     if (result != MOD_OK) return result;
     for (unsigned i = 0; i < 3; ++i) {
         const auto reward = s_chests[s_selectedChest].offers[i];

@@ -36,6 +36,15 @@ void skip_empty_upgrade(ModContext*,void*) {
     if (s_run.phase!=Phase::Upgrade || std::any_of(s_run.offers.begin(),s_run.offers.end(),[](Upgrade u){return s_run.eligible(u);})) return;
     s_run.phase=Phase::Running;close_window();s_run.level_up();
 }
+bool empty_starting_choice() {
+    return s_run.starting_item_pending&&s_run.phase==Phase::TreasureChoice&&s_selectedChest==0&&
+        s_chosenTreasure==ChestReward::Count&&std::none_of(s_chests[0].offers.begin(),s_chests[0].offers.end(),
+            [](ChestReward r){return s_run.chest_eligible(r,potion_slot()>=0);});
+}
+void skip_empty_starting_choice(ModContext*,void*) {
+    if(!empty_starting_choice())return;
+    finish_starting_item_choice();close_window();
+}
 ModResult add_choice_header(UiElementHandle pane) {
     UiRowDesc rowDesc=UI_ROW_DESC_INIT;
     UiElementHandle row=0,button=0,loadout=0;
@@ -69,6 +78,10 @@ ModResult add_choice_header(UiElementHandle pane) {
     return svc_ui->elem_set_class(mod_ctx,loadout,"survivors-choice-loadout",true);
 }
 ModResult add_choice_actions(UiElementHandle pane,bool chest) {
+    if(chest&&empty_starting_choice()) {
+        UiControlDesc control=UI_CONTROL_DESC_INIT;control.label="Continue";control.on_pressed=skip_empty_starting_choice;
+        return svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
+    }
     if(chest || std::any_of(s_run.offers.begin(),s_run.offers.end(),[](Upgrade u){return s_run.eligible(u);}))return MOD_OK;
     UiControlDesc control=UI_CONTROL_DESC_INIT;control.label="Continue";control.on_pressed=skip_empty_upgrade;
     return svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);

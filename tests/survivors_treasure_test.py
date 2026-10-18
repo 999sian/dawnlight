@@ -186,6 +186,37 @@ bool open_first(Rarity rarity=Rarity::Common){
 void accept(){event.mPt2=prop.id;prop.eventInfo.command=true;running=true;}
 int main(){
     fresh();int result=0;
+    begin_starting_item_choice();assert(s_run.phase==Phase::Running&&s_selectedChest==kChestCount);
+    Talents starting;starting.ranks[unsigned(Talent::StartingItem)]=1;
+    for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward){
+        fresh();s_run.start(25,{},starting);s_loot.ready=false;rupees=0;begin_starting_item_choice();
+        assert(s_run.phase==Phase::TreasureChoice&&s_run.ticks==0&&s_chests[0].free&&!s_chests[0].active);
+        const auto offers=s_chests[0].offers;const auto rng=s_run.random;
+        begin_starting_item_choice();dismiss_treasure_choice();
+        assert(s_run.phase==Phase::TreasureChoice&&s_run.random==rng&&s_chests[0].offers==offers);
+        assert(!s_run.tick(true)&&s_run.ticks==0&&pause_run_actor(true));
+        s_chests[0].offers={ChestReward(reward),ChestReward::Count,ChestReward::Count};
+        s_chests[0].rarities.fill(Rarity::Common);unsigned choice=0;select_treasure(nullptr,&choice);
+        window=1;update_treasure_choice(&player);assert(s_run.starting_item_pending);
+        window=0;update_treasure_choice(&player);
+        assert(!s_run.starting_item_pending&&s_run.phase==Phase::Running&&s_run.owns(ChestReward(reward)));
+        assert(created==0&&ordered==0&&rupees==0&&s_run.chests_opened==0&&s_run.chest_cost()==20&&s_run.ticks==0);
+        assert(s_selectedChest==kChestCount&&!s_chests[0].active);
+        const auto ranks=s_run.ranks;select_treasure(nullptr,&choice);update_treasure_choice(&player);begin_starting_item_choice();
+        assert(s_run.ranks==ranks&&s_run.phase==Phase::Running&&!grant_starting_item(&player));
+        if(ChestReward(reward)==ChestReward::MasterSword)assert(equippedSword==dItemNo_MASTER_SWORD_e&&swordGrants==1);
+        if(ChestReward(reward)==ChestReward::Shield)assert(equippedShield==dItemNo_WOOD_SHIELD_e);
+        if(ChestReward(reward)==ChestReward::RedPotion)assert(potionGrants==1&&bottles[0]==dItemNo_RED_BOTTLE_e);
+        s_run.start(26,{},starting);begin_starting_item_choice();assert(s_run.starting_item_pending&&s_run.phase==Phase::TreasureChoice);
+        cancel_treasure_demo();assert(!s_run.starting_item_pending&&s_selectedChest==kChestCount);
+    }
+    fresh();
+    fresh();s_run.start(25,{},starting);rupees=0;begin_starting_item_choice();
+    s_chests[0].offers={ChestReward::RedPotion,ChestReward::Count,ChestReward::Count};
+    s_chests[0].rarities.fill(Rarity::Legendary);unsigned startingIndex=0;
+    select_treasure(nullptr,&startingIndex);update_treasure_choice(&player);
+    assert(potionGrants==4&&rupees==20&&s_run.chests_opened==0&&!s_run.starting_item_pending);
+    fresh();
     for(auto phase:{Phase::Ready,Phase::Running,Phase::Treasure,Phase::TreasureChoice,Phase::Upgrade,Phase::Defeat}){
         s_run.phase=phase;
         assert(pause_run_actor(true)==(phase!=Phase::Running));

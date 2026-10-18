@@ -50,6 +50,7 @@ struct Enemy {
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
 Run s_run;RunOptions s_options;
+void begin_starting_item_choice(){if(s_run.starting_item_pending)s_run.phase=Phase::TreasureChoice;}
 enum class SwordAction { None, Normal, Spin, Jump };
 SwordAction s_swordAction=SwordAction::None;
 unsigned s_comboStep=0,s_comboTimeout=0;
@@ -304,6 +305,11 @@ int main() {
     s_restart=false;s_progressSaving=true;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Ready);
     choice=2;select_arena(nullptr,&choice);assert(!s_restart);
     s_progressSaving=false;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Running && s_run.ticks==0);
+    s_records.talents.ranks[unsigned(Talent::StartingItem)]=1;s_run.phase=Phase::Ready;
+    start_run(nullptr,nullptr);assert(s_run.phase==Phase::TreasureChoice&&s_run.starting_item_pending&&s_run.ticks==0);
+    const auto seed=s_run.random;start_run(nullptr,nullptr);assert(s_run.random==seed);
+    s_records.talents={};s_run.phase=Phase::Ready;start_run(nullptr,nullptr);
+    assert(s_run.phase==Phase::Running&&!s_run.starting_item_pending);
     // Every selected map routes through the same post-file-select gate.
     s_active=true;s_gameStarted=true;s_run.phase=Phase::Ready;arenaPresent=true;
     for(unsigned map=0;map<arenas.size();++map){

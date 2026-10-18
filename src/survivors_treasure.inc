@@ -20,6 +20,7 @@ struct TreasureDemo {
 } s_treasure;
 ChestReward s_chosenTreasure = ChestReward::Count;
 void dismiss_treasure_choice() {
+    if(s_run.starting_item_pending)return; // Closing the UI cannot skip or reroll the starting reward.
     s_chosenTreasure = ChestReward::Count; s_selectedChest = kChestCount;
     if (s_run.phase == Phase::TreasureChoice) s_run.phase = Phase::Running;
 }
@@ -63,6 +64,7 @@ void retire_treasure_actor() {
     s_treasure = {};
 }
 void cancel_treasure_demo() {
+    s_run.starting_item_pending=false;
     if (s_run.phase == Phase::TreasureChoice) { s_run.phase = Phase::Running; close_window(); }
     s_chosenTreasure = ChestReward::Count;
     // A save/scene reset can already have installed another event. Only reset
@@ -139,6 +141,58 @@ bool begin_treasure_demo(unsigned index, daAlink_c* link, ChestReward reward) {
     s_run.phase = Phase::Treasure;
     return true;
 }
+void apply_treasure_inventory(daAlink_c* link,ChestReward reward,const Run& result,unsigned potions) {
+    if (reward == ChestReward::MasterSword) {
+        const bool light = result.master_sword >= 5;
+        const u8 sword = light ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e;
+        dComIfGs_setCollectSword(light ? COLLECT_LIGHT_SWORD : COLLECT_MASTER_SWORD);
+        dComIfGs_onItemFirstBit(sword);
+        dMeter2Info_setSword(sword, false);
+        dComIfGs_setBButtonItemKey(sword);
+        if (light) link->onLightSwordGetEffect();
+    } else if (reward == ChestReward::Shield) {
+        const u8 shield = shield_item(result);
+        dComIfGs_setCollectShield(result.shield_tier());
+        dComIfGs_onItemFirstBit(shield);
+        dMeter2Info_setShield(shield, false);
+    } else if (reward == ChestReward::OrdonSword) {
+        for (int i=COLLECT_WOODEN_SHIELD;i<=COLLECT_HYLIAN_SHIELD;++i) dComIfGs_offCollectShield(i);
+        dMeter2Info_setShield(dItemNo_NONE_e,false);
+    } else if (reward == ChestReward::RedPotion) {
+        for (unsigned i = 0; i < potions; ++i)
+            dComIfGs_setItem(potion_slot(), dItemNo_RED_BOTTLE_e);
+        dComIfGs_onItemFirstBit(dItemNo_EMPTY_BOTTLE_e);
+        dComIfGs_onItemFirstBit(dItemNo_RED_BOTTLE_e);
+    }
+}
+// Reuse the choice cards with an inactive, free slot. No world chest/model or
+// Get Item event is needed, and the ordinary chest price never advances.
+void begin_starting_item_choice() {
+    if(!s_run.starting_item_pending||s_run.phase!=Phase::Running)return;
+    s_selectedChest=0;s_chosenTreasure=ChestReward::Count;
+    auto& chest=s_chests[0];chest={};chest.free=true;
+    chest.offers=s_run.roll_chest_offers(potion_slot()>=0);
+    for(auto& rarity:chest.rarities)rarity=s_run.roll_rarity();
+    s_run.phase=Phase::TreasureChoice;
+}
+void finish_starting_item_choice() {
+    s_run.starting_item_pending=false;s_run.phase=Phase::Running;
+    s_chests[0]={};s_selectedChest=kChestCount;s_chosenTreasure=ChestReward::Count;
+}
+bool grant_starting_item(daAlink_c* link) {
+    if(!link||!s_run.starting_item_pending||s_run.phase!=Phase::TreasureChoice||s_selectedChest!=0)return false;
+    const auto& chest=s_chests[0];
+    const auto found=std::find(chest.offers.begin(),chest.offers.end(),s_chosenTreasure);
+    if(s_chosenTreasure==ChestReward::Count||found==chest.offers.end())return false;
+    const auto rarity=chest.rarities[unsigned(found-chest.offers.begin())];
+    Run preview=s_run;preview.phase=Phase::Treasure;
+    unsigned rupees=dComIfGs_getRupee();const unsigned capacity=potion_capacity();
+    if(!preview.buy_chest(rupees,s_chosenTreasure,capacity,rarity,true))return false;
+    const auto potions=s_chosenTreasure==ChestReward::RedPotion?s_run.chest_gain(s_chosenTreasure,rarity,capacity):0;
+    apply_treasure_inventory(link,s_chosenTreasure,preview,potions);
+    dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(),rupees));
+    s_run=preview;sync_survivors_inventory();finish_starting_item_choice();return true;
+}
 void select_treasure(ModContext*, void* data) {
     const auto choice = *static_cast<unsigned*>(data);
     if (s_run.phase != Phase::TreasureChoice || s_chosenTreasure != ChestReward::Count ||
@@ -150,6 +204,10 @@ void select_treasure(ModContext*, void* data) {
 }
 void update_treasure_choice(daAlink_c* link) {
     if (s_run.phase != Phase::TreasureChoice || s_chosenTreasure == ChestReward::Count || !playable()) return;
+    if(s_run.starting_item_pending) {
+        if(!grant_starting_item(link))s_chosenTreasure=ChestReward::Count;
+        return;
+    }
     if (!begin_treasure_demo(s_selectedChest, link, s_chosenTreasure)) dismiss_treasure_choice();
 }
 HookAction before_chest_action(ModContext*, void* args, void*, void*) {
@@ -205,28 +263,7 @@ void update_treasure_demo(daAlink_c* link) {
         // Commit the displayed reward, without rerolling against possibly
         // changed inventory. No charge when a potion no longer has space.
         if (rupees >= s_treasure.price && (chest.reward != ChestReward::RedPotion || potion_capacity() >= s_treasure.potions)) {
-            if (chest.reward == ChestReward::MasterSword) {
-                const bool light = s_treasure.result.master_sword >= 5;
-                const u8 sword = light ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e;
-                dComIfGs_setCollectSword(light ? COLLECT_LIGHT_SWORD : COLLECT_MASTER_SWORD);
-                dComIfGs_onItemFirstBit(sword);
-                dMeter2Info_setSword(sword, false);
-                dComIfGs_setBButtonItemKey(sword);
-                if (light) link->onLightSwordGetEffect();
-            } else if (chest.reward == ChestReward::Shield) {
-                const u8 shield = shield_item(s_treasure.result);
-                dComIfGs_setCollectShield(s_treasure.result.shield_tier());
-                dComIfGs_onItemFirstBit(shield);
-                dMeter2Info_setShield(shield, false);
-            } else if (chest.reward == ChestReward::OrdonSword) {
-                for (int i=COLLECT_WOODEN_SHIELD;i<=COLLECT_HYLIAN_SHIELD;++i) dComIfGs_offCollectShield(i);
-                dMeter2Info_setShield(dItemNo_NONE_e,false);
-            } else if (chest.reward == ChestReward::RedPotion) {
-                for (unsigned i = 0; i < s_treasure.potions; ++i)
-                    dComIfGs_setItem(potion_slot(), dItemNo_RED_BOTTLE_e);
-                dComIfGs_onItemFirstBit(dItemNo_EMPTY_BOTTLE_e);
-                dComIfGs_onItemFirstBit(dItemNo_RED_BOTTLE_e);
-            }
+            apply_treasure_inventory(link,chest.reward,s_treasure.result,s_treasure.potions);
             dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(), rupees - s_treasure.price + s_treasure.bonusRupees));
             s_run = s_treasure.result;
             sync_survivors_inventory();

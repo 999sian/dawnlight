@@ -4,9 +4,9 @@
 #include <algorithm>
 
 namespace dawnlight::survivors {
-enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, Count };
-inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge"};
-inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{5,5,1,2,5,1,1,1,2,2,2,5};
+enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, StartingItem, Count };
+inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge", "Starting Item"};
+inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{5,5,1,2,5,1,1,1,2,2,2,5,1};
 inline constexpr std::array talent_help{
     "+1 starting heart per rank (up to 8). Run Heart Containers remain separate.",
     "+1 percentage point base critical chance per rank. Luck multiplies it; final chance caps at 100%.",
@@ -19,7 +19,8 @@ inline constexpr std::array talent_help{
     "Requires Revali's Gale. +1 charge per rank, up to three. Charges refill for each new run.",
     "+1 free reroll per rank each run, up to three. Shared by level-ups and chests.",
     "+1 banishment per rank each run, up to three. Shared by level-ups and chests.",
-    "Avoid enemy hits: 5% / 6.25% / 7.5% / 8.75% / 10%. Independent of Luck and shield blocks."};
+    "Avoid enemy hits: 5% / 6.25% / 7.5% / 8.75% / 10%. Independent of Luck and shield blocks.",
+    "Start each run by choosing one free item from three chest rewards. Uses normal rarity and shared rerolls/banishes."};
 inline constexpr Talent talent_parent(Talent t) {
     switch(t) {
     case Talent::SprintSpeed: return Talent::Sprint;

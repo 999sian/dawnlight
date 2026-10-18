@@ -1135,6 +1135,7 @@ void start_run(ModContext*, void*) {
     s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
     s_comboStep = s_comboTimeout = 0;
+    begin_starting_item_choice();
 }
 void replay(ModContext*, void*) { close_window(); s_requestedMap = s_map; s_restart = true; }
 void save_results(ModContext*, void*) { close_window(); s_saveRequested = true; }
@@ -1190,7 +1191,7 @@ void open_window() {
     if (s_window || ui_visible()) return;
     UiTabDesc tabs[4] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
     auto& tab=tabs[0];
-    tab.title = s_run.phase == Phase::TreasureChoice ? "Choose a treasure" :
+    tab.title = s_run.phase == Phase::TreasureChoice ? (s_run.starting_item_pending ? "Choose a starting item" : "Choose a treasure") :
         s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivors";
     tab.build = build_window;
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;

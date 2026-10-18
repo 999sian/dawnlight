@@ -93,7 +93,7 @@ struct Run {
     unsigned timed_elites = 0, guard_elites = 0;
     unsigned drop_progress = 0, maximum_hearts = 3;
     unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
-    bool red_potion = false;
+    bool red_potion = false, starting_item_pending = false;
     ChestReward offhand = ChestReward::Count;
     unsigned free_rerolls = 1, banishes = 1, paid_rerolls = 0;
     std::array<bool,unsigned(Upgrade::Count)> banned_upgrades{};
@@ -111,6 +111,7 @@ struct Run {
     void start(uint32_t seed, RunOptions settings = {}, Talents perks = {}) {
         *this={}; options=settings; options.clamp(); talents=perks;
         maximum_hearts=talents.starting_hearts();
+        starting_item_pending=talents.rank(Talent::StartingItem)>0;
         free_rerolls+=talents.rank(Talent::Rerolls); banishes+=talents.rank(Talent::Banishes);
         random=seed ? seed : 1; phase=Phase::Running;
     }
@@ -417,21 +418,21 @@ struct Records {
         best_kills = std::max(best_kills, run.kills);
         best_level = std::max(best_level, run.level);
     }
-    std::array<uint8_t,104> encode() const {
-        std::array<uint32_t,26> words{0x56525348,3,runs,wins,best_ticks,best_kills,best_level};
+    std::array<uint8_t,108> encode() const {
+        std::array<uint32_t,27> words{0x56525348,4,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
-        std::array<uint8_t,104> bytes{};
+        std::array<uint8_t,108> bytes{};
         for(unsigned i=0;i<words.size();++i)for(unsigned b=0;b<4;++b)bytes[i*4+b]=uint8_t(words[i]>>(8*b));
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104)return false;
-        std::array<uint32_t,26> words{};
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108)return false;
+        std::array<uint32_t,27> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)))return false;
         Records next;
         next.runs=words[2];next.wins=words[3];next.best_ticks=words[4];next.best_kills=words[5];next.best_level=words[6];
         if(words[1]>=2){

@@ -88,6 +88,11 @@ writes the native save in the background and keeps the menu open; wait for
 | Rerolls | 2 | +1 free reroll/rank/run, up to three; shared by both choice menus. |
 | Banishes | 2 | +1 banishment/rank/run, up to three; shared by both choice menus. |
 | Dodge | 5 | 5%, 6.25%, 7.5%, 8.75%, then 10% chance to dodge an enemy hit. Independent of Luck; no shield required. |
+| Starting Item | 1 | Start each run with a free choice of one of three chest rewards. Normal rarity; shared rerolls and banishes. |
+
+The starting selection pauses the timer and combat until you choose. Closing it
+keeps the same offers. It grants the reward directly, without a world chest,
+and does not increase later chest prices.
 
 Dodge is checked before shield block. Successful dodges and blocks display a
 small rising, fading **Dodge** or **Block** above Link; damaging critical hits

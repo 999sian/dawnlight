@@ -16,13 +16,13 @@ int main(){
     Records untouched=records;r.start(1);records.finish(r,0);assert(records.encode()==untouched.encode());
     r.end(false);records.finish(r,5);assert(records.encode()==untouched.encode());
     records.finish(r,2);assert(records.high_scores[2]==22078); // Never replace a higher score.
-    records.total_xp=meta_threshold(32);assert(records.available_points()==32);
+    records.total_xp=meta_threshold(33);assert(records.available_points()==33);
     assert(!records.buy(Talent::SprintSpeed)&&!records.buy(Talent::Glider)&&!records.buy(Talent::Gale)&&!records.buy(Talent::GaleCharges));
     for(unsigned i=0;i<unsigned(Talent::Count);++i){
         for(unsigned n=0;n<talent_caps[i];++n)assert(records.buy(Talent(i)));
         assert(!records.buy(Talent(i)));
     }
-    assert(records.available_points()==0&&records.talents.spent()==32&&records.talents.valid());
+    assert(records.available_points()==0&&records.talents.spent()==33&&records.talents.valid());
     auto refunded=records;
     assert(!refunded.talents.refund(Talent::Count));
     assert(refunded.talents.refund(Talent::ManualJump));
@@ -66,7 +66,15 @@ int main(){
     assert(loaded.decode(std::span(v2.data(),100)) && loaded.talents.rank(Talent::Dodge)==0);
     assert(loaded.total_xp==records.total_xp && loaded.high_scores==records.high_scores);
     for(unsigned i=0;i<11;++i)assert(loaded.talents.ranks[i]==records.talents.ranks[i]);
-    assert(loaded.available_points()==5); // New perk never spends legacy points.
+    assert(loaded.available_points()==6); // New perk never spends legacy points.
+    assert(loaded.talents.rank(Talent::StartingItem)==0);
+    auto v3=bytes;v3[4]=3;assert(loaded.decode(std::span(v3.data(),104)));
+    assert(loaded.talents.rank(Talent::Dodge)==5&&loaded.talents.rank(Talent::StartingItem)==0&&loaded.available_points()==1);
+    auto badStarting=bytes;badStarting[104]=2;assert(!loaded.decode(badStarting));
+    auto refundedStarting=records;assert(refundedStarting.talents.refund(Talent::StartingItem));
+    assert(refundedStarting.available_points()==1&&refundedStarting.talents.rank(Talent::StartingItem)==0);
+    r.start(12,{},records.talents);assert(r.starting_item_pending);
+    r.start(12);assert(!r.starting_item_pending);
     auto badDodge=bytes;badDodge[100]=6;assert(!loaded.decode(badDodge));
     std::array<uint8_t,28> legacy{};const std::array<uint32_t,7> words{0x56525348,1,5,2,36000,400,18};
     for(unsigned i=0;i<7;++i)for(unsigned b=0;b<4;++b)legacy[i*4+b]=uint8_t(words[i]>>(8*b));

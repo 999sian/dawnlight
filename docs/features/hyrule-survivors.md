@@ -711,3 +711,24 @@ every Nth normal kill generates XP and rolls loot. Elites and pots are exempt.
 Camera distance ranges from 100–500% (default 200%), scales the rendered view
 with a wall check and restores native input before the next camera tick to avoid
 feedback. Event/aim cameras stay native. Timed-elite EXP magnets are drawn at 5x ordinary crystal size.
+
+### Starting Item talent
+
+Starting Item costs one Unlock Point and has one rank. Each new run opens a
+free three-card chest-reward selection before timer/combat advance. It reuses
+normal eligibility/rarity and the run's reroll/banish budgets. An inactive free
+chest slot holds the offers only while paused; no model or native item event is
+created. Closing the window retains offers and reopens the choice. If all cards
+are banished, Continue consumes this run's starting choice without a reward.
+
+Selection is committed once after the UI closes, through the same inventory
+application helper as completed chests. Equipment, bottles and run unlocks stay
+in sync; rupees are not charged and regular chest prices do not advance. Reset,
+replay and mode changes discard transient offers; the talent grants a new choice
+on the next started run. Records v4 append the rank (108 bytes); v1/v2/v3 saves
+preserve XP, scores and talents, with Starting Item initially unspent.
+
+Regression tests cover all nine reward kinds, paused timing, stable reopening,
+shared choice budgets, all-banned continuation, duplicate callbacks, restart,
+native inventory effects, talent spending/refunds and legacy save migration.
+In-game controller/touch selection and run-start presentation remain to be checked.

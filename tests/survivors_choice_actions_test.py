@@ -17,6 +17,7 @@ Run s_run;unsigned rupees=500,s_selectedChest=0;
 ChestReward s_chosenTreasure=ChestReward::Count;
 struct Chest {bool free=false,fixed=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
 std::array<Chest,2>s_chests;
+constexpr unsigned kChestCount=2;
 std::array<unsigned,3>s_choices{0,1,2};
 UiWindowHandle s_window=7,s_refreshChoices=0;
 void close_window(){s_window=0;}
@@ -82,13 +83,24 @@ int main(){
  s_run.offers.fill(Upgrade::Count);
  buttons.clear();assert(add_choice_actions(1,false)==MOD_OK&&buttons.back().label=="Continue");
  buttons.back().pressed(nullptr,nullptr);assert(s_run.phase==Phase::Running);
+ // Starting choices use shared free rerolls and banishes, and can escape all-banned cards.
+ fresh();s_run.starting_item_pending=true;s_run.phase=Phase::TreasureChoice;s_chests[0].free=true;rupees=0;
+ reroll_choices(nullptr,nullptr);assert(s_run.free_rerolls==0&&rupees==0&&s_run.starting_item_pending);
+ s_window=10;s_run.banishes=3;s_chests[0].offers={ChestReward::Bow,ChestReward::Shield,ChestReward::MasterSword};
+ skip_empty_starting_choice(nullptr,nullptr);assert(s_run.phase==Phase::TreasureChoice);
+ for(unsigned i=0;i<3;++i){s_window=11+i;banish_choice(nullptr,&i);}
+ assert(s_run.banishes==0&&empty_starting_choice());
+ buttons.clear();assert(add_choice_actions(1,true)==MOD_OK&&buttons.back().label=="Continue");
+ buttons.back().pressed(nullptr,nullptr);assert(!s_run.starting_item_pending&&s_run.phase==Phase::Running&&s_selectedChest==2);
  fresh();s_chosenTreasure=ChestReward::Bow;s_run.phase=Phase::TreasureChoice;
  reroll_choices(nullptr,nullptr);assert(rupees==500&&s_run.free_rerolls==1&&s_window==7);
 }
 '''
+treasure=(root/'src/survivors_treasure.inc').read_text()
+finish=treasure[treasure.index('void finish_starting_item_choice()'):treasure.index('bool grant_starting_item(')]
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'; binary=Path(tmp)/'test'
-    cpp.write_text(fixture+(root/'src/survivors_choice_actions.inc').read_text()+main)
+    cpp.write_text(fixture+finish+(root/'src/survivors_choice_actions.inc').read_text()+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes',
                     '-I',str(root/'src'),'-I',str(sdk/'sdk/include'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
