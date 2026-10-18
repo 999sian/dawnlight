@@ -53,6 +53,7 @@ struct e_ms_class:fopAc_ac_c{int mAction=1,mMode=3;s16 mCooldown1=0;Collider mSp
 struct Enemy{int profile=1;bool initialized=true,retiring=false,credited=false;}enemy;
 bool present=true,playing=true;
 Enemy* tracked(int id){return present&&id==2?&enemy:nullptr;}
+bool active_enemy_arrow(int){return false;}
 bool in_arena(){return playing;}bool playable(){return playing;}
 struct{bool active=false;}s_ranged;void cancel_ranged(){s_ranged.active=false;}
 enum class SwordAction{None,Normal};SwordAction s_swordAction=SwordAction::Normal;

@@ -28,7 +28,7 @@ stubs = r'''
 using namespace dawnlight::survivors;
 using ActorId=unsigned; using ProfileName=int; using s8=signed char; using s16=short;
 constexpr ActorId kNone=~0u;
-constexpr int fpcNm_E_OC_e=1, fpcNm_E_BA_e=2;
+constexpr int fpcNm_E_OC_e=1, fpcNm_E_BA_e=2,fpcNm_E_RD_e=4;
 struct ModContext {};
 struct ModError {};
 using ModResult=int;
@@ -73,6 +73,7 @@ unsigned s_spawnCooldown=0, s_spawnFailures=0, s_warmup=0;
 std::array<unsigned,3> s_cooldowns{};
 std::array<int,64> s_orbs{};
 Records s_records;
+void retire_enemy_arrows(){} void cleanup_enemy_arrows(){}
 void retire_pots(){} void retire_pickups(){}
 void queue_flute(const Enemy&,fopAc_ac_c*){}
 void clear_enemy_effects(){}
@@ -160,6 +161,10 @@ struct Service {
 } service;
 Service* svc_save=&service;
 Service* svc_actor=&service; ModContext* mod_ctx=nullptr;
+'''
+stubs += r'''
+bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
+struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
 main = r'''
 int main() {

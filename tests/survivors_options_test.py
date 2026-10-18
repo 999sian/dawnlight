@@ -28,7 +28,9 @@ struct daAlink_c:fopAc_ac_c{Target mTgCyls[3];};
 struct daE_OC_c:fopAc_ac_c{int mActionMode=3,mOcState=4,animation=0x1e;bool checkBck(int n){return animation==n;}};
 struct e_ms_class:fopAc_ac_c{int mAction=1,mMode=2;};
 struct e_ba_class:fopAc_ac_c{enum{ACT_FIGHT_FLY=1,ACT_RETURN=4,ACT_FLY=5,ACT_PATH_FLY=6};bool mIsDying=false;float mKnockbackSpeed=0;int mAction=2;};
-constexpr int fpcNm_E_OC_e=1,fpcNm_E_MS_e=2,fpcNm_E_BA_e=3;
+constexpr int fpcNm_E_OC_e=1,fpcNm_E_MS_e=2,fpcNm_E_BA_e=3,fpcNm_E_RD_e=4;
+struct e_rd_class{fopAc_ac_c enemy;int action=3,mode=1,anm=0x32;float jump_z=0,field_0x9f0=0;};
+bool arrowActive=false;bool active_enemy_arrow(int id){return arrowActive&&id==7;}
 struct Enemy{bool initialized=true,retiring=false,credited=false,dormant=false;int profile=1;}enemy;
 bool owned=true,active=true,paused=false,transition=false,event=false,aim=false,blocked=false;
 Enemy* tracked(int id){return owned&&id==2?&enemy:nullptr;}
@@ -103,6 +105,15 @@ int main(){
   const bool flying=action==1||action==4||action==5||action==6;
   assert(bat.current.pos.abs2(flying?cXyz{104,3,208}:cXyz{100,3,200})==0);
  }
+ e_rd_class bulblin;acch.actor=&bulblin.enemy;enemy.profile=fpcNm_E_RD_e;
+ for(int action=0;action<=29;++action)for(int mode=0;mode<=5;++mode){
+  bulblin.action=action;bulblin.mode=mode;bulblin.enemy.current.pos={100,3,200};
+  before_enemy_speed(nullptr,movement,nullptr,nullptr);
+  const bool walking=(action==3&&mode>=1&&mode<=3)||(action==5&&(mode==1||mode==2));
+  assert(bulblin.enemy.current.pos.abs2(walking?cXyz{104,3,208}:cXyz{100,3,200})==0);
+ }
+ bulblin.action=3;bulblin.mode=1;bulblin.jump_z=20;bulblin.enemy.current.pos={100,3,200};
+ before_enemy_speed(nullptr,movement,nullptr,nullptr);assert(bulblin.enemy.current.pos.x==100);
  enemy={};acch.actor=&bok;
  daAlink_c link;link.id=1;link.mTgCyls[0].actor=&bok;s_run.options.enemy_damage=10;
  std::any damage[]={&link,2,0,1,0};before_enemy_damage(nullptr,damage,nullptr,nullptr);assert(std::any_cast<int>(damage[1])==20);
@@ -111,7 +122,10 @@ int main(){
   if(reason==0)owned=false;if(reason==1)damage[1]=-4;if(reason==2)damage[4]=1;if(reason==3)link.id=5;
   const int initial=std::any_cast<int>(damage[1]);before_enemy_damage(nullptr,damage,nullptr,nullptr);assert(std::any_cast<int>(damage[1])==initial);
  }
- owned=true;link.id=1;dCamera_c camera;std::any cam[]={&camera};
+ owned=true;link.id=1;fopAc_ac_c arrow;arrow.id=7;link.mTgCyls[0].actor=&arrow;
+ arrowActive=true;damage[1]=2;before_enemy_damage(nullptr,damage,nullptr,nullptr);assert(std::any_cast<int>(damage[1])==20);
+ arrowActive=false;damage[1]=2;before_enemy_damage(nullptr,damage,nullptr,nullptr);assert(std::any_cast<int>(damage[1])==2);
+ dCamera_c camera;std::any cam[]={&camera};
  for(int frame=0;frame<100;++frame){
   before_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==100);
   after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==200);

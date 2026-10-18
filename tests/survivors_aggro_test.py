@@ -18,7 +18,7 @@ fixture=r'''
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
 using BOOL=int;using f32=float;using s16=short;using ProfileName=int;
-constexpr BOOL TRUE=1;constexpr int fpcNm_E_OC_e=1,fpcNm_E_BA_e=2,fpcNm_E_MS_e=3;
+constexpr BOOL TRUE=1;constexpr int fpcNm_E_OC_e=1,fpcNm_E_BA_e=2,fpcNm_E_MS_e=3,fpcNm_E_RD_e=4;
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
 struct fopAc_ac_c{unsigned id=0;int health=20;float distance=100000,speedF=0;
@@ -39,9 +39,10 @@ struct e_ba_class{fopEn_enemy_c mEnemy;
  float mPlayerDistanceXZ=100000,mFightFlyDistance=1000;s16 mPlayerAngleY=0;
  bool mIsDying=false;int mAction=ACT_FLY,mMode=7;};
 bool other_bg_check(e_ba_class*,fopAc_ac_c*){return blocked;}
+struct e_rd_class{fopEn_enemy_c enemy;float attack_range=1000;int action=0,mode=7,weapon_type=1;};
 struct{float plyr_srch_min_radius=300;}l_HIO;
 struct Enemy{unsigned id;ProfileName profile;bool initialized=true,retiring=false,credited=false,dormant=false;};
-Enemy enemies[]={{1,fpcNm_E_OC_e},{2,fpcNm_E_BA_e},{3,fpcNm_E_MS_e}};
+Enemy enemies[]={{1,fpcNm_E_OC_e},{2,fpcNm_E_BA_e},{3,fpcNm_E_MS_e},{4,fpcNm_E_RD_e}};
 Enemy* tracked(unsigned id){for(auto& e:enemies)if(e.id==id)return &e;return nullptr;}
 bool in_arena(){return arena;}
 Run s_run;bool playable(){return arena&&!paused;}
@@ -57,6 +58,14 @@ int detect(e_ms_class& rat,float range){int result=0;std::any args[]={&rat,range
 BOOL detect(e_ba_class& bat,float range){BOOL result=0;std::any args[]={&bat,range,s16(1)};
  return before_keese_aggro(nullptr,args,&result,nullptr)==HOOK_SKIP_ORIGINAL?result:native_bat_check(&bat,range,1);}
 int main(){
+ s_run.start(1);e_rd_class bulblin;bulblin.enemy.id=4;
+ for(int weapon:{1,2}){bulblin.weapon_type=weapon;bulblin.action=0;bulblin.mode=7;
+  engage_enemy(&bulblin.enemy,enemies[3]);assert(bulblin.action==(weapon==1?3:5)&&bulblin.mode==0);}
+ for(float range:{1000.f,1050.f,500.f}){BOOL result=0;std::any args[]={&bulblin,range,s16(1)};
+  assert((before_bulblin_aggro(nullptr,args,&result,nullptr)==HOOK_SKIP_ORIGINAL)==(range!=500));
+  if(range!=500)assert(result);}
+ for(int state:{3,4,5,6,20,21}){bulblin.action=state;engage_enemy(&bulblin.enemy,enemies[3]);assert(bulblin.action==state);}
+
  s_run.start(1);daE_OC_c bok;bok.id=1;e_ms_class rat;rat.id=3;e_ba_class bat;bat.mEnemy.id=2;bat.mEnemy.current.pos.y=180;
  // Native awareness fails far away. Hooks acquire/retain targets even behind Link or walls.
  for(float distance:{1500.f,3000.f,100000.f}){

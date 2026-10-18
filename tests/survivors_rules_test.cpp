@@ -271,7 +271,7 @@ int main() {
     freeRun.chests_opened=7; unsigned zero=0;
     assert(freeRun.buy_chest(zero,ChestReward::Bow,0,Rarity::Common,true));
     assert(zero==0 && freeRun.chests_opened==7 && freeRun.rank(Upgrade::Bow)==1);
-    assert(duration==20*60*30 && elite_interval==5*60*30 && timed_elite_count==3);
+    assert(duration==20*60*30 && elite_interval==5*60*30 && timed_elite_count==4);
     // Every ordinary upgrade and weapon can cross the old cap safely.
     for (unsigned rank=0;rank<=30;++rank) {
         Run high;high.start(1);high.shield=1;high.red_potion=true;high.master_sword=1;high.ranks.fill(rank);

@@ -17,7 +17,7 @@ HookAction before_shield_block(ModContext*, void* args, void* result, void*) {
         if (!target.ChkTgHit()) continue;
         auto* attacker = target.GetTgHitAc();
         auto* attack = target.GetTgHitGObj();
-        if (!attacker || !tracked(fopAcM_GetID(attacker)) || !attack) continue;
+        if (!attacker || (!tracked(fopAcM_GetID(attacker)) && !active_enemy_arrow(fopAcM_GetID(attacker))) || !attack) continue;
         if (s_run.next_random() % 100 >= s_run.block_chance()) return HOOK_CONTINUE;
         interrupt_auto_actions(link);
         const cXyz direction = attacker->current.pos - link->current.pos;

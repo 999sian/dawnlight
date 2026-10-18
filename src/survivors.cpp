@@ -34,6 +34,7 @@
 #include "d/d_bg_s_wtr_chk.h"
 #include "m_Do/m_Do_lib.h"
 #include "d/actor/d_a_e_ms.h"
+#include "d/actor/d_a_e_rd.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_debug_viewer.h"
 #include "d/d_gameover.h"
@@ -98,6 +99,9 @@ DEFINE_HOOK_SYMBOL("src/d/d_stage.cpp#dStage_actorCreate", void(stage_actor_data
 DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
 DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rd.cpp#damage_check", void(e_rd_class*), SurvivorsBulblinHit);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rd.cpp#pl_check", BOOL(e_rd_class*, f32, s16), SurvivorsBulblinAggro);
+DEFINE_HOOK(&fopAcM_createChild, SurvivorsEnemyArrow);
 DEFINE_HOOK(&daE_OC_c::cc_set, SurvivorsBokoblinTargets);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#e_ms_damage", void(e_ms_class*), SurvivorsRatRecovery);
 DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
@@ -275,6 +279,8 @@ Enemy* tracked(ActorId id) {
     for (auto& e : s_enemies) if (e.id != kNone && e.id == id) return &e;
     return nullptr;
 }
+#include "survivors_enemy_types.inc"
+#include "survivors_enemy_arrows.inc"
 #include "survivors_elite_positions.inc"
 #include "survivors_maps.inc"
 #include "survivors_aggro.inc"
@@ -314,11 +320,12 @@ void retire_pots();
 void cleanup_pots();
 void detach_pot_attacks();
 void retire_enemies() {
-    retire_pots(); retire_pickups();
+    retire_pots(); retire_pickups(); retire_enemy_arrows();
     clear_enemy_effects();
     for (auto& e : s_enemies) if (e.id != kNone) e.retiring = true;
 }
 void cleanup_enemies() {
+    cleanup_enemy_arrows();
     for (auto& e : s_enemies) {
         if (e.id == kNone) continue;
         auto* actor = actor_by_id(e.id);
@@ -363,6 +370,10 @@ void detach_attack_references() {
         } else if (e.profile == fpcNm_E_MS_e) {
             auto* native = static_cast<e_ms_class*>(actor);
             clear(native->mSph1); clear(native->mSph2); info = &native->mAtInfo;
+        } else if (e.profile == fpcNm_E_RD_e) {
+            auto* native = reinterpret_cast<e_rd_class*>(actor);
+            for (auto& collider : native->cc_sph) clear(collider);
+            info = &native->at_info;
         }
         if (info && own_collider(info->mpCollider)) info->mpCollider = nullptr;
     }
@@ -489,7 +500,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
     }
     if (e.elite || s_run.normal_kill_drops()) {
         if (!e.elite) drop_reward(actor);
-        add_orb(actor->current.pos, e.elite ? 30 : e.profile == fpcNm_E_OC_e ? 3 : 1);
+        add_orb(actor->current.pos, e.elite ? 30 : (e.profile == fpcNm_E_OC_e || e.profile == fpcNm_E_RD_e) ? 3 : 1);
     }
     if (e.elite) { drop_elite_chest(e, actor); queue_flute(e, actor); }
 }
@@ -510,8 +521,9 @@ void update_orbs(daAlink_c* link) {
 bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot = -1, bool dormant = false) {
     auto slot = std::find_if(s_enemies.begin(), s_enemies.end(), [](const auto& e) { return e.id == kNone; });
     if (slot == s_enemies.end()) return false;
-    constexpr std::array<ProfileName, 3> profiles{fpcNm_E_OC_e, fpcNm_E_BA_e, fpcNm_E_MS_e};
-    constexpr std::array<u32, 3> parameters{0x00ff0000, 0xffff0f01, 0xffff0000};
+    constexpr std::array<ProfileName, 5> profiles{fpcNm_E_OC_e, fpcNm_E_BA_e, fpcNm_E_MS_e, fpcNm_E_RD_e, fpcNm_E_RD_e};
+    constexpr std::array<u32, 5> parameters{0x00ff0000, 0xffff0f01, 0xffff0000, 0xff000100, 0xff000200};
+    if (type >= profiles.size()) return false;
     ActorId id = kNone;
     const float scale = elite ? 2.0f : 1.0f;
     const ActorSpawnParams params{
@@ -528,7 +540,9 @@ bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot
 bool spawn_enemy(daAlink_c* link, bool elite, int eliteSlot = -1) {
     auto slot = std::find_if(s_enemies.begin(), s_enemies.end(), [](const auto& e) { return e.id == kNone; });
     if (slot == s_enemies.end()) return false;
-    const unsigned type = elite ? 0 : s_run.next_random() % (s_run.ticks < 900 ? 2 : 3);
+    const unsigned type = elite ?
+        (eliteSlot >= 0 && unsigned(eliteSlot) < timed_elite_count ? timed_elite_types[eliteSlot] : 0) :
+        s_run.next_random() % (s_run.ticks < 900 ? 2 : 5);
     for (unsigned attempt = 0; attempt < 12; ++attempt) {
         const auto yaw = static_cast<s16>(s_run.next_random());
         const float radius = 600.0f + float(s_run.next_random() % 450);
@@ -553,12 +567,13 @@ void update_spawns(daAlink_c* link) {
         // Guards and scheduled elites persist until killed; cleanup grants no loot.
         if (!e.elite && !e.retiring && e.age > 5400) e.retiring = true;
     }
-    if (s_run.ticks % elite_interval == 0) s_spawnCooldown = 0;
+    if (s_run.ticks <= duration && s_run.ticks % elite_interval == 0) s_spawnCooldown = 0;
     for (const auto& encounter : s_eliteEncounters)
         if (encounter.defeated && encounter.respawnAt == s_run.ticks) s_spawnCooldown = 0;
     if (s_spawnCooldown) { --s_spawnCooldown; return; }
     s_spawnCooldown = s_run.spawn_interval();
     update_elite_spawns(link);
+    if (s_run.ticks >= duration) return; // Final elite fight: no new horde or guard respawns.
     for (unsigned i=0; i<s_run.options.horde && population<s_run.target_population(); ++i) {
         if (spawn_enemy(link,false)) ++population;
         else { ++s_spawnFailures; break; }
@@ -754,6 +769,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 void new_melee_swing() { ++s_meleeSerial; }
 #include "survivors_combat_pause.inc"
 #include "survivors_defense.inc"
+#include "survivors_bulblin.inc"
 #include "survivors_movement.inc"
 #include "survivors_ledge_jump.inc"
 
@@ -794,12 +810,15 @@ void after_power(ModContext*, void* args, void*, void*) {
     if (!s_active) return;
     auto* info = mods::arg<dCcU_AtInfo*>(args, 0);
     if (!info || !info->mpCollider) return;
+    if (reuse_bulblin_power(info)) return;
+    const BulblinPowerCache cache{info};
     for (const auto& effect : s_effects) if (info->mpCollider == &effect.collider) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
         info->mAttackPower = effect.damage * s_run.damage_multiplier(); return;
     }
     auto* link = daAlink_getAlinkActorClass();
     if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {
+        info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Rat stun must not reset elite HP to one.
         info->mAttackPower = s_run.critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack))) * s_run.damage_multiplier(); return;
     }
     if (native_sword_collider(info->mpCollider)) {
@@ -826,7 +845,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (!link || fopAcM_GetID(link) != s_player) return;
     if (dComIfGs_getLife() == 0) { finish(false); return; }
     s_run.tick(true);
-    if (s_run.ticks >= duration) { finish(true); return; }
+    if (s_run.ticks >= duration && s_run.timed_elites == timed_elite_count) { finish(true); return; }
     update_enemy_effects();
     update_spawns(link); update_pots(link); update_flutes(link); update_weapons(link); update_orbs(link);
     s_run.maximum_hearts = dComIfGs_getMaxLife() / 5;
@@ -863,18 +882,20 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     auto* enemy = tracked(id);
     auto* pot = tracked_pot(id);
     auto* pickup = tracked_pickup(id);
+    auto* arrow = tracked_enemy_arrow(id);
     retain_treasure_actor(actor, args);
     if (in_arena()) {
         const auto* nativeMethods = reinterpret_cast<const process_method_class*>(actor->sub_method);
         if (nativeMethods && mods::arg<process_method_func>(args, 0) == nativeMethods->execute_method)
             collect_arena_mesh(actor);
     }
-    if (!enemy && !pot && !pickup && (!in_arena() || id != s_player)) return HOOK_CONTINUE;
+    if (!enemy && !pot && !pickup && !arrow && (!in_arena() || id != s_player)) return HOOK_CONTINUE;
     const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);
     if (!methods) return HOOK_CONTINUE;
     const auto method = mods::arg<process_method_func>(args, 0);
     if (method == methods->delete_method) {
         if (pickup) pickup->id=kNone;
+        if (arrow) arrow->id=kNone;
         // Never award XP here: cancellation, unloading and despawning also delete.
         if (enemy) {
             *enemy = {};
@@ -886,6 +907,9 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
         return HOOK_CONTINUE;
     }
     if (method != methods->execute_method) return HOOK_CONTINUE;
+    if (arrow && (arrow->retiring || pause_run_actor(true))) {
+        *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
+    }
     if (pickup) {
         if (pickup->retiring || pause_run_actor(pickup_waiting(*pickup,actor))) {
             *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
@@ -895,18 +919,7 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     }
     if (pot) pot->initialized=true;
     if (enemy) s_processFrames.push_back({args, id});
-    if (enemy && !enemy->initialized) {
-        enemy->initialized = true;
-        if (enemy->profile == fpcNm_E_OC_e) {
-            // Native mtx_set ignores actor scale and uses its fixed HIO size.
-            // Model scale is applied before joint calculation, including the weapon.
-            if (enemy->elite) static_cast<daE_OC_c*>(actor)->getOcModel()->setBaseScale(actor->scale);
-            actor->field_0x560 = actor->health = enemy->elite ? 120 :
-                static_cast<s16>(8 + std::min(24u, s_run.ticks / 900));
-        }
-        actor->field_0x560 = actor->health = static_cast<s16>(
-            std::clamp(int(actor->health) * int(s_run.options.enemy_hp), 1, 32767));
-    }
+    if (enemy) initialize_enemy(enemy,actor);
     if (enemy && enemy->dormant && enemy->profile == fpcNm_E_OC_e) {
         auto* guard = static_cast<daE_OC_c*>(actor);
         guard->mMoveRange = 0; guard->field_0x6e3 = 1; // No social alert/idle search.
@@ -927,15 +940,7 @@ void after_process(ModContext*, void* args, void*, void*) {
     if (!in_arena() || s_run.phase != Phase::Running || transitioning()) return;
     auto* enemy = tracked(frame.id);
     auto* actor = actor_by_id(frame.id);
-    if (enemy && actor && enemy->elite && enemy->profile == fpcNm_E_OC_e) {
-        // cc_set follows the scaled joints but writes fixed radii each Execute.
-        // Assign absolute values so paused callbacks cannot compound the scale.
-        auto* bokoblin = static_cast<daE_OC_c*>(actor);
-        bokoblin->mSphs_cc[0].SetR(50.0f * actor->scale.x);
-        bokoblin->mSphs_cc[1].SetR(45.0f * actor->scale.x);
-        bokoblin->mSphs_at[0].SetR(45.0f * actor->scale.x);
-        bokoblin->mSphs_at[1].SetR(30.0f * actor->scale.x);
-    }
+    scale_elite_colliders(enemy,actor);
     if (enemy && actor) {
         confine_arena_actor(actor, enemy->elite ? 80.f : 35.f);
         if (enemy->elite && actor->health > 0 && enemy->age % 15 == 0) {
@@ -1235,6 +1240,9 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsMidnaOrder, before_midna_order);
     PRE(SurvivorsMidnaFlow, before_midna_flow);
     PRE(SurvivorsBlock, before_shield_block); PRE(SurvivorsGuard, before_survivors_guard);
+    PRE(SurvivorsBulblinHit, before_bulblin_hit); POST(SurvivorsBulblinHit, after_bulblin_hit);
+    PRE(SurvivorsBulblinAggro, before_bulblin_aggro);
+    PRE(SurvivorsEnemyArrow, before_enemy_arrow); POST(SurvivorsEnemyArrow, after_enemy_arrow);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
     PRE(SurvivorsBokoblinTargets, before_bokoblin_targets);
     PRE(SurvivorsRatRecovery, before_rat_recovery);

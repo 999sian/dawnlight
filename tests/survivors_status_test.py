@@ -51,6 +51,10 @@ u32 dComIfGp_particle_set(u32 key,u16,cXyz*,void*,void*){if(!key)key=nextKey++;e
 struct dPa_control_c{static void* getParticleTracePCB(){return nullptr;}};
 constexpr u16 ID_ZI_J_LK_BURNS_A=1,ID_ZI_J_LK_BURNS_B=2;
 '''
+fixture += r'''
+constexpr int fpcNm_E_RD_e=4;
+struct e_rd_class{fopAc_ac_c enemy;Collider cc_sph[3];dCcU_AtInfo at_info;s16 damage_timer=0;};
+'''
 source = (root/'src/survivors.cpp').read_text()
 def function(name):
     match = re.search(r'^(?:bool|void) '+name+r'\([^;{}]*\)\s*\{', source, re.M)
@@ -58,6 +62,10 @@ def function(name):
     for i in range(start,len(source)):
         depth += (source[i]=='{')-(source[i]=='}')
         if not depth:return source[match.start():i+1]
+fixture += r'''
+bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
+struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
+'''
 main = r'''
 void hit(e_ms_class& rat){
  Args args{&rat,nullptr};before_enemy_hit(nullptr,&args,nullptr,nullptr);

@@ -23,7 +23,7 @@ your map, difficulty, settings and allocated talents remain unchanged.
   in the item wheel and power-ups via the Hidden Skills scroll in Collection.
   Only bottles can be assigned to item buttons. Magnet also attracts rupees,
   hearts and heart pieces; nearby pots trigger normal automatic sword swings.
-- Call Midna for **Cancel** or **End Run**. Survive until 20:00 to win;
+- Call Midna for **Cancel** or **End Run**. Survive 20 minutes and defeat all four timed elites to win;
   **New run** resets upgrades and returns to map selection. Map exits are sealed.
 
 ## Run setup
@@ -58,7 +58,7 @@ Difficulty multiplier: `1 + 0.10 × (HP−1) + 0.15 × (Damage−1) +
 0.25 × (Speed−1) + 0.10 × (Horde−1)` (×1–×4.15). Camera settings do not
 change score. Final totals round down; normal kill points are normalized before
 applying difficulty. Example: a win at default difficulty with 400 normal kills,
-three timed elites and run level 20 earns **11,850 points**.
+four timed elites and run level 20 earns **12,350 points**.
 
 On victory, defeat or **Midna → End Run**, the final score also grants permanent
 XP, shared across maps/runs in this Survivors save. Meta level 1 starts at 0 XP;
@@ -98,15 +98,26 @@ writes the native save in the background and keeps the menu open; wait for
 | Palace of Twilight | One per building doorway | 12–24 |
 | Hyrule Castle Throne Room | None | 8–12 |
 
+Normal enemies include Bokoblins, Keese, Rats, club Bulblins and bow Bulblins.
+Bulblins take regular damage from arrows, without the native instant-kill rule.
 Random enemies require dry ground and a walkable approach to Link, avoiding
 water, isolated ledges and gaps.
 
-Every map also spawns an elite at **5:00, 10:00 and 15:00**. Elites are twice
-normal size and marked with the native Tear-of-Light icon on the minimap. Dormant
+Every map spawns these timed elites:
+
+| Time | Elite |
+| --- | --- |
+| 5:00 | Rat |
+| 10:00 | Keese |
+| 15:00 | Bow Bulblin |
+| 20:00 | Bokoblin |
+
+At 20:00, new horde spawns and guard respawns stop; the fight continues until all
+four timed elites are defeated. Elites are twice normal size and marked with the native Tear-of-Light icon on the minimap. Dormant
 elites wake only after taking damage; after a kill they respawn in three minutes,
 with new positions in Field/Desert. Timed elites do not respawn.
 
-Every elite drops a **free large chest**. The three timed elites also drop an
+Every elite drops a **free large chest**. The four timed elites also drop an
 **Epona flute** at five times normal size nearby: walk over it to pull all currently lying XP crystals
 to Link from anywhere on the map. It is a one-time pickup, not an inventory item. Pots are scattered according to floor
 area and safe placement, drop rupees of different values or rare heart pieces,

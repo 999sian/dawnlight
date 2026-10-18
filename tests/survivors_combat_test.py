@@ -169,6 +169,10 @@ fpc_ProcID create_run_pickup(cXyz pos,int item){
  const bool old=s_allowDrop;s_allowDrop=true;const auto id=fopAcM_createItem(&pos,item,-1,rewardRoom,nullptr,nullptr,0);s_allowDrop=old;return id;}
 
 '''
+stubs += r'''
+bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
+struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
+'''
 main = r'''
 void reset(){player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;

@@ -81,9 +81,9 @@ bool landmark_guard_position(const EliteLandmark& site, cXyz& pos) {
     return false;
 }
 void update_elite_spawns(daAlink_c* link) {
-    if (s_run.phase != Phase::Running || s_run.ticks >= duration) return;
+    if (s_run.phase != Phase::Running) return;
     if (s_map==3) refresh_elite_sites();
-    const unsigned guards = s_map==1 || s_map==2 ? 4 :
+    const unsigned guards = s_run.ticks >= duration ? 0 : s_map==1 || s_map==2 ? 4 :
         s_map==3 ? std::min<unsigned>(guard_capacity,s_eliteDoorSites.size()) : 0;
     for (unsigned i=0;i<timed_elite_count+guards;++i) {
         auto& encounter = s_eliteEncounters[i];

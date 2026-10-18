@@ -40,12 +40,15 @@ EnemyEffect& effect_for(Enemy& enemy) {
     }
     return effect;
 }
-std::array<dCcD_Sph*, 2> enemy_spheres(fopAc_ac_c* actor, ProfileName profile) {
+std::array<dCcD_Sph*, 3> enemy_spheres(fopAc_ac_c* actor, ProfileName profile) {
     if (profile == fpcNm_E_OC_e) {
         auto* e = static_cast<daE_OC_c*>(actor); return {&e->mSphs_cc[0], &e->mSphs_cc[1]};
     }
     if (profile == fpcNm_E_BA_e) return {&reinterpret_cast<e_ba_class*>(actor)->mSph, nullptr};
     if (profile == fpcNm_E_MS_e) return {&static_cast<e_ms_class*>(actor)->mSph1, nullptr};
+    if (profile == fpcNm_E_RD_e) {
+        auto* e=reinterpret_cast<e_rd_class*>(actor); return {&e->cc_sph[0], &e->cc_sph[1], &e->cc_sph[2]};
+    }
     return {};
 }
 void prepare_effect_hit(fopAc_ac_c* actor, Enemy& enemy) {
@@ -72,6 +75,7 @@ void prepare_effect_hit(fopAc_ac_c* actor, Enemy& enemy) {
     if (enemy.profile == fpcNm_E_OC_e) static_cast<daE_OC_c*>(actor)->field_0x6cc = 0;
     else if (enemy.profile == fpcNm_E_BA_e) reinterpret_cast<e_ba_class*>(actor)->mIFrames = 0;
     else if (enemy.profile == fpcNm_E_MS_e) static_cast<e_ms_class*>(actor)->mCooldown1 = 0;
+    else if (enemy.profile == fpcNm_E_RD_e) reinterpret_cast<e_rd_class*>(actor)->damage_timer = 0;
 }
 void finish_effect_hit(fopAc_ac_c* actor, ProfileName profile) {
     auto* enemy = tracked(fopAcM_GetID(actor)); if (!enemy) return;
@@ -79,7 +83,8 @@ void finish_effect_hit(fopAc_ac_c* actor, ProfileName profile) {
     for (auto* sphere : enemy_spheres(actor, profile))
         if (sphere && sphere->GetTgHitObj() == &effect.collider) sphere->ResetTgHit();
     dCcU_AtInfo* info = profile == fpcNm_E_OC_e ? &static_cast<daE_OC_c*>(actor)->mAtInfo :
-        profile == fpcNm_E_BA_e ? &reinterpret_cast<e_ba_class*>(actor)->mAtInfo : &static_cast<e_ms_class*>(actor)->mAtInfo;
+        profile == fpcNm_E_BA_e ? &reinterpret_cast<e_ba_class*>(actor)->mAtInfo :
+        profile == fpcNm_E_RD_e ? &reinterpret_cast<e_rd_class*>(actor)->at_info : &static_cast<e_ms_class*>(actor)->mAtInfo;
     if (info->mpCollider == &effect.collider) info->mpCollider = nullptr;
     effect.injected = false; effect.damage = 0;
 }

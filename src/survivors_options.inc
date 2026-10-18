@@ -25,6 +25,12 @@ HookAction before_enemy_speed(ModContext*, void* args, void*, void*) {
         const bool fly=bat->mAction==e_ba_class::ACT_FIGHT_FLY || bat->mAction==e_ba_class::ACT_RETURN ||
             bat->mAction==e_ba_class::ACT_FLY || bat->mAction==e_ba_class::ACT_PATH_FLY;
         if (!fly || bat->mIsDying || bat->mKnockbackSpeed>0.1f) return HOOK_CONTINUE;
+    } else if (enemy->profile==fpcNm_E_RD_e) {
+        const auto* bulblin=reinterpret_cast<e_rd_class*>(actor);
+        const bool chase=bulblin->action==3 && bulblin->mode>=1 && bulblin->mode<=3 &&
+            (bulblin->anm==0x32 || bulblin->anm==0x1b);
+        const bool bowRun=bulblin->action==5 && (bulblin->mode==1 || bulblin->mode==2) && bulblin->anm==0x32;
+        if ((!chase && !bowRun) || bulblin->jump_z!=0 || bulblin->field_0x9f0>0.1f) return HOOK_CONTINUE;
     } else return HOOK_CONTINUE;
     const float extra=float(std::clamp(s_run.options.enemy_speed,1u,3u)-1);
     // Add only horizontal locomotion velocity before native wall correction.
@@ -41,6 +47,10 @@ HookAction before_enemy_damage(ModContext*, void* args, void*, void*) {
     for (auto& target:link->mTgCyls) {
         auto* attacker=target.ChkTgHit() ? target.GetTgHitAc() : nullptr;
         const auto* enemy=attacker ? tracked(fopAcM_GetID(attacker)) : nullptr;
+        if (attacker && active_enemy_arrow(fopAcM_GetID(attacker))) {
+            mods::arg_ref<int>(args,1)=std::min(mods::arg<int>(args,1),32767)*int(s_run.options.enemy_damage);
+            break;
+        }
         if (!enemy || !enemy->initialized || enemy->retiring) continue;
         mods::arg_ref<int>(args,1)=std::min(mods::arg<int>(args,1),32767)*int(s_run.options.enemy_damage);
         break;

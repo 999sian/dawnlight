@@ -173,12 +173,21 @@ shown in the preview/message and capped by the wallet when granted. This also
 applies to extra Ordon Sword units and potion units beyond available bottle slots.
 One chest still charges only once. Price increases are +5, +7, +9, +11 rupees, etc.
 
-Bokoblins and Keese appear first; Rats join after 30 seconds. A run lasts
-**20 minutes of active gameplay** and ends automatically in victory at 20:00.
-Menus, Get Item and Midna dialogue pause the timer. Elite Bokoblins spawn at
-**5:00, 10:00 and 15:00**; 20:00 ends the run instead of spawning an enemy that
-would immediately disappear. Elites remain twice normal size with matching
-hitboxes. Killing an elite no longer ends the run or stops ordinary spawning.
+Bokoblins and Keese appear first; Rats, club Bulblins and bow Bulblins join after
+30 seconds. Timed elites are Rat at **5:00**, Keese at **10:00**, bow Bulblin at
+**15:00**, and Bokoblin at **20:00**. Victory requires 20 minutes and all four
+confirmed elite kills. New horde spawns and guard respawns stop at 20:00; combat
+continues for surviving timed elites. Menus, Get Item and Midna dialogue pause
+the timer. All elite species have 120 base HP (before difficulty), double-sized
+models and matching target radii.
+
+Bulblins use their native club/bow AI and effects. Owned actors disable
+`one_hit_kill`; scoped arrow classification avoids the native pre-damage HP-zero
+branch. Damage/crit calculations are shared across the two native power checks
+per hit. Burns and multihits enter native damage handling; nonlethal regular
+hits preserve movement and animations, while Ball/Shield retain stagger.
+Native enemy arrows have independent ownership for pause, damage difficulty,
+shield blocks and deferred cleanup, even after their shooter dies.
 
 Additional stationary elite guards wait at these map locations:
 
@@ -221,15 +230,15 @@ once the reward completes. A separate pool retains all unopened drops from earli
 of the two paid chests. Failed creation is retried; deletion, cleanup and repeated
 death callbacks never generate extra loot. Guards and elites do not age-despawn.
 
-The three scheduled elites additionally leave a native Epona-flute model about
+The four scheduled elites additionally leave a native Epona-flute model about
 160 units from their death position, on connected dry floor. Failed placement or
 creation retries. Walking within 80 units consumes it without granting a story
 item or starting Get Item, and marks every existing XP orb for global attraction.
 Marked orbs keep following Link until collected, accelerating over long distances;
-new XP retains normal Magnet behavior. Map guards do not drop flutes. The three
+new XP retains normal Magnet behavior. Map guards do not drop flutes. The four
 requests and owned pickup actors are cleared/retired with the run.
 
-Spawn frequency, ordinary population and Bokoblin health increase during the run.
+Spawn frequency, ordinary population and Bokoblin/Bulblin health increase during the run.
 Death opens a result screen with time, kills, level and weapon levels. **New run**
 reloads the arena and resets all run upgrades and elite encounters.
 
@@ -444,12 +453,13 @@ sword animations and particle effects. No additional textures, models or music
 are required. Larger arenas, camera changes, weapon evolutions, persistent
 unlock trees and mid-run suspend are not part of this version.
 
-The budgets are 131 tracked enemies (120 ordinary slots plus three scheduled
+The budgets are 132 tracked enemies (120 ordinary slots plus four scheduled
 elites and up to eight guards, including pending/deleting actors), 40 attack
 objects (eight base-weapon slots, twenty arrow slots and four per other chest weapon), two paid chest props,
-up to 59 free chest props, 64 experience crystals and up to 72 native pot actors. The free pool covers seven
-lives per guard plus the three scheduled elites; opened slots are reused. Model allocation is bounded by a 2 MiB heap,
+up to 60 free chest props, 64 experience crystals and up to 72 native pot actors. The free pool covers seven
+lives per guard plus the four scheduled elites; opened slots are reused. Model allocation is bounded by a 2 MiB heap,
 trimmed after loading; native pot actors use their own engine-managed heaps. Excess crystals merge their value.
+Native enemy arrows have a separate cap of 396, including pending/deleting actors.
 These limits are starting budgets, not a measured Android performance guarantee.
 Spawns require a valid floor and unobstructed line from Link, and are staggered.
 A failed elite creation/despawn can be retried without granting loot or counting as a kill.

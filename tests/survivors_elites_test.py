@@ -183,9 +183,11 @@ int main(){
   s_run.ticks=tick;update_elite_spawns(&player);
   for(auto& e:s_enemies)if(e.id!=kNone){drop_elite_chest(e,&player);++drops;e={};}
  }
- assert(drops==elite_reward_capacity);
- for(unsigned i=kPaidChestCount;i<kChestCount;++i)assert(s_chests[i].active&&s_chests[i].free);
- s_run.ticks=duration;update_elite_spawns(&player);assert(guards()==0&&waves()==0);
+ assert(drops==elite_reward_capacity-1);
+ for(unsigned i=kPaidChestCount;i<kChestCount-1;++i)assert(s_chests[i].active&&s_chests[i].free);
+ s_run.ticks=duration;update_elite_spawns(&player);assert(guards()==0&&waves()==1);
+ for(auto& e:s_enemies)if(e.id!=kNone){drop_elite_chest(e,&player);e={};}
+ assert(s_chests.back().active&&s_chests.back().free);
  // Dormant AI suppresses only idle action. Collision/damage Execute stays native.
  fresh(3);add_floor(10000);door(2000,0);update_elite_spawns(&player);
  daE_OC_c actor;actor.id=s_enemies[0].id;actor.speedF=10;actor.speed={2,3,4};std::any args[]={&actor};
@@ -198,7 +200,11 @@ int main(){
  after_player(nullptr,playerArgs,nullptr,nullptr);assert(s_run.ticks==duration-1&&finishes==0);
  paused=false;s_run.phase=Phase::Upgrade;after_player(nullptr,playerArgs,nullptr,nullptr);assert(finishes==0);
  s_run.phase=Phase::Running;after_player(nullptr,playerArgs,nullptr,nullptr);
- assert(s_run.ticks==duration&&s_run.phase==Phase::Victory&&finishes==1&&waves()==0);
+ assert(s_run.ticks==duration&&s_run.phase==Phase::Running&&finishes==0&&waves()==4);
+ assert(ordinarySpawns==0); // No new horde after the final milestone.
+ s_run.timed_elites=3;after_player(nullptr,playerArgs,nullptr,nullptr);assert(finishes==0);
+ s_run.timed_elites=4;after_player(nullptr,playerArgs,nullptr,nullptr);
+ assert(s_run.phase==Phase::Victory&&finishes==1);
  after_player(nullptr,playerArgs,nullptr,nullptr);assert(finishes==1);
  fresh(0);life=0;after_player(nullptr,playerArgs,nullptr,nullptr);assert(s_run.phase==Phase::Defeat&&s_run.ticks==0);
  reset_elite_encounters();for(const auto& e:s_eliteEncounters)assert(!e.placed&&!e.defeated);
