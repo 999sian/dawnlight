@@ -571,7 +571,10 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         else ++s_run.guard_elites;
     }
     if (e.elite || s_run.normal_kill_drops()) {
-        if (!e.elite) drop_reward(actor);
+        if (!e.elite) {
+            drop_reward(actor);
+            if (s_run.roll_exp_magnet()) queue_exp_magnet(e,actor);
+        }
         add_orb(actor->current.pos, e.elite ? 30 : (e.profile == fpcNm_E_OC_e || e.profile == fpcNm_E_RD_e) ? 3 : 1);
     }
     if (e.elite) { drop_elite_chest(e, actor); queue_exp_magnet(e, actor); }

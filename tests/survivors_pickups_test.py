@@ -34,7 +34,7 @@ struct Orb{cXyz position;unsigned value=0;bool summoned=false,merged=false;};std
 Run s_run;bool s_allowDrop=false,playing=true,failCreate=false,dry=true,path=true;
 bool playable(){return playing;}
 struct Arena{int room=6;}data;const Arena& arena(){return data;}
-enum{dItemNo_HORSE_FLUTE_e=132,dItemNo_KAKERA_HEART_e=33,dItemNo_HEART_e=0};
+enum{dItemNo_HORSE_FLUTE_e=132,dItemNo_KAKERA_HEART_e=33,dItemNo_HEART_e=0,dItemNo_SILVER_RUPEE_e=7};
 struct ModContext{};ModContext* mod_ctx=nullptr;enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int i){return std::any_cast<T>(static_cast<std::any*>(args)[i]);}}
 std::map<ActorId,daObjLife_c>actors;std::set<ActorId>pending;unsigned nextId=2,creates=0;
@@ -58,7 +58,7 @@ void dDbVw_drawCubeOpa(cXyz&,cXyz size,csXyz,GXColor color){colors.push_back(col
 void draw_loot(){}void draw_ranged(){}void draw_arena_barriers(){}
 '''
 main=r'''
-void fresh(){s_run.start(123);s_orbs={};s_pickups.clear();s_expMagnets={};actors.clear();pending.clear();
+void fresh(){s_run.start(123);s_orbs={};s_pickups.clear();s_expMagnets.assign(timed_elite_count,{});actors.clear();pending.clear();
  player={};player.id=1;playing=dry=path=true;failCreate=false;s_allowDrop=false;creates=0;}
 int main(){
  fresh();
@@ -94,6 +94,43 @@ int main(){
  for(int i=0;i<200;++i)update_orbs(&player);
  assert(s_run.xp==17&&s_orbs[2].value==10&&!s_orbs[2].summoned);
  queue_exp_magnet(timed,&player);update_exp_magnets(&player);assert(!s_expMagnets[0].active&&creates==0);
+ // Normal drops grow beyond the four reserved boss slots, then reuse collected slots.
+ fresh();Enemy normal{};
+ for(unsigned i=0;i<12;++i)queue_exp_magnet(normal,&player);
+ assert(s_expMagnets.size()==timed_elite_count+12);
+ for(unsigned i=0;i<timed_elite_count;++i)assert(!s_expMagnets[i].pending);
+ s_expMagnets[timed_elite_count].collected=true;
+ queue_exp_magnet(normal,&player);assert(s_expMagnets.size()==timed_elite_count+12);
+ assert(s_expMagnets[timed_elite_count].pending&&!s_expMagnets[timed_elite_count].collected);
+ // All rupee colours and hearts persist and join the global sweep, including pending creates.
+ fresh();
+ for(int item=0;item<=7;++item) {
+  const auto id=create_run_pickup({50000,20,0},item);auto& actor=actors[id];auto* pickup=tracked_pickup(id);
+  for(unsigned tick=0;tick<60*60*30;++tick) {
+   move_pickup(*pickup,&actor);
+   if(!(actor.flags&daItem_c::FLAG_NO_TIMER_e))--actor.mWaitTimer;
+   assert(actor.mWaitTimer>0); // Native expiry/flashing cannot begin.
+  }
+ }
+ const auto piece=create_run_pickup({50000,20,0},33);
+ const auto pendingDrop=create_run_pickup({50000,20,0},0);actors.erase(pendingDrop);pending.insert(pendingDrop);
+ const auto retiring=create_run_pickup({50000,20,0},1);tracked_pickup(retiring)->retiring=true;
+ queue_exp_magnet(normal,&player);update_exp_magnets(&player);
+ player.current.pos=s_expMagnets[timed_elite_count].position;
+ update_exp_magnets(&player);
+ for(const auto& p:s_pickups)assert(p.summoned==(!p.retiring&&p.item<=7));
+ assert(!(actors[piece].flags&daItem_c::FLAG_NO_TIMER_e));
+ auto late=create_run_pickup({50000,20,0},0);assert(!tracked_pickup(late)->summoned);
+ auto* pickup=tracked_pickup(s_pickups.front().id);auto* actor=actor_by_id(pickup->id);
+ const auto start=actor->current.pos.x;s_run.phase=Phase::Upgrade;move_pickup(*pickup,actor);assert(actor->current.pos.x==start);
+ s_run.phase=Phase::Running;actors[pickup->id].status=2;move_pickup(*pickup,actor);assert(actor->current.pos.x==start);
+ actors[pickup->id].status=0;
+ for(unsigned tick=0;tick<300;++tick)move_pickup(*pickup,actor);
+ assert((actor->current.pos-(player.current.pos+cXyz(0,20,0))).abs()<1);
+ pending.erase(pendingDrop);actors[pendingDrop].id=pendingDrop;actors[pendingDrop].current.pos={50000,20,0};
+ move_pickup(*tracked_pickup(pendingDrop),&actors[pendingDrop]);assert(actors[pendingDrop].current.pos.x<50000);
+ retire_pickups();assert(s_expMagnets.size()==timed_elite_count);
+ for(const auto& drop:s_expMagnets)assert(!drop.pending&&!drop.active);
  // Pending native actor creation is retained until it can be deleted, never rewarded.
  fresh();auto pendingId=create_run_pickup({},132);actors.erase(pendingId);pending.insert(pendingId);
  retire_pickups();cleanup_pickups();assert(tracked_pickup(pendingId));

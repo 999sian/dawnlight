@@ -194,6 +194,16 @@ int main() {
         assert(sword.sword_bonus()==2+sword.master_sword);
         assert(money==100+(initial<30?20*(tier+1-gain):0));
     }
+    // Bonus magnets use the ordinary drop Luck multiplier, independently of item drops.
+    Run magnets, luckyMagnets;magnets.start(99);luckyMagnets.start(99);
+    luckyMagnets.ranks[unsigned(Upgrade::Luck)]=20;
+    unsigned plain=0,lucky=0;
+    for(unsigned i=0;i<200000;++i) {
+        const bool a=magnets.roll_exp_magnet(),b=luckyMagnets.roll_exp_magnet();
+        assert(!a||b);plain+=a;lucky+=b;
+    }
+    assert(plain>3600&&plain<4400&&lucky>5500&&lucky<6500);
+    assert(luckyMagnets.lucky_chance(200)==300);
     Run run;
     assert(std::all_of(run.ranks.begin(),run.ranks.end(),[](auto r){return r==0;}));
     std::array<unsigned,unsigned(Run::Drop::Count)> drops{};

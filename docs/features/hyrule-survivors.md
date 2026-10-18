@@ -305,9 +305,11 @@ death callbacks never generate extra loot. Guards and elites do not age-despawn.
 The four scheduled elites additionally leave a gold-yellow EXP crystal, five times
 ordinary crystal size, about 160 units from the corpse on connected dry floor.
 Failed safe placement retries. Walking within 100 units consumes it and marks all
-existing XP orbs for global attraction; later XP uses normal Magnet behavior.
+existing XP orbs, hearts and rupees for global attraction; later drops use normal
+Magnet behavior.
 The drop uses the same code drawing as EXP, without a native item actor, story
-flag or Get Item hook. Map guards do not drop it. All four slots reset with the run.
+flag or Get Item hook. Map guards do not drop it. Ordinary rewards can also roll this drop
+(2%, up to 3% with Luck). All slots reset with the run.
 
 Spawn frequency, ordinary population and Bokoblin/Bulblin health increase during the run.
 Death opens a result screen with time, kills, level and weapon levels. **New run**
@@ -541,7 +543,8 @@ elites and up to eight guards, including pending/deleting actors), six replenish
 up to 60 free chest props, 64 experience crystals and up to 72 native pot actors. The free pool covers seven
 lives per guard plus the four scheduled elites; opened slots are reused. Treasure and initial projectile models use a 3 MiB heap,
 trimmed after loading; native pot actors use their own engine-managed heaps. Excess crystals merge their value and mark the recipient red; freeing/reusing a
-slot resets that color. The gold-yellow global-magnet drop has four separate slots.
+slot resets that color. The gold-yellow global-magnet drop reserves four boss slots and grows reusable
+ordinary-drop storage as needed.
 Player projectiles have no fixed pool ceiling. The initial 42 collision slots
 (eight waves, twenty arrows, four each for boomerangs/bombs/balls, two skill pulses)
 are reusable reservations. Additional waves and item projectiles append stable
@@ -813,3 +816,16 @@ retain their native presentation. Animation storage is released with run resourc
 nonstandard rigs and unavailable resources fall back to native animation.
 Desktop/Android visual validation of diagonal blends and attack transitions is
 still required.
+
+
+### Persistent pickups and ordinary magnet drops
+
+Run-owned hearts and all seven rupee colours use the native no-timer flag and a
+nonzero wait timer to prevent expiry and flashing. Collection, healing, currency,
+pause and teardown remain native/scoped; heart-piece Get Item events are preserved.
+Each ordinary reward opportunity rolls an independent 2% bonus magnet chance,
+scaled by the existing Luck drop multiplier to 3%. Horde difficulty normalizes
+reward opportunities as before. Four slots remain reserved for timed bosses;
+additional magnet slots grow as needed and reuse collected ordinary drops.
+Collecting either type summons the current XP, heart and rupee snapshot globally,
+including pending owned item creates. Later drops and retiring items are excluded.

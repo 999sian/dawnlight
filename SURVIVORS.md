@@ -176,11 +176,16 @@ unarmored fighting phase. Dungeon intros, story flags and camera/QTE sequences
 are excluded; attacks, effects and attack timing remain native where portable.
 
 Each timed elite and the first kill of each guard slot drops a **free large chest**. Guard respawns still give XP but no repeated chest, including after relocation. The four timed elites also drop an
-**large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals
+**large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals, rupees and hearts
 to Link from anywhere on the map. It is a one-time pickup, not an inventory item. Pots are scattered according to floor
 area and safe placement, drop rupees of different values or rare heart pieces,
 and respawn at a different safe position 20 seconds after breaking (menus pause the timer). Ordinary enemies can drop healing hearts and
-rupees; level-ups do not heal.
+rupees; level-ups do not heal. Dropped hearts and rupees remain until collected
+or the run ends; their native despawn timer is disabled. Ordinary enemies also
+have a 2% bonus chance to drop a gold EXP magnet, increased by Luck up to 3%.
+This follows the same Horde-difficulty reward normalization as other ordinary
+drops. Magnets pull only pickups already present when collected; later drops
+require another magnet or normal pickup range.
 
 Normal enemy population grows from **18 to 69 × the Horde difficulty setting**
 (up to 345). Random **HORDE!** events triple spawn batches for 15 seconds, within

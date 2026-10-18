@@ -404,6 +404,8 @@ struct Run {
     unsigned cooldown(unsigned base) const { return std::max(6u, base * cooldown_percent() / 100); }
     unsigned shield_cooldown() const {return std::max(30u,cooldown(9000/(100+3*rank(Upgrade::ShieldAttack))));}
     bool normal_kill_drops() { if (++drop_progress < options.horde) return false; drop_progress=0; return true; }
+    // Independent bonus, once per ordinary reward opportunity: 2%, up to 3% with Luck.
+    bool roll_exp_magnet() { return next_random()%10000<lucky_chance(200); }
     // At base Luck: 2.5% heart, 45% rupee, 52.5% nothing. A second lucky
     // roll chooses rupee value, so Luck improves both frequency and quality.
     enum class Drop { None, Heart, GreenRupee, BlueRupee, YellowRupee, RedRupee, PurpleRupee, OrangeRupee, SilverRupee, Count };

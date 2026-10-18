@@ -3,11 +3,12 @@
 struct RunPickup {
     ActorId id=kNone;
     int item=0;
-    bool retiring=false;
+    bool retiring=false, summoned=false;
 };
 std::vector<RunPickup> s_pickups;
 struct ExpMagnet { bool pending=false, active=false, collected=false; cXyz position{}; };
-std::array<ExpMagnet,timed_elite_count> s_expMagnets;
+// The first slots belong to timed bosses; reusable extra slots hold rare drops.
+std::vector<ExpMagnet> s_expMagnets(timed_elite_count);
 float magnet_range() { return float(s_run.magnet_range()); }
 RunPickup* tracked_pickup(ActorId id) {
     if (id==kNone) return nullptr;
@@ -22,7 +23,7 @@ ActorId create_run_pickup(cXyz position, int item) {
     return id;
 }
 void retire_pickups() {
-    s_expMagnets={};
+    s_expMagnets.assign(timed_elite_count,{});
     for (auto& pickup:s_pickups) pickup.retiring=true;
 }
 void cleanup_pickups() {
@@ -39,21 +40,41 @@ bool pickup_waiting(const RunPickup& pickup, fopAc_ac_c* actor) {
         return static_cast<daObjLife_c*>(actor)->chkStatus(daObjLife_c::STATUS_WAIT_e);
     return static_cast<daItem_c*>(actor)->getStatus()==daItem_c::STATUS_NORMAL_e;
 }
+bool heart_or_rupee(const RunPickup& pickup) {
+    return pickup.item>=dItemNo_HEART_e && pickup.item<=dItemNo_SILVER_RUPEE_e;
+}
 void move_pickup(RunPickup& pickup, fopAc_ac_c* actor) {
+    if (pickup.retiring) return;
+    if (heart_or_rupee(pickup)) {
+        auto* item=static_cast<daItem_c*>(actor);
+        item->setFlag(daItem_c::FLAG_NO_TIMER_e);
+        // Keep the wait phase nonzero too, preventing native expiry flashing.
+        item->mWaitTimer=std::max<decltype(item->mWaitTimer)>(item->mWaitTimer,1);
+    }
     if (!playable() || s_run.phase!=Phase::Running || !pickup_waiting(pickup,actor)) return;
     auto* link=daAlink_getAlinkActorClass();
     if (!link || fopAcM_GetID(link)!=s_player) return;
     const cXyz delta=link->current.pos+cXyz(0,20,0)-actor->current.pos;
     const float distance=delta.abs();
-    if (distance<1 || distance>magnet_range()) return;
-    actor->current.pos+=delta*(std::min(25.f,distance)/distance);
+    if (distance<1 || (!pickup.summoned && distance>magnet_range())) return;
+    const float speed=pickup.summoned?std::max(35.f,distance*.08f):25.f;
+    actor->current.pos+=delta*(std::min(speed,distance)/distance);
     actor->old.pos=actor->current.pos;
     actor->speedF=0; actor->speed=cXyz(0,0,0);
 }
 // Rendered like ordinary XP, without a native story-item actor or Get Item event.
 void queue_exp_magnet(const Enemy& enemy, fopAc_ac_c* actor) {
-    if (!enemy.elite || enemy.eliteSlot<0 || unsigned(enemy.eliteSlot)>=s_expMagnets.size()) return;
-    auto& drop=s_expMagnets[enemy.eliteSlot];
+    unsigned slot=0;
+    if (enemy.elite) {
+        if (enemy.eliteSlot<0 || unsigned(enemy.eliteSlot)>=timed_elite_count) return;
+        slot=unsigned(enemy.eliteSlot);
+    } else {
+        slot=timed_elite_count;
+        while (slot<s_expMagnets.size() && !s_expMagnets[slot].collected) ++slot;
+        if (slot==s_expMagnets.size()) s_expMagnets.emplace_back();
+        else s_expMagnets[slot]={};
+    }
+    auto& drop=s_expMagnets[slot];
     if (drop.pending || drop.active || drop.collected) return;
     cXyz position=actor->current.pos;
     if (!dry_arena_floor(position,250,240)) position=enemy.lootPosition;
@@ -75,6 +96,8 @@ void update_exp_magnets(daAlink_c* link) {
         }
         if (drop.active && (link->current.pos+cXyz(0,20,0)-drop.position).abs()<100) {
             for (auto& orb:s_orbs) if (orb.value) orb.summoned=true;
+            for (auto& pickup:s_pickups)
+                if (pickup.id!=kNone && !pickup.retiring && heart_or_rupee(pickup)) pickup.summoned=true;
             drop.active=false; drop.collected=true;
         }
     }
