@@ -4,10 +4,10 @@ constexpr const char* kArenaStyle=R"(
 window { background-color: transparent; backdrop-filter: none; }
 window tab-bar { background-color: #171d19ee; }
 window content pane.survivors-map-list { flex: 0 0 35%; background-color: #171d19ef; padding: 16dp; gap: 8dp; font-size: 15dp; }
-window content pane.survivors-map-preview { flex: 1 1 0; padding: 16dp; justify-content: space-between; pointer-events: none; }
+window content pane.survivors-map-preview { flex: 1 1 0; padding: 16dp; justify-content: space-between; }
 .survivors-map-preview-copy { background-color: #171d19e8; border-radius: 8dp; padding: 16dp; font-size: 16dp; }
-.survivors-map-preview-title { display: block; font-family: var(--font-family-heading); font-size: 24dp; margin-bottom: 8dp; }
-.survivors-map-preview-hint { background-color: #171d19d9; padding: 8dp; border-radius: 8dp; font-size: 14dp; }
+.survivors-map-preview-title { display: block; font-family: var(--font-family-heading); font-size: 24dp; }
+button.survivors-map-start { align-self: flex-end; padding: 12dp 28dp; font-size: 18dp; background-color: #171d19ee; }
 button.survivors-map-option { padding: 12dp; font-size: 16dp; }
 button.survivors-map-selected { background-color: #e5bc3b28; border-color: #ffdc75; }
 @media (max-width: 640dp) {
@@ -45,11 +45,6 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
             if (result!=MOD_OK) return result;
         }
     }
-    UiControlDesc start=UI_CONTROL_DESC_INIT;
-    start.label="Start run"; start.on_pressed=start_run;
-    start.is_disabled=[](ModContext*,void*) { return !s_arenaMeshReady || s_restart; };
-    result=svc_ui->pane_add_control(mod_ctx,left,&start,nullptr);
-    if (result!=MOD_OK) return result;
     if (!s_arenaMeshReady) result=svc_ui->pane_add_text(mod_ctx,left,
         "Arena collision could not be prepared. Please select another map.",nullptr);
     if (result!=MOD_OK) return result;
@@ -62,12 +57,15 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
         s_records.runs,s_records.wins,s_records.best_kills,s_records.best_level);
     result=svc_ui->pane_add_text(mod_ctx,left,records,nullptr);
     if (result!=MOD_OK) return result;
-    result=svc_ui->pane_add_rml(mod_ctx,right,
-        "<div class=\"survivors-map-preview-hint\">LIVE PREVIEW &middot; Select with controller or touch. "
-        "The run begins only after Start run.</div>",nullptr);
-    if (result!=MOD_OK) return result;
     const std::string copy="<div class=\"survivors-map-preview-copy\"><div class=\"survivors-map-preview-title\" style=\"color: "+
-        std::string(arena().accent)+";\">"+treasure_rml_escape(arena().name)+"</div>"+
-        treasure_rml_escape(arena().description)+"</div>";
-    return svc_ui->pane_add_rml(mod_ctx,right,copy.c_str(),nullptr);
+        std::string(arena().accent)+";\">"+treasure_rml_escape(arena().name)+"</div></div>";
+    result=svc_ui->pane_add_rml(mod_ctx,right,copy.c_str(),nullptr);
+    if (result!=MOD_OK) return result;
+    UiControlDesc start=UI_CONTROL_DESC_INIT;
+    start.label="Start run"; start.on_pressed=start_run;
+    start.is_disabled=[](ModContext*,void*) { return !s_arenaMeshReady || s_restart; };
+    UiElementHandle startButton=0;
+    result=svc_ui->pane_add_control(mod_ctx,right,&start,&startButton);
+    if (result!=MOD_OK) return result;
+    return svc_ui->elem_set_class(mod_ctx,startButton,"survivors-map-start",true);
 }
