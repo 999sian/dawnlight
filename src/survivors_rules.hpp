@@ -100,6 +100,7 @@ struct Run {
     std::array<bool,unsigned(ChestReward::Count)> banned_items{};
     unsigned dark_clock = 0, dark_remaining = 0;
     unsigned horde_remaining = 0;
+    unsigned gibdo_scream_cooldown = 0;
     std::array<unsigned, unsigned(Upgrade::Rupees)> ranks{};
     unsigned chests_opened = 0;
     std::array<Upgrade, 3> offers{};
@@ -338,6 +339,7 @@ struct Run {
     bool tick(bool playable) {
         if (phase != Phase::Running || !playable) return false;
         ++ticks;
+        if (gibdo_scream_cooldown) --gibdo_scream_cooldown;
         if (horde_remaining) --horde_remaining;
         // Independent one-second trials: E(events / 5 minutes) = 300 / 150 = 2.
         // Overlaps add time, never multiply the active spawn boost.

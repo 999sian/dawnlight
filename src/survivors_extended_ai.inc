@@ -81,7 +81,7 @@ void engage_extended_enemy(fopAc_ac_c* actor,const Enemy& enemy) {
     case fpcNm_E_GE_e: {auto* e=reinterpret_cast<daE_GE_c*>(actor);actor->home.pos.x=link->current.pos.x;actor->home.pos.z=link->current.pos.z;if(e->mActionMode==0||e->mActionMode==6)e->setActionMode(2);break;}
     case fpcNm_E_KR_e: {auto* e=reinterpret_cast<e_kr_class*>(actor);if(e->mCurAction==0||e->mCurAction==4||e->mCurAction==7){e->mCurAction=3;e->field_0x672=0;}break;}
     case fpcNm_E_CR_e: {auto* e=reinterpret_cast<e_cr_class*>(actor);e->angle_target=yaw;e->timers[1]=2;break;} // Chase rather than flee; retain egg drops.
-    case fpcNm_E_GI_e: {auto* e=reinterpret_cast<daE_GI_c*>(actor);if(e->mActionMode<=1){e->mActionMode=2;e->mMoveMode=1;}e->mCryTimer=30000;break;}
+    case fpcNm_E_GI_e: {auto* e=reinterpret_cast<daE_GI_c*>(actor);if(e->mActionMode<=1){e->mActionMode=2;e->mMoveMode=1;}break;}
     case fpcNm_E_FS_e: {auto* e=reinterpret_cast<e_fs_class*>(actor);if(e->mAction==e_fs_class::ACT_WAIT){e->mAction=e_fs_class::ACT_MOVE;e->mMode=0;}break;}
     case fpcNm_E_BU_e: {auto* e=reinterpret_cast<e_bu_class*>(actor);e->pl_search_range=1.e9f;if(e->action==0||e->action==5||e->action==6){e->action=1;e->mode=0;}break;}
     case fpcNm_E_SM2_e: {auto* e=reinterpret_cast<e_sm2_class*>(actor);e->combine_off_timer=30000;if(e->action==ACTION_COMBINE){e->action=ACTION_ATTACK;e->mode=0;}break;}

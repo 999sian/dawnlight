@@ -9,8 +9,19 @@ HookAction before_roster_native_damage(ModContext*,void* args,void*,void*) {
     return roster_owned(mods::arg<fopAc_ac_c*>(args,0)) ? HOOK_SKIP_ORIGINAL : HOOK_CONTINUE;
 }
 HookAction before_roster_cry(ModContext*,void* args,void* result,void*) {
-    if(!roster_owned(mods::arg<fopAc_ac_c*>(args,0)))return HOOK_CONTINUE;
-    *static_cast<bool*>(result)=false;return HOOK_SKIP_ORIGINAL;
+    auto* actor=mods::arg<daE_GI_c*>(args,0);
+    if(!roster_owned(actor))return HOOK_CONTINUE;
+    auto* enemy=tracked(fopAcM_GetID(actor));
+    *static_cast<bool*>(result)=false;
+    if(!enemy->initialized||enemy->retiring||enemy->credited||enemy->dormant||enemy->stagger||
+       actor->health<=0||s_run.phase!=Phase::Running||transitioning()||s_run.gibdo_scream_cooldown)
+        return HOOK_SKIP_ORIGINAL;
+    // Keep native range/LOS checks, animation, button-mashing and Link's scream
+    // pose. Avoid the native global/camera owner: run deaths bypass its cleanup.
+    actor->mPlayerStunTimer=60;actor->mCryTimer=80;actor->mPushButtonCount=0;
+    actor->speedF=0;actor->setBck(10,0,5.f,1.f);actor->field_0x6a0=3;
+    s_run.gibdo_scream_cooldown=180;
+    *static_cast<bool*>(result)=true;return HOOK_SKIP_ORIGINAL;
 }
 void allow_roster_target(dCcD_GObjInf* target) {
     target->OnTgSetBit();target->SetTgType(0xffffffff);target->OffTgShield();target->OffTgShieldFrontRange();
@@ -162,6 +173,10 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
         cc_at_check(actor,&info); // Existing power, material, Crit and status hooks run once.
         if(actor->health<before) {
             enemy.hitCooldown=10;
+            if(enemy.profile==fpcNm_E_GI_e) {
+                auto* gibdo=reinterpret_cast<daE_GI_c*>(actor);
+                gibdo->mPlayerStunTimer=0;gibdo->mCryTimer=20;
+            }
             if(causes_stagger(attack))enemy.stagger=8;
         }
         effect.injected=false;effect.damage=0;effect.critical=false;

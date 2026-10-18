@@ -47,7 +47,7 @@ struct TargetSet:dCcD_GObjInf {dCcD_GObjInf extra[3];
 struct NativeActor:fopAc_ac_c {
  enum {ACT_WAIT=1,ACT_MOVE=2,ACT_CHASEH=3};
  int mAction=0,mMode=0,mActionMode=0,mMoveMode=0,mActionMode1=0,action=0,mode=0,mActionPhase=0;
- int field_0x5b4=0,mCurAction=0,field_0x672=0,mCryTimer=0,combine_off_timer=0;
+ int field_0x5b4=0,mCurAction=0,field_0x672=0,mCryTimer=0,combine_off_timer=0,mPlayerStunTimer=0,mPushButtonCount=0,field_0x6a0=0,animation=0;float speedF=0;
  float field_0x6d4=0,pl_range=0,field_0x6b8=0,mRecognizeDist=0,pl_recognize_dist=0,pl_search_range=0;
  s16 angle_target=0,mTargetAngleY=0,mCurrentAngleYTarget=0,field_0x6c0=0;int timers[4]{};
  ActorId armorChildId=kNone;int field_0xb99=0,m_action=0,m_mode=0;
@@ -62,7 +62,7 @@ struct NativeActor:fopAc_ac_c {
  dCcU_AtInfo mAtInfo,at_info,atInfo;dCcD_Stts mStts,stts,ccStts,mCcStts,mStts1;
  mDoExt_McaMorfSO morph; mDoExt_McaMorfSO* mpMorfSO=&morph,*mpMorf=&morph,*anm_p=&morph,*modelMorf=&morph,*mpModelMorf=&morph,*mpModelMorf1=&morph;
  void setActionMode(int a,int m=0){mAction=mActionMode=mActionMode1=a;mMode=mMoveMode=m;}
- void setBck(int,int,float,float){}
+ void setBck(int a,int,float,float){animation=a;}
 };
 using e_dd_class=NativeActor;using e_sh_class=NativeActor;using e_rdy_class=NativeActor;using e_s1_class=NativeActor;using e_yk_class=NativeActor;using e_yc_class=NativeActor;using daB_DS_c=NativeActor;using daE_ZH_c=NativeActor;
 using daE_TT_c=NativeActor;using daE_GE_c=NativeActor;using e_kr_class=NativeActor;using e_dn_class=NativeActor;
@@ -71,9 +71,10 @@ using daE_GI_c=NativeActor;using e_sf_class=NativeActor;using e_fs_class=NativeA
 using e_sm2_class=NativeActor;using e_mf_class=NativeActor;using daB_GG_c=NativeActor;using daB_TN_c=NativeActor;
 constexpr int ACTION_COMBINE=2,ACTION_ATTACK=1;
 struct Enemy {ActorId id=kNone;ProfileName profile=0;unsigned species=0,stagger=0,hitCooldown=0,age=1;
- cCcD_Obj* childHit=nullptr;bool elite=false,credited=false,retiring=false,initialized=true;};
+ cCcD_Obj* childHit=nullptr;bool elite=false,credited=false,retiring=false,initialized=true,dormant=false;};
 std::array<Enemy,enemy_capacity> s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id!=kNone&&e.id==id)return &e;return nullptr;}
+bool stageChange=false;bool transitioning(){return stageChange;}
 Run s_run;bool arena=true;bool in_arena(){return arena;}
 bool arena_aggro(fopAc_ac_c* a,int p){return arena&&a&&a->profile==p;}
 struct Player:fopAc_ac_c {dCcD_Sph mGuardAtCps;}player;
@@ -143,12 +144,35 @@ int main(){
   std::any args[]={static_cast<fopAc_ac_c*>(&actor)};
   assert(before_roster_native_damage(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
   arena=false;assert(before_roster_native_damage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);arena=true;
-  bool cry=true;before_roster_cry(nullptr,args,&cry,nullptr);assert(!cry);
   enemy.hitCooldown=0;body.targets[0]->hit=&sword;actor.health=7;unsigned beforeCredits=credits;
   assert(!update_extended_enemy(&actor,enemy)&&actor.health==0&&enemy.retiring&&enemy.credited&&credits==beforeCredits+1);
   // Normal runtime does not execute retiring actors again.
  }
  assert(credits==species_count-5&&disappears==credits&&deletes==credits);
+ // Owned screams have a short native stun and a shared cooldown across Gibdos.
+ NativeActor gibdo;gibdo.profile=fpcNm_E_GI_e;s_enemies={};effects={};
+ auto& gi=s_enemies[0];gi.id=gibdo.id;gi.profile=gibdo.profile;
+ std::any cryArgs[]={static_cast<daE_GI_c*>(&gibdo)};bool cry=false;
+ arena=false;assert(before_roster_cry(nullptr,cryArgs,&cry,nullptr)==HOOK_CONTINUE);arena=true;
+ for(int gate=0;gate<8;++gate) {
+  gi.initialized=gate!=0;gi.retiring=gate==1;gi.credited=gate==2;gi.dormant=gate==3;gi.stagger=gate==4;
+  gibdo.health=gate==5?0:100;stageChange=gate==6;s_run.phase=gate==7?Phase::Upgrade:Phase::Running;
+  before_roster_cry(nullptr,cryArgs,&cry,nullptr);assert(!cry&&!gibdo.mPlayerStunTimer);
+ }
+ gi={};gi.id=gibdo.id;gi.profile=gibdo.profile;gibdo.health=100;stageChange=false;s_run.phase=Phase::Running;
+ before_roster_cry(nullptr,cryArgs,&cry,nullptr);
+ assert(cry&&gibdo.mPlayerStunTimer==60&&gibdo.mCryTimer==80&&gibdo.animation==10&&gibdo.field_0x6a0==3);
+ assert(s_run.gibdo_scream_cooldown==180);
+ NativeActor other;other.id=2;other.profile=fpcNm_E_GI_e;s_enemies[1]=gi;s_enemies[1].id=2;
+ cryArgs[0]=static_cast<daE_GI_c*>(&other);before_roster_cry(nullptr,cryArgs,&cry,nullptr);
+ assert(!cry&&!other.mPlayerStunTimer);
+ s_run.phase=Phase::Upgrade;s_run.tick(true);assert(s_run.gibdo_scream_cooldown==180);
+ s_run.phase=Phase::Running;s_run.tick(false);assert(s_run.gibdo_scream_cooldown==180);
+ for(int i=0;i<180;++i)s_run.tick(true);
+ before_roster_cry(nullptr,cryArgs,&cry,nullptr);assert(cry&&other.mPlayerStunTimer==60);
+ auto gibdoBody=extended_body(&gibdo,gi.profile);gibdoBody.targets[0]->hit=&sword;
+ update_extended_enemy(&gibdo,gi);assert(!gibdo.mPlayerStunTimer&&gibdo.mCryTimer==20);
+ s_run.start(5);assert(!s_run.gibdo_scream_cooldown);
  // Shell targets use parent health and lose shield immunity, while preserving model ownership.
  NativeActor helmet,shell;helmet.profile=fpcNm_E_MM_e;helmet.id=1;helmet.armorChildId=2;
  shell.id=2;shell.profile=fpcNm_E_MM_MT_e;shell.parentActorID=1;

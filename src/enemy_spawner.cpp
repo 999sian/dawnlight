@@ -1,6 +1,7 @@
 #include "enemy_spawner.hpp"
 
 #include "save_state.hpp"
+#include "bow_fire_resource.hpp"
 #include "service_imports.hpp"
 
 #include "SSystem/SComponent/c_math.h"
@@ -123,6 +124,8 @@ static_assert(kEnemySpawnerProfiles[kHelmasaurusIndex] == fpcNm_E_MM_e);
 
 DEFINE_HOOK(&fpcMtd_Method, SpawnerProcessHook);
 DEFINE_HOOK(&fopAcM_createChild, SpawnerChildHook);
+DEFINE_HOOK(static_cast<u32 (dPa_control_c::*)(u32,u8,u16,const cXyz*,const dKy_tevstr_c*,const csXyz*,
+    const cXyz*,u8,dPa_levelEcallBack*,s8,const GXColor*,const GXColor*,const cXyz*,f32)>(&dPa_control_c::set),SpawnerFireHook);
 DEFINE_HOOK(&daE_ZS_c::executeAppear, StaltroopAppearHook);
 DEFINE_HOOK(&daE_ZS_c::executeWait, StaltroopWaitHook);
 
@@ -132,6 +135,7 @@ std::unordered_set<ActorId> s_testActors;
 std::vector<std::pair<void*, bool>> s_testProcessStack;
 bool s_processHookInstalled = false;
 bool s_childHookInstalled = false;
+bool s_fireHookInstalled = false;
 bool s_appearHookInstalled = false;
 bool s_waitHookInstalled = false;
 
@@ -229,7 +233,21 @@ ModResult create_test_actor_in_player_layer(daAlink_c* player, ProfileName profi
     return svc_actor->create_actor(mod_ctx, profile, &params, &id);
 }
 
+HookAction before_dodongo_fire(ModContext*,void* args,void*,void*) {
+    if(!enemy_spawner_process_active())return HOOK_CONTINUE;
+    auto* actor=static_cast<fopAc_ac_c*>(mods::arg<void*>(s_testProcessStack.back().first,1));
+    if(!actor||fopAcM_GetName(actor)!=fpcNm_E_DD_e)return HOOK_CONTINUE;
+    auto& effect=mods::arg_ref<u16>(args,3);
+    if(const u16 imported=dodongo_fire_effect(effect))effect=imported;
+    return HOOK_CONTINUE;
+}
+
 ModResult install_test_hooks() {
+    if(!s_fireHookInstalled) {
+        const auto result=mods::hook::add_pre<SpawnerFireHook>(svc_hook,before_dodongo_fire);
+        if(result!=MOD_OK)return result;
+        s_fireHookInstalled=true;
+    }
     if (!s_childHookInstalled) {
         const auto result = mods::hook::add_post<SpawnerChildHook>(svc_hook, after_create_child);
         if (result != MOD_OK) return result;

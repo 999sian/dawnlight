@@ -17,7 +17,9 @@ struct Collider{bool active=true;void OffAtSetBit(){active=false;}void ResetAtHi
 struct daAlink_c {
  static constexpr unsigned MODE_PLAYER_FLY=0x70C52;
  struct{bool ground=true;bool ChkGroundHit(){return ground;}}mLinkAcch;
- enum {PROC_WAIT,PROC_CUT_LARGE_JUMP,PROC_CUT_LARGE_JUMP_LAND};int mProcID=PROC_WAIT;
+ enum {PROC_WAIT,PROC_CUT_LARGE_JUMP,PROC_CUT_LARGE_JUMP_LAND,PROC_SCREAM_WAIT};int mProcID=PROC_WAIT;
+ static constexpr unsigned ERFLG1_NS_SCREAM=1;
+ bool scream=false;bool checkEndResetFlg1(unsigned){return scream;}
  bool equipped=true;bool checkItemSwordEquip(){return equipped;}
  unsigned flags=0;bool checkModeFlg(unsigned n){return flags&n;}
  std::array<Collider,3> mAtCps;Collider mAtSph;
@@ -65,7 +67,7 @@ int main(){
   assert(s_swordAction==SwordAction::None&&swords==1&&s_cooldowns[0]==4);
  }
 
- for(int context=0;context<7;++context){
+ for(int context=0;context<9;++context){
   daAlink_c link;s_jumpAbilities={};s_cooldowns.fill(5);shots=swords=shields=projectileTicks=0;
   s_ranged.active=true;s_wavePending=s_trackMelee=true;s_swordAction=SwordAction::Normal;s_attacks[0].active=true;
   if(context==0)link.mLinkAcch.ground=false; // Walking off a ledge / manual jump.
@@ -75,12 +77,14 @@ int main(){
   if(context==4)s_jumpAbilities.cucco=7; // Glide requested, carrier still loading.
   if(context==5){s_jumpAbilities.cucco=7;link.mLinkAcch.ground=false;} // Gliding.
   if(context==6)link.flags=0x40; // Other native aerial action.
+  if(context==7)link.mProcID=daAlink_c::PROC_SCREAM_WAIT;
+  if(context==8)link.scream=true; // Flag precedes native pose initialization.
   assert(auto_attacks_suspended(&link));update_weapons(&link);
   assert(!shots&&!swords&&!shields&&projectileTicks==1&&s_cooldowns[0]==5);
   assert(!s_ranged.active&&!s_wavePending&&!s_trackMelee&&s_swordAction==SwordAction::None);
   for(const auto& collider:link.mAtCps){assert(!collider.active);}assert(!link.mAtSph.active);
   // Resume exactly once after landing/ability cleanup; no stacked cooldown ticks.
-  link.flags=0;link.mLinkAcch.ground=true;s_jumpAbilities={};update_weapons(&link);
+  link.scream=false;link.mProcID=daAlink_c::PROC_WAIT;link.flags=0;link.mLinkAcch.ground=true;s_jumpAbilities={};update_weapons(&link);
   assert(shots==2&&swords==1&&shields==1&&s_cooldowns[0]==4&&projectileTicks==2);
  }
  daAlink_c link;link.mLinkAcch.ground=false;s_swordAction=SwordAction::None;
