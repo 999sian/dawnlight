@@ -4,6 +4,30 @@
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
+    // Time scaling uses active run ticks, stacks difficulty once, and keeps
+    // elite/boss baselines distinct. Intermediate seconds do not step by minute.
+    Run hp;hp.start(1);
+    for(unsigned minute:{0u,5u,10u,20u,30u}) {
+        hp.ticks=minute*60*ticks_per_second;
+        assert(hp.enemy_health(8,false)==8+2*minute);
+        assert(hp.enemy_health(4,false)==4+minute);
+        assert(hp.enemy_health(8,true)==120+60*minute);
+        assert(hp.enemy_health(1200,true)==1200+600*minute);
+    }
+    hp.ticks=30*ticks_per_second;
+    assert(hp.enemy_health(8,false)==9&&hp.enemy_health(8,true)==150);
+    hp.options.enemy_hp=3;
+    assert(hp.enemy_health(8,false)==27&&hp.enemy_health(8,true)==450);
+    hp.ticks=duration;hp.options.enemy_hp=10;
+    assert(hp.enemy_health(1200,true)==32767);
+    hp.ticks=~0u;assert(hp.enemy_health(~0u,true)==32767);
+    hp.start(1);assert(hp.enemy_health(8,false)==8&&hp.enemy_health(1200,true)==1200);
+    for(auto phase:{Phase::Upgrade,Phase::TreasureChoice,Phase::Treasure}){
+        hp.phase=phase;for(unsigned i=0;i<1800;++i)hp.tick(true);
+        assert(hp.enemy_health(8,false)==8&&hp.enemy_health(8,true)==120);
+    }
+    hp.phase=Phase::Running;for(unsigned i=0;i<1800;++i)hp.tick(false);
+    assert(hp.enemy_health(8,false)==8);
     // Dual Wield uses one rank for chest and level-up upgrades, including rarity
     // caps/excess refunds, shield replacement and cross-source banishment.
     Run dual;dual.start(1);assert(!dual.eligible(Upgrade::DualWield));

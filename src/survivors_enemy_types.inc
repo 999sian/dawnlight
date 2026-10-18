@@ -1,6 +1,15 @@
 // Run-owned enemy health/model setup and absolute collider sizes.
 void initialize_enemy(Enemy* enemy, fopAc_ac_c* actor) {
-    if (!enemy || enemy->initialized) return;
+    if (!enemy || !actor) return;
+    if (enemy->initialized) {
+        // Guards can wait from minute zero until late in the run. Keep untouched
+        // dormant guards current; a hit wakes them or lowers HP, freezing growth.
+        if (enemy->elite && enemy->dormant && !enemy->retiring && !enemy->credited &&
+            actor->health > 0 && actor->health == actor->field_0x560)
+            actor->field_0x560 = actor->health = static_cast<s16>(
+                s_run.enemy_health(native_roster[enemy->species].hp, true));
+        return;
+    }
     enemy->initialized = true;
     if (extended_enemy(enemy->profile)) {initialize_extended_enemy(*enemy,actor);return;}
     if (enemy->elite) {
@@ -9,12 +18,9 @@ void initialize_enemy(Enemy* enemy, fopAc_ac_c* actor) {
         else if (enemy->profile == fpcNm_E_MS_e) static_cast<e_ms_class*>(actor)->mpModelMorf->getModel()->setBaseScale(actor->scale);
         else if (enemy->profile == fpcNm_E_BA_e) reinterpret_cast<e_ba_class*>(actor)->mpMorf->getModel()->setBaseScale(actor->scale);
         // Bulblin's native matrix already includes actor->scale.
-        actor->field_0x560 = actor->health = 120;
-    } else if (enemy->profile == fpcNm_E_OC_e || enemy->profile == fpcNm_E_RD_e) {
-        actor->field_0x560 = actor->health = static_cast<s16>(8 + std::min(24u, s_run.ticks / 900));
     }
     actor->field_0x560 = actor->health = static_cast<s16>(
-        std::clamp(int(actor->health) * int(s_run.options.enemy_hp), 1, 32767));
+        s_run.enemy_health(native_roster[enemy->species].hp, enemy->elite));
 }
 void scale_elite_colliders(const Enemy* enemy, fopAc_ac_c* actor) {
     if (enemy && actor && enemy->elite && enemy->profile == fpcNm_E_OC_e) {

@@ -86,12 +86,37 @@ int main(){
  daE_OC_c bok;e_ba_class bat;e_ms_class rat;e_rd_class bulblin;
  fopAc_ac_c* bases[]={&rat,&bat.enemy,&bulblin.enemy,&bok};
  for(unsigned i=0;i<4;++i){Enemy e;e.elite=true;e.profile=profiles[i];initialize_enemy(&e,bases[i]);
-  assert(e.initialized&&bases[i]->health==1200&&bases[i]->field_0x560==1200);
+  assert(e.initialized&&bases[i]->health==1500&&bases[i]->field_0x560==1500);
   bases[i]->health=800;initialize_enemy(&e,bases[i]);assert(bases[i]->health==800);
   for(unsigned n=0;n<3;++n)scale_elite_colliders(&e,bases[i]);}
  assert(bok.model.scale.x==2&&rat.morph.model.scale.x==2&&bat.morph.model.scale.x==2);
  assert(rat.mSph1.radius==70&&rat.mSph2.radius==40&&bat.mSph.radius==60&&bulblin.cc_sph[2].radius==70);
  Enemy regular;regular.profile=fpcNm_E_RD_e;initialize_enemy(&regular,&bulblin.enemy);assert(bulblin.enemy.health==90);
+ // Every original species scales, and previously spawned/injured actors keep
+ // both their remaining HP and original max HP as the run advances.
+ s_run.options.enemy_hp=1;
+ fopAc_ac_c* speciesActors[]={&bok,&bat.enemy,&rat,&bulblin.enemy,&bulblin.enemy};
+ for(unsigned kind=0;kind<5;++kind){
+  s_run.ticks=duration;Enemy e;e.species=kind;e.profile=native_roster[kind].profile;
+  auto* actor=speciesActors[kind];initialize_enemy(&e,actor);
+  const int maximum=int(native_roster[kind].hp*6);assert(actor->health==maximum&&actor->field_0x560==maximum);
+  s_run.ticks+=18000;initialize_enemy(&e,actor);assert(actor->health==maximum);
+  actor->health=maximum-1;initialize_enemy(&e,actor);
+  assert(actor->health==maximum-1&&actor->field_0x560==maximum);
+ }
+ // Untouched waiting guards remain relevant on discovery, then stop growing
+ // on damage or activation. Repeated updates never compound HP or heal wounds.
+ s_run.ticks=0;Enemy guard;guard.profile=fpcNm_E_OC_e;guard.elite=guard.dormant=true;
+ initialize_enemy(&guard,&bok);assert(bok.health==120);
+ s_run.ticks=10*60*ticks_per_second;
+ for(unsigned i=0;i<3;++i)initialize_enemy(&guard,&bok);
+ assert(bok.health==720&&bok.field_0x560==720);
+ bok.health=700;s_run.ticks=duration;initialize_enemy(&guard,&bok);
+ assert(bok.health==700&&bok.field_0x560==720);
+ guard.dormant=false;bok.health=bok.field_0x560;initialize_enemy(&guard,&bok);
+ assert(bok.health==720&&bok.field_0x560==720);
+ guard={};guard.profile=fpcNm_E_OC_e;guard.elite=guard.dormant=true;
+ initialize_enemy(&guard,&bok);assert(bok.health==1320); // late respawn
  // Native arrows are not enemies/loot sources. They remain owned after shooter deletion.
  s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=fpcNm_E_RD_e;
  std::any args[]={s16(fpcNm_E_ARROW_e),ActorId(42)};ActorId arrowId=100;

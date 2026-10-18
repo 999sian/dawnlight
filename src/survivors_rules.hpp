@@ -367,6 +367,15 @@ struct Run {
         }
         return true;
     }
+    // Sample on enemy initialization: +25% base HP/minute, +50% for elites.
+    // Difficulty multiplies the result; round once and respect native signed HP.
+    unsigned enemy_health(unsigned base, bool elite) const {
+        const uint64_t denominator = 100 * 60 * ticks_per_second;
+        const uint64_t growth = denominator + uint64_t(ticks) * (elite ? 50 : 25);
+        const unsigned baseline = std::clamp(elite ? std::max(120u, base) : base, 1u, 32767u);
+        const uint64_t hp = uint64_t(baseline) * std::clamp(options.enemy_hp, 1u, 10u) * growth;
+        return unsigned(std::min<uint64_t>(32767, (hp + denominator / 2) / denominator));
+    }
     unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u) * 3 * options.horde; }
     unsigned spawn_batch() const { return options.horde * (horde_remaining ? 3 : 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
