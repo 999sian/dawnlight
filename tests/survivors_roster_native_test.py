@@ -79,7 +79,7 @@ Run s_run;bool arena=true;bool in_arena(){return arena;}
 bool arena_aggro(fopAc_ac_c* a,int p){return arena&&a&&a->profile==p;}
 struct Player:fopAc_ac_c {dCcD_Sph mGuardAtCps;}player;
 Player* daAlink_getAlinkActorClass(){return &player;}ActorId s_player=100;
-struct Effect {unsigned pending=0,damage=0,meleeSerial=0;bool injected=false,critical=false,pendingCritical=false;
+struct Effect {unsigned pending=0,damage=0,meleeSerial=0;bool injected=false,critical=false,pendingCritical=false,pendingStagger=false,stagger=false;
  dCcD_Stts status;dCcD_Sph collider;};
 std::array<Effect,enemy_capacity> effects;
 Effect& effect_for(Enemy& e){return effects[&e-s_enemies.data()];}
@@ -131,7 +131,8 @@ int main(){
    before_roster_targets(nullptr,args,nullptr,nullptr);assert(target->r==radius&&!target->shield&&target->tg);
   }
   body.targets[0]->shield=true;finish_extended_targets(&enemy,&actor);assert(!body.targets[0]->shield);
-  body.targets[0]->hit=&sword;update_extended_enemy(&actor,enemy);assert(actor.health==93); // real cooldown
+  body.targets[0]->hit=&sword;update_extended_enemy(&actor,enemy);assert(actor.health==86); // next-frame damage is accepted
+  actor.health=93;
   auto& effect=effect_for(enemy);effect.pending=13;effect.pendingCritical=true;enemy.hitCooldown=0;
   update_extended_enemy(&actor,enemy);assert(actor.health==80&&injectedCritical&&!effect.pending&&!effect.injected&&!effect.critical);
   s_run.dual_wield=1;effect.meleeSerial=s_meleeSerial;body.targets[0]->hit=&sword;enemy.hitCooldown=0;
@@ -180,7 +181,7 @@ int main(){
  assert(update_extended_enemy(&head,boss));
  assert(head.health==13200-int(power)&&calls==beforeHeadHits+1&&!boss.credited);
  for(auto* target:targets.targets)if(target)target->hit=&sword;
- update_extended_enemy(&head,boss);assert(head.health==13200-int(power)); // One contact across five spheres.
+ update_extended_enemy(&head,boss);assert(head.health==13200-2*int(power)); // Fresh next-frame contact; no shared lockout.
  s_run.options.enemy_hp=10;initialize_extended_enemy(boss,&head);assert(head.health==32767);
  s_run.start(5);power=7;
  // Owned screams have a short native stun and a shared cooldown across Gibdos.

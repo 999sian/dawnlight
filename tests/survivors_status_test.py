@@ -36,6 +36,7 @@ fixture = fixture.replace('SwordAction{None,Normal}', 'SwordAction{None,Normal,S
 fixture = fixture.replace('Run s_run;int s_player=1;', 'Run s_run;ActorId s_player=1;bool s_active=true;')
 fixture = fixture.replace('struct dCcU_AtInfo{Collider* mpCollider;};', '')
 fixture = re.sub(r'void (?:prepare_effect_hit|finish_effect_hit|record_status_hit)\([^\n]+\n', '', fixture)
+fixture=fixture.replace('bool effect_staggers(const cCcD_Obj*){return false;}','')
 fixture += r'''
 bool jump_strike_pose(const daAlink_c*){return false;}
 struct dBgS_LinChk{cXyz target;void Set(const cXyz*,cXyz* to,daAlink_c*){target=*to;}};
@@ -92,6 +93,9 @@ int main(){
  for(unsigned t=1;t<=90;++t){update_enemy_effects();hit(rat);assert(rat.health==10-int(t/30));assert(rat.mAction==1);}
  assert(!burn.burn&&burn.pending==0&&!burn.injected&&!rat.mAtInfo.mpCollider);
  for(auto& [key,e]:emitters){(void)key;assert(e.stopped&&e.deleted&&e.scale.x==3&&e.user==reinterpret_cast<uintptr_t>(&burn.velocity));}
+ // Queued independent hits bypass the original roster's native cooldown.
+ rat.health=100;rat.mCooldown1=10;burn.pending=7;hit(rat);assert(rat.health==93&&rat.mCooldown1==0);
+ rat.mCooldown1=10;burn.pending=11;hit(rat);assert(rat.health==82&&rat.mCooldown1==0);
  // Rapid refresh keeps the tick clock; it must not prevent all periodic damage.
  rat.health=10;record_status_hit(&rat,&arrow);
  for(unsigned t=1;t<=60;++t){if(t%10==0)record_status_hit(&rat,&arrow);update_enemy_effects();hit(rat);}

@@ -1,4 +1,4 @@
-"""Production ranged animation scheduler: release frames, aim, interrupts and fairness."""
+"""Independent ranged release: same-frame weapons, sword overlap and cosmetic isolation."""
 from pathlib import Path
 import subprocess
 import sys
@@ -64,97 +64,32 @@ std::vector<Upgrade>shots;std::vector<float>spread;
 bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0){shots.push_back(weapon);spread.push_back(angle);if(weapon==Upgrade::Ball)s_attacks[item_projectile_begin(3)].active=true;return true;}
 '''
 main=r'''
-void fresh(){targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;s_lastRanged=Upgrade::Boomerang;
- s_attacks={};shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;s_run.ranks[8]=s_run.ranks[9]=1;}
-void tick(){auto& f=player.mUpperFrameCtrl[2];f.frame=std::min(float(f.end),f.frame+f.rate);update_ranged(&player);}
+void fresh(){targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
+ s_attacks={};shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;
+ for(unsigned i=8;i<=11;++i)s_run.ranks[i]=1;}
 int main(){
- // Range is checked at scheduling, aiming and release, without a short-range
- // weapon blocking the boomerang in round-robin order.
- fresh();targetDistance=2000;s_lastRanged=Upgrade::Ball;
- assert(!queue_ranged(&player,Upgrade::Boomerang));
- s_run.ranks[unsigned(Upgrade::Reach)]=10;
- // Bow now reaches the same distant target and updates its aim at release.
- assert(queue_ranged(&player,Upgrade::Bow));
- targetDistance=2500;before_ranged_aim(nullptr,&player,nullptr,nullptr);assert(s_ranged.target.x==2500);
- release_ranged(&player);assert(shots.size()==1&&shots[0]==Upgrade::Bow);
- targetDistance=4000;release_ranged(&player);assert(shots.size()==1);
- fresh();targetDistance=2000;s_lastRanged=Upgrade::Boomerang;
- s_run.ranks[8]=0;s_run.ranks[10]=1;s_run.ranks[unsigned(Upgrade::Reach)]=10;
- assert(!queue_ranged(&player,Upgrade::Bombs));assert(queue_ranged(&player,Upgrade::Boomerang));
- assert(s_ranged.target.x==2000);
- targetDistance=2500;before_ranged_aim(nullptr,&player,nullptr,nullptr);assert(s_ranged.target.x==2500);
- release_ranged(&player);assert(shots.size()==1&&shots[0]==Upgrade::Boomerang);
- targetDistance=4000;release_ranged(&player);assert(shots.size()==1);
- fresh();assert(queue_ranged(&player,Upgrade::Bow));
- assert(player.animation==dRes_ID_ALANM_BCK_ARELORD_e&&shots.empty()&&player.mEquipItem==dItemNo_NONE_e);
- assert(!queue_ranged(&player,Upgrade::Boomerang));
- before_ranged_aim(nullptr,&player,nullptr,nullptr);
- assert(player.shape_angle.y==0x4000&&player.mBodyAngle.x<0&&player.current.angle.y==123);
- s_ranged.weapon=Upgrade::Ball;before_ranged_aim(nullptr,&player,nullptr,nullptr);
- assert(player.mBodyAngle.x==0&&player.current.angle.y==123);s_ranged.weapon=Upgrade::Bow;
- int result=1;assert(before_ranged_native(nullptr,&player,&result,nullptr)==HOOK_SKIP_ORIGINAL&&result==0);
- for(unsigned i=0;i<11;++i){tick();assert(shots.empty());}
- tick();assert(shots.size()==1&&s_ranged.released&&player.animation==dRes_ID_ALANM_BCK_ASHOOT_e);
- for(unsigned i=0;i<30;++i){tick();}assert(shots.size()==1&&!s_ranged.active&&player.animation==0);
- fresh();s_run.ranks[8]=7;s_run.ranks[4]=5;
- assert(queue_ranged(&player,Upgrade::Bow));const auto accelerated=player.mUpperFrameCtrl[2].rate;
- assert(accelerated>1);for(unsigned i=0;i<20;++i)tick();
- assert(shots.size()==3&&spread[1]>0&&spread[2]<0);
- fresh();s_run.ranks[8]=30;
- assert(queue_ranged(&player,Upgrade::Bow));for(unsigned i=0;i<30;++i)tick();
- assert(shots.size()==10&&spread.size()==10);
- fresh();s_lastRanged=Upgrade::Bow;assert(queue_ranged(&player,Upgrade::Boomerang));
- player.mUpperFrameCtrl[2].frame=5;update_ranged(&player);assert(shots.empty());
- player.mUpperFrameCtrl[2].frame=8;update_ranged(&player);assert(shots.size()==1&&s_ranged.released);
- update_ranged(&player);assert(shots.size()==1); // Fast frames never double-release.
- fresh();assert(queue_ranged(&player,Upgrade::Bow));player.proc=2;update_ranged(&player);
- assert(!s_ranged.active&&shots.empty());
- fresh();assert(queue_ranged(&player,Upgrade::Bow));player.animation=99;update_ranged(&player);
- assert(player.animation==99&&!s_ranged.active); // Preserve another system's animation.
- fresh();assert(queue_ranged(&player,Upgrade::Bow));cancel_ranged();
- for(unsigned i=0;i<30;++i){tick();}assert(shots.empty()); // Opening a chest cannot fire a delayed shot.
- fresh();assert(queue_ranged(&player,Upgrade::Bow));targetExists=false;
- for(unsigned i=0;i<30;++i){tick();}assert(shots.empty());
- fresh();player.equipping=true;assert(!queue_ranged(&player,Upgrade::Bow));
- fresh();s_comboStep=2;s_comboTimeout=60;assert(queue_ranged(&player,Upgrade::Bow));
- assert(s_comboStep==2&&s_comboTimeout==60); // Automatic item poses preserve sword combo progress.
- fresh();player.proc=1;player.mUnderFrameCtrl[0].frame=4;assert(!queue_ranged(&player,Upgrade::Bow));
- player.mUnderFrameCtrl[0].frame=10;assert(queue_ranged(&player,Upgrade::Bow)&&player.proc==0);
- cancel_ranged();s_rangedRest=0;s_cooldowns={};
- assert(!queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
- // Equal due times cannot starve any of the four weapons.
- fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[10]=1;
- assert(queue_ranged(&player,Upgrade::Bombs)&&player.animation==dRes_ID_ALANM_BCK_BOMBTHROW_e);
- player.mUpperFrameCtrl[2].frame=3;update_ranged(&player);assert(shots.empty());
- player.mUpperFrameCtrl[2].frame=4;update_ranged(&player);assert(shots.size()==1&&shots[0]==Upgrade::Bombs);
- fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[11]=1;
- assert(queue_ranged(&player,Upgrade::Ball)&&player.animation==dRes_ID_ALANM_BCK_IBTHROW_e);
- // Execute the real native next-action selector: it steals our upper animation
- // for a manually equipped iron ball and immediately cancels the run scheduler.
- player.checkNextActionIronBall();update_ranged(&player);
- assert(!s_ranged.active&&shots.empty());
- for(bool locked:{false,true}){
-  fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[11]=1;player.locked=locked;
-  assert(queue_ranged(&player,Upgrade::Ball));
-  for(int frame=0;frame<6;++frame){
-   int nativeResult=1;
-   if(before_ranged_native(nullptr,&player,&nativeResult,nullptr)==HOOK_CONTINUE)player.checkNextActionIronBall();
-   assert(nativeResult==0&&player.proc==0);tick();assert(s_ranged.active);
-  }
-  assert(shots.size()==1&&shots[0]==Upgrade::Ball);
- }
- fresh();s_run.ranks[8]=s_run.ranks[9]=0;s_run.ranks[11]=1;
- assert(queue_ranged(&player,Upgrade::Ball));
- player.mUpperFrameCtrl[2].frame=5;update_ranged(&player);assert(shots.empty());
- player.mUpperFrameCtrl[2].frame=6;update_ranged(&player);assert(shots.size()==1);
- s_attacks[item_projectile_begin(3)].returning=true;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBPULL_e);
- s_attacks[item_projectile_begin(3)].active=false;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBCATCH_e);
- for(unsigned i=0;i<30;++i){tick();}assert(!s_ranged.active&&shots.size()==1);
- fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=1;s_lastRanged=Upgrade::Ball;
- for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}){
-  assert(queue_ranged(&player,weapon));cancel_ranged();s_rangedRest=0;s_cooldowns={};
- }
-
+ fresh();player.proc=1; // an active native sword swing does not block any item
+ for(unsigned i=8;i<=11;++i)assert(queue_ranged(&player,Upgrade(i)));
+ assert(shots.size()==4 && player.proc==1 && player.mEquipItem==0x103 && !s_ranged.active);
+ for(unsigned i=8;i<=11;++i)assert(!queue_ranged(&player,Upgrade(i)));
+ fresh();s_run.ranks[8]=7;
+ assert(queue_ranged(&player,Upgrade::Bow));assert(shots.size()==3);
+ assert(queue_ranged(&player,Upgrade::Boomerang));assert(queue_ranged(&player,Upgrade::Bombs));
+ assert(queue_ranged(&player,Upgrade::Ball));assert(shots.size()==6);
+ assert(player.mEquipItem==0x103 && s_ranged.active);
+ player.proc=1;update_ranged(&player);assert(!s_ranged.active && player.proc==1);
+ assert(shots.size()==6); // cosmetic cancellation never duplicates/cancels releases
+ fresh();targetDistance=2500;s_run.ranks[unsigned(Upgrade::Reach)]=10;
+ assert(queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
+ assert(!queue_ranged(&player,Upgrade::Bombs));assert(!queue_ranged(&player,Upgrade::Ball));
+ fresh();targetExists=false;assert(!queue_ranged(&player,Upgrade::Bow)&&!s_cooldowns[8]);
+ targetExists=true;playing=false;assert(!queue_ranged(&player,Upgrade::Bow));
+ playing=true;s_loot.ready=false;assert(!queue_ranged(&player,Upgrade::Bow));
+ fresh();player.proc=2; // Jump Strike body pose remains untouched.
+ assert(queue_ranged(&player,Upgrade::Bow)&&player.proc==2&&shots.size()==1);
+ fresh();assert(queue_ranged(&player,Upgrade::Ball));int result=1;
+ assert(before_ranged_native(nullptr,&player,&result,nullptr)==HOOK_SKIP_ORIGINAL&&result==0);
+ player.animation=99;update_ranged(&player);assert(!s_ranged.active&&player.animation==99);
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
@@ -162,4 +97,4 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp.write_text(fixture+native_next+source+main)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
-print('Survivors ranged: native animation phases, release timing, haste, aim, cancellation and fairness passed')
+print('Survivors ranged: simultaneous releases, sword/jump overlap, range, cooldowns and cosmetic isolation passed')

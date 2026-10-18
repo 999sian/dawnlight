@@ -23,6 +23,7 @@ bool try_jump_strike(daAlink_c* link) {
     link->current.angle.y = link->shape_angle.y;
     if (!link->procCutLargeJumpInit()) return false;
     s_swordAction = SwordAction::Jump;
+    new_melee_swing();
     s_trackMelee = s_wavePending = false; s_meleeTarget = kNone;
     s_comboStep = s_comboTimeout = 0;
     link->mUnderFrameCtrl[0].setRate(2.0f);

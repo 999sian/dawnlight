@@ -65,6 +65,7 @@ bool near=true;bool enemy_in_range(daAlink_c*,float){return near;}
 cXyz target_direction(daAlink_c*){return {1,0,0};}
 struct Attack{unsigned weapon=0,ballVictimCount=0;Collider collider;std::array<int,enemy_capacity>ballVictims{};};std::array<Attack,24>s_attacks;
 struct dCcU_AtInfo{Collider* mpCollider;};
+bool effect_staggers(const cCcD_Obj*){return false;}
 void prepare_effect_hit(fopAc_ac_c*,Enemy&){}
 void finish_effect_hit(fopAc_ac_c*,ProfileName){}
 void record_status_hit(fopAc_ac_c*,dCcU_AtInfo*){}
@@ -112,9 +113,6 @@ int main(){
  s_run.talents={};s_run.shield=10;
  player.mProcID=daAlink_c::PROC_WAIT;
  assert(before_survivors_guard(nullptr,&args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL&&!player.guard);
- s_run.ranks[2]=1;s_ranged.active=false;
- assert(update_shield_attack(&player)&&player.mProcID==daAlink_c::PROC_GUARD_ATTACK&&s_cooldowns[2]);
- assert(before_survivors_guard(nullptr,&args,nullptr,nullptr)==HOOK_CONTINUE);
  // Native damage/effect code may run, but nonlethal ordinary hits preserve the action and timers.
  daE_OC_c bok;args={&bok,nullptr};enemy.profile=fpcNm_E_OC_e;
  bok.mSphs_cc[0].hit=true;bok.mSphs_cc[0].attack=&hit;

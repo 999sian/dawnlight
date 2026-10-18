@@ -42,29 +42,30 @@ struct Attack{bool active=false;unsigned weapon=unsigned(Upgrade::Bow),life=100;
  struct{void Move(){}}status;};std::array<Attack,1>s_attacks;
 void update_item_attack(Attack&,daAlink_c*){++projectileTicks;}void stop_attack(Attack& a){a.active=false;}
 void update_wave_effects(Attack&,daAlink_c*){}
+void update_parallel_pulse(Attack&,daAlink_c*){}
+void update_parallel_skills(daAlink_c*){++shields;}
 struct dBgS_LinChk{void Set(cXyz*,const cXyz*,daAlink_c*){}};
 struct BG{bool LineCross(dBgS_LinChk*){return false;}}bg;BG& dComIfG_Bgsp(){return bg;}
 struct CC{void Set(Collider*){}}cc;CC* dComIfG_Ccsp(){return &cc;}
 '''
 main=r'''
 int main(){
- // The first frame after drawing must not be stolen by another due item shot.
+ // Normal sword and item releases are called on the same frame.
  {daAlink_c link;readySword=readyRanged=true;s_ranged.active=false;
-  update_weapons(&link);assert(swords==1&&s_swordAction==SwordAction::Normal&&!s_ranged.active);
-  readySword=false;s_swordAction=SwordAction::None;update_weapons(&link);assert(s_ranged.active);
-  readyRanged=false;s_ranged.active=false;s_swordAction=SwordAction::None;}
+  update_weapons(&link);assert(swords==1&&s_swordAction==SwordAction::Normal&&s_ranged.active);
+  readySword=readyRanged=false;s_ranged.active=false;s_swordAction=SwordAction::None;}
 
  for(auto proc:{daAlink_c::PROC_CUT_LARGE_JUMP,daAlink_c::PROC_CUT_LARGE_JUMP_LAND}){
   daAlink_c link;link.mProcID=proc;link.mLinkAcch.ground=proc==daAlink_c::PROC_CUT_LARGE_JUMP_LAND;
   s_swordAction=SwordAction::Jump;s_cooldowns.fill(5);shots=swords=shields=0;
   assert(auto_attacks_suspended(&link));update_weapons(&link);
-  assert(!shots&&!swords&&!shields&&s_cooldowns[0]==5&&s_swordAction==SwordAction::Jump);
+  assert(shots==2&&!swords&&shields==1&&s_cooldowns[0]==4&&s_swordAction==SwordAction::Jump);
   assert(link.mAtCps[0].active); // Preserve only the owned Jump Strike.
   s_jumpAbilities.charge=GaleCharge::Ready;update_weapons(&link);
   assert(s_swordAction==SwordAction::None&&!link.mAtCps[0].active);
   s_jumpAbilities={};link.mProcID=daAlink_c::PROC_WAIT;link.mLinkAcch.ground=true;
   s_swordAction=SwordAction::Jump;update_weapons(&link);
-  assert(s_swordAction==SwordAction::None&&swords==1&&s_cooldowns[0]==4);
+  assert(s_swordAction==SwordAction::None&&swords==1&&s_cooldowns[0]==3);
  }
 
  for(int context=0;context<9;++context){

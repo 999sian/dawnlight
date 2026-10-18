@@ -419,7 +419,7 @@ void draw_loot() {
     }
     auto* link = daAlink_getAlinkActorClass();
     for (unsigned i = kItemBegin; i < s_attacks.size(); ++i) {
-        const auto& a = s_attacks[i]; if (!a.active || a.exploding) continue;
+        const auto& a = s_attacks[i]; if (!a.active || a.exploding || a.weapon < unsigned(Upgrade::Bow)) continue;
         const auto weapon = static_cast<Upgrade>(a.weapon);
         const auto yaw = weapon == Upgrade::Boomerang ? s16(a.age * 7000) : cM_atan2s(a.velocity.x, a.velocity.z);
         const auto pitch = weapon == Upgrade::Bow ? s16(-cM_atan2s(a.velocity.y, a.velocity.absXZ())) : s16(0);

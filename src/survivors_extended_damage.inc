@@ -139,7 +139,7 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
     maintain_helmasaur_armor(enemy,actor);
     auto body=extended_body(actor,enemy.profile);
     if(!body.targets[0])return true;
-    if(enemy.hitCooldown)--enemy.hitCooldown;
+    enemy.hitCooldown=0; // Distinct run attacks have no shared damage lockout.
     if(body.status)body.status->Move();
     auto& effect=effect_for(enemy);
     cCcD_Obj* attack=enemy.childHit;enemy.childHit=nullptr;
@@ -160,6 +160,7 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
         if(link&&fopAcM_GetID(link)==s_player) {
             effect.damage=effect.pending;effect.pending=0;effect.injected=true;
             effect.critical=effect.pendingCritical;effect.pendingCritical=false;
+            effect.stagger=effect.pendingStagger;effect.pendingStagger=false;
             effect.status.Init(120,0xff,link);effect.collider.Set(kAttackSource);
             effect.collider.SetStts(&effect.status);effect.collider.SetAtType(AT_TYPE_ARROW);
             effect.collider.SetAtAtp(1);effect.collider.SetAtMtrl(dCcD_MTRL_NONE);
@@ -172,14 +173,14 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
         const int before=actor->health;
         cc_at_check(actor,&info); // Existing power, material, Crit and status hooks run once.
         if(actor->health<before) {
-            enemy.hitCooldown=10;
+            enemy.hitCooldown=0;
             if(enemy.profile==fpcNm_E_GI_e) {
                 auto* gibdo=reinterpret_cast<daE_GI_c*>(actor);
                 gibdo->mPlayerStunTimer=0;gibdo->mCryTimer=20;
             }
             if(causes_stagger(attack))enemy.stagger=8;
         }
-        effect.injected=false;effect.damage=0;effect.critical=false;
+        effect.injected=false;effect.damage=0;effect.critical=false;effect.stagger=false;
     }
     for(auto* target:body.targets)if(target)target->ResetTgHit();
     if(actor->health<=0) {

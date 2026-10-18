@@ -47,18 +47,6 @@ HookAction before_survivors_guard(ModContext*, void* args, void*, void*) {
     link->offNoResetFlg2(daPy_py_c::FLG2_UNK_8000000);
     return HOOK_SKIP_ORIGINAL; // Idle lock-on must not replace the probabilistic block with free guarding.
 }
-bool update_shield_attack(daAlink_c* link) {
-    const auto rank = s_run.rank(Upgrade::ShieldAttack);
-    if (!s_run.owns(ChestReward::Shield) || !rank || s_cooldowns[unsigned(Upgrade::ShieldAttack)] ||
-        !sword_action_available(link) || s_ranged.active || !enemy_in_range(link, s_run.radius(200))) return false;
-    interrupt_auto_actions(link);
-    const cXyz direction = target_direction(link);
-    link->shape_angle.y = cM_atan2s(direction.x, direction.z);
-    if (!link->procGuardAttackInit()) return false;
-    link->mGuardAtCps.SetR(s_run.radius(60 + 8 * rank));
-    s_cooldowns[unsigned(Upgrade::ShieldAttack)] = s_run.shield_cooldown();
-    return true;
-}
 // Knockdown is a reaction, not immunity. Enable targets before native cc_set
 // registers them: changing Tg bits after Execute is too late for cCcS::Set.
 HookAction before_bokoblin_targets(ModContext*, void* args, void*, void*) {
@@ -103,10 +91,11 @@ struct HitState {
 };
 std::vector<HitState> s_hitStates;
 bool causes_stagger(const cCcD_Obj* collider) {
+    if(effect_staggers(collider)) return true;
     auto* link = daAlink_getAlinkActorClass();
     if (link && collider == &link->mGuardAtCps) return true;
     for (const auto& attack : s_attacks)
-        if (collider == &attack.collider) return attack.weapon == unsigned(Upgrade::Ball);
+        if (collider == &attack.collider) return attack.weapon == unsigned(Upgrade::Ball) || attack.weapon == unsigned(Upgrade::ShieldAttack);
     return false;
 }
 // One hit per enemy per leg. A fresh return hit bypasses native recovery from

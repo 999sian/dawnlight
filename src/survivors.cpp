@@ -128,6 +128,7 @@ DEFINE_HOOK_SYMBOL("src/d/d_stage.cpp#dStage_actorCreate", void(stage_actor_data
 DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
 DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
+DEFINE_HOOK_SYMBOL("cCcS::SetAtTgCommonHitInf",void(cCcS*,cCcD_Obj*,cCcD_Obj*,cXyz*),SurvivorsConcurrentHit);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rd.cpp#damage_check", void(e_rd_class*), SurvivorsBulblinHit);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rd.cpp#pl_check", BOOL(e_rd_class*, f32, s16), SurvivorsBulblinAggro);
 DEFINE_HOOK(&fopAcM_createChild, SurvivorsEnemyArrow);
@@ -652,7 +653,7 @@ void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
     auto slot = std::find_if(s_attacks.begin(), s_attacks.begin() + 8, [](const auto& a) { return !a.active; });
     if (slot == s_attacks.begin() + 8) return;
     auto& a = *slot;
-    a.weapon = weapon; a.life = 35;
+    a.weapon = weapon; a.life = 35; a.ballVictimCount = 0;
     a.position = link->current.pos + cXyz(0, 65, 0);
     a.velocity = direction * 42.0f;
     a.radius = s_run.radius(65.0f);
@@ -763,9 +764,6 @@ void update_sword(daAlink_c* link) {
     if (s_swordAction == SwordAction::Jump) return; // Owned traversal finishes before the scheduler resumes.
     if (s_swordAction == SwordAction::Normal) {
         if (normal_sword_proc(link)) {
-            if (s_wavePending && link->mUnderFrameCtrl[0].getFrame() >= link->field_0x3478) {
-                release_sword_wave(link); s_wavePending = false;
-            }
             // Never cut off the damage window, and let the final hit recover.
             if (!s_comboStep || s_meleeCooldown || link->mUnderFrameCtrl[0].getFrame() <=
                 std::max(link->field_0x347c, link->field_0x3484)) return;
@@ -783,9 +781,7 @@ void update_sword(daAlink_c* link) {
         s_comboStep = s_comboTimeout = 0;
         return;
     }
-    const bool spin = !continuingSwing && s_run.ranks[1] && !s_cooldowns[1] && enemy_in_range(link, s_run.radius(450));
-    const bool wave = s_run.ranks[0] && !s_cooldowns[0] && enemy_in_range(link, 1600);
-    if (!spin && !wave && (s_meleeCooldown || !melee_target(link))) return;
+    if (s_meleeCooldown || !melee_target(link)) return;
     if (!link->checkItemSwordEquip()) {
         if (link->mEquipItem != dItemNo_NONE_e) return;
         // The pending item ID can survive an interrupted upper animation.
@@ -793,32 +789,20 @@ void update_sword(daAlink_c* link) {
         if (!link->checkEquipAnime()) link->swordEquip(0);
         return; // Let native equip animation finish before replacing the body action.
     }
-    // Roll only at a real melee opportunity, never once per idle frame.
-    if (!spin && !wave && try_jump_strike(link)) return;
-    auto direction = target_direction(link);
-    if (!spin && !wave) {
-        auto* target = melee_target(link);
-        if (!target) return;
-        direction = target->current.pos - link->current.pos;
-    } else { s_meleeTarget = kNone; s_trackMelee = false; }
+    // Other abilities run independently; this scheduler owns only the native
+    // normal combo and its occasional Jump Strike movement.
+    if (try_jump_strike(link)) return;
+    auto* target = melee_target(link);
+    if (!target) return;
+    const auto direction = target->current.pos - link->current.pos;
     link->shape_angle.y = cM_atan2s(direction.x, direction.z);
     link->current.angle.y = link->shape_angle.y;
-    if (spin) {
-        if (link->procCutTurnInit(1, 1)) {
-            s_swordAction = SwordAction::Spin;
-            s_comboStep = s_comboTimeout = 0;
-            link->mAtSph.SetR(s_run.radius(link->field_0x347c));
-            s_cooldowns[1] = s_run.cooldown(100);
-        }
-    } else if (wave ? link->procCutNormalInit(1) : begin_sword_combo(link)) {
-        s_swordAction = SwordAction::Normal; s_wavePending = wave; s_trackMelee = !wave;
+    if (begin_sword_combo(link)) {
+        s_swordAction = SwordAction::Normal; s_wavePending = false; s_trackMelee = true;
         new_melee_swing();
-        if (wave) { s_comboStep = s_comboTimeout = 0; link->mComboCutCount = 0; }
-        // Apply once after native animation setup; preserve its per-swing rate.
         link->mUnderFrameCtrl[0].setRate(link->mUnderFrameCtrl[0].getRate()*s_run.melee_speed());
         link->mUpperFrameCtrl[0].setRate(link->mUpperFrameCtrl[0].getRate()*s_run.melee_speed());
         s_meleeCooldown = s_run.melee_cooldown();
-        if (wave) s_cooldowns[0] = s_run.cooldown(40);
     }
 }
 void after_sword_move(ModContext*, void* args, void*, void*) {
@@ -848,9 +832,12 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 void new_melee_swing() { ++s_meleeSerial; }
 #include "survivors_combat_pause.inc"
 #include "survivors_defense.inc"
+#include "survivors_concurrent_hits.inc"
 #include "survivors_bulblin.inc"
 #include "survivors_movement.inc"
 #include "survivors_ledge_jump.inc"
+
+#include "survivors_parallel.inc"
 
 void update_weapons(daAlink_c* link) {
     for (auto& a : s_attacks) {
@@ -858,6 +845,8 @@ void update_weapons(daAlink_c* link) {
         a.status.Move();
         if (a.weapon >= unsigned(Upgrade::Bow)) { update_item_attack(a, link); continue; }
         if (!a.life-- || a.collider.ChkAtShieldHit()) { stop_attack(a); continue; }
+        if (a.weapon == unsigned(Upgrade::Spin) || a.weapon == unsigned(Upgrade::ShieldAttack))
+            update_parallel_pulse(a, link);
         const cXyz next = a.position + a.velocity;
         dBgS_LinChk wall; wall.Set(&a.position, &next, link);
         if (a.weapon == 0 && dComIfG_Bgsp().LineCross(&wall)) { stop_attack(a); continue; }
@@ -867,18 +856,13 @@ void update_weapons(daAlink_c* link) {
         a.collider.SetAtVec(a.velocity);
         dComIfG_Ccsp()->Set(&a.collider);
     }
-    if (update_jump_strike(link)) return;
-    if(auto_attacks_suspended(link)){suspend_auto_attacks(link);return;}
+    const bool jumping = update_jump_strike(link);
+    if (!jumping && auto_attacks_suspended(link)) { suspend_auto_attacks(link); return; }
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
-    update_ranged(link);
-    const bool shieldAttack = update_shield_attack(link);
-    // A finished sword draw gets one melee opportunity before another due
-    // item animation sheathes it again. Active combos keep the ranged handoff.
-    const bool resumeSword=!s_ranged.active && !shieldAttack &&
-        s_swordAction==SwordAction::None && link->checkItemSwordEquip();
-    if (resumeSword) update_sword(link);
-    if (!shieldAttack) fire_items(link);
-    if (!s_ranged.active && !shieldAttack && !resumeSword) update_sword(link);
+    update_ranged(link); // Cosmetic upper-body pose; never gates a weapon.
+    update_parallel_skills(link);
+    fire_items(link); // Every due ranged weapon may release in this frame.
+    if (!jumping) update_sword(link);
 
 }
 bool native_sword_collider(const cCcD_Obj* collider) {
@@ -1360,6 +1344,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBulblinHit, before_bulblin_hit); POST(SurvivorsBulblinHit, after_bulblin_hit);
     PRE(SurvivorsBulblinAggro, before_bulblin_aggro);
     PRE(SurvivorsEnemyArrow, before_enemy_arrow); POST(SurvivorsEnemyArrow, after_enemy_arrow);
+    PRE(SurvivorsConcurrentHit, before_concurrent_hit);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
     PRE(SurvivorsBokoblinTargets, before_bokoblin_targets);
     PRE(SurvivorsRatRecovery, before_rat_recovery);

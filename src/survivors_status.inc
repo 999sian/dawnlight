@@ -3,7 +3,8 @@
 struct EnemyEffect {
     ActorId id = kNone;
     unsigned burn = 0, pulse = ticks_per_second, pending = 0, meleeSerial = 0;
-    unsigned damage = 0;
+    unsigned damage = 0, jumpSerial = 0;
+    bool pendingStagger = false, stagger = false;
     bool injected = false, pendingCritical = false, critical = false;
     cXyz velocity{};
     std::array<u32, 2> emitters{};
@@ -26,10 +27,15 @@ void clear_enemy_effects() {
     for (auto& effect : s_effects) {
         stop_burn(effect); effect.id = kNone; effect.pending = effect.damage = effect.meleeSerial = 0;
         effect.injected = false; effect.pendingCritical = effect.critical = false;
+        effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;
     }
 }
 bool effect_collider(const cCcD_Obj* collider) {
     for (const auto& effect : s_effects) if (collider == &effect.collider) return true;
+    return false;
+}
+bool effect_staggers(const cCcD_Obj* collider) {
+    for(const auto& effect:s_effects) if(collider==&effect.collider) return effect.stagger;
     return false;
 }
 EnemyEffect& effect_for(Enemy& enemy) {
@@ -37,6 +43,7 @@ EnemyEffect& effect_for(Enemy& enemy) {
     if (effect.id != enemy.id) {
         stop_burn(effect); effect.id = enemy.id;
         effect.pending = effect.damage = effect.meleeSerial = 0; effect.injected = false; effect.pendingCritical = effect.critical = false;
+        effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;
     }
     return effect;
 }
@@ -67,6 +74,7 @@ void prepare_effect_hit(fopAc_ac_c* actor, Enemy& enemy) {
     if (!link || fopAcM_GetID(link) != s_player) return;
     effect.damage = effect.pending; effect.pending = 0; effect.injected = true;
     effect.critical=effect.pendingCritical; effect.pendingCritical=false;
+    effect.stagger=effect.pendingStagger;effect.pendingStagger=false;
     effect.status.Init(120, 0xff, link);
     effect.collider.Set(kAttackSource); effect.collider.SetStts(&effect.status);
     effect.collider.SetAtType(AT_TYPE_ARROW); // No native sword/ball/bomb special-case damage.
@@ -87,7 +95,7 @@ void finish_effect_hit(fopAc_ac_c* actor, ProfileName profile) {
         profile == fpcNm_E_BA_e ? &reinterpret_cast<e_ba_class*>(actor)->mAtInfo :
         profile == fpcNm_E_RD_e ? &reinterpret_cast<e_rd_class*>(actor)->at_info : &static_cast<e_ms_class*>(actor)->mAtInfo;
     if (info->mpCollider == &effect.collider) info->mpCollider = nullptr;
-    effect.injected = false; effect.critical = false; effect.damage = 0;
+    effect.injected = false; effect.critical = false; effect.damage = 0;effect.stagger=false;
 }
 void spread_melee_hit(fopAc_ac_c* primary) {
     if (!s_run.dual_wield || s_spreadSerial == s_meleeSerial) return;

@@ -289,7 +289,7 @@ int main(){
     reset();player.hit=true;update_sword(&player);
     for(unsigned i=0;i<2;++i){player.mUnderFrameCtrl[0].frame=16;s_meleeCooldown=0;update_sword(&player);}
     assert(player.mProcID==daAlink_c::PROC_CUT_FINISH && s_comboStep==3);
-    s_wavePending=true;player.mUnderFrameCtrl[0].frame=5;update_sword(&player);assert(waves==1);
+    player.mUnderFrameCtrl[0].frame=5;update_sword(&player);assert(waves==0);
     player.mUnderFrameCtrl[0].frame=16;s_meleeCooldown=0;update_sword(&player);
     assert(player.mComboCutCount==4 && s_comboStep==0);
     // Final recovery is preserved, even at zero cooldown.
@@ -359,38 +359,11 @@ int main(){
         if(reason==3)player.mEquipItem=2;
         update_sword(&player);assert(player.normals==0);
     }
-    // Wave unlock adds a real swing, then fires once at its attack frame (never on windup).
-    for(unsigned rank:{1u,3u,5u}){
-        reset();s_run.ranks[0]=rank;enemy.current.pos.z=900;update_sword(&player);
-        assert(player.normals==1 && waves==0 && s_wavePending);
-        player.mUnderFrameCtrl[0].frame=4;update_sword(&player);assert(waves==0);
-        player.mUnderFrameCtrl[0].frame=5;update_sword(&player);
-        unsigned expected=(rank+1)/2;assert(waves==expected && !s_wavePending);
-        update_sword(&player);assert(waves==expected && player.normals==1);
-    }
-    reset();s_run.ranks[0]=1;enemy.current.pos.z=900;
-    for(unsigned shot=0;shot<4;++shot){
-        player.mProcID=daAlink_c::PROC_WAIT;s_cooldowns[0]=0;s_comboStep=3;player.mComboCutCount=3;
-        update_sword(&player);assert(player.normalTypes.back()==1&&player.mComboCutCount==0&&s_comboStep==0);
-        player.mUnderFrameCtrl[0].frame=5;update_sword(&player);
-    }
-    assert(waves==4&&player.finishes==0);
-    reset();s_run.ranks[0]=1;update_sword(&player);player.mProcID=daAlink_c::PROC_DAMAGE;
-    player.mUnderFrameCtrl[0].frame=9;update_sword(&player);assert(waves==0 && !s_wavePending);
-    // Native spin has priority, receives Reach and follows the stick at normal speed.
-    reset();s_run.ranks[0]=s_run.ranks[1]=1;s_run.ranks[5]=2;
-    update_sword(&player);assert(player.spins==1 && player.normals==0 && waves==0);
-    assert(player.field_0x3478==220&&std::abs(player.mAtSph.radius-169)<0.01);
-    for(unsigned reach:{0u,5u,30u}){
-        s_run.ranks[unsigned(Upgrade::Reach)]=reach;
-        for(float nativeRadius:{130.f,170.f,220.f}){
-            player.field_0x347c=nativeRadius;
-            std::any spinArgs[]={&player};after_sword_move(nullptr,spinArgs,nullptr,nullptr);
-            assert(std::abs(player.mAtSph.radius-s_run.radius(nativeRadius))<.01f);
-            after_sword_move(nullptr,spinArgs,nullptr,nullptr); // No cumulative multiplication.
-            assert(std::abs(player.mAtSph.radius-s_run.radius(nativeRadius))<.01f);
-        }
-    }
+    // Passive Wave/Spin ranks must not replace or reset the native combo.
+    reset();s_run.ranks[0]=s_run.ranks[1]=30;s_run.ranks[5]=2;
+    update_sword(&player);assert(player.spins==0 && player.normals==1 && waves==0);
+    player.mUnderFrameCtrl[0].frame=16;s_meleeCooldown=0;update_sword(&player);
+    assert(player.mComboCutCount==2 && waves==0 && !s_wavePending);
     std::any args[]={&player};
     for(float stick:{0.0f,0.5f,1.0f})for(short angle:{short(-16000),short(16000)}){
         player.mStickValue=stick;player.mMoveAngle=angle;
@@ -402,7 +375,7 @@ int main(){
     BOOL large=1;assert(before_large_spin(nullptr,nullptr,&large,nullptr)==HOOK_SKIP_ORIGINAL && large==0);
     arena=false;assert(before_large_spin(nullptr,nullptr,&large,nullptr)==HOOK_CONTINUE);arena=true;
     // Only this Link's active native sword colliders receive linear Survivors damage.
-    s_run.ranks[3]=2;dCcU_AtInfo info{&player.mAtSph};std::any powerArgs[]={&info};
+    s_swordAction=SwordAction::Spin;s_run.ranks[0]=s_run.ranks[1]=1;s_run.ranks[3]=2;dCcU_AtInfo info{&player.mAtSph};std::any powerArgs[]={&info};
     after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==5);
     s_swordAction=SwordAction::Normal;
     for(auto& capsule:player.mAtCps){info={&capsule};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==5);}
