@@ -11,7 +11,8 @@ def extract(text,name):
   depth+=(text[i]=='{')-(text[i]=='}')
   if not depth:return text[m.start():i+1]
 fixture=r'''
-#include <any>
+#define DUSK_MOD_FEATURE_GAME 1
+#include "mods/svc/hook.hpp"
 #include <cassert>
 #include <memory>
 #include <string>
@@ -25,10 +26,6 @@ fixture=r'''
 using namespace dawnlight::survivors;
 using dusk::ui::NavCommand;
 ModContext* mod_ctx=nullptr;
-enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
-namespace mods{
- template<class T>T arg(void* p,int i){return std::any_cast<T>(static_cast<std::any*>(p)[i]);}
-}
 namespace Rml {
  namespace Input{enum KeyIdentifier{KI_UNKNOWN,KI_UP,KI_DOWN,KI_LEFT,KI_RIGHT,KI_ESCAPE,KI_RETURN,KI_NUMPADENTER,KI_F1,KI_NEXT,KI_PRIOR};}
  struct Event{Input::KeyIdentifier key=Input::KI_F1;int shift=0;
@@ -48,7 +45,6 @@ boundaries=r'''
 std::vector<std::unique_ptr<Document>> documents;
 Document* top(){for(auto i=documents.rbegin();i!=documents.rend();++i)if(!(*i)->pending)return i->get();return nullptr;}
 void* host_top(){return top();}
-NavCommand host_command(const void* e){return map_nav_event(*static_cast<const Rml::Event*>(e));}
 unsigned navigations=0;
 bool host_navigate(void* d,void* e,NavCommand c){++navigations;return static_cast<Document*>(d)->handle_nav_command(*static_cast<Rml::Event*>(e),c);}
 bool ui_visible(){for(auto& d:documents)if(d->shown&&!d->pending)return true;return false;}
@@ -62,10 +58,28 @@ struct UI{
  ModResult window_close(ModContext*,UiWindowHandle h){pop(h);return MOD_OK;}
  ModResult dialog_close(ModContext*,UiDialogHandle h){pop(h);return MOD_OK;}
 }ui;auto* test_ui=&ui;
-struct Hook{ModResult resolve(ModContext*,const char* name,void** out,void*){
- std::string n=name;*out=n=="dusk::ui::top_document"?reinterpret_cast<void*>(&host_top):n=="dusk::ui::map_nav_event"?reinterpret_cast<void*>(&host_command):reinterpret_cast<void*>(&host_navigate);return MOD_OK;}}hook;
-auto* test_hook=&hook;
-struct Log{void warn(ModContext*,const char*){assert(false);}}logService;auto* test_log=&logService;
+int windowTarget=0,modalTarget=0;
+std::string missingSymbol;bool nullAddress=false;
+unsigned installs=0,adds=0,warnings=0,failInstall=0,failAdd=0;
+HookPreFn windowCallback=nullptr,modalCallback=nullptr;
+ModResult resolve_symbol(ModContext*,const char* name,void** out,HookSymbolFlags*){
+ std::string n=name;*out=nullptr;
+ if(n==missingSymbol)return nullAddress?MOD_OK:MOD_UNAVAILABLE;
+ if(n=="dusk::ui::top_document")*out=reinterpret_cast<void*>(&host_top);
+ else if(n=="dusk::ui::Document::handle_nav_command")*out=reinterpret_cast<void*>(&host_navigate);
+ // In particular, Document::handle_nav_event is absent, as in the user's log.
+ return *out?MOD_OK:MOD_UNAVAILABLE;
+}
+ModResult install_hook(ModContext*,void*,void*,void** original){
+ if(++installs==failInstall)return MOD_UNAVAILABLE;
+ *original=reinterpret_cast<void*>(&host_navigate);return MOD_OK;
+}
+ModResult add_callback(ModContext*,void* target,HookPreFn callback,const HookOptions*){
+ if(++adds==failAdd)return MOD_UNAVAILABLE;
+ (target==&windowTarget?windowCallback:modalCallback)=callback;return MOD_OK;
+}
+HookService hook{};auto* test_hook=&hook;
+struct Log{void warn(ModContext*,const char*){++warnings;}}logService;auto* test_log=&logService;
 Run s_run;RunOptions s_options;unsigned s_map=3;Records s_records;
 bool arena=true,transition=false;bool in_arena(){return arena;}bool transitioning(){return transition;}
 void* s_menuDocument=nullptr;void* s_talentDocument=nullptr;
@@ -78,10 +92,40 @@ ModResult update_talent_tab(ModContext*,void*,ModError*){return MOD_OK;}
 constexpr char kTreasureStyle[]="",kArenaStyle[]="";
 '''
 main=r'''
-bool request(Document* d,Rml::Event& event){bool handled=false;std::any args[]={static_cast<void*>(d),static_cast<void*>(&event)};
- const auto action=before_survivors_menu_event(nullptr,args,&handled,nullptr);return action==HOOK_SKIP_ORIGINAL&&handled;}
+bool request(Document* d,Rml::Event& event){bool handled=false;void* document=d;void* e=&event;
+ auto command=map_nav_event(event);void* args[]={&document,&e,&command};
+ const auto callback=d==s_talentDocument?modalCallback:windowCallback;
+ if(!callback)return false;
+ const auto action=callback(nullptr,args,&handled,nullptr);return action==HOOK_SKIP_ORIGINAL&&handled;}
+void reset_hooks(){
+ missingSymbol.clear();nullAddress=false;installs=adds=failInstall=failAdd=0;
+ windowCallback=modalCallback=nullptr;
+ SurvivorsMenuWindow::target=SurvivorsMenuModal::target=nullptr;
+ mod_meta_hook_SurvivorsMenuWindow.resolved=&windowTarget;
+ mod_meta_hook_SurvivorsMenuModal.resolved=&modalTarget;
+}
 int main(){
- assert(initialize_menu_handoff(nullptr)==MOD_OK);
+ hook.resolve=resolve_symbol;hook.install=install_hook;hook.add_pre=add_callback;
+ // Missing optional host APIs/metadata and install/add failures must never
+ // propagate a load error, capture a menu document, or close an existing UI.
+ for(unsigned failure=0;failure<10;++failure){
+  reset_hooks();const auto oldWarnings=warnings;
+  if(failure<4){missingSymbol=failure<2?"dusk::ui::top_document":"dusk::ui::Document::handle_nav_command";nullAddress=failure%2;}
+  if(failure==4)mod_meta_hook_SurvivorsMenuWindow.resolved=nullptr;
+  if(failure==5)mod_meta_hook_SurvivorsMenuModal.resolved=nullptr;
+  if(failure==6)failInstall=1;
+  if(failure==7)failInstall=2;
+  if(failure==8)failAdd=1;
+  if(failure==9)failAdd=2;
+  initialize_menu_handoff();assert(!s_menuHost.enabled&&warnings==oldWarnings+1);
+  if(failure<6)assert(!installs&&!adds);
+  remember_menu_document(false);remember_menu_document(true);
+  assert(!s_menuDocument&&!s_talentDocument);
+  s_run.phase=Phase::Ready;open_window();assert(s_window);
+  Rml::Event event;assert(!request(top(),event)&&s_window);
+  close_window();documents.clear();
+ }
+ reset_hooks();initialize_menu_handoff();assert(s_menuHost.enabled&&installs==2&&adds==2);
  auto* host=push();host->shown=false;
  s_run.phase=Phase::Ready;s_options.enemy_hp=7;s_options.camera_distance=350;s_records.talents.ranks[0]=3;
  Rml::Event event;open_window();assert(s_window&&s_menuDocument==top());
@@ -117,7 +161,8 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+native_map+native_command+boundaries+extract(core,'close_window')+(root/'src/survivors_menu_handoff.inc').read_text()+extract(core,'open_window')+main)
+ declarations=core[core.index('DEFINE_HOOK_SYMBOL("dusk::ui::Window::handle_nav_command"'):core.index('void* s_menuDocument')]
+ cpp.write_text(fixture+native_map+native_command+boundaries+declarations+extract(core,'close_window')+(root/'src/survivors_menu_handoff.inc').read_text()+extract(core,'open_window')+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes','-Wno-unused-parameter','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),'-I',str(root/'dusklight/src'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
-print('Survivors menu: native Menu/Shift-F1 mapping, host subwindows, talent popup, restoration, state and delayed callbacks passed')
+print('Survivors menu: absent event symbol, missing APIs/targets, install failures, native Menu/Shift-F1 mapping, host subwindows, talent popup, restoration, state and delayed callbacks passed')

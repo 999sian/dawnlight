@@ -168,7 +168,10 @@ Records s_records;
 bool s_progressSaving=false, s_progressSaved=false;
 UiWindowHandle s_refreshChoices=0;
 // Opaque host documents: no private RmlUi/Window layouts are copied.
-DEFINE_HOOK_SYMBOL("dusk::ui::Document::handle_nav_event", bool(void*, void*), SurvivorsMenuEvent);
+DEFINE_HOOK_SYMBOL("dusk::ui::Window::handle_nav_command",
+                   bool(void*, void*, dusk::ui::NavCommand), SurvivorsMenuWindow);
+DEFINE_HOOK_SYMBOL("dusk::ui::Modal::handle_nav_command",
+                   bool(void*, void*, dusk::ui::NavCommand), SurvivorsMenuModal);
 void* s_menuDocument = nullptr;
 void* s_talentDocument = nullptr;
 void remember_menu_document(bool talent);
@@ -1215,10 +1218,9 @@ void update_survivors() {
 }
 ModResult initialize_survivors(ModError* error) {
     ModResult result = initialize_midna_dialog();
-    if (result == MOD_OK) result = initialize_menu_handoff(error);
+    if (result == MOD_OK) initialize_menu_handoff();
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
-    PRE(SurvivorsMenuEvent, before_survivors_menu_event);
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
     PRE(SurvivorsEnemySpeed, before_enemy_speed);
     PRE(SurvivorsEnemyDamage, before_enemy_damage);
