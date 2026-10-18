@@ -86,6 +86,8 @@ DEFINE_HOOK_SYMBOL("src/d/d_stage.cpp#dStage_actorCreate", void(stage_actor_data
 DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
 DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
+DEFINE_HOOK(&daE_OC_c::cc_set, SurvivorsBokoblinTargets);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#e_ms_damage", void(e_ms_class*), SurvivorsRatRecovery);
 DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
 DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
 DEFINE_HOOK(&daObjCarry_c::obj_break, SurvivorsPotBreak);
@@ -1135,6 +1137,9 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsMidnaFlow, before_midna_flow);
     PRE(SurvivorsBlock, before_shield_block); PRE(SurvivorsGuard, before_survivors_guard);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
+    PRE(SurvivorsBokoblinTargets, before_bokoblin_targets);
+    PRE(SurvivorsRatRecovery, before_rat_recovery);
+    POST(SurvivorsRatRecovery, after_rat_recovery);
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
     PRE(SurvivorsBokoblinWait, before_bokoblin_wait);
     PRE(SurvivorsPotBreak, before_pot_break);

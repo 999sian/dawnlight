@@ -69,7 +69,8 @@ chests never raise the paid-chest price.
 
 Weapons generally cap at five ranks. Unlocked chest weapons can also be upgraded
 at level-up. Ordinary hits do not stagger enemies; Shield Attack and Ball and
-Chain do.
+Chain do. Knocked-down enemies remain damageable while falling, lying down
+and getting back up.
 
 ## Rarities and Luck
 

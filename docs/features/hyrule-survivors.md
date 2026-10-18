@@ -114,7 +114,12 @@ passives. Chest weapons do not consume passive slots.
 Weapons, Fire Arrows and Shield Attack have five levels. Rupees remain available after the
 other upgrades reach their caps. Native enemy defense and death reactions still apply. Ordinary nonlethal hits
 keep their hit effects and damage but do not interrupt enemy movement or attacks.
-Shield Attack and Ball and Chain retain native stagger. The ball can hit an enemy
+Shield Attack and Ball and Chain retain native stagger. Living knocked-down
+Bokoblins keep their target spheres enabled before collision registration, so
+normal attacks and abilities can still hit during knockback, prone and get-up
+animations. Rats keep their real hit cooldown instead of resetting it each frame
+of the damage animation. Native brief hit cooldowns, death states and the ball's
+once-per-leg hit rule remain; ordinary hits do not restart the prone animation. The ball can hit an enemy
 once on each leg, including a return hit during recovery from its outbound hit; the mod replaces the native nonlinear damage table only
 for its own weapons and automatic sword strikes. Sword Wave always uses the first normal swing, never the combo finisher.
 Sword Wave uses the two smaller

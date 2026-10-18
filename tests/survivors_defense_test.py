@@ -1,5 +1,6 @@
 """Execute production shield and nonlethal reaction hooks at engine boundaries."""
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 root=Path(__file__).resolve().parents[1]
@@ -48,7 +49,7 @@ struct daE_OC_c:fopAc_ac_c{
  Collider mSphs_cc[2];
 };
 struct e_ba_class:fopAc_ac_c{int mAction=2,mMode=3,mIFrames=0;float mKnockbackSpeed=0;s16 mKnockbackAngle=0;bool mIsDying=false;Collider mSph;};
-struct e_ms_class:fopAc_ac_c{int mAction=1,mMode=3,mCooldown1=0;Collider mSph1;};
+struct e_ms_class:fopAc_ac_c{int mAction=1,mMode=3;s16 mCooldown1=0;Collider mSph1;};
 struct Enemy{int profile=1;bool initialized=true,retiring=false,credited=false;}enemy;
 bool present=true,playing=true;
 Enemy* tracked(int id){return present&&id==2?&enemy:nullptr;}
@@ -121,6 +122,55 @@ int main(){
  before_enemy_hit(nullptr,&args,nullptr,nullptr);assert(!rat.mSph1.hit);after_enemy_hit(nullptr,&args,nullptr,nullptr);
  s_attacks[0].ballVictimCount=0;rat.mCooldown1=10;rat.mSph1.hit=true;
  before_enemy_hit(nullptr,&args,nullptr,nullptr);assert(rat.mCooldown1==0&&rat.mSph1.hit);after_enemy_hit(nullptr,&args,nullptr,nullptr);
+ // Downed Bokoblins must be registered as targets before collision registration.
+ args={&bok,nullptr};enemy.profile=fpcNm_E_OC_e;bok.health=50;bok.mActionMode=6;bok.mOcState=5;
+ for(auto& sphere:bok.mSphs_cc)sphere.tg=false;
+ before_bokoblin_targets(nullptr,&args,nullptr,nullptr);
+ unsigned registered=0;for(auto& sphere:bok.mSphs_cc)registered+=sphere.ChkTgSet();
+ assert(registered==2&&bok.mActionMode==6&&bok.mOcState==5);
+ // Body hits and each ability use the same native damage entry; ordinary
+ // nonlethal hits preserve the prone animation and its original recovery timer.
+ for(auto* collider:{&player.mAtCps[0],&player.mAtSph,&s_attacks[1].collider,
+                    &s_attacks[2].collider,&s_attacks[3].collider,&s_attacks[4].collider}){
+  bok.health=50;bok.mActionMode=6;bok.mOcState=5;bok.field_0x6c0=30;
+  bok.mSphs_cc[0].hit=true;bok.mSphs_cc[0].attack=collider;bok.field_0x6cc=0;
+  before_enemy_hit(nullptr,&args,nullptr,nullptr);
+  bok.health-=3;bok.mActionMode=6;bok.mOcState=0;bok.field_0x6c0=0;
+  for(auto& sphere:bok.mSphs_cc)sphere.tg=false;
+  after_enemy_hit(nullptr,&args,nullptr,nullptr);
+  assert(bok.health==47&&bok.mActionMode==6&&bok.mOcState==5&&bok.field_0x6c0==30&&bok.mSphs_cc[0].tg);
+ }
+ // Dead, retiring, untracked, paused and normal story enemies stay native.
+ for(int reason=0;reason<7;++reason){
+  bok.health=50;bok.mActionMode=6;present=playing=true;enemy.retiring=enemy.credited=false;s_run.phase=Phase::Running;
+  if(reason==0)bok.health=0;
+  if(reason==1)bok.mActionMode=9;
+  if(reason==2)enemy.retiring=true;
+  if(reason==3)enemy.credited=true;
+  if(reason==4)present=false;
+  if(reason==5)playing=false;
+  if(reason==6)s_run.phase=Phase::Upgrade;
+  for(auto& sphere:bok.mSphs_cc)sphere.tg=false;
+  before_bokoblin_targets(nullptr,&args,nullptr,nullptr);assert(!bok.mSphs_cc[0].tg);
+ }
+ present=playing=true;enemy.retiring=enemy.credited=false;s_run.phase=Phase::Running;
+ // Rat damage animation may last longer than ten frames. Its native per-frame
+ // assignment of 6 must not stop the actual hit timer from reaching zero.
+ args={&rat,nullptr};enemy.profile=fpcNm_E_MS_e;rat.health=30;rat.mAction=4;rat.mMode=1;rat.mCooldown1=10;
+ for(int expected=9;expected>=0;--expected){
+  --rat.mCooldown1;before_rat_recovery(nullptr,&args,nullptr,nullptr);
+  rat.mCooldown1=6;after_rat_recovery(nullptr,&args,nullptr,nullptr);assert(rat.mCooldown1==expected);
+ }
+ rat.mSph1.hit=true;rat.mSph1.attack=&hit;
+ before_enemy_hit(nullptr,&args,nullptr,nullptr);rat.health-=3;rat.mMode=0;rat.mCooldown1=10;
+ after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(rat.health==27&&rat.mAction==4&&rat.mMode==1&&rat.mCooldown1==10);
+ // Lethal/water-death and landing transitions keep their native timer.
+ for(int state=0;state<3;++state){
+  rat.health=30;rat.mAction=4;rat.mMode=1;rat.mCooldown1=2;
+  before_rat_recovery(nullptr,&args,nullptr,nullptr);rat.mCooldown1=6;
+  if(state==0)rat.health=0;else if(state==1)rat.mMode=2;else rat.mAction=1;
+  after_rat_recovery(nullptr,&args,nullptr,nullptr);assert(rat.mCooldown1==6&&s_ratRecoveries.empty());
+ }
  // Light-sword glow is arena-scoped; damage temporarily uses neutral material.
  args={&player,nullptr};s_run.master_sword=5;after_light_sword(nullptr,&args,nullptr,nullptr);assert(player.light);
  player.mAtCps[0].material=dCcD_MTRL_LIGHT;dCcU_AtInfo info{&player.mAtCps[0]};args={&rat,&info};
@@ -131,6 +181,6 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
     cpp.write_text(fixture+source+main)
-    subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
+    subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
 print('Survivors defense: block chances, direction, action priority, shield bash, stagger exceptions, deaths and light-sword damage passed')

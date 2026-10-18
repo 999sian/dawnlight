@@ -50,6 +50,38 @@ bool update_shield_attack(daAlink_c* link) {
     s_cooldowns[unsigned(Upgrade::ShieldAttack)] = s_run.cooldown(100 - 10 * rank);
     return true;
 }
+// Knockdown is a reaction, not immunity. Enable targets before native cc_set
+// registers them: changing Tg bits after Execute is too late for cCcS::Set.
+HookAction before_bokoblin_targets(ModContext*, void* args, void*, void*) {
+    auto* actor=mods::arg<daE_OC_c*>(args,0);
+    if (!actor || !in_arena() || s_run.phase!=Phase::Running || actor->health<=0 ||
+        actor->mActionMode!=6) return HOOK_CONTINUE; // Native E_OC_ACTION_BIG_DAMAGE.
+    const auto* enemy=tracked(fopAcM_GetID(actor));
+    if (!enemy || enemy->profile!=fpcNm_E_OC_e || !enemy->initialized || enemy->retiring || enemy->credited)
+        return HOOK_CONTINUE;
+    for (auto& sphere:actor->mSphs_cc) sphere.OnTgSetBit();
+    return HOOK_CONTINUE;
+}
+struct RatRecovery { void* args; e_ms_class* actor; s16 cooldown; };
+std::vector<RatRecovery> s_ratRecoveries;
+HookAction before_rat_recovery(ModContext*, void* args, void*, void*) {
+    auto* actor=mods::arg<e_ms_class*>(args,0);
+    if (!actor || !in_arena() || s_run.phase!=Phase::Running || actor->health<=0 ||
+        actor->mAction!=4 || actor->mMode>1) return HOOK_CONTINUE;
+    const auto* enemy=tracked(fopAcM_GetID(actor));
+    if (enemy && enemy->profile==fpcNm_E_MS_e && enemy->initialized && !enemy->retiring && !enemy->credited)
+        s_ratRecoveries.push_back({args,actor,actor->mCooldown1});
+    return HOOK_CONTINUE;
+}
+void after_rat_recovery(ModContext*, void* args, void*, void*) {
+    if (s_ratRecoveries.empty() || s_ratRecoveries.back().args!=args) return;
+    const auto state=s_ratRecoveries.back();s_ratRecoveries.pop_back();
+    // Preserve the real hit cooldown as it counts down; e_ms_damage otherwise
+    // writes 6 every frame. Native landing, lethal and water-death states remain.
+    if (state.actor->health>0 && state.actor->mAction==4 && state.actor->mMode<=1)
+        state.actor->mCooldown1=state.cooldown;
+}
+
 // Native hit processing still owns damage, hit particles/sounds and lethal
 // reactions. Restore only nonlethal reaction state before native action dispatch.
 struct HitState {
