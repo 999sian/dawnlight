@@ -58,6 +58,7 @@ struct{bool active=false;}s_ranged;void cancel_ranged(){s_ranged.active=false;}
 enum class SwordAction{None,Normal};SwordAction s_swordAction=SwordAction::Normal;
 bool s_wavePending=true;unsigned s_comboStep=3,s_comboTimeout=50;
 Run s_run;int s_player=1;std::array<unsigned,13>s_cooldowns{};
+bool auto_attacks_suspended(daAlink_c* p){return !p->mLinkAcch.ChkGroundHit();}
 bool sword_action_available(daAlink_c* p){return p->mProcID==daAlink_c::PROC_WAIT;}
 bool near=true;bool enemy_in_range(daAlink_c*,float){return near;}
 cXyz target_direction(daAlink_c*){return {1,0,0};}

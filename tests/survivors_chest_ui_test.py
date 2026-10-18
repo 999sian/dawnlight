@@ -12,7 +12,9 @@ item_enum = item_header[start:item_header.index('};', start) + 2]
 treasure = (root / 'src/survivors_treasure.inc').read_text().split('// Native DEFAULT_GETITEM')[0]
 inventory = (root / 'src/survivors_inventory.inc').read_text()
 changes = inventory[inventory.index('std::vector<ItemChange> treasure_changes'):inventory.index('bool prepare_treasure_message')]
-source = (root / 'src/survivors_choice_ui.inc').read_text() + (root / 'src/survivors_chest_ui.inc').read_text()
+actions=(root/'src/survivors_choice_actions.inc').read_text()
+header=actions[actions.index('ModResult add_choice_header('):actions.index('ModResult add_choice_actions(')]
+source = (root / 'src/survivors_choice_ui.inc').read_text() + header + (root / 'src/survivors_chest_ui.inc').read_text()
 fixture = r'''
 #include <cassert>
 #include <map>
@@ -28,7 +30,9 @@ int dComIfGs_getItem(int slot,bool){return bottles.at(slot-SLOT_11);}
 int potion_slot(){for(int i=0;i<4;++i)if(bottles[i]==dItemNo_NONE_e||bottles[i]==dItemNo_EMPTY_BOTTLE_e)return i+11;return -1;}
 unsigned potion_capacity(){unsigned count=0;for(auto item:bottles)count+=item==dItemNo_NONE_e||item==dItemNo_EMPTY_BOTTLE_e;return count;}
 ModResult add_choice_actions(UiElementHandle,bool){return MOD_OK;}
-Run s_run;unsigned rupees=500,selected=99;
+Run s_run;unsigned rupees=500,selected=99,banished=99;
+void reroll_choices(ModContext*,void*){}
+void banish_choice(ModContext*,void* data){banished=*static_cast<unsigned*>(data);}
 unsigned dComIfGs_getRupee(){return rupees;}
 struct Chest {bool free=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
 std::array<Chest,2>s_chests;unsigned s_selectedChest=0;
@@ -36,7 +40,7 @@ std::array<unsigned,3>s_choices{0,1,2};
 void select_treasure(ModContext*,void* data){selected=*static_cast<unsigned*>(data);}
 struct Element {
  UiElementHandle parent=0;std::string kind,text,css;bool visible=true;
- UiPressedFn pressed=nullptr;void* data=nullptr;
+ UiPressedFn pressed=nullptr;void* data=nullptr;bool disabled=false;
 };
 std::map<UiElementHandle,Element> elements;UiElementHandle next=3;bool failControl=false;
 ModResult add(UiElementHandle parent,const char* kind,const char* text,UiElementHandle* out){
@@ -52,7 +56,7 @@ ModResult text(ModContext*,UiElementHandle parent,const char* text,UiElementHand
 ModResult control(ModContext*,UiElementHandle parent,const UiControlDesc* desc,UiElementHandle* out){
  if(failControl)return MOD_UNAVAILABLE;
  assert(desc->struct_size==sizeof(UiControlDesc)&&desc->kind==UI_CONTROL_BUTTON&&desc->on_pressed);
- auto result=add(parent,"button",desc->label,out);elements.at(*out).pressed=desc->on_pressed;elements.at(*out).data=desc->user_data;return result;
+ auto result=add(parent,"button",desc->label,out);elements.at(*out).pressed=desc->on_pressed;elements.at(*out).data=desc->user_data;elements.at(*out).disabled=desc->is_disabled&&desc->is_disabled(nullptr,desc->user_data);return result;
 }
 ModResult css(ModContext*,UiElementHandle element,const char* name,bool active){assert(active);elements.at(element).css=name;return MOD_OK;}
 ModResult visible(ModContext*,UiElementHandle element,bool value){elements.at(element).visible=value;return MOD_OK;}
@@ -76,10 +80,27 @@ int main(){
  std::vector<UiElementHandle> cards,buttons;std::vector<std::string> texts;
  for(const auto& [id,e]:elements){
    if(e.css=="survivors-treasure-card")cards.push_back(id);
-   if(e.kind=="button")buttons.push_back(id);
+   if(e.css=="survivors-treasure-pick")buttons.push_back(id);
    if(e.kind=="rml"&&e.text.find("survivors-treasure-copy")!=std::string::npos)texts.push_back(e.text);
  }
  assert(cards.size()==3&&buttons.size()==3&&texts.size()==3);
+ unsigned bans=0;bool counts=false;UiElementHandle toolbar=0,reroll=0,loadout=0;
+ for(const auto& [id,e]:elements){
+   if(e.css=="survivors-card-banish"){
+     assert(e.parent==cards[bans]&&e.text=="\uE14B");
+     selected=99;e.pressed(nullptr,e.data);assert(banished==bans&&selected==99);++bans;
+   }
+   if(e.css=="survivors-choice-toolbar")toolbar=id;
+   if(e.css=="survivors-reroll"){reroll=id;assert(e.text=="Reroll: Free");}
+   if(e.css=="survivors-choice-loadout")loadout=id;
+   counts|=e.text.find("&#xE5D5;</icon>x1")!=std::string::npos&&e.text.find("&#xE14B;</icon>x1")!=std::string::npos;
+ }
+ assert(bans==3&&counts&&toolbar&&reroll<loadout&&elements.at(reroll).parent==toolbar&&elements.at(loadout).parent==toolbar);
+ assert(toolbar<elements.at(cards[0]).parent); // Toolbar before the choice row.
+ const std::string style=kTreasureStyle;
+ const auto delta=style.substr(style.find(".survivors-treasure-delta"),140);
+ assert(delta.find("white-space: normal")!=std::string::npos&&delta.find("word-break: break-word")!=std::string::npos);
+ assert(style.find("z-index: 3")!=std::string::npos);
  assert(elements.at(cards[0]).parent==elements.at(cards[1]).parent&&elements.at(cards[1]).parent==elements.at(cards[2]).parent);
  const std::array<unsigned,3> icons{dItemNo_BOW_e,dItemNo_WOOD_SHIELD_e,dItemNo_LIGHT_SWORD_e};
  for(unsigned i=0;i<3;++i){
@@ -98,7 +119,7 @@ int main(){
  fresh();s_chests[0].free=true;rupees=0;
  assert(build_treasure_choices(1,2)==MOD_OK);unsigned freeCards=0;bool freeLabel=false;
  for(const auto& [id,e]:elements){
-   if(e.kind=="button"){++freeCards;e.pressed(nullptr,e.data);assert(selected<3);}
+   if(e.css=="survivors-treasure-pick"){++freeCards;e.pressed(nullptr,e.data);assert(selected<3);}
    freeLabel=freeLabel || e.text.find("survivors-equipment")!=std::string::npos;
    assert(e.text.find("20 rupees")==std::string::npos);
  }
@@ -126,12 +147,12 @@ int main(){
  for(unsigned count=1;count<=2;++count){
    fresh();for(unsigned i=count;i<3;++i)s_chests[0].offers[i]=ChestReward::Count;
    assert(build_treasure_choices(1,2)==MOD_OK);unsigned actual=0;
-   for(const auto& [id,e]:elements)actual+=e.kind=="button";
+   for(const auto& [id,e]:elements)actual+=e.css=="survivors-treasure-pick";
    assert(actual==count);
  }
  fresh();s_run.ranks[unsigned(Upgrade::Bow)]=30;
  assert(build_treasure_choices(1,2)==MOD_OK);unsigned actual=0;
- for(const auto& [id,e]:elements)actual+=e.kind=="button";
+ for(const auto& [id,e]:elements)actual+=e.css=="survivors-treasure-pick";
  assert(actual==2); // Skip a reward capped after a canceled visit.
  // Replacement warnings sit immediately under the name, before rarity/effects.
  for(bool shield:{false,true}){
@@ -162,6 +183,14 @@ int main(){
  char potionUrl[40];std::snprintf(potionUrl,sizeof(potionUrl),"item://item/%02x",unsigned(dItemNo_RED_BOTTLE_e));
  for(const auto& [id,e]:elements)if(e.text.find("survivors-equipment\"")!=std::string::npos)potionIcon=e.text.find(potionUrl)!=std::string::npos;
  assert(potionIcon);
+ fresh();s_run.banishes=0;s_run.free_rerolls=0;
+ assert(build_treasure_choices(1,2)==MOD_OK);
+ unsigned exhausted=0;
+ for(const auto& [id,e]:elements){
+   if(e.css=="survivors-card-banish"){assert(e.disabled);++exhausted;}
+   if(e.css=="survivors-reroll")assert(e.text=="Reroll: 50 rupees");
+ }
+ assert(exhausted==3);
  fresh();failControl=true;assert(build_treasure_choices(1,2)==MOD_UNAVAILABLE&&s_run.chests_opened==0);
  fresh();s_selectedChest=2;assert(build_treasure_choices(1,2)==MOD_INVALID_ARGUMENT);
 }

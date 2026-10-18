@@ -24,8 +24,7 @@ std::string powerup_description_rml(Upgrade upgrade) {
 }
 ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
     UiElementHandle row = 0;
-    auto result = begin_choice_cards(left, right,
-        "Choose one power-up. Left/Right + Confirm, or tap a card. Combat is paused; closing keeps these offers.", row);
+    auto result = begin_choice_cards(left, right, "", row);
     if (result != MOD_OK) return result;
     for (unsigned i = 0; i < s_run.offers.size(); ++i) {
         Run preview = s_run;

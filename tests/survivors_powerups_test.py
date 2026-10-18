@@ -51,6 +51,8 @@ template<class T>T& arg_ref(void* args,int n){return *std::any_cast<T>(&static_c
 }
 struct dMenu_Collect2D_c{unsigned mSubWindowOpenCheck=0;};
 ModResult add_choice_actions(UiElementHandle,bool){return MOD_OK;}
+ModResult add_choice_header(UiElementHandle){return MOD_OK;}
+void banish_choice(ModContext*,void*){}
 Run s_run;
 UiWindowHandle s_powerupsWindow=0;
 bool s_powerupsRequested=false,arena=true,visible=false,failPush=false;
@@ -117,7 +119,7 @@ int main(){
  std::vector<Element*> buttons;unsigned cards=0;
  for(auto& [id,e]:elements){
    if(e.css=="survivors-treasure-card")++cards;
-   if(e.kind=="button")buttons.push_back(&e);
+   if((e.kind=="button"&&e.css!="survivors-card-banish"))buttons.push_back(&e);
    if(e.kind=="rml")assert(e.text.find(kPowerupScrollIcon)!=std::string::npos&&e.text.find("survivors-treasure-delta")!=std::string::npos);
  }
  assert(cards==3&&buttons.size()==3&&!elements.at(2).visible&&s_run.random==rng);
@@ -137,7 +139,7 @@ int main(){
  assert(build_upgrade_choices(1,2)==MOD_OK);bool healing=false;
  for(const auto& [id,e]:elements)if(e.kind=="rml")healing|=e.text.find("1.00 hearts per red potion -&gt; 1.25 hearts per red potion")!=std::string::npos;
  assert(healing&&s_run.potion_heal_quarters()==4);
- for(const auto& [id,e]:elements)if(e.kind=="button")e.pressed(nullptr,e.data);
+ for(const auto& [id,e]:elements)if((e.kind=="button"&&e.css!="survivors-card-banish"))e.pressed(nullptr,e.data);
  assert(s_run.potion_heal_quarters()==5&&s_run.equipment_count()==1);
  // Critical cards show the exact Luck-adjusted chance and damage multiplier.
  for(auto power:{Upgrade::CritChance,Upgrade::CritDamage}){
@@ -152,7 +154,7 @@ int main(){
      delta|=e.text.find(expected)!=std::string::npos;
    }
    assert(delta&&s_run.random==previewRng&&s_run.rank(power)==0);
-   for(const auto& [id,e]:elements)if(e.kind=="button")e.pressed(nullptr,e.data);
+   for(const auto& [id,e]:elements)if((e.kind=="button"&&e.css!="survivors-card-banish"))e.pressed(nullptr,e.data);
    assert(s_run.rank(power)==1&&s_run.equipment_count()==0);
  }
  // Rarity presentation and the actual activation agree, including overflow.
@@ -162,7 +164,7 @@ int main(){
    const auto rngBefore=s_run.random;assert(build_upgrade_choices(1,2)==MOD_OK);
    unsigned copies=0;std::vector<Element*> picks;
    for(auto& [id,e]:elements){
-     if(e.kind=="button")picks.push_back(&e);
+     if((e.kind=="button"&&e.css!="survivors-card-banish"))picks.push_back(&e);
      if(e.kind!="rml")continue;
      ++copies;const std::string color=rarity_colors[r];
      assert(e.text.find("border-color: "+color)!=std::string::npos&&e.text.find("color: "+color)!=std::string::npos);
@@ -200,7 +202,7 @@ int main(){
  menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);
  open_powerup_window();assert(s_powerupsWindow==42&&pushed==1);
  const auto ranks=s_run.ranks;const auto overviewRng=s_run.random;unsigned count=0;
- for(const auto& [id,e]:elements)if(e.kind=="button"){
+ for(const auto& [id,e]:elements)if((e.kind=="button"&&e.css!="survivors-card-banish")){
    ++count;assert(e.pressed&&!e.help.empty());
    assert(e.help.find("</span><br/>")!=std::string::npos);
    e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);

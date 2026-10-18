@@ -8,8 +8,10 @@ map and press **Start run**. Story and Boss Rush saves remain separate.
 
 ## Playing a run
 
-- Move and dodge while Link attacks automatically. Collect blue XP crystals and
-  choose one of three power-ups at each level-up. Selection supports controller,
+- Move and dodge while Link attacks automatically. Cliff jumps follow movement,
+  including sideways/backward combat movement. Automatic attacks and their cooldowns
+  pause during jumps, Gale charging and gliding; released projectiles finish normally.
+  Collect blue XP crystals and choose one of three power-ups at each level-up. Selection supports controller,
   keyboard and touch; menus and Get Item animations pause the run.
 - Start with three hearts and normal sword attacks. Unlock Sword Wave and
   Whirling Blade through level-ups. Passive upgrades, including Heart Container,
@@ -129,7 +131,9 @@ Each run shares **one free Reroll and one Banish** across both selection menus.
 Reroll refreshes all offers; further uses cost **50, 100, 150… rupees**. Paid
 chests reserve their purchase price. Banish removes the named choice from future
 offers without removing its current ranks or equipment; weapon bans apply to
-both menus. Talents can add two more free uses of each. All counters and bans reset on a new run.
+both menus. The top-left **Reroll** button shows **Free** or its rupee cost; the
+icons beside your equipment show remaining free rerolls and banishes. Use the red
+banish symbol at the top right of a card to remove that choice. Talents can add two more free uses of each. All counters and bans reset on a new run.
 
 | Chest reward | Main effect |
 | --- | --- |

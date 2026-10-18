@@ -7,6 +7,7 @@
 #include "bow_fire_resource.hpp"
 #include "save_state.hpp"
 #include "gale_counter.hpp"
+#include "jump_abilities.hpp"
 #include "m_Do/m_Do_MemCard.h"
 #include "service_imports.hpp"
 #include "mods/hook.hpp"
@@ -134,6 +135,7 @@ DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
 DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
 DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
+DEFINE_HOOK(&daAlink_c::checkAutoJumpAction, SurvivorsLedgeJump);
 DEFINE_HOOK(&daAlink_c::procCutTurn, SurvivorsSpinMove);
 DEFINE_HOOK(&daAlink_c::procCutNormal, SurvivorsNormalMove);
 DEFINE_HOOK(&daAlink_c::procCutFinish, SurvivorsFinishMove);
@@ -727,11 +729,12 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 #include "survivors_inventory.inc"
 #include "survivors_status.inc"
 void new_melee_swing() { ++s_meleeSerial; }
+#include "survivors_combat_pause.inc"
 #include "survivors_defense.inc"
 #include "survivors_movement.inc"
+#include "survivors_ledge_jump.inc"
 
 void update_weapons(daAlink_c* link) {
-    for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
     for (auto& a : s_attacks) {
         if (!a.active) continue;
         a.status.Move();
@@ -746,6 +749,8 @@ void update_weapons(daAlink_c* link) {
         a.collider.SetAtVec(a.velocity);
         dComIfG_Ccsp()->Set(&a.collider);
     }
+    if(auto_attacks_suspended(link)){suspend_auto_attacks(link);return;}
+    for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
     update_ranged(link);
     const bool shieldAttack = update_shield_attack(link);
     if (!shieldAttack) fire_items(link);
@@ -1216,6 +1221,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsKeeseHit, before_enemy_hit); POST(SurvivorsKeeseHit, after_enemy_hit);
     PRE(SurvivorsRatHit, before_enemy_hit); POST(SurvivorsRatHit, after_enemy_hit);
     PRE(SurvivorsMovement, before_auto_movement); POST(SurvivorsMovement, after_auto_movement);
+    PRE(SurvivorsLedgeJump, before_survivors_ledge_jump); POST(SurvivorsLedgeJump, after_survivors_ledge_jump);
     POST(SurvivorsPosition, after_arena_position);
     POST(SurvivorsPosition, after_auto_position);
     PRE(SurvivorsRangedAim, before_ranged_aim);

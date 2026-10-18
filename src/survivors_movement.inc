@@ -1,16 +1,16 @@
 // Correct running and automatic combat at the start of native posMove, after
 // action handlers have applied their slowdown/lunge. Native gravity, collision
 // and floor resolution still run. Damage, jumps and events retain native control.
-bool auto_movement(daAlink_c* link) {
-    if (!link || fopAcM_GetID(link) != s_player || !playable() ||
-        s_run.phase != Phase::Running || !link->mLinkAcch.ChkGroundHit()) return false;
-    // checkCutCancelNextMode clears speed and enters locomotion before posMove.
-    // The sword scheduler then clears ownership while the old attack still
-    // blends out. Cover locomotion too, without relying on a recovery timer.
+bool auto_movement_action(daAlink_c* link) {
+    // Include locomotion while an attack blends out and upper-body ranged poses.
     return sword_action_available(link) ||
         (s_swordAction == SwordAction::Spin && link->mProcID == daAlink_c::PROC_CUT_TURN) ||
         (s_swordAction == SwordAction::Normal && normal_sword_proc(link)) ||
         (s_run.owns(ChestReward::Shield) && shield_pose(link));
+}
+bool auto_movement(daAlink_c* link) {
+    return link && fopAcM_GetID(link)==s_player && playable() &&
+        s_run.phase==Phase::Running && link->mLinkAcch.ChkGroundHit() && auto_movement_action(link);
 }
 struct MovementSample {
     daAlink_c* link = nullptr;

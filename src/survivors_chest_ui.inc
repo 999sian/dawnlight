@@ -17,18 +17,7 @@ ModResult build_treasure_choices(UiElementHandle left, UiElementHandle right) {
     if (s_selectedChest >= s_chests.size()) return MOD_INVALID_ARGUMENT;
     UiElementHandle row = 0;
     const bool free = s_chests[s_selectedChest].free;
-    std::string equipment="<div class=\"survivors-equipment\">";
-    unsigned slots=0;
-    for(unsigned i=0;i<unsigned(ChestReward::Count) && slots<4;++i) {
-        const auto reward=ChestReward(i);if(!s_run.owns(reward))continue;
-        char icon[40];std::snprintf(icon,sizeof(icon),"item://item/%02x",unsigned(treasure_item(reward,s_run)));
-        equipment+="<div class=\"survivors-equipment-slot\"><img src=\""+std::string(icon)+"\"/></div>";++slots;
-    }
-    for(;slots<4;++slots)equipment+="<div class=\"survivors-equipment-slot\"></div>";
-    equipment+="</div>";
-    auto result=svc_ui->pane_add_rml(mod_ctx,left,equipment.c_str(),nullptr);
-    if(result!=MOD_OK)return result;
-    result = begin_choice_cards(left, right, "", row);
+    auto result = begin_choice_cards(left, right, "", row);
     if (result != MOD_OK) return result;
     for (unsigned i = 0; i < 3; ++i) {
         const auto reward = s_chests[s_selectedChest].offers[i];

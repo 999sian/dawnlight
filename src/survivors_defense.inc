@@ -12,7 +12,7 @@ void interrupt_auto_actions(daAlink_c* link) {
 HookAction before_shield_block(ModContext*, void* args, void* result, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!link || fopAcM_GetID(link) != s_player || !playable() || s_run.phase != Phase::Running ||
-        !s_run.owns(ChestReward::Shield) || link->checkWolf() || link->mDamageTimer || !link->mLinkAcch.ChkGroundHit()) return HOOK_CONTINUE;
+        !s_run.owns(ChestReward::Shield) || link->checkWolf() || link->mDamageTimer || auto_attacks_suspended(link)) return HOOK_CONTINUE;
     for (auto& target : link->mTgCyls) {
         if (!target.ChkTgHit()) continue;
         auto* attacker = target.GetTgHitAc();
