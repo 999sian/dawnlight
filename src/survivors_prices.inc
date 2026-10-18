@@ -1,9 +1,12 @@
 void draw_chest_prices() {
     if (s_run.phase!=Phase::Running || dComIfGp_event_runCheck() || !dComIfGd_getView()) return;
+    const auto* link=daAlink_getAlinkActorClass();
+    if (!link) return;
     char price[24];
     for (unsigned i=0;i<kSmallChestCount;++i) {
         const auto& chest=s_chests[i];
         if (!chest.active || chest.opening) continue;
+        if ((chest.position-link->current.pos).abs2()>=item_target_range*item_target_range) continue;
         std::snprintf(price,sizeof(price),"%u",s_run.chest_price(chest.free,chest.fixed));
         cXyz world=chest.position+cXyz(0,150+8*cM_ssin(s16(s_run.ticks*700)),0);
         const auto& matrix=*dComIfGd_getProjViewMtx();

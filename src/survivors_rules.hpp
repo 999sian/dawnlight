@@ -28,6 +28,7 @@ inline constexpr unsigned pot_capacity = 72;
 inline constexpr unsigned pot_respawn_interval = 20 * ticks_per_second;
 inline constexpr unsigned horde_duration = 15 * ticks_per_second;
 inline constexpr unsigned map_chest_capacity = 18;
+inline constexpr float item_target_range = 1400.f;
 inline unsigned map_chest_budget(unsigned map) {
     constexpr std::array<unsigned,5> counts{3,18,18,6,4};
     return map < counts.size() ? counts[map] : 0;

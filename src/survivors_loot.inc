@@ -149,7 +149,7 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
 }
 
 bool nearest_item_target(daAlink_c* link, cXyz& target) {
-    float nearest = 1400.0f * 1400.0f;
+    float nearest = item_target_range * item_target_range;
     bool found = false;
     const cXyz origin = link->current.pos + cXyz(0, 70, 0);
     for (const auto& e : s_enemies) {
@@ -359,16 +359,23 @@ bool spawn_chest(daAlink_c* link) {
 // Separate, one-use map chests never consume the six replenishing slots.
 void seed_map_chests(daAlink_c* link) {
     if (!s_arenaMeshReady) return;
+    const unsigned budget=map_chest_budget(s_map);
+    if (!budget) return;
+    // Exploration chests sample the whole room, independently of Link's view
+    // and straight-line walking path. random_arena_floor checks dry native
+    // ground, room membership, exits, walls and the chest footprint locally.
+    // A direct path from Link rejects safe sites behind hills/walls/rivers and
+    // concentrates the entire map budget near the entrance.
+    const float spacing=std::clamp(std::sqrt(s_eliteFloorArea/float(budget))*0.5f,250.f,2500.f);
     unsigned attempts=0;
-    for (unsigned n=0;n<map_chest_budget(s_map);++n) {
+    for (unsigned n=0;n<budget;++n) {
         if (s_mapChestPlaced[n]) continue;
         cXyz pos; bool found=false;
         while (!found && attempts<24) {
             ++attempts;
-            if (!random_arena_floor(pos) || pos.absXZ(link->current.pos)<300 ||
-                !walkable_spawn_path(link->current.pos,pos,85)) continue;
+            if (!random_arena_floor(pos) || pos.absXZ(link->current.pos)<spacing) continue;
             found=std::none_of(s_chests.begin(),s_chests.end(),[&](const Chest& c) {
-                return c.active && c.position.abs(pos)<250;
+                return c.active && c.position.absXZ(pos)<(c.fixed ? spacing : 250.f);
             });
         }
         if (!found) return; // Retry missing safe positions on later frames.

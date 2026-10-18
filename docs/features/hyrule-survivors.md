@@ -79,7 +79,8 @@ enemy is available; carried pots are excluded. Native sword collision breaks the
 The HUD shows time, level, kills, experience and the next chest price.
 Active small chests also show the current price floating above them; opening and
 free large chests have no floating price. Labels track the camera and shared
-price rule, including after another chest is purchased.
+price rule, including after another chest is purchased. Only chests within
+Link's 1,400-unit item-target range show prices, independently of camera zoom.
 Weapon ranks and power-up details are available in the item wheel and Collection
 overview; they are not repeated during combat.
 
@@ -279,6 +280,11 @@ Throne Room. Their separate 18-slot pool retains placement flags after purchase;
 they always cost 40, never advance regular prices, and share selection/Get Item.
 Safe-position retries are bounded to 24 candidates per update. Affordability,
 preview, payment, floating labels and paid-reroll reservations use the same price.
+Starting chests use area-weighted room-floor sampling with local dry-ground,
+room, exit and footprint checks. They do not require a straight walking line
+from Link: that rejects distant sites around terrain obstacles and clusters
+chests near the entrance. Minimum spacing from Link and between these chests is
+half the square root of floor area per chest, clamped to 250–2,500 units.
 
 Six replenishing paid treasure chests can be present at once, in addition to free elite and one-use map chests. The first appears after 20–30 seconds;
 subsequent spawns are attempted at random 25–45 second intervals. Positions need

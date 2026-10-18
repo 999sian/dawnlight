@@ -13,7 +13,11 @@ fixture=r'''
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;using s16=short;
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
- cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}};
+ cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}
+ cXyz operator-(cXyz b)const{return{x-b.x,y-b.y,z-b.z};}
+ float abs2()const{return x*x+y*y+z*z;}};
+struct Player{struct{cXyz pos;}current;}player;
+bool hasPlayer=true;Player* daAlink_getAlinkActorClass(){return hasPlayer?&player:nullptr;}
 Run s_run;constexpr unsigned kSmallChestCount=2;
 struct Chest{bool active=false,opening=false;cXyz position;bool free=false,fixed=false;};std::array<Chest,3>s_chests;
 bool event=false,view=true;bool dComIfGp_event_runCheck(){return event;}bool dComIfGd_getView(){return view;}
@@ -30,12 +34,19 @@ int main(){
  labels.clear();s_run.chests_opened=2;draw_chest_prices();assert((labels==std::vector<std::string>{"32","32"}));
  labels.clear();s_chests[1].fixed=true;draw_chest_prices();assert((labels==std::vector<std::string>{"32","40"}));
  labels.clear();s_chests[0].opening=true;draw_chest_prices();assert(labels.size()==1);
+ // Range follows Link, not camera depth, zoom or the hovering label's bob.
+ labels.clear();s_chests[1].position={0,0,item_target_range-1};draw_chest_prices();assert(labels.size()==1);
+ labels.clear();s_chests[1].position.z=item_target_range;draw_chest_prices();assert(labels.empty());
+ s_chests[1].position.z=10000;draw_chest_prices();assert(labels.empty());
+ player.current.pos.z=10000;draw_chest_prices();assert(labels.size()==1);
+ labels.clear();player.current.pos.y=item_target_range;draw_chest_prices();assert(labels.empty());
+ player.current.pos={};hasPlayer=false;draw_chest_prices();assert(labels.empty());hasPlayer=true;
  labels.clear();s_chests[1].position.z=-1000;draw_chest_prices();assert(labels.empty());
  s_chests[1].position={900,0,1000};draw_chest_prices();assert(labels.empty());
  s_chests[1].position={320,0,1000};event=true;draw_chest_prices();assert(labels.empty());event=false;
  view=false;draw_chest_prices();assert(labels.empty());view=true;
  s_run.phase=Phase::TreasureChoice;draw_chest_prices();assert(labels.empty());
- std::cout<<"Survivors prices: shared cost, paid-only cards, camera bounds and pause gates passed\n";
+ std::cout<<"Survivors prices: shared cost, Link shooting range, camera bounds and pause gates passed\n";
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

@@ -138,8 +138,10 @@ The large gold-yellow elite crystal collects existing XP globally, without givin
 
 Up to **six replenishing small chests** can be present. These cost **20, 25, 32, 41, 52… rupees**: increases of +5, +7, +9, +11…
 Each arena also starts with randomly placed **40-rupee small chests** (counts above),
-which never respawn or affect the replenishing chests' price. Both kinds show
-their own price floating overhead. Placement requires reachable dry ground.
+which never respawn or affect the replenishing chests' price. Starting chests
+are spread across safe, dry map floor, including sites around terrain obstacles;
+their minimum spacing scales with map area. Both kinds show their own price
+floating overhead only within Link's shooting range.
 They are interactable only when affordable. Opening takes priority over automatic
 attacks and offers three items; choose one to receive it through the native Get
 Item animation. Cancelling preserves offers. Opened chests disappear; free elite

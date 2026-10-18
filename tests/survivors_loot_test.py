@@ -1,13 +1,14 @@
 """Exercise production chest purchases, placement and item trajectories with engine boundaries."""
 from pathlib import Path
 import re
+import os
 import subprocess
 import tempfile
 root = Path(__file__).resolve().parents[1]
 source = (root/'src/survivors_loot.inc').read_text()
 
 
-def extract(name):
+def extract(name, source=source):
     match = re.search(r'^(?:bool|void) ' + name + r'\(', source, re.M)
     assert match, name
     start = source.index('{', match.start())
@@ -111,8 +112,13 @@ bool sword_action_available(daAlink_c*){return true;}
 bool arenaPresent=true,transition=false;
 unsigned s_player=1,rupees=0;
 bool s_arenaMeshReady=true;unsigned s_map=0,placement=0;
+float s_eliteFloorArea=400000000;
+struct EliteFloor{cXyz a,b,c;float cumulative;};
+std::vector<EliteFloor>s_eliteFloors{
+ {{-10000,0,-10000},{10000,0,-10000},{-10000,0,10000},200000000},
+ {{10000,0,10000},{-10000,0,10000},{10000,0,-10000},400000000}};
 bool walkable_spawn_path(cXyz,cXyz&,float){return !blocked&&!invalidFloor&&!arenaBlocked;}
-bool random_arena_floor(cXyz& p){p={2000.f+float(placement++%30)*500,0,2000};return !invalidFloor;}
+bool elite_floor_position(cXyz&){++placement;return !invalidFloor;}
 bool in_arena(){return arenaPresent;}bool transitioning(){return transition;}
 unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned r){rupees=r;}
 '''
@@ -238,15 +244,35 @@ int main(){
     for(unsigned map=0;map<5;++map) {
         reset();s_map=map;invalidFloor=true;seed_map_chests(&player);
         for(const auto& c:s_chests)assert(!c.active);
-        invalidFloor=false;blocked=true;seed_map_chests(&player);
-        for(const auto& c:s_chests)assert(!c.active);
-        blocked=false;seed_map_chests(&player);
+        // Safe destinations can be reached by going around obstacles. The old
+        // Link-to-chest straight-path filter incorrectly rejected all of them.
+        invalidFloor=false;blocked=true;
+        for(unsigned frame=0;frame<200;++frame){
+            const unsigned before=placement;seed_map_chests(&player);
+            assert(placement-before<=24);
+        }
+        blocked=false;
         unsigned count=0;for(const auto& c:s_chests)if(c.active){++count;assert(c.fixed&&!c.free);}
         assert(count==map_chest_budget(map));
         for(unsigned i=0;i<kPaidChestCount;++i)assert(!s_chests[i].active);
         s_chests[kPaidChestCount]={};seed_map_chests(&player);
         assert(!s_chests[kPaidChestCount].active);
         assert(spawn_chest(&player)&&!s_chests[0].fixed);
+    }
+    // Exercise real area-weighted floor sampling across multiple field runs.
+    for(unsigned seed=1;seed<=20;++seed){
+        reset();s_map=1;s_run.start(seed);blocked=true;
+        for(unsigned frame=0;frame<200;++frame)seed_map_chests(&player);
+        std::array<bool,4> quadrants{};unsigned count=0;
+        for(unsigned i=kPaidChestCount;i<kSmallChestCount;++i){
+            const auto& chest=s_chests[i];assert(chest.active);++count;
+            quadrants[(chest.position.x>0?1:0)+(chest.position.z>0?2:0)]=true;
+            const float spacing=std::sqrt(s_eliteFloorArea/18.f)*0.5f;
+            assert(chest.position.absXZ(player.current.pos)>=spacing);
+            for(unsigned j=kPaidChestCount;j<i;++j)
+                assert(chest.position.absXZ(s_chests[j].position)>=spacing);
+        }
+        assert(count==18&&std::count(quadrants.begin(),quadrants.end(),true)>=3);
     }
     std::cout<<"Survivors loot: targeting, four projectile types, caps, placement and proximity behavior passed\n";
 }
@@ -256,6 +282,7 @@ functions = ['nearest_item_target','next_boom_target','update_boom_wind','launch
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'
     binary=Path(tmp)/'test'
-    cpp.write_text(stubs+'\n'.join(extract(n) for n in functions)+main)
-    subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
+    sampler=extract('random_arena_floor',(root/'src/survivors_elites.inc').read_text())
+    cpp.write_text(stubs+sampler+'\n'.join(extract(n) for n in functions)+main)
+    subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
