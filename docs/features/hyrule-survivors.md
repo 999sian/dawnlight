@@ -770,7 +770,10 @@ volley ID in each slot. The first arrow of a volley deals full damage to that
 enemy, later arrows 25% (rounded to at least one HP before Crit/Dark Link).
 Other targets and later/overlapping volleys retain independent first hits.
 No damage iFrame or shared time gate is introduced. Per-projectile deduplication
-still prevents a persistent arrow collider from hitting twice.
+still prevents a persistent arrow collider from hitting twice. Arrows stop at
+their first enemy impact. The hit collector sets both the base hit object and
+native target actor ID; projectile movement also retains the recorded impact
+when the target dies or native hit metadata is cleared before the next update.
 
 Ball lifetime includes the Reach-scaled outbound and return travel plus a short
 margin. Spin particle scale and collider radius use the same area-radius rule.

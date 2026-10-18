@@ -239,10 +239,20 @@ int main(){
         while(arrow.active&&arrow.position.z<near.eyePos.z)update_item_attack(arrow,&player);
         assert(arrow.active&&arrow.collider.radius==35);
         if(reach==30)assert(arrow.age>50);
-        arrow.collider.hit=true;update_item_attack(arrow,&player);assert(!arrow.active);
+        // The hit actor may already have been deleted, so the native query
+        // returns false. The recorded impact still stops flight before moving,
+        // emitting fire particles or registering another collision.
+        arrow.ballVictimCount=1;arrow.collider.hit=false;
+        const auto impact=arrow.position;const auto registrations=server.registrations;const auto effectCount=particles;
+        update_item_attack(arrow,&player);
+        assert(!arrow.active&&!arrow.collider.active&&arrow.position.abs(impact)==0);
+        assert(server.registrations==registrations&&particles==effectCount);
         blocked=true;update_item_attack(s_attacks[9],&player);assert(!s_attacks[9].active);
         blocked=false;s_attacks[10].collider.shield=true;
         update_item_attack(s_attacks[10],&player);assert(!s_attacks[10].active);
+        assert(launch_item(&player,Upgrade::Bow,near.eyePos));
+        assert(s_attacks[8].ballVictimCount==0&&s_attacks[8].active); // Reused slot is a fresh arrow.
+        s_attacks[8].collider.hit=true;update_item_attack(s_attacks[8],&player);assert(!s_attacks[8].active);
     }
     // Item rank never grows the boomerang collider; Reach keeps its size bonus.
     for(unsigned rank:{1u,4u,30u}) {

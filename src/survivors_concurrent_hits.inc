@@ -48,6 +48,11 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
         effect.pendingCritical=effect.pendingCritical||critical;
         effect.pendingStagger=effect.pendingStagger||stagger;
         attack->SetAtHit(target); // Arrow stop, boomerang hop and native combo contact.
+        // dCcD_GObjInf::ChkAtHit also requires the native target actor ID.
+        // SetAtHit alone only fills the base collision object; our hook skips
+        // SetAtTgGObjInf, which normally supplies this second half of the hit.
+        // Keep the actual collider owner here (including Helmasaur armor).
+        static_cast<dCcD_GObjInf*>(attack->GetGObjInf())->SetAtHitApid(fopAcM_GetID(target->GetAc()));
         dCcU_AtInfo info{};info.mpCollider=attack;info.mAttackPower=base;
         record_status_hit(actor,&info); // Burn refresh / distinct Dual Wield targets.
     }

@@ -20,12 +20,16 @@ struct cXyz {float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a)
  cXyz& operator+=(cXyz b){x+=b.x;y+=b.y;z+=b.z;return *this;}};
 struct Actor{unsigned id=1,parentActorID=kNone;int health=100,name=0;struct{cXyz pos;}current;};
 using fopAc_ac_c=Actor;
+Actor* actor_by_id(unsigned id);
 struct Status{void Init(int,int,Actor*){}};
-struct Collider {Actor* owner=nullptr;unsigned power=0,hits=0;Actor* GetAc(){return owner;}
+struct Collider {Actor* owner=nullptr;unsigned power=0,hits=0,hitActorId=kNone;Actor* GetAc(){return owner;}
+ Collider* GetGObjInf(){return this;}void SetAtHitApid(unsigned id){hitActorId=id;}
+ bool ChkAtHit(){return hits && actor_by_id(hitActorId)!=nullptr;}
  void SetAtHit(Collider*){++hits;}unsigned GetAtAtp(){return power;}void SetAtAtp(unsigned n){power=n;}
  void Set(int){}void SetStts(Status*){}void SetAtType(int){}void SetAtMtrl(int){}void OnAtNoConHit(){}
  void ResetAtHit(){}void OnAtSetBit(){}};
 using cCcD_Obj=Collider;
+using dCcD_GObjInf=Collider;
 struct daAlink_c:Actor {Collider mAtSph,mAtCps[3];int tevStr=0;
  struct HIO{struct{struct{struct{float mAttackRadius=260,mLightAttackRadius=400,mLargeAttackRadius=400;}m;}mCutTurn;}mCut;} hio,*mpHIO=&hio;
 }player;
@@ -74,6 +78,8 @@ int main(){
  for(unsigned i=0;i<4;++i){auto&a=s_attacks[i];a.active=true;a.weapon=8+i;a.collider.power=3+i;
   assert(hit(&a.collider,&target)==HOOK_SKIP_ORIGINAL);}
  assert(effects[0].pending==18&&statusHits==4);
+ // Native ChkAtHit needs both the base hit and a resolvable target actor ID.
+ for(unsigned i=0;i<4;++i)assert(s_attacks[i].collider.ChkAtHit()&&s_attacks[i].collider.hitActorId==2);
  for(unsigned frame=0;frame<15;++frame)for(unsigned i=0;i<4;++i)hit(&s_attacks[i].collider,&target);
  assert(effects[0].pending==18); // persistent bomb/pulse/wave collision is not DPS per frame
  // Fresh arrow, even in the very next frame, is an additional hit.
@@ -96,8 +102,9 @@ int main(){
  s_swordAction=SwordAction::Jump;++s_meleeSerial;s_run.ranks[unsigned(Upgrade::JumpStrike)]=1;
  hit(&player.mAtCps[0],&target);hit(&player.mAtSph,&target);hit(&player.mAtSph,&target);assert(effects[0].pending==56);
  // Armor child's collision feeds the parent, without double-counting its body.
- Actor shell;shell.name=fpcNm_E_MM_MT_e;shell.parentActorID=2;target.owner=&shell;
- ++s_meleeSerial;hit(&player.mAtCps[0],&target);target.owner=&actors[0];hit(&player.mAtCps[1],&target);assert(effects[0].pending==59);
+ Actor shell;shell.id=77;shell.name=fpcNm_E_MM_MT_e;shell.parentActorID=2;target.owner=&shell;
+ ++s_meleeSerial;hit(&player.mAtCps[0],&target);assert(player.mAtCps[0].hitActorId==shell.id);
+ target.owner=&actors[0];hit(&player.mAtCps[1],&target);assert(effects[0].pending==59);
  Collider foreign;assert(hit(&foreign,&target)==HOOK_CONTINUE);
  arena=false;assert(hit(&s_attacks[0].collider,&target)==HOOK_CONTINUE);arena=true;
  s_run.phase=Phase::Upgrade;assert(hit(&s_attacks[0].collider,&target)==HOOK_CONTINUE);s_run.phase=Phase::Running;

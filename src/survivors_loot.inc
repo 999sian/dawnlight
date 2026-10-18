@@ -311,7 +311,9 @@ void update_item_attack(Attack& a, daAlink_c* link) {
     ++a.age;
     if (!a.exploding) {
         const bool shield = a.collider.ChkAtShieldHit();
-        if (weapon == Upgrade::Bow && (shield || a.collider.ChkAtHit())) { stop_attack(a); return; }
+        // Keep the impact even if the enemy dies or native hit metadata is
+        // cleared before this update. A spent arrow must never move again.
+        if (weapon == Upgrade::Bow && (a.ballVictimCount || shield || a.collider.ChkAtHit())) { stop_attack(a); return; }
         if (weapon == Upgrade::Boomerang && !a.returning) {
             auto* target = actor_by_id(a.target);
             if (shield) a.returning = true;
