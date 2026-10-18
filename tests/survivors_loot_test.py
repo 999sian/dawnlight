@@ -27,6 +27,7 @@ stubs = r'''
 #include <unordered_map>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "survivors_projectiles.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned;constexpr ActorId kNone=~0u;
 constexpr int dCcD_MTRL_FIRE=2;unsigned short bow_fire_effect(){return 0x1234;}
@@ -86,7 +87,8 @@ struct Attack {
     std::array<unsigned,9>emitters{};
 };
 constexpr int kAttackSource=0;constexpr unsigned kPaidChestCount=6,kSmallChestCount=6+map_chest_capacity,kChestCount=kSmallChestCount+elite_reward_capacity,kItemBegin=8,kSlotsPerItem=4;
-std::array<Attack,projectile_capacity>s_attacks;
+std::deque<Attack>s_attacks(initial_projectile_slots);
+bool prepare_projectile_model(Attack&, unsigned){return true;}
 void stop_attack(Attack& a){a.active=false;a.collider.OffAtSetBit();a.emitters={};}
 unsigned cleared=0,closed=0;
 void clear_attacks(){++cleared;for(auto& a:s_attacks)stop_attack(a);}
@@ -124,7 +126,7 @@ unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned r){r
 '''
 main = r'''
 void reset(){
-    s_run.start(123);s_attacks={};s_cooldowns={};s_chests={};s_mapChestPlaced={};s_loot.ready=true;s_map=placement=0;s_arenaMeshReady=true;
+    s_run.start(123);s_attacks=std::deque<Attack>(initial_projectile_slots);s_cooldowns={};s_chests={};s_mapChestPlaced={};s_loot.ready=true;s_map=placement=0;s_arenaMeshReady=true;
     player={};player.current.pos={};player.id=s_player=1;s_selectedChest=kChestCount;
     arenaPresent=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
 }
@@ -248,7 +250,7 @@ int main(){
         near.id=2;near.health=10;near.eyePos={0,70,300};actors[2]=&near;s_enemies[0]={2,true,false,false};
         assert(launch_item(&player,Upgrade::Boomerang,near.eyePos));
         assert(s_attacks[28].radius==63);
-        s_attacks={};s_run.ranks[unsigned(Upgrade::Reach)]=10;
+        s_attacks=std::deque<Attack>(initial_projectile_slots);s_run.ranks[unsigned(Upgrade::Reach)]=10;
         assert(launch_item(&player,Upgrade::Boomerang,near.eyePos));
         assert(s_attacks[28].radius==s_run.radius(63));
     }
@@ -284,7 +286,17 @@ int main(){
     }
     reset();s_run.ranks[8]=1;
     for(unsigned i=0;i<20;++i)assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
-    assert(!launch_item(&player,Upgrade::Bow,{0,70,300})); // Bounded objects, no extra allocation.
+    auto* first=&s_attacks[8];auto* collider=&first->collider;
+    for(unsigned i=0;i<1000;++i)assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
+    assert(s_attacks.size()==initial_projectile_slots+1000&&first==&s_attacks[8]&&collider==&s_attacks[8].collider);
+    auto* overflow=&s_attacks[initial_projectile_slots];stop_attack(*overflow);
+    auto size=s_attacks.size();assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
+    assert(s_attacks.size()==size&&overflow->active); // Reuse without moving colliders.
+    for(auto weapon:{Upgrade::Bombs,Upgrade::Ball}) {
+        reset();s_run.ranks[unsigned(weapon)]=30;
+        for(unsigned i=0;i<50;++i)assert(launch_item(&player,weapon,{0,70,300}));
+        assert(s_attacks.size()==initial_projectile_slots+46);
+    }
     reset();invalidFloor=true;assert(!spawn_chest(&player));invalidFloor=false;
     blocked=true;assert(!spawn_chest(&player));blocked=false;
     arenaBlocked=true;assert(!spawn_chest(&player));arenaBlocked=false;
@@ -330,7 +342,7 @@ int main(){
         }
         assert(count==18&&std::count(quadrants.begin(),quadrants.end(),true)>=3);
     }
-    std::cout<<"Survivors loot: targeting, four projectile types, caps, placement and proximity behavior passed\n";
+    std::cout<<"Survivors loot: targeting, four projectile types, uncapped growth, placement and proximity behavior passed\n";
 }
 '''
 functions = ['nearest_item_target','next_boom_target','update_boom_wind','launch_item','explode_item','update_item_attack','fire_items',

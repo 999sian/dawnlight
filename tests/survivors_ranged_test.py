@@ -17,6 +17,7 @@ fixture=r'''
 #include <cmath>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "survivors_projectiles.hpp"
 using namespace dawnlight::survivors;
 using u16=unsigned short;using s16=short;
 constexpr int FALSE=0,dItemNo_NONE_e=255;
@@ -59,16 +60,16 @@ enum class SwordAction{None,Normal};SwordAction s_swordAction=SwordAction::Norma
 bool s_wavePending=false;unsigned s_comboStep=0,s_comboTimeout=0;
 bool nearest_item_target(daAlink_c*,cXyz& target,float range){target={targetDistance,100,0};return targetExists&&targetDistance<range;}
 constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
-struct Attack{bool active=false,returning=false;unsigned age=0,bowVolleySlot=20;uint64_t bowVolley=0;};std::array<Attack,projectile_capacity>s_attacks;
+struct Attack{bool active=false,returning=false;unsigned weapon=0,age=0,bowVolleySlot=20;uint64_t bowVolley=0;};std::deque<Attack>s_attacks(initial_projectile_slots);
 std::vector<Upgrade>shots;std::vector<float>spread;
 bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0,unsigned group=20,uint64_t volley=0){
- unsigned type=unsigned(weapon)-unsigned(Upgrade::Bow);auto b=s_attacks.begin()+item_projectile_begin(type),e=b+item_projectile_count(type);
- auto slot=std::find_if(b,e,[](const auto&a){return !a.active;});if(slot==e)return false;
- slot->active=true;slot->bowVolleySlot=group;slot->bowVolley=volley;shots.push_back(weapon);spread.push_back(angle);return true;}
+ unsigned type=unsigned(weapon)-unsigned(Upgrade::Bow);
+ auto& a=acquire_projectile(s_attacks,unsigned(weapon),item_projectile_begin(type),item_initial_slots(type));
+ a.active=true;a.weapon=unsigned(weapon);a.bowVolleySlot=group;a.bowVolley=volley;shots.push_back(weapon);spread.push_back(angle);return true;}
 '''
 main=r'''
 void fresh(){targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
- s_attacks={};shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;
+ s_attacks=std::deque<Attack>(initial_projectile_slots);shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;
  for(unsigned i=8;i<=11;++i)s_run.ranks[i]=1;}
 int main(){
  fresh();player.proc=1; // an active native sword swing does not block any item
@@ -85,15 +86,21 @@ int main(){
  fresh();targetDistance=2300;s_run.ranks[unsigned(Upgrade::Reach)]=10;
  assert(queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
  assert(!queue_ranged(&player,Upgrade::Bombs));assert(!queue_ranged(&player,Upgrade::Ball));
- // A nearly full pool emits a narrower symmetric partial volley, not one wing.
- fresh();s_run.ranks[8]=30;for(unsigned i=8;i<25;++i)s_attacks[i].active=true;
- assert(queue_ranged(&player,Upgrade::Bow)&&shots.size()==3);
- assert(std::abs(spread[1]+spread[2])<1.e-6f);
- auto group=s_attacks[25].bowVolleySlot;auto serial=s_attacks[25].bowVolley;
- assert(group<20&&serial&&s_attacks[26].bowVolley==serial&&s_attacks[27].bowVolley==serial);
- s_cooldowns[8]=0;assert(!queue_ranged(&player,Upgrade::Bow));
- s_attacks[8].active=false;assert(queue_ranged(&player,Upgrade::Bow));
- assert(s_attacks[8].bowVolleySlot!=group&&s_attacks[8].bowVolley!=serial);
+ // Full ten-arrow fans persist beyond the old 20-arrow and 20-volley limits.
+ fresh();s_run.ranks[8]=30;
+ for(unsigned volley=0;volley<30;++volley) {
+  s_cooldowns[8]=0;assert(queue_ranged(&player,Upgrade::Bow));
+  assert(shots.size()==10*(volley+1));
+  auto lo=*std::min_element(spread.end()-10,spread.end());
+  auto hi=*std::max_element(spread.end()-10,spread.end());
+  assert(std::abs(hi-lo-3.14159265f/4)<1.e-6f);
+ }
+ unsigned arrows=0;for(auto&a:s_attacks)if(a.active&&a.weapon==8)++arrows;
+ assert(arrows==300&&s_attacks.back().bowVolleySlot==29);
+ auto serial=s_attacks[8].bowVolley;
+ for(auto&a:s_attacks)if(a.bowVolleySlot==0)a.active=false;
+ s_cooldowns[8]=0;assert(queue_ranged(&player,Upgrade::Bow));
+ assert(s_attacks[8].bowVolleySlot==0&&s_attacks[8].bowVolley!=serial);
  fresh();targetExists=false;assert(!queue_ranged(&player,Upgrade::Bow)&&!s_cooldowns[8]);
  targetExists=true;playing=false;assert(!queue_ranged(&player,Upgrade::Bow));
  playing=true;s_loot.ready=false;assert(!queue_ranged(&player,Upgrade::Bow));

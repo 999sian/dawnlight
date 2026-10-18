@@ -1,4 +1,4 @@
-// Native iron-ball chain geometry and material, submitted as bounded packets.
+// Native iron-ball chain geometry and material, with stable growable packets.
 // Each packet owns its endpoints; no fake Link actor or shared equipment pointers.
 struct SurvivorChain : J3DPacket {
     cXyz hand{}, ball{};
@@ -35,8 +35,9 @@ struct SurvivorChain : J3DPacket {
         }
     }
 };
-std::array<SurvivorChain, kSlotsPerItem> s_chainPackets;
+std::deque<SurvivorChain> s_chainPackets;
 void draw_chain(unsigned slot, daAlink_c* link, cXyz ball) {
+    while (s_chainPackets.size() <= slot) s_chainPackets.emplace_back();
     auto& packet = s_chainPackets[slot];
     const auto hand = link->getLeftItemMatrix();
     packet.hand = cXyz(hand[0][3], hand[1][3], hand[2][3]); packet.ball = ball;

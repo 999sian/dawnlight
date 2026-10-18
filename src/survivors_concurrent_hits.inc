@@ -23,7 +23,8 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
             (projectile.weapon==unsigned(Upgrade::Bow) && projectile.ballVictimCount!=0);
         if(!duplicate) {
             projectile.ballVictims[projectile.ballVictimCount++]=enemy->id;
-            if(projectile.weapon==unsigned(Upgrade::Bow) && projectile.bowVolley && projectile.bowVolleySlot<effect.bowVolleys.size()) {
+            if(projectile.weapon==unsigned(Upgrade::Bow) && projectile.bowVolley) {
+                if(effect.bowVolleys.size()<=projectile.bowVolleySlot) effect.bowVolleys.resize(size_t(projectile.bowVolleySlot)+1);
                 auto& last=effect.bowVolleys[projectile.bowVolleySlot];
                 if(last==projectile.bowVolley) base=std::max(1u,(base+2)/4);
                 last=projectile.bowVolley;

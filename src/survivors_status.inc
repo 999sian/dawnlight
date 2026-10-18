@@ -4,7 +4,7 @@ struct EnemyEffect {
     ActorId id = kNone;
     unsigned burn = 0, pulse = ticks_per_second, pending = 0, meleeSerial = 0;
     unsigned damage = 0, jumpSerial = 0;
-    std::array<uint64_t,20> bowVolleys{};
+    std::vector<uint64_t> bowVolleys;
     bool pendingStagger = false, stagger = false;
     bool injected = false, pendingCritical = false, critical = false;
     cXyz velocity{};

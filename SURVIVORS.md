@@ -323,3 +323,8 @@ Luck** (+10% per rank, capped at rank 5): enemy drops start at 2.5% heart / 45% 
 reach 3%. Better rupee-color chances also stop improving above +50%.
 
 [Technical details and testing notes](docs/features/hyrule-survivors.md)
+
+Player projectiles have no fixed simultaneous-count cap. Full bow salvos,
+boomerangs, bombs, ball-and-chain throws and sword waves allocate additional
+reusable slots as needed. Cooldowns, lifetimes and damage rules are unchanged.
+This increases possible memory/rendering load and needs in-game stress testing.

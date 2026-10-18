@@ -27,6 +27,7 @@ stubs=r'''
 #include <iostream>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "survivors_projectiles.hpp"
 using namespace dawnlight::survivors;
 using s16=short;using u32=unsigned;
 constexpr int MOD_OK=0,TRUE=1,cPhs_ERROR_e=-1,cPhs_COMPLEATE_e=4;
@@ -47,7 +48,7 @@ struct JKRSolidHeap {std::vector<void*>allocations;};
 JKRSolidHeap defaultHeap,*currentHeap=&defaultHeap;
 unsigned forgets=0,heapCreates=0,heapDestroys=0,draws=0,modelsMade=0;
 int failModel=-1;bool failHeap=false,missingLid=false,waiting=false,resourceError=false;
-struct J3DModel {J3DModelData* data;bool forgotten=false;
+struct J3DModel {J3DModelData* data;bool forgotten=false;JKRSolidHeap* heap=currentHeap;
     explicit J3DModel(J3DModelData* d):data(d){}
     J3DModelData* getModelData(){return data;}
     void* matrix=nullptr;cXyz scale{};
@@ -76,7 +77,10 @@ JKRSolidHeap* mDoExt_setCurrentHeap(JKRSolidHeap* p){auto* old=currentHeap;curre
 void mDoExt_adjustSolidHeap(JKRSolidHeap*){}
 void mDoExt_destroySolidHeap(JKRSolidHeap* heap){
     assert(currentHeap!=heap);
-    for(auto* m:liveModels){assert(m->forgotten);delete m;}liveModels.clear();
+    for(auto it=liveModels.begin();it!=liveModels.end();) {
+        auto* m=*it;if(m->heap!=heap){++it;continue;}
+        assert(m->forgotten);delete m;it=liveModels.erase(it);
+    }
     for(auto* p:heap->allocations)::operator delete(p);
     delete heap;++heapDestroys;
 }
@@ -105,8 +109,8 @@ namespace mDoMtx_stack_c{void transS(cXyz){}void YrotM(s16){}void XrotM(s16){}vo
 struct dKy_tevstr_c{};
 struct Light{void settingTevStruct(int,cXyz*,dKy_tevstr_c*){}void setLightTevColorType_MAJI(J3DModel*,dKy_tevstr_c*){}}g_env_light;
 void mDoExt_modelUpdateDL(J3DModel*){++draws;}
-struct Attack{bool active=false,exploding=false;unsigned weapon=0,age=0;cXyz position,velocity;};
-std::array<Attack,projectile_capacity>s_attacks;Run s_run;
+struct Attack{JKRSolidHeap* modelHeap=nullptr;J3DModel* model=nullptr;J3DModel* wind=nullptr;bool active=false,exploding=false;unsigned weapon=0,age=0;cXyz position,velocity;};
+std::deque<Attack>s_attacks(initial_projectile_slots);Run s_run;
 void cancel_treasure_demo(){}
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 struct leafdraw_class{int id=42;};
@@ -151,12 +155,25 @@ int main(){
     assert(before_treasure_draw(nullptr,&process,&result,nullptr)==HOOK_SKIP_ORIGINAL&&draws==beforeDraw);
     clear_loot();assert(references==0 && liveModels.empty() && !s_loot.ready && !s_chests[0].active);
     const auto destroys=heapDestroys;clear_loot();assert(heapDestroys==destroys);
+    assert(prepare_loot(&player));
+    for(unsigned type=0;type<4;++type)for(unsigned n=0;n<25;++n) {
+        s_attacks.emplace_back();auto& a=s_attacks.back();a.weapon=8+type;a.active=true;
+        assert(prepare_projectile_model(a,type)&&a.modelHeap&&a.model);
+        if(type==1)assert(a.wind);
+        auto count=heapCreates;assert(prepare_projectile_model(a,type)&&heapCreates==count);
+    }
+    draw_loot();clear_loot();assert(liveModels.empty()&&references==0);
+    for(auto&a:s_attacks)assert(!a.modelHeap&&!a.model&&!a.wind);
+    assert(prepare_loot(&player));
+    auto& a=s_attacks.back();failHeap=true;assert(!prepare_projectile_model(a,1));failHeap=false;
+    failModel=int(modelsMade)+1;assert(!prepare_projectile_model(a,1)&&!a.modelHeap&&!a.model&&!a.wind);
+    failModel=-1;assert(prepare_projectile_model(a,1));clear_loot();
     assert(prepare_loot(&player));clear_loot();assert(heapCreates==heapDestroys);
     std::cout<<"Survivors loot resources: async load, failures, heap ownership, shared animation and cleanup passed\n";
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
-    cpp.write_text(stubs+globals+'\n'.join(extract(n) for n in ['clear_loot','prepare_loot','draw_loot_model','draw_loot'])+draw+main)
+    cpp.write_text(stubs+globals+'\n'.join(extract(n) for n in ['clear_loot','prepare_loot','prepare_projectile_model','draw_loot_model','draw_loot'])+draw+main)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

@@ -27,7 +27,9 @@ struct LootModels {
     mDoExt_bckAnm* windAnim = nullptr;
     request_of_phase_process_class chestPhase{}, linkPhase{};
     const char* linkArchive = nullptr;
-    std::array<J3DModel*, projectile_capacity> projectiles{};
+    std::array<J3DModel*, initial_projectile_slots> projectiles{};
+    std::array<J3DModelData*, 4> projectileData{};
+    J3DModelData* windData = nullptr;
     std::array<J3DModel*, kChestCount> chests{};
     std::array<mDoExt_bckAnm*, kChestCount> lids{};
     bool ready = false, failed = false;
@@ -41,6 +43,10 @@ void clear_loot() {
     if (s_loot.heap && svc_hook && svc_hook->resolve &&
         svc_hook->resolve(mod_ctx, "J3DModel::forgetMtx", &address, nullptr) == MOD_OK && address) {
         auto forget = reinterpret_cast<ForgetModel>(address);
+        for (auto& a : s_attacks) if (a.modelHeap) {
+            if (a.model) forget(a.model);
+            if (a.wind) forget(a.wind);
+        }
         for (auto* model : s_loot.projectiles) if (model) forget(model);
         for (auto* model : s_loot.chests) if (model) forget(model);
         if (s_loot.masterSword) forget(s_loot.masterSword);
@@ -49,6 +55,10 @@ void clear_loot() {
         if (s_loot.heldBomb) forget(s_loot.heldBomb);
         if (s_loot.heldBall) forget(s_loot.heldBall);
         for (auto* model : s_loot.wind) if (model) forget(model);
+    }
+    for (auto& a : s_attacks) {
+        if (a.modelHeap) mDoExt_destroySolidHeap(a.modelHeap);
+        a.modelHeap = nullptr; a.model = a.wind = nullptr;
     }
     if (s_loot.heap) mDoExt_destroySolidHeap(s_loot.heap);
     dComIfG_resDelete(&s_loot.chestPhase, "Dalways");
@@ -83,8 +93,8 @@ bool prepare_loot(daAlink_c* link) {
     s_loot.bowAnims[0] = animation(static_cast<J3DAnmTransform*>(link->loadAram(dRes_ID_ALANM_BCK_BARELORD_e, 0x4000)));
     s_loot.bowAnims[1] = animation(static_cast<J3DAnmTransform*>(link->loadAram(dRes_ID_ALANM_BCK_BASHOOT_e, 0x4000)));
     s_loot.windAnim = animation(static_cast<J3DAnmTransform*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x13)));
-    for (auto*& wind : s_loot.wind)
-        wind = model(static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x34)), true);
+    s_loot.windData = static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x34));
+    for (auto*& wind : s_loot.wind) wind = model(s_loot.windData, true);
     auto* chestData = static_cast<J3DModelData*>(dComIfG_getObjectRes("Dalways", 12));
     auto* bigChestData = static_cast<J3DModelData*>(dComIfG_getObjectRes("Dalways", 13));
     auto* bigLidData = static_cast<J3DAnmTransform*>(dComIfG_getObjectRes("Dalways", 8));
@@ -108,14 +118,17 @@ bool prepare_loot(daAlink_c* link) {
     s_loot.heldBomb = model(static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1e)));
     s_loot.chainData = link->loadAramBmd(dRes_ID_ALANM_BMD_AL_HS_KUSARI_e, 0x1000);
     ready = ready && s_loot.heldBall && s_loot.heldBomb && s_loot.chainData;
-    const std::array<J3DModelData*, 4> data{
+    s_loot.projectileData = {
         static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1c)),
         static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1f)),
         static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1e)), ball};
-    for (unsigned type = 0; type < data.size(); ++type)
-        for (unsigned slot = 0; slot < item_projectile_count(type); ++slot) {
+    for (unsigned type = 0; type < s_loot.projectileData.size(); ++type)
+        for (unsigned slot = 0; slot < item_initial_slots(type); ++slot) {
             auto*& instance = s_loot.projectiles[item_projectile_begin(type) + slot];
-            instance = model(data[type], type == 3);
+            instance = model(s_loot.projectileData[type], type == 3);
+            auto& attack = s_attacks[item_projectile_begin(type) + slot];
+            attack.model = instance;
+            if (type == 1) attack.wind = s_loot.wind[slot];
             ready = ready && instance;
         }
     if (ball) dRes_info_c::offWarpMaterial(ball);
@@ -193,13 +206,38 @@ void update_boom_wind(Attack& a, daAlink_c* link) {
             &angle, nullptr, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
     }
 }
+// Models cannot share deferred draw matrices. Each added projectile owns a
+// small, trimmed heap; the initial batch remains in the shared treasure heap.
+bool prepare_projectile_model(Attack& a, unsigned type) {
+    if (a.model) return true;
+    a.modelHeap = mDoExt_createSolidHeapFromGame(0x40000, 0x20);
+    if (!a.modelHeap) return false;
+    auto* previous = mDoExt_setCurrentHeap(a.modelHeap);
+    a.model = mDoExt_J3DModel__create(s_loot.projectileData[type], type == 3 ? 0 : 0x80000,
+                                    type == 3 ? 0x13000684 : 0x11000084);
+    if (type == 1) a.wind = mDoExt_J3DModel__create(s_loot.windData, 0, 0x13000684);
+    mDoExt_setCurrentHeap(previous);
+    if (!a.model || (type == 1 && !a.wind)) {
+        // Forget any matrices cached during model creation before freeing its heap.
+        void* address = nullptr;
+        if (svc_hook && svc_hook->resolve &&
+            svc_hook->resolve(mod_ctx, "J3DModel::forgetMtx", &address, nullptr) == MOD_OK && address) {
+            auto forget = reinterpret_cast<void (*)(J3DModel*)>(address);
+            if (a.model) forget(a.model);
+            if (a.wind) forget(a.wind);
+        }
+        mDoExt_destroySolidHeap(a.modelHeap);
+        a.modelHeap = nullptr; a.model = a.wind = nullptr;
+        svc_log->warn(mod_ctx, "Hyrule Survivors: projectile model allocation failed");
+        return false;
+    }
+    mDoExt_adjustSolidHeap(a.modelHeap);
+    return true;
+}
 bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0, unsigned volleySlot = 20, uint64_t volley = 0) {
     const unsigned index = unsigned(weapon), type = index - unsigned(Upgrade::Bow);
-    auto begin = s_attacks.begin() + item_projectile_begin(type);
-    auto end = begin + item_projectile_count(type);
-    auto slot = std::find_if(begin, end, [](const auto& a) { return !a.active; });
-    if (slot == end) return false;
-    auto& a = *slot;
+    auto& a = acquire_projectile(s_attacks, index, item_projectile_begin(type), item_initial_slots(type));
+    if (!prepare_projectile_model(a, type)) return false;
     a.weapon = index; a.age = 0; a.life = 100;
     a.bowVolleySlot=volleySlot;a.bowVolley=volley;
     a.returning = a.exploding = false; a.travel = 0;
@@ -430,10 +468,10 @@ void draw_loot() {
         const auto weapon = static_cast<Upgrade>(a.weapon);
         const auto yaw = weapon == Upgrade::Boomerang ? s16(a.age * 7000) : cM_atan2s(a.velocity.x, a.velocity.z);
         const auto pitch = weapon == Upgrade::Bow ? s16(-cM_atan2s(a.velocity.y, a.velocity.absXZ())) : s16(0);
-        draw_loot_model(s_loot.projectiles[i], a.position, yaw, pitch,
+        draw_loot_model(a.model, a.position, yaw, pitch,
             weapon == Upgrade::Bow ? 1 : s_run.radius(weapon == Upgrade::Boomerang ? 1.f : 1 + 0.08f * (s_run.rank(weapon) - 1)));
         if (weapon == Upgrade::Boomerang && s_loot.windAnim) {
-            auto* model = s_loot.wind[i - item_projectile_begin(1)];
+            auto* model = a.wind;
             auto* data = model->getModelData(); auto* root = data->getJointNodePointer(0);
             auto* joint = data->getJointNodePointer(4);
             auto* oldCalc = root->getMtxCalc(); auto oldCallback = joint->getCallBack();
@@ -443,6 +481,6 @@ void draw_loot() {
             draw_loot_model(model, a.position, 0, 0, 1);
             root->setMtxCalc(oldCalc); joint->setCallBack(oldCallback);
         }
-        if (weapon == Upgrade::Ball && link) draw_chain(i - item_projectile_begin(3), link, a.position);
+        if (weapon == Upgrade::Ball && link) draw_chain(i, link, a.position);
     }
 }

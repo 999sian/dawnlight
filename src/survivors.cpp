@@ -1,6 +1,7 @@
 #include "survivors.hpp"
 #include "process_actor.hpp"
 #include "survivors_rules.hpp"
+#include "survivors_projectiles.hpp"
 #include "survivors_roster.hpp"
 #include "survivors_items.hpp"
 #include "survivors_maps.hpp"
@@ -280,6 +281,9 @@ struct Attack {
     std::array<ActorId, 11> visited{};
     std::array<ActorId, enemy_capacity> ballVictims{};
     unsigned ballVictimCount = 0;
+    JKRSolidHeap* modelHeap = nullptr;
+    J3DModel* model = nullptr;
+    J3DModel* wind = nullptr;
     unsigned bowVolleySlot = 20;
     uint64_t bowVolley = 0;
     float travel = 0, limit = 0;
@@ -290,7 +294,7 @@ struct Attack {
     std::array<u32, 9> emitters{};
 };
 // Stable addresses: collision server retains pointers until its next frame.
-std::array<Attack, projectile_capacity> s_attacks;
+std::deque<Attack> s_attacks(initial_projectile_slots);
 const dCcD_SrcSph kAttackSource = {
     {{0, {{AT_TYPE_NORMAL_SWORD, 3, 0x1a}, {0, 0}, 0}},
      {dCcD_SE_SWORD, 3, dCcG_At_Spl_UNK_1, dCcD_MTRL_NONE, {1}},
@@ -652,9 +656,7 @@ cXyz target_direction(daAlink_c* link) {
     return result;
 }
 void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
-    auto slot = std::find_if(s_attacks.begin(), s_attacks.begin() + 8, [](const auto& a) { return !a.active; });
-    if (slot == s_attacks.begin() + 8) return;
-    auto& a = *slot;
+    auto& a = acquire_projectile(s_attacks, weapon, 0, 8);
     a.weapon = weapon; a.life = 35; a.ballVictimCount = 0;
     a.position = link->current.pos + cXyz(0, 65, 0);
     a.velocity = direction * 42.0f;

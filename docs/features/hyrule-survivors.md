@@ -522,13 +522,20 @@ are required. Larger arenas, camera changes, weapon evolutions, persistent
 unlock trees and mid-run suspend are not part of this version.
 
 The budgets are 372 tracked enemies (360 ordinary slots plus four scheduled
-elites and up to eight guards, including pending/deleting actors), 40 attack
-objects (eight base-weapon slots, twenty arrow slots and four per other chest weapon), six replenishing chest props, up to 18 one-use map chest props,
+elites and up to eight guards, including pending/deleting actors), six replenishing chest props, up to 18 one-use map chest props,
 up to 60 free chest props, 64 experience crystals and up to 72 native pot actors. The free pool covers seven
-lives per guard plus the four scheduled elites; opened slots are reused. Model allocation is bounded by a 3 MiB heap,
+lives per guard plus the four scheduled elites; opened slots are reused. Treasure and initial projectile models use a 3 MiB heap,
 trimmed after loading; native pot actors use their own engine-managed heaps. Excess crystals merge their value and mark the recipient red; freeing/reusing a
 slot resets that color. The gold-yellow global-magnet drop has four separate slots.
-Native enemy arrows have a separate cap of 1116, including pending/deleting actors.
+Player projectiles have no fixed pool ceiling. The initial 42 collision slots
+(eight waves, twenty arrows, four each for boomerangs/bombs/balls, two skill pulses)
+are reusable reservations. Additional waves and item projectiles append stable
+collision objects and reuse inactive entries of the same weapon. Each extra
+item model owns a trimmed heap; all model heaps are released on run teardown.
+Collision storage and chain packets retain stable addresses across reuse.
+Allocation failure can still prevent a release; engine renderer/collision/particle
+budgets and available memory remain finite. Native enemy arrows have a separate
+cap of 1116, including pending/deleting actors.
 These limits are starting budgets, not a measured Android performance guarantee.
 Spawns require a valid floor and unobstructed line from Link, and are staggered.
 A failed elite creation/despawn can be retried without granting loot or counting as a kill.
@@ -744,9 +751,9 @@ absolute final-boss budgets. Power, Master Sword damage, Dark Link's permanent
 Legendary global multiplier is not implemented.
 
 Bow volleys use a symmetric center-out fan with 5 degrees between arrows:
-one arrow 0°, two ±2.5°, three −5°/0°/+5°, ten −22.5°…+22.5°. A partial volley
-uses its actual arrow count and remains symmetric. Twenty group slots follow
-active arrows; an occupied group cannot be reused. Each enemy tracks the last
+one arrow 0°, two ±2.5°, three −5°/0°/+5°, ten −22.5°…+22.5°. Full salvos
+are emitted regardless of occupied projectile slots. Volley groups and each
+enemy's tracking vector grow as needed; an occupied group cannot be reused. Each enemy tracks the last
 volley ID in each slot. The first arrow of a volley deals full damage to that
 enemy, later arrows 25% (rounded to at least one HP before Crit/Dark Link).
 Other targets and later/overlapping volleys retain independent first hits.

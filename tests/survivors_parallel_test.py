@@ -9,6 +9,7 @@ fixture=r'''
 #include <cassert>
 #include <cmath>
 #include <unordered_map>
+#include <vector>
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned;using u8=unsigned char;using u16=unsigned short;using u32=unsigned;
@@ -34,11 +35,11 @@ Actor* actor_by_id(unsigned id){for(auto&a:actors)if(a.id==id)return &a;return n
 unsigned fopAcM_GetID(Actor*a){return a->id;}int fopAcM_GetName(Actor*a){return a->name;}
 constexpr int fpcNm_E_MM_MT_e=77;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
-struct Effect{std::array<uint64_t,20>bowVolleys{};unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,2>effects;
+struct Effect{std::vector<uint64_t>bowVolleys;unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,2>effects;
 Effect& effect_for(Enemy&e){return effects[&e-enemies.data()];}
 struct Attack{unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0;std::array<unsigned,enemy_capacity>ballVictims{};
  Collider collider;Status status;std::array<unsigned,9>emitters{};float radius=0;cXyz position,velocity;};
-std::array<Attack,projectile_capacity>s_attacks;
+std::array<Attack,initial_projectile_slots>s_attacks;
 Run s_run;unsigned s_player=1,s_meleeSerial=1;
 enum class SwordAction{None,Normal,Jump};SwordAction s_swordAction=SwordAction::Normal;
 bool native_sword_collider(const Collider*c){return c==&player.mAtSph||c==&player.mAtCps[0]||c==&player.mAtCps[1]||c==&player.mAtCps[2];}
@@ -111,7 +112,7 @@ int main(){
  // and different targets retain full first-hit damage, even on one frame.
  effects={};s_attacks={};target.owner=&actors[0];s_run.ranks[unsigned(Upgrade::CritChance)]=0;
  for(unsigned i=0;i<4;++i){auto&a=s_attacks[i];a.active=true;a.weapon=unsigned(Upgrade::Bow);a.collider.power=20;
-  a.bowVolleySlot=i==2?1:0;a.bowVolley=i==2?101:100;}
+  a.bowVolleySlot=i==2?101:100;a.bowVolley=i==2?101:100;}
  hit(&s_attacks[0].collider,&target);hit(&s_attacks[1].collider,&target);
  hit(&s_attacks[2].collider,&target);hit(&s_attacks[3].collider,&target);
  assert(effects[0].pending==50);hit(&s_attacks[3].collider,&target);assert(effects[0].pending==50);

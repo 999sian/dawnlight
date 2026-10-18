@@ -5,7 +5,6 @@ struct RangedAction {
     Upgrade weapon = Upgrade::Bow;
     u16 animation = 0;
     cXyz target{};
-    unsigned projectile = projectile_capacity;
     bool pulling = false, catching = false;
 } s_ranged;
 unsigned s_rangedRest = 0;
@@ -33,14 +32,13 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     cXyz target;
     if (!nearest_item_target(link, target, s_run.item_range(weapon))) return false;
     if (weapon == Upgrade::Bow) {
-        const auto begin=s_attacks.begin()+item_projectile_begin(0),end=begin+item_projectile_count(0);
-        const unsigned count=std::min(s_run.bow_shots(),unsigned(std::count_if(begin,end,[](const auto& a){return !a.active;})));
-        if(!count)return false;
-        // A group slot is never reused while any arrow from its previous volley
-        // remains active, so late hits and overlapping volleys stay independent.
+        const unsigned count=s_run.bow_shots();
+        // Grow the group index space as needed; never shorten or block a volley.
+        // Reuse only after every arrow from the previous volley has expired.
         unsigned group=0;
-        for(;group<20;++group) if(std::none_of(begin,end,[&](const auto& a){return a.active&&a.bowVolleySlot==group;}))break;
-        if(group==20)return false;
+        while(std::any_of(s_attacks.begin(),s_attacks.end(),[&](const auto& a){
+            return a.active && a.weapon==unsigned(Upgrade::Bow) && a.bowVolleySlot==group;
+        })) ++group;
         const uint64_t volley=++s_bowVolleySerial;
         for(unsigned i=0;i<count;++i)
             if(!launch_item(link,weapon,target,Run::bow_spread(i,count),group,volley))return false;
