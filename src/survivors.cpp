@@ -14,6 +14,7 @@
 #include "d/d_menu_collect.h"
 #include "d/d_menu_item_explain.h"
 #include "d/d_map.h"
+#include "d/d_camera.h"
 #include "d/d_msg_object.h"
 #include "d/d_msg_class.h"
 #include "JSystem/JMessage/control.h"
@@ -79,6 +80,9 @@ const Arena& arena() { return arenas[s_map]; }
 constexpr char kBlob[] = "hyrule-survivors-records-v1";
 constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
+DEFINE_HOOK(&dBgS_Acch::CrrPos, SurvivorsEnemySpeed);
+DEFINE_HOOK(&daAlink_c::setDamagePoint, SurvivorsEnemyDamage);
+DEFINE_HOOK(&dCamera_c::Run, SurvivorsCamera);
 DEFINE_HOOK(&daAlink_c::orderZTalk, SurvivorsMidnaOrder);
 DEFINE_HOOK(&dMsgFlow_c::getInitNodeIndex, SurvivorsMidnaFlow);
 DEFINE_HOOK(&daAlink_c::checkSceneChange, SurvivorsArenaExit);
@@ -147,6 +151,7 @@ bool s_active = false, s_registered = false, s_loaded = false, s_restart = false
 bool s_saveReady = false, s_gameStarted = false;
 bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 Run s_run;
+RunOptions s_options;
 Records s_records;
 UiWindowHandle s_window = 0, s_powerupsWindow = 0;
 bool s_powerupsRequested = false;
@@ -204,7 +209,7 @@ struct Attack {
     bool returning = false, exploding = false;
     ActorId target = kNone;
     unsigned hops = 0, visitedCount = 0;
-    std::array<ActorId, 6> visited{};
+    std::array<ActorId, 31> visited{};
     std::array<ActorId, enemy_capacity> ballVictims{};
     unsigned ballVictimCount = 0;
     float travel = 0, limit = 0;
@@ -251,6 +256,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_aggro.inc"
 #include "survivors_ground.inc"
 #include "survivors_pickups.inc"
+#include "survivors_options.inc"
 void stop_attack(Attack& a) {
     for (auto& id : a.emitters) {
         if (id) {
@@ -445,8 +451,10 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
-    if (!e.elite) drop_reward(actor);
-    add_orb(actor->current.pos, e.elite ? 30 : e.profile == fpcNm_E_OC_e ? 3 : 1);
+    if (e.elite || s_run.normal_kill_drops()) {
+        if (!e.elite) drop_reward(actor);
+        add_orb(actor->current.pos, e.elite ? 30 : e.profile == fpcNm_E_OC_e ? 3 : 1);
+    }
     if (e.elite) { drop_elite_chest(e, actor); queue_flute(e, actor); }
 }
 void update_orbs(daAlink_c* link) {
@@ -515,7 +523,10 @@ void update_spawns(daAlink_c* link) {
     if (s_spawnCooldown) { --s_spawnCooldown; return; }
     s_spawnCooldown = s_run.spawn_interval();
     update_elite_spawns(link);
-    if (population < s_run.target_population() && !spawn_enemy(link, false)) ++s_spawnFailures;
+    for (unsigned i=0; i<s_run.options.horde && population<s_run.target_population(); ++i) {
+        if (spawn_enemy(link,false)) ++population;
+        else { ++s_spawnFailures; break; }
+    }
 }
 cXyz target_direction(daAlink_c* link) {
     float nearest = 1600 * 1600;
@@ -769,6 +780,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (s_run.ticks >= duration) { finish(true); return; }
     update_enemy_effects();
     update_spawns(link); update_pots(link); update_flutes(link); update_weapons(link); update_orbs(link);
+    s_run.maximum_hearts = dComIfGs_getMaxLife() / 5;
     if (s_run.level_up()) clear_attacks();
     else update_chests(link);
 }
@@ -843,6 +855,8 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
             actor->field_0x560 = actor->health = enemy->elite ? 120 :
                 static_cast<s16>(8 + std::min(24u, s_run.ticks / 900));
         }
+        actor->field_0x560 = actor->health = static_cast<s16>(
+            std::clamp(int(actor->health) * int(s_run.options.enemy_hp), 1, 32767));
     }
     if (enemy && enemy->dormant && enemy->profile == fpcNm_E_OC_e) {
         auto* guard = static_cast<daE_OC_c*>(actor);
@@ -966,6 +980,7 @@ void select_upgrade(ModContext*, void* data) {
     const unsigned choice = *static_cast<unsigned*>(data);
     if (s_run.phase != Phase::Upgrade || choice >= 3) return;
     const auto selected = s_run.offers[choice];
+    s_run.maximum_hearts = dComIfGs_getMaxLife() / 5;
     const unsigned oldHearts=s_run.rank(Upgrade::Heart);
     const unsigned bonus = s_run.upgrade_rupees(selected, s_run.offer_rarities[choice]);
     if (!s_run.choose(choice)) return;
@@ -981,7 +996,7 @@ void start_run(ModContext*, void*) {
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
     reset_elite_encounters();
-    s_run.start(seed); s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
+    s_run.start(seed, s_options); s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
     s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
     s_comboStep = s_comboTimeout = 0;
@@ -1026,12 +1041,19 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
 }
 void open_window() {
     if (s_window || ui_visible()) return;
-    UiTabDesc tab = UI_TAB_DESC_INIT;
+    UiTabDesc tabs[3] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
+    auto& tab=tabs[0];
     tab.title = s_run.phase == Phase::TreasureChoice ? "Choose a treasure" :
         s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivors";
     tab.build = build_window;
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
-    desc.tabs = &tab; desc.tab_count = 1;
+    desc.tabs = tabs; desc.tab_count = 1;
+    if (s_run.phase==Phase::Ready) {
+        tab.title="Maps";
+        tabs[1].title="Difficulty"; tabs[1].build=build_difficulty;
+        tabs[2].title="Settings"; tabs[2].build=build_run_settings;
+        desc.tab_count=3;
+    }
     if (s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Upgrade) desc.rcss = kTreasureStyle;
     if (s_run.phase == Phase::Ready) desc.rcss = kArenaStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
@@ -1128,6 +1150,9 @@ ModResult initialize_survivors(ModError* error) {
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
+    PRE(SurvivorsEnemySpeed, before_enemy_speed);
+    PRE(SurvivorsEnemyDamage, before_enemy_damage);
+    PRE(SurvivorsCamera, before_run_camera); POST(SurvivorsCamera, after_run_camera);
     PRE(SurvivorsArenaExit, before_arena_exit);
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);

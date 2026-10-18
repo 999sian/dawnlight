@@ -48,7 +48,7 @@ struct Enemy {
 };
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
-Run s_run;
+Run s_run;RunOptions s_options;
 enum class SwordAction { None, Normal, Spin };
 SwordAction s_swordAction=SwordAction::None;
 unsigned s_comboStep=0,s_comboTimeout=0;
@@ -188,6 +188,12 @@ int main() {
     credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1);
     enemy={8,fpcNm_E_OC_e,true,false,false,true,0}; actor.health=1; actor.action=9;
     credit_death(enemy,&actor); assert(s_run.phase==Phase::Running && xp==33 && rewards==1 && eliteChests==1);
+    // Horde throttles only normal kill rewards; elites never consume the counter.
+    s_run.options.horde=5;s_run.drop_progress=0;xp=rewards=0;
+    for(unsigned n=1;n<=10;++n){enemy.credited=false;enemy.elite=false;credit_death(enemy,&actor);
+        assert(xp==(n/5)*3&&rewards==n/5);}
+    enemy.credited=false;enemy.elite=true;credit_death(enemy,&actor);
+    assert(xp==36&&rewards==2&&s_run.drop_progress==0);
     s_run.start(2);
     s_enemies[0]={9,fpcNm_E_OC_e,false,false,true,false,0}; pending.insert(9);
     cleanup_enemies(); assert(s_enemies[0].id==9 && service.attempts==0);

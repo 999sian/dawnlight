@@ -206,7 +206,7 @@ int main(){
         if(reason==4)s_loot.ready=false;
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
-        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=5;s_run.dark_link=11;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
+        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=5;s_run.dual_wield=30;s_run.dark_link=11;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!open_first()&&created==0&&rupees==100);
     }
     // Cancel and reopen retain the same offers and never charge or reroll.
@@ -216,7 +216,7 @@ int main(){
     assert(begin_treasure_choice(0,&player));assert(s_chests[0].offers==savedOffers&&s_chests[0].rarities==savedRarities&&s_run.random==savedRng);
     window=1;cancel_treasure_demo();assert(window==0&&s_selectedChest==kChestCount&&s_run.phase==Phase::Running);
     // Fully exhausted cached offers refresh, while partially usable ones stay fixed.
-    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=5;s_run.dark_link=11;
+    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=30;s_run.dark_link=11;
     assert(begin_treasure_choice(0,&player));
     for(auto offer:s_chests[0].offers)assert(offer!=ChestReward::OrdonSword);
     // Revalidate affordability and chosen eligibility after the UI closes.
@@ -231,7 +231,7 @@ int main(){
         const auto paid=s_chests[0].rarities;
         fresh();s_run.start(seed);s_run.ranks[unsigned(Upgrade::Luck)]=20;s_chests[0].free=true;rupees=0;
         assert(begin_treasure_choice(0,&player)&&s_chests[0].rarities==paid);
-        for(auto rarity:paid){orange|=rarity==Rarity::Orange;purple|=rarity==Rarity::Purple;}
+        for(auto rarity:paid){orange|=rarity==Rarity::Legendary;purple|=rarity==Rarity::Epic;}
     }
     assert(orange&&purple);
     fresh();s_chests[0].free=true;rupees=0;
@@ -296,7 +296,7 @@ int main(){
     assert(s_run.phase==Phase::TreasureChoice&&player.mProcID==daAlink_c::PROC_WAIT);
     assert(!mDoCPd_c::pad.mPressedButtonFlags&&!s_wavePending&&s_comboStep==0);
     // Sword ranks are chest-only and equip the native sword after presentation.
-    fresh();s_run.dual_wield=5;s_run.dark_link=11;s_run.shield=10;for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    fresh();s_run.dual_wield=30;s_run.dark_link=11;s_run.shield=10;for(unsigned i=8;i<12;++i){s_run.ranks[i]=30;}bottles.fill(dItemNo_RED_BOTTLE_e);
     assert(open_first()&&s_chests[0].reward==ChestReward::MasterSword);
     assert(prop.itemNo==dItemNo_MASTER_SWORD_e && swordGrants==0);
     accept();eventEnded=true;update_treasure_demo(&player);
@@ -311,8 +311,8 @@ int main(){
         assert(s_run.master_sword==n&&equippedSword==expected);
     }
     assert(!s_run.chest_rewards_left());
-    fresh();s_run.master_sword=5;s_run.dual_wield=5;s_run.dark_link=11;
-    for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    fresh();s_run.master_sword=5;s_run.dual_wield=30;s_run.dark_link=11;
+    for(unsigned i=8;i<12;++i){s_run.ranks[i]=30;}bottles.fill(dItemNo_RED_BOTTLE_e);
     for(unsigned n=1;n<=10;++n){
         s_chests[0].active=true;s_chests[0].position={0,0,100};rupees=1000;eventEnded=false;
         assert(open_first());
@@ -321,8 +321,8 @@ int main(){
         assert(s_run.block_chance()==5*n&&equippedShield==expected);
     }
     assert(!s_run.chest_rewards_left());
-    fresh();s_run.master_sword=5;s_run.shield=10;s_run.dark_link=11;s_run.dual_wield=4;
-    for(unsigned i=8;i<12;++i){s_run.ranks[i]=5;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    fresh();s_run.master_sword=5;s_run.shield=10;s_run.dark_link=11;s_run.dual_wield=29;
+    for(unsigned i=8;i<12;++i){s_run.ranks[i]=30;}bottles.fill(dItemNo_RED_BOTTLE_e);
     assert(open_first()&&prop.itemNo==dItemNo_SWORD_e);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dual_wield&&!s_run.chest_rewards_left());
@@ -334,7 +334,7 @@ int main(){
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dark_link==1&&rupees==80&&!s_chests[0].active&&swordGrants==0&&potionGrants==0);
     // Potion rewards fill a new slot first, even with an existing empty bottle.
-    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=5;s_run.master_sword=5;s_run.dual_wield=5;s_run.dark_link=11;s_run.shield=10;rupees=1000;
+    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=5;s_run.dual_wield=30;s_run.dark_link=11;s_run.shield=10;rupees=1000;
     for(unsigned n=0;n<4;++n){
         s_chests[0]={};s_chests[0].active=true;s_chests[0].position={0,0,100};
         if(n>0)bottles[0]=dItemNo_EMPTY_BOTTLE_e;
@@ -362,19 +362,19 @@ int main(){
     assert(bottles[1]==99&&rupees==765&&s_run.chests_opened==6&&s_chests[0].active);
     // Orange potion grants four bottles, then pays the fifth unit as rupees.
     fresh();s_chests[0].offers={ChestReward::RedPotion,ChestReward::Count,ChestReward::Count};
-    assert(open_first(Rarity::Orange)&&s_treasure.potions==4&&s_treasure.bonusRupees==20);
+    assert(open_first(Rarity::Legendary)&&s_treasure.potions==4&&s_treasure.bonusRupees==20);
     assert(potionGrants==0&&rupees==100);accept();eventEnded=true;update_treasure_demo(&player);
     assert(potionGrants==4&&potion_capacity()==0&&rupees==100&&s_run.chests_opened==1);
     for(auto item:bottles)assert(item==dItemNo_RED_BOTTLE_e);
     update_treasure_demo(&player);assert(potionGrants==4&&rupees==100);
     // A full bottle is never overwritten; cancelled multi-potion events pay nothing.
     fresh();bottles[0]=99;s_chests[0].offers={ChestReward::RedPotion,ChestReward::Count,ChestReward::Count};
-    assert(open_first(Rarity::Blue)&&s_treasure.potions==3);
+    assert(open_first(Rarity::Rare)&&s_treasure.potions==3);
     bottles[1]=98;accept();eventEnded=true;update_treasure_demo(&player);
     assert(bottles[0]==99&&bottles[1]==98&&potionGrants==0&&rupees==100&&s_run.chests_opened==0);
     // Multi-rank shield evolution is displayed and committed once; price rises once.
     fresh();s_run.shield=5;s_chests[0].offers={ChestReward::Shield,ChestReward::Count,ChestReward::Count};
-    assert(open_first(Rarity::Purple)&&prop.itemNo==dItemNo_HYLIA_SHIELD_e);
+    assert(open_first(Rarity::Epic)&&prop.itemNo==dItemNo_HYLIA_SHIELD_e);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.shield==9&&equippedShield==dItemNo_HYLIA_SHIELD_e&&rupees==80&&s_run.chest_cost()==25);
     // Async failure, order timeout, interrupted event: no charge or reward.

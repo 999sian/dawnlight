@@ -119,7 +119,7 @@ int main(){
    assert(red_segments(treasure_message_id())==std::vector<std::string>{"25% -> "+number(30+5*r)+"%"});
  }
  inventory.fill(dItemNo_NONE_e);
- assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run,Rarity::Orange));
+ assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run,Rarity::Legendary));
  assert(plain(treasure_message_id()).find("Bottles: 0 -> 4")!=std::string::npos);
  assert(plain(treasure_message_id()).find("Red potions: 0 -> 4")!=std::string::npos);
  assert(plain(treasure_message_id()).find("Excess reward: 0 -> +20 rupees")!=std::string::npos);

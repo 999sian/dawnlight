@@ -108,10 +108,9 @@ is retained and multiple earned levels are offered consecutively.
 | Luck | +10% Luck per rank (20 ranks, +200% max); weighted rarity chances; drop bonuses cap at +50% |
 | Rupees | Receive 20 rupees per reward unit without healing |
 
-Equip both base weapons, all four chest weapons and up to four different
-passive upgrades. Luck has a separate slot and remains available even with four
-passives. Chest weapons do not consume passive slots.
-Weapons, Fire Arrows and Shield Attack have five levels. Rupees remain available after the
+All passive upgrades are independently available, including Heart Container
+until the native maximum of 20 hearts. Weapons, Fire Arrows, Shield Attack and
+passives have up to 30 levels; Luck retains its +200% cap. Rupees remain available after the
 other upgrades reach their caps. Native enemy defense and death reactions still apply. Ordinary nonlethal hits
 keep their hit effects and damage but do not interrupt enemy movement or attacks.
 Shield Attack and Ball and Chain retain native stagger. Living knocked-down
@@ -158,7 +157,7 @@ are granted; it does not choose additional random items after confirmation.
 
 The player-facing [Luck chart](../../SURVIVORS.md#rarities-and-luck) lists the
 rounded probabilities. With `k = 1 + Luck / 100`, weights for Common through
-Orange are `60 / 25k / 10k² / 4k³ / k⁴`, normalized by their sum. Integer-scaled
+Legendary are `60 / 25k / 10k² / 4k³ / k⁴`, normalized by their sum. Integer-scaled
 weights and rejection sampling avoid modulo bias. All three cards roll separately
 for level-ups, paid chests and free elite chests; no level/source bonus applies.
 Luck has 20 ranks (+10% each, max +200%) and resets each run. Heart, heart-piece,
@@ -167,9 +166,9 @@ Luck cap. Existing offers never reroll merely because Luck changes or a window
 is reopened; previews consume no randomness.
 
 The reward name and icon border show its rarity color; each card also says
-**Green x2**, **Blue x3**, etc. Before/after values include the full grant. Native
+**Uncommon x2**, **Rare x3**, etc. Before/after values include the full grant. Native
 Get Item names use the same rarity and quantity while changed values remain red.
-Luck caps at 20 ranks; other upgrade caps are unchanged. Each unit exceeding the cap becomes **20 rupees**,
+Luck caps at 20 ranks; ordinary upgrades cap at 30. Each unit exceeding the cap becomes **20 rupees**,
 shown in the preview/message and capped by the wallet when granted. This also
 applies to extra Ordon Sword units and potion units beyond available bottle slots.
 One chest still charges only once. Price increases are +5, +7, +9, +11 rupees, etc.
@@ -306,7 +305,7 @@ Whirling Blade and Sword Wave, without the vanilla light-material 100-damage ove
 Get Item uses a private instance of Link's sword model instead of the native rupee placeholder.
 An Ordon Sword reward enables and equips Dawnlight's existing Dual Wield with an
 Ordon offhand sword. At rank 1 each accepted normal sword strike also hits the next nearest reachable
-enemy; each additional rank adds another target, up to six total at rank 5.
+enemy; each additional rank adds another target, up to 31 total at rank 30.
 Targets must be close to Link, at reachable height, and not behind a wall.
 A target receives at most one multihit per swing; the native sword capsule cannot
 also damage the same secondary target. Ranks do not change story preferences.
@@ -343,7 +342,7 @@ uses the shield during block/bash actions and resumes afterward.
 
 Each shield rank adds 5 percentage points. At 50%, shields leave the chest pool.
 After the first shield, Shield Attack can appear in level-up offers. These chest
-shield ranks are separate from the five Shield Attack ranks.
+shield ranks are separate from the 30 Shield Attack ranks.
 
 Each unit of a potion reward adds a new filled bottle while fewer than four are
 owned, even if an existing bottle is empty. Once all four slots are occupied,
@@ -390,7 +389,7 @@ They aim at the nearest
 live tracked enemy within range and line of sight. Arrows stop on impact;
 boomerangs use the native Gale wind model/animation and particle trails. They
 chain to one additional enemy at rank 1, then one more per rank (up to six
-different targets at rank 5), before returning to Link. Each hop needs a live
+different targets at rank 5, up to 31 at rank 30), before returning to Link. Each hop needs a live
 target within range and line of sight, and cannot revisit an earlier target.
 They deal Survivors damage on their outward/return paths. Bombs follow an
 arc and explode at the target or a wall; the ball pierces outward to its full range and retracts toward Link.
@@ -578,3 +577,18 @@ Verify the Palace exterior and intact throne room load without story events.
 The automated checks exercise stage-routing gates, map-selection/start callbacks,
 room-aware chest placement, mesh seam welding, exits, continuous barrier collision,
 sliding, corners and fast movement; they do not render the actual room archives.
+
+## Run options
+
+The preparation window has Maps, Difficulty and Settings tabs. Session-local
+options survive map changes/replays and are copied into the run at Start. HP and
+damage range from x1–x10; movement and Horde from x1–x5. Native enemy HP is scaled
+once at initialization. Movement is scaled before native ground/wall correction,
+excluding dormant, dying and knocked-back actors. Enemy damage scales at Link's
+native damage entry, restricted to owned enemy contacts.
+
+Horde multiplies population and per-wave spawns (up to 115 normal enemies);
+every Nth normal kill generates XP and rolls loot. Elites and pots are exempt.
+Camera distance ranges from 100–500% (default 200%), scales the rendered view
+with a wall check and restores native input before the next camera tick to avoid
+feedback. Event/aim cameras stay native. Timed-elite flutes scale to 5x once.

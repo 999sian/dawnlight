@@ -2,6 +2,7 @@
 // textures are bundled, and HUD/texture mods are reflected in the preview.
 constexpr const char* kArenaStyle=R"(
 window { background-color: transparent; backdrop-filter: none; }
+window content pane.survivors-settings { background-color: #171d19f5; padding: 16dp; gap: 12dp; }
 window tab-bar { background-color: #171d19ee; }
 window content pane.survivors-map-list { flex: 0 0 35%; background-color: #171d19ef; padding: 16dp; gap: 8dp; font-size: 15dp; }
 window content pane.survivors-map-preview { flex: 1 1 0; padding: 16dp; justify-content: space-between; }
@@ -68,4 +69,43 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
     result=svc_ui->pane_add_control(mod_ctx,right,&start,&startButton);
     if (result!=MOD_OK) return result;
     return svc_ui->elem_set_class(mod_ctx,startButton,"survivors-map-start",true);
+}
+
+struct RunOptionControl { const char* label; unsigned RunOptions::*field; unsigned min,max,step; const char* help; };
+std::array<RunOptionControl,5> s_runControls{{
+    {"Enemy HP",&RunOptions::enemy_hp,1,10,1,"Multiplies health of all enemies, including elites."},
+    {"Enemy Damage",&RunOptions::enemy_damage,1,10,1,"Multiplies enemy damage to Link."},
+    {"Enemy Speed",&RunOptions::enemy_speed,1,5,1,"Multiplies enemy movement speed; collision and knockback remain native."},
+    {"Horde",&RunOptions::horde,1,5,1,"More enemies. At x5, every fifth normal kill rolls loot and drops XP. Elite rewards and pots are unchanged."},
+    {"Camera distance",&RunOptions::camera_distance,100,500,25,"100% is the normal distance. Default: 200%. Walls can limit the distance; event cameras remain native."}
+}};
+ModResult build_run_controls(UiElementHandle left, UiElementHandle right, unsigned first, unsigned last) {
+    auto result=svc_ui->elem_set_class(mod_ctx,left,"survivors-settings",true);
+    if (result!=MOD_OK) return result;
+    result=svc_ui->elem_set_class(mod_ctx,right,"survivors-settings",true);
+    if (result!=MOD_OK) return result;
+    for (unsigned i=first;i<last;++i) {
+        auto& setting=s_runControls[i];
+        UiControlDesc control=UI_CONTROL_DESC_INIT;
+        control.kind=UI_CONTROL_NUMBER; control.label=setting.label; control.help_rml=setting.help;
+        control.user_data=&setting; control.min=setting.min; control.max=setting.max; control.step=setting.step;
+        control.prefix=i==4 ? nullptr : "x"; control.suffix=i==4 ? "%" : nullptr;
+        control.get=[](ModContext*,void* data,UiControlValue* value) {
+            value->int_value=s_options.*static_cast<RunOptionControl*>(data)->field;
+        };
+        control.set=[](ModContext*,void* data,const UiControlValue* value) {
+            if (s_run.phase!=Phase::Ready || s_restart) return;
+            const auto& setting=*static_cast<RunOptionControl*>(data);
+            s_options.*setting.field=unsigned(std::clamp<int64_t>(value->int_value,setting.min,setting.max));
+        };
+        result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
+        if (result!=MOD_OK) return result;
+    }
+    return svc_ui->pane_add_text(mod_ctx,right,"Settings apply to the next run. Return to Maps to start.",nullptr);
+}
+ModResult build_difficulty(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
+    return build_run_controls(left,right,0,4);
+}
+ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
+    return build_run_controls(left,right,4,5);
 }

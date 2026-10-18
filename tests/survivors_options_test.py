@@ -1,0 +1,117 @@
+"""Run options: native damage/movement boundaries, non-compounding camera, UI callbacks."""
+from pathlib import Path
+import os, subprocess, tempfile
+root=Path(__file__).resolve().parents[1]
+fixture=r'''
+#include <any>
+#include <cassert>
+#include <cmath>
+#include <vector>
+#include <string>
+#include "survivors_rules.hpp"
+#include "mods/svc/ui.h"
+#define svc_ui test_ui
+using namespace dawnlight::survivors;
+enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
+namespace mods{template<class T>T arg(void* p,int i){return std::any_cast<T>(static_cast<std::any*>(p)[i]);}
+ template<class T>T& arg_ref(void* p,int i){return std::any_cast<T&>(static_cast<std::any*>(p)[i]);}}
+struct cXyz{float x=0,y=0,z=0;
+ cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}
+ cXyz operator-(cXyz b)const{return{x-b.x,y-b.y,z-b.z};}
+ cXyz operator*(float f)const{return{x*f,y*f,z*f};}
+ float abs2()const{return x*x+y*y+z*z;}float abs2(cXyz b)const{return (*this-b).abs2();}
+ float abs()const{return std::sqrt(abs2());}};
+struct fopAc_ac_c{int id=2,health=20;struct{cXyz pos;}current,old;};
+int fopAcM_GetID(fopAc_ac_c* a){return a->id;}
+struct Target{fopAc_ac_c* actor=nullptr;bool ChkTgHit(){return actor;}auto* GetTgHitAc(){return actor;}};
+struct daAlink_c:fopAc_ac_c{Target mTgCyls[3];};
+struct daE_OC_c:fopAc_ac_c{int mActionMode=2;};
+struct e_ms_class:fopAc_ac_c{int mAction=1;};
+struct e_ba_class:fopAc_ac_c{bool mIsDying=false;float mKnockbackSpeed=0;int mAction=2;};
+constexpr int fpcNm_E_OC_e=1,fpcNm_E_MS_e=2,fpcNm_E_BA_e=3;
+struct Enemy{bool initialized=true,retiring=false,credited=false,dormant=false;int profile=1;}enemy;
+bool owned=true,active=true,paused=false,transition=false,event=false,aim=false,blocked=false;
+Enemy* tracked(int id){return owned&&id==2?&enemy:nullptr;}
+bool in_arena(){return active;}bool playable(){return active&&!paused;}bool transitioning(){return transition;}
+bool dComIfGp_event_runCheck(){return event;}
+Run s_run;RunOptions s_options;int s_player=1;bool s_restart=false;
+struct dBgS_Acch{fopAc_ac_c* actor;bool line=false;auto* getMyAc(){return actor;}void OnLineCheck(){line=true;}};
+struct dBgS_CamLinChk{cXyz cross{0,0,150};cXyz GetCross(){return cross;}};
+struct Direction{cXyz v;void Val(cXyz a){v=a;}};
+struct dCamera_c{cXyz mEye{0,0,100},mCenter{};Direction mDirection;int mPadID=0;
+ static bool isAimActive(){return aim;}bool lineBGCheck(cXyz*,cXyz*,dBgS_CamLinChk*,int){return blocked;}};
+ModContext* mod_ctx=nullptr;
+std::vector<UiControlDesc> controls;
+UiWindowHandle s_window=0;
+bool ui_visible(){return false;}
+std::vector<std::string> tabNames;
+ModResult build_window(ModContext*,UiWindowHandle,UiElementHandle,UiElementHandle,void*,ModError*){return MOD_OK;}
+const char* kTreasureStyle="treasure";const char* kArenaStyle="arena";
+ChestReward s_chosenTreasure=ChestReward::Count;
+void dismiss_treasure_choice(){}
+struct Log{void warn(ModContext*,const char*){assert(false);}}logger;auto* svc_log=&logger;
+struct Service{
+ ModResult window_push(ModContext*,const UiWindowDesc* desc,UiWindowHandle* handle){
+  tabNames.clear();for(size_t i=0;i<desc->tab_count;++i){assert(desc->tabs[i].build);tabNames.push_back(desc->tabs[i].title);}
+  *handle=1;return MOD_OK;
+ }
+
+ ModResult elem_set_class(ModContext*,UiElementHandle,const char*,bool){return MOD_OK;}
+ ModResult pane_add_control(ModContext*,UiElementHandle,const UiControlDesc* c,UiElementHandle*){controls.push_back(*c);return MOD_OK;}
+ ModResult pane_add_text(ModContext*,UiElementHandle,const char*,UiElementHandle*){return MOD_OK;}
+}service;auto* svc_ui=&service;
+'''
+main=r'''
+int main(){
+ s_run.start(1);s_run.phase=Phase::Ready;open_window();
+ assert((tabNames==std::vector<std::string>{"Maps","Difficulty","Settings"}));
+ s_window=0;s_run.phase=Phase::Upgrade;open_window();assert(tabNames.size()==1&&tabNames[0]=="Choose an upgrade");
+ s_run.start(1);s_run.options.enemy_speed=5;
+ daE_OC_c bok;bok.old.pos={10,0,10};bok.current.pos={12,3,14};dBgS_Acch acch{&bok};std::any movement[]={&acch};
+ before_enemy_speed(nullptr,movement,nullptr,nullptr);assert(bok.current.pos.abs2({20,3,30})==0&&acch.line);
+ for(int reason=0;reason<7;++reason){
+  active=owned=true;paused=false;enemy={};bok.health=20;bok.mActionMode=2;bok.current.pos={12,3,14};
+  if(reason==0)active=false;if(reason==1)owned=false;if(reason==2)paused=true;
+  if(reason==3)enemy.dormant=true;if(reason==4)enemy.retiring=true;if(reason==5)bok.health=0;if(reason==6)bok.mActionMode=6;
+  before_enemy_speed(nullptr,movement,nullptr,nullptr);assert(bok.current.pos.abs2({12,3,14})==0);
+ }
+ active=owned=true;paused=false;enemy={};bok.health=20;
+ daAlink_c link;link.id=1;link.mTgCyls[0].actor=&bok;s_run.options.enemy_damage=10;
+ std::any damage[]={&link,2,0,1,0};before_enemy_damage(nullptr,damage,nullptr,nullptr);assert(std::any_cast<int>(damage[1])==20);
+ for(int reason=0;reason<4;++reason){
+  owned=true;damage[1]=2;damage[4]=0;link.id=1;
+  if(reason==0)owned=false;if(reason==1)damage[1]=-4;if(reason==2)damage[4]=1;if(reason==3)link.id=5;
+  const int initial=std::any_cast<int>(damage[1]);before_enemy_damage(nullptr,damage,nullptr,nullptr);assert(std::any_cast<int>(damage[1])==initial);
+ }
+ owned=true;link.id=1;dCamera_c camera;std::any cam[]={&camera};
+ for(int frame=0;frame<100;++frame){
+  before_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==100);
+  after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==200);
+ }
+ before_run_camera(nullptr,cam,nullptr,nullptr);s_run.options.camera_distance=500;
+ after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==500);
+ before_run_camera(nullptr,cam,nullptr,nullptr);blocked=true;
+ after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==145);
+ before_run_camera(nullptr,cam,nullptr,nullptr);blocked=false;event=true;
+ after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==100);event=false;
+ s_run.options.camera_distance=100;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==100);
+ s_run.phase=Phase::Ready;s_options.camera_distance=300;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==300);
+ before_run_camera(nullptr,cam,nullptr,nullptr);active=false;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==100);active=true;
+ assert(build_difficulty(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
+ assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK&&controls.size()==5);
+ for(unsigned i=0;i<5;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_NUMBER&&c.get&&c.set);
+  UiControlValue value=UI_CONTROL_VALUE_INIT;value.int_value=10000;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==c.max);
+  value.int_value=-1;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==c.min);
+  s_run.phase=Phase::Running;value.int_value=c.max;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==c.min);s_run.phase=Phase::Ready;
+ }
+}
+'''
+core=(root/'src/survivors.cpp').read_text()
+window=core[core.index('void open_window() {'):core.index('ModResult activated(')]
+ui=(root/'src/survivors_maps_ui.inc').read_text().split('struct RunOptionControl',1)[1]
+with tempfile.TemporaryDirectory() as tmp:
+ cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
+ cpp.write_text(fixture+(root/'src/survivors_options.inc').read_text()+'struct RunOptionControl'+ui+window+main)
+ subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
+ subprocess.run([str(exe)],check=True)
+print('Survivors options: native movement/damage scoping, stable camera zoom/collision and UI boundaries passed')

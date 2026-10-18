@@ -145,12 +145,12 @@ int main(){
    }
    assert(copies==3&&s_run.random==rngBefore&&s_run.rank(Upgrade::Luck)==0);
    picks[0]->pressed(nullptr,picks[0]->data);assert(s_run.luck_percent()==100+10*(r+1));
-   fresh();s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Power;s_run.ranks[3]=4;s_run.offer_rarities[0]=Rarity(r);
-   select_upgrade(nullptr,&s_choices[0]);assert(s_run.ranks[3]==5&&money==100+20*r);
+   fresh();s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Power;s_run.ranks[3]=29;s_run.offer_rarities[0]=Rarity(r);
+   select_upgrade(nullptr,&s_choices[0]);assert(s_run.ranks[3]==30&&money==100+20*r);
  }
  // Luck previews and grants agree at the new cap, with surplus paid as rupees.
  fresh();s_run.phase=Phase::Upgrade;s_run.offers.fill(Upgrade::Luck);
- s_run.ranks[unsigned(Upgrade::Luck)]=18;s_run.offer_rarities.fill(Rarity::Orange);
+ s_run.ranks[unsigned(Upgrade::Luck)]=18;s_run.offer_rarities.fill(Rarity::Legendary);
  assert(build_upgrade_choices(1,2)==MOD_OK);
  bool beforeLuck=false,afterLuck=false;
  for(auto& [id,e]:elements){beforeLuck|=e.text.find("+180% Luck")!=std::string::npos;afterLuck|=e.text.find("+200% Luck")!=std::string::npos;}

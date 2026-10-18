@@ -16,7 +16,7 @@ inline constexpr unsigned guard_respawn_interval = 3 * 60 * ticks_per_second;
 // Even instant kills cannot produce more drops before the 20-minute run ends.
 inline constexpr unsigned elite_reward_capacity = timed_elite_count +
     guard_capacity * (1 + (duration - 1) / guard_respawn_interval);
-inline constexpr unsigned enemy_capacity = 24 + elite_capacity;
+inline constexpr unsigned enemy_capacity = 24 * 5 + elite_capacity;
 inline constexpr unsigned projectile_capacity = 24;
 inline constexpr unsigned orb_capacity = 64;
 inline constexpr unsigned pot_capacity = 72;
@@ -30,10 +30,10 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
 enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, Rupees, Count };
-inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::Luck ? 20 : 5; }
-enum class Rarity : unsigned { Common, Green, Blue, Purple, Orange };
+inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::Luck ? 20 : 30; }
+enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
-inline constexpr std::array rarity_names{"Common", "Green", "Blue", "Purple", "Orange"};
+inline constexpr std::array rarity_names{"Common", "Uncommon", "Rare", "Epic", "Legendary"};
 inline constexpr std::array rarity_colors{"#f4d78b", "#7bdd83", "#72b7ff", "#cb91ff", "#ffad54"};
 enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, OrdonSword, Shield, DarkLink, Count };
 inline constexpr Upgrade chest_weapon(ChestReward reward) {
@@ -56,10 +56,21 @@ inline constexpr std::array descriptions{
     "Improve reward rarities. +10% Luck per level, max +200%. Heart and rupee bonuses stop at +50%.",
     "Receive 20 rupees."};
 
+struct RunOptions {
+    unsigned enemy_hp = 1, enemy_damage = 1, enemy_speed = 1, horde = 1;
+    unsigned camera_distance = 200;
+    void clamp() {
+        enemy_hp=std::clamp(enemy_hp,1u,10u); enemy_damage=std::clamp(enemy_damage,1u,10u);
+        enemy_speed=std::clamp(enemy_speed,1u,5u); horde=std::clamp(horde,1u,5u);
+        camera_distance=std::clamp(camera_distance,100u,500u);
+    }
+};
 struct Run {
     Phase phase = Phase::Loading;
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
+    RunOptions options;
+    unsigned drop_progress = 0, maximum_hearts = 3;
     unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
     unsigned dark_clock = 0, dark_remaining = 0;
     std::array<unsigned, unsigned(Upgrade::Rupees)> ranks{};
@@ -70,7 +81,7 @@ struct Run {
         random ^= random << 13; random ^= random >> 17; random ^= random << 5;
         return random;
     }
-    void start(uint32_t seed) { *this = {}; random = seed ? seed : 1; phase = Phase::Running; }
+    void start(uint32_t seed, RunOptions settings = {}) { *this = {}; options=settings; options.clamp(); random = seed ? seed : 1; phase = Phase::Running; }
     unsigned required_xp() const { return 5 + level * 3; }
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return i < ranks.size() ? ranks[i] : 0; }
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
@@ -97,7 +108,9 @@ struct Run {
         return Rarity::Common;
     }
     unsigned upgrade_gain(Upgrade u, Rarity rarity) const {
-        return u < Upgrade::Rupees ? std::min(reward_units(rarity), upgrade_cap(u) - std::min(upgrade_cap(u), rank(u))) : 0;
+        unsigned remaining = u < Upgrade::Rupees ? upgrade_cap(u) - std::min(upgrade_cap(u), rank(u)) : 0;
+        if (u == Upgrade::Heart) remaining = std::min(remaining, 20 - std::min(20u, maximum_hearts));
+        return std::min(reward_units(rarity), remaining);
     }
     unsigned upgrade_rupees(Upgrade u, Rarity rarity) const {
         return 20 * (reward_units(rarity) - upgrade_gain(u, rarity));
@@ -108,11 +121,7 @@ struct Run {
         if (u == Upgrade::ShieldAttack && !shield) return false;
         if (u == Upgrade::FireArrows && !rank(Upgrade::Bow)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
-        if (u >= Upgrade::Power && u <= Upgrade::Heart && rank(u) == 0) {
-            unsigned occupied = 0;
-            for (unsigned i = 3; i < static_cast<unsigned>(Upgrade::Bow); ++i) occupied += ranks[i] != 0;
-            if (occupied >= 4) return false;
-        }
+        if (u == Upgrade::Heart && maximum_hearts >= 20) return false;
         return true;
     }
     bool level_up() {
@@ -135,7 +144,9 @@ struct Run {
         if (phase != Phase::Upgrade || choice >= offers.size()) return false;
         const auto u = offers[choice];
         if (!eligible(u)) return false;
-        if (u != Upgrade::Rupees) ranks[static_cast<unsigned>(u)] += upgrade_gain(u, offer_rarities[choice]);
+        const unsigned gain = upgrade_gain(u, offer_rarities[choice]);
+        if (u != Upgrade::Rupees) ranks[static_cast<unsigned>(u)] += gain;
+        if (u == Upgrade::Heart) maximum_hearts += gain;
         phase = Phase::Running;
         return true;
     }
@@ -151,9 +162,9 @@ struct Run {
     bool dark_active() const { return dark_link && (dark_permanent() || dark_remaining); }
     unsigned damage_multiplier() const { return dark_active() ? 2 : 1; }
     bool chest_eligible(ChestReward reward, bool bottle_available = false) const {
-        if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < 5;
+        if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < upgrade_cap(chest_weapon(reward));
         if (reward == ChestReward::MasterSword) return master_sword < 5;
-        if (reward == ChestReward::OrdonSword) return dual_wield < 5;
+        if (reward == ChestReward::OrdonSword) return dual_wield < 30;
         if (reward == ChestReward::DarkLink) return !dark_permanent();
         if (reward == ChestReward::Shield) return shield < 10;
         return reward == ChestReward::RedPotion && bottle_available;
@@ -179,10 +190,10 @@ struct Run {
     }
     unsigned chest_gain(ChestReward reward, Rarity rarity, unsigned bottle_capacity = 0) const {
         unsigned remaining = 0;
-        if (reward <= ChestReward::Ball) remaining = 5 - std::min(5u, rank(chest_weapon(reward)));
+        if (reward <= ChestReward::Ball) remaining = upgrade_cap(chest_weapon(reward)) - std::min(upgrade_cap(chest_weapon(reward)), rank(chest_weapon(reward)));
         else if (reward == ChestReward::MasterSword) remaining = 5 - std::min(5u, master_sword);
         else if (reward == ChestReward::Shield) remaining = 10 - std::min(10u, shield);
-        else if (reward == ChestReward::OrdonSword) remaining = 5 - std::min(5u, dual_wield);
+        else if (reward == ChestReward::OrdonSword) remaining = 30 - std::min(30u, dual_wield);
         else if (reward == ChestReward::DarkLink) remaining = dark_max_rank - std::min(dark_max_rank, dark_link);
         else if (reward == ChestReward::RedPotion) remaining = bottle_capacity;
         return std::min(reward_units(rarity), remaining);
@@ -208,7 +219,7 @@ struct Run {
     unsigned item_cooldown(Upgrade weapon) const {
         const unsigned base = weapon == Upgrade::Bow ? 50 : weapon == Upgrade::Boomerang ? 85 :
             weapon == Upgrade::Bombs ? 110 : 100;
-        return cooldown(base - 5 * (std::max(1u, rank(weapon)) - 1));
+        return cooldown(base - std::min(base - 6, 5 * (std::max(1u, rank(weapon)) - 1)));
     }
     bool tick(bool playable) {
         if (phase != Phase::Running || !playable) return false;
@@ -219,9 +230,15 @@ struct Run {
         }
         return true;
     }
-    unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u); }
+    unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u) * options.horde; }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
-    unsigned cooldown(unsigned base) const { return std::max(6u, base * (100 - rank(Upgrade::Haste) * 10) / 100); }
+    unsigned cooldown_percent() const {
+        const auto rank = std::min(30u, this->rank(Upgrade::Haste));
+        return rank <= 5 ? 100 - rank * 10 : 1250 / (25 + 3 * (rank - 5));
+    }
+    unsigned cooldown(unsigned base) const { return std::max(6u, base * cooldown_percent() / 100); }
+    unsigned shield_cooldown() const { return cooldown(100 - std::min(90u, 10 * rank(Upgrade::ShieldAttack))); }
+    bool normal_kill_drops() { if (++drop_progress < options.horde) return false; drop_progress=0; return true; }
     // At base Luck: 5% heart, 45% rupee, 50% nothing. A second lucky
     // roll chooses rupee value, so Luck improves both frequency and quality.
     enum class Drop { None, Heart, GreenRupee, BlueRupee, YellowRupee, RedRupee, PurpleRupee, OrangeRupee, SilverRupee, Count };

@@ -63,7 +63,7 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
 // Compact four-line descriptions fit the native explanation pane. Effective
 // values include collected Power/Haste/Reach and Fire Arrows upgrades.
 inline std::string item_description(ChestReward reward, const Run& run) {
-    const std::string bonuses = "Power +" + number(run.rank(Upgrade::Power)) + " | Haste -" + number(run.rank(Upgrade::Haste) * 10) + "% | Reach +" + number(run.rank(Upgrade::Reach) * 15) + "%";
+    const std::string bonuses = "Power +" + number(run.rank(Upgrade::Power)) + " | Haste -" + number(100 - run.cooldown_percent()) + "% | Reach +" + number(run.rank(Upgrade::Reach) * 15) + "%";
     if (reward <= ChestReward::Ball) {
         const auto weapon = chest_weapon(reward);
         const std::string stats = "Lv." + number(run.rank(weapon)) + " | Damage " + number(item_damage(run, weapon)) + " | Interval " + seconds(run.item_cooldown(weapon));
@@ -75,7 +75,7 @@ inline std::string item_description(ChestReward reward, const Run& run) {
     if (reward == ChestReward::Shield) {
         const unsigned rank = run.rank(Upgrade::ShieldAttack);
         return "Auto block " + number(run.block_chance()) + "% (max 50%); faces attacker.\nShield Attack Lv." + number(rank) + (rank ? ": staggers, damage " + number(run.attack_power(unsigned(Upgrade::ShieldAttack))) : ": locked") +
-            "\n" + (rank ? "Bash interval " + seconds(run.cooldown(100 - 10 * rank)) + "; radius " + number(unsigned(run.radius(60 + 8 * rank))) : "Shield Attack available at level-up.") + "\n" + bonuses;
+            "\n" + (rank ? "Bash interval " + seconds(run.shield_cooldown()) + "; radius " + number(unsigned(run.radius(60 + 8 * rank))) : "Shield Attack available at level-up.") + "\n" + bonuses;
     }
     if (reward == ChestReward::OrdonSword || reward == ChestReward::MasterSword) {
         const unsigned waves = run.rank(Upgrade::Wave) >= 5 ? 3 : run.rank(Upgrade::Wave) >= 3 ? 2 : 1;
@@ -94,10 +94,10 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     const auto rank = run.rank(upgrade);
     switch (upgrade) {
     case Upgrade::Power: return "+" + number(rank) + " damage";
-    case Upgrade::Haste: return "-" + number(10 * rank) + "% cooldown";
+    case Upgrade::Haste: return "-" + number(100 - run.cooldown_percent()) + "% cooldown";
     case Upgrade::Reach: return "+" + number(15 * rank) + "% attack size";
     case Upgrade::Magnet: return number(150 + 65 * rank) + " pickup range";
-    case Upgrade::Heart: return number(3 + rank) + " maximum hearts";
+    case Upgrade::Heart: return number(run.maximum_hearts) + " maximum hearts (max 20)";
     case Upgrade::FireArrows: return number(run.burn_damage()) + " damage/s for " + seconds(run.burn_duration());
     case Upgrade::Luck: return "+" + number(run.luck_percent() - 100) + "% Luck";
     case Upgrade::Rupees: return "+20 rupees";
@@ -111,8 +111,7 @@ inline std::string upgrade_description(Upgrade upgrade, const Run& run) {
     std::string text = descriptions[unsigned(upgrade)];
     if (upgrade == Upgrade::Wave || upgrade == Upgrade::Spin || upgrade == Upgrade::ShieldAttack) {
         text += "\nDamage " + number(run.attack_power(unsigned(upgrade)));
-        text += "; interval " + seconds(run.cooldown(upgrade == Upgrade::Wave ? 40 :
-            upgrade == Upgrade::Spin ? 100 : 100 - 10 * run.rank(upgrade)));
+        text += "; interval " + seconds(upgrade == Upgrade::ShieldAttack ? run.shield_cooldown() : run.cooldown(upgrade == Upgrade::Wave ? 40 : 100));
         if (upgrade == Upgrade::Wave) text += "; waves " + number(run.rank(upgrade) >= 5 ? 3 : run.rank(upgrade) >= 3 ? 2 : 1);
         if (upgrade == Upgrade::ShieldAttack) text += "; radius " + number(unsigned(run.radius(60 + 8 * run.rank(upgrade))));
     } else text += "\n" + upgrade_value(upgrade, run);
@@ -132,8 +131,8 @@ inline std::vector<ItemChange> upgrade_changes(Upgrade upgrade, const Run& befor
                 changes.push_back({"Waves", number(count(before.rank(upgrade))), number(count(after.rank(upgrade)))});
         }
         if (upgrade == Upgrade::ShieldAttack) {
-            changes.push_back({"Interval", before.rank(upgrade) ? seconds(before.cooldown(100 - 10 * before.rank(upgrade))) : "off",
-                               seconds(after.cooldown(100 - 10 * after.rank(upgrade)))});
+            changes.push_back({"Interval", before.rank(upgrade) ? seconds(before.shield_cooldown()) : "off",
+                               seconds(after.shield_cooldown())});
             changes.push_back({"Radius", before.rank(upgrade) ? number(unsigned(before.radius(60 + 8 * before.rank(upgrade)))) : "off",
                                number(unsigned(after.radius(60 + 8 * after.rank(upgrade))))});
         }

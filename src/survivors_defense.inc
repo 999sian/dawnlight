@@ -47,7 +47,7 @@ bool update_shield_attack(daAlink_c* link) {
     link->shape_angle.y = cM_atan2s(direction.x, direction.z);
     if (!link->procGuardAttackInit()) return false;
     link->mGuardAtCps.SetR(s_run.radius(60 + 8 * rank));
-    s_cooldowns[unsigned(Upgrade::ShieldAttack)] = s_run.cooldown(100 - 10 * rank);
+    s_cooldowns[unsigned(Upgrade::ShieldAttack)] = s_run.shield_cooldown();
     return true;
 }
 // Knockdown is a reaction, not immunity. Enable targets before native cc_set

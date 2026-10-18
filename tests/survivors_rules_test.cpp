@@ -61,7 +61,7 @@ int main() {
             const unsigned extra=r.chest_rupees(reward,Rarity(rarity),3);unsigned money=20;
             assert(gain+extra/20==rarity+1);
             assert(r.buy_chest(money,reward,3,Rarity(rarity))&&money==extra&&r.chests_opened==1);
-            assert(r.master_sword<=5&&r.shield<=10&&r.rank(Upgrade::Bow)<=5);
+            assert(r.master_sword<=5&&r.shield<=10&&r.rank(Upgrade::Bow)<=30);
         }
     }
     Run run;
@@ -97,19 +97,19 @@ int main() {
     assert(run.level_up()); // Excess XP remains available.
     for (uint32_t seed = 1; seed < 1000; ++seed) {
         run.start(seed);
-        run.ranks.fill(5); run.ranks[unsigned(Upgrade::Luck)]=20; run.shield=1; run.ranks[2] = 4; run.xp = 100;
+        run.ranks.fill(30); run.ranks[unsigned(Upgrade::Luck)]=20; run.shield=1; run.ranks[2] = 29; run.xp = 100;
         assert(run.level_up());
         for (const auto offer : run.offers) assert(offer == Upgrade::ShieldAttack || offer == Upgrade::Rupees);
         assert(std::count(run.offers.begin(), run.offers.end(), Upgrade::ShieldAttack) == 1);
-        run.start(seed); run.ranks.fill(5); run.ranks[unsigned(Upgrade::Luck)]=20; run.xp = 100;
+        run.start(seed); run.ranks.fill(30); run.ranks[unsigned(Upgrade::Luck)]=20; run.xp = 100;
         assert(run.level_up());
         for (const auto offer : run.offers) assert(offer == Upgrade::Rupees);
         assert(run.choose(2));
-        assert(run.cooldown(40) == 20);
+        assert(run.cooldown(40) == 6);
     }
     run.start(1);
     run.ranks[3] = run.ranks[4] = run.ranks[5] = run.ranks[6] = 1;
-    assert(!run.eligible(Upgrade::Heart)); // Four passive slots, existing ranks can improve.
+    assert(run.eligible(Upgrade::Heart)); // Hearts are independent of other passives.
     assert(run.eligible(Upgrade::Power) && run.eligible(Upgrade::Spin) && run.eligible(Upgrade::Rupees));
     // Chest weapons cannot be acquired from level-up offers before a purchase.
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i)
@@ -134,26 +134,26 @@ int main() {
            (run.rank(chest_weapon(reward)) == 1 && run.eligible(chest_weapon(reward)))); // Even with four occupied passives.
     assert(!run.tick(true)); // Get Item cannot advance encounter time.
     run.start(20); run.phase = Phase::Treasure;
-    wallet = 100000;
-    for (unsigned n = 0; n < 51; ++n) {
+    wallet = 20000000;
+    for (unsigned n = 0; n < 176; ++n) {
         assert(run.chest_cost() == 20+n*(n+4));
         reward = run.roll_chest_offers()[0];
-        assert(run.buy_chest(wallet, reward) && run.rank(chest_weapon(reward)) <= 5);
+        assert(run.buy_chest(wallet, reward) && run.rank(chest_weapon(reward)) <= 30);
     }
-    assert(wallet == 50955 && !run.chest_rewards_left());
+    assert(wallet == 18133080 && !run.chest_rewards_left());
     assert(run.master_sword==5 && run.sword_bonus() == 7 && run.dual_wield && run.shield==10);
     assert(run.chest_rewards_left(true)); // A refill remains available after all weapons.
     const auto maxedRng = run.random;
-    assert(!run.buy_chest(wallet, reward) && wallet == 50955 && run.random == maxedRng);
+    assert(!run.buy_chest(wallet, reward) && wallet == 18133080 && run.random == maxedRng);
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
         const auto weapon = static_cast<Upgrade>(i);
-        assert(run.rank(weapon) == 5 && !run.eligible(weapon));
+        assert(run.rank(weapon) == 30 && !run.eligible(weapon));
         const auto fast = run.item_cooldown(weapon);
         run.ranks[i] = 1;
         assert(run.item_cooldown(weapon) > fast);
-        run.ranks[i] = 5;
+        run.ranks[i] = 30;
     }
-    wallet = 10000;
+    wallet = 100000;
     reward = run.roll_chest_offers(true)[0];
     assert(run.buy_chest(wallet, reward, true) && reward == ChestReward::RedPotion);
     // Offers are distinct, capped and do not purchase anything. Buy exactly the chosen reward.
@@ -168,7 +168,7 @@ int main() {
         assert(!choices.master_sword&&!choices.dual_wield&&choices.rank(Upgrade::Bow)==0);
         assert(choices.random==rng&&money==0);
         assert(!choices.buy_chest(money,ChestReward::Count));
-        choices.ranks.fill(5);choices.master_sword=5;choices.dual_wield=5;choices.dark_link=11;choices.shield=9;
+        choices.ranks.fill(30);choices.master_sword=5;choices.dual_wield=30;choices.dark_link=11;choices.shield=9;
         auto few=choices.roll_chest_offers(true);
         assert(few[0]!=few[1]&&few[2]==ChestReward::Count);
         assert((few[0]==ChestReward::Shield||few[1]==ChestReward::Shield));
@@ -204,12 +204,13 @@ int main() {
         assert(effects.chest_eligible(ChestReward::DarkLink)==(rank<11));}
     assert(effects.dark_permanent()&&effects.dark_active()&&effects.damage_multiplier()==2);
     effects.dark_link=9;effects.phase=Phase::Treasure;effects.chests_opened=0;unsigned money=100;
-    assert(effects.buy_chest(money,ChestReward::DarkLink,false,Rarity::Orange));
+    assert(effects.buy_chest(money,ChestReward::DarkLink,false,Rarity::Legendary));
     assert(effects.dark_link==11&&effects.dark_permanent()&&money==140);
     effects.dual_wield=0;effects.chests_opened=0;
     assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Common)&&effects.melee_targets()==2);
-    assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Orange)&&effects.melee_targets()==6);
-    assert(!effects.chest_eligible(ChestReward::OrdonSword));
+    assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Legendary)&&effects.melee_targets()==7);
+    assert(effects.chest_eligible(ChestReward::OrdonSword));
+    effects.dual_wield=30;assert(!effects.chest_eligible(ChestReward::OrdonSword));
     effects.start(7);assert(!effects.dark_active()&&!effects.dark_clock&&!effects.dual_wield&&effects.damage_multiplier()==1);
     // Free elite chests grant exactly one item with no currency or price change.
     Run freeRun; freeRun.start(9); freeRun.phase=Phase::Treasure;
@@ -217,6 +218,36 @@ int main() {
     assert(freeRun.buy_chest(zero,ChestReward::Bow,0,Rarity::Common,true));
     assert(zero==0 && freeRun.chests_opened==7 && freeRun.rank(Upgrade::Bow)==1);
     assert(duration==20*60*30 && elite_interval==5*60*30 && timed_elite_count==3);
+    // Every ordinary upgrade and weapon can cross the old cap safely.
+    for (unsigned rank=0;rank<=30;++rank) {
+        Run high;high.start(1);high.shield=1;high.ranks.fill(rank);
+        for (unsigned u=0;u<unsigned(Upgrade::Rupees);++u) {
+            if (Upgrade(u)==Upgrade::Luck) continue;
+            assert(upgrade_cap(Upgrade(u))==30);
+            if (rank) assert(high.eligible(Upgrade(u))==(rank<30));
+        }
+        const auto interval=high.item_cooldown(Upgrade::Bow);
+        assert(interval>=6 && interval<=50);
+        assert(high.shield_cooldown()>=6 && high.shield_cooldown()<=100);
+        if(rank){Run previous=high;previous.ranks.fill(rank-1);
+            assert(high.cooldown(100)<=previous.cooldown(100));
+            assert(interval<=previous.item_cooldown(Upgrade::Bow));}
+    }
+    Run heart;heart.start(2);heart.ranks[3]=heart.ranks[4]=heart.ranks[5]=heart.ranks[6]=30;
+    assert(heart.eligible(Upgrade::Heart));heart.maximum_hearts=19;
+    assert(heart.upgrade_gain(Upgrade::Heart,Rarity::Legendary)==1);
+    assert(heart.upgrade_rupees(Upgrade::Heart,Rarity::Legendary)==80);
+    heart.phase=Phase::Upgrade;heart.offers[0]=Upgrade::Heart;heart.offer_rarities[0]=Rarity::Legendary;
+    assert(heart.choose(0)&&heart.maximum_hearts==20&&!heart.eligible(Upgrade::Heart));
+    for(unsigned horde=1;horde<=5;++horde){
+        Run swarm;RunOptions settings;settings.horde=horde;swarm.start(3,settings);
+        assert(swarm.target_population()==6*horde);
+        for(unsigned kill=1;kill<=50;++kill)assert(swarm.normal_kill_drops()==(kill%horde==0));
+        swarm.ticks=duration;assert(swarm.target_population()==23*horde&&swarm.target_population()+elite_capacity<enemy_capacity);
+    }
+    RunOptions invalid{0,100,100,0,1000};invalid.clamp();
+    assert(invalid.enemy_hp==1&&invalid.enemy_damage==10&&invalid.enemy_speed==5&&invalid.horde==1&&invalid.camera_distance==500);
+    assert(RunOptions{}.camera_distance==200);
     Records records;
     records.finish(run); assert(records.runs == 0); // Live runs cannot become records.
     run.end(false); assert(run.phase == Phase::Defeat && !run.tick(true));

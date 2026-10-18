@@ -3,7 +3,7 @@
 struct RunPickup {
     ActorId id=kNone;
     int item=0;
-    bool retiring=false;
+    bool retiring=false, enlarged=false;
 };
 std::vector<RunPickup> s_pickups;
 struct FluteDrop { bool pending=false, collected=false; ActorId id=kNone; cXyz position{}; };
@@ -47,6 +47,10 @@ void move_pickup(RunPickup& pickup, fopAc_ac_c* actor) {
     const float distance=delta.abs();
     if (pickup.item==dItemNo_HORSE_FLUTE_e) {
         auto* item=static_cast<daItem_c*>(actor);
+        if (!pickup.enlarged) {
+            item->mItemScale*=5.f; item->scale=item->mItemScale;
+            pickup.enlarged=true;
+        }
         item->setFlag(daItem_c::FLAG_NO_TIMER_e);
         item->mWaitTimer=100; // Do not enter native blink/delete even with a zero resource timer.
         if (distance<80) {

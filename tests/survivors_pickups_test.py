@@ -19,12 +19,13 @@ using s16=short;using ActorId=unsigned;constexpr ActorId kNone=~0u;
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}cXyz operator-(cXyz b)const{return{x-b.x,y-b.y,z-b.z};}
  cXyz operator*(float f)const{return{x*f,y*f,z*f};}void operator+=(cXyz b){x+=b.x;y+=b.y;z+=b.z;}
+ void operator*=(float f){x*=f;y*=f;z*=f;}
  float abs()const{return std::sqrt(x*x+y*y+z*z);}};
 struct fopAc_ac_c{ActorId id=0;struct{cXyz pos;}current,old;cXyz speed;float speedF=0;};
 struct daAlink_c:fopAc_ac_c{}player;ActorId s_player=1;
 auto* daAlink_getAlinkActorClass(){return &player;}ActorId fopAcM_GetID(fopAc_ac_c* p){return p->id;}
 struct daItem_c:fopAc_ac_c{enum{TYPE_FIXED_PLACE_e=1,TYPE_LAUNCH_e=0,STATUS_NORMAL_e=0,FLAG_NO_TIMER_e=8};
- int status=0,mWaitTimer=0;bool hidden=false;int flags=0;int getStatus(){return status;}
+ cXyz mItemScale{1,1,1},scale{1,1,1};int status=0,mWaitTimer=0;bool hidden=false;int flags=0;int getStatus(){return status;}
  void setFlag(int f){flags|=f;}void hide(){hidden=true;}};
 struct daObjLife_c:daItem_c{enum{STATUS_WAIT_e=0};bool chkStatus(int s){return status==s;}};
 struct Enemy{bool elite=false;int eliteSlot=-1;cXyz lootPosition;};
@@ -69,6 +70,7 @@ int main(){
  assert(std::abs((actor->current.pos-player.current.pos).abs()-160.7f)<2);
  std::any args[]={static_cast<daItem_c*>(&actors[id])};assert(before_flute_get(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
  daItem_c foreign;std::any other[]={&foreign};assert(before_flute_get(nullptr,other,nullptr,nullptr)==HOOK_CONTINUE);
+ move_pickup(*p,actor);move_pickup(*p,actor);assert(actors[id].scale.x==5&&actors[id].mItemScale.z==5);
  s_orbs[0]={{50000,30,0},8,false};s_orbs[1]={{-50000,30,0},9,false};
  player.current.pos=actor->current.pos;playing=false;move_pickup(*p,actor);assert(!p->retiring&&!s_orbs[0].summoned);
  playing=true;move_pickup(*p,actor);assert(p->retiring&&s_flutes[0].collected&&s_orbs[0].summoned&&s_orbs[1].summoned);

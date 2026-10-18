@@ -128,7 +128,7 @@ int main(){
    for(const auto& [id,e]:elements)actual+=e.kind=="button";
    assert(actual==count);
  }
- fresh();s_run.ranks[unsigned(Upgrade::Bow)]=5;
+ fresh();s_run.ranks[unsigned(Upgrade::Bow)]=30;
  assert(build_treasure_choices(1,2)==MOD_OK);unsigned actual=0;
  for(const auto& [id,e]:elements)actual+=e.kind=="button";
  assert(actual==2); // Skip a reward capped after a canceled visit.

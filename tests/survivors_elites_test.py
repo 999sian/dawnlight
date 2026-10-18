@@ -45,6 +45,7 @@ struct Enemy{ActorId id=kNone;int eliteSlot=-1;bool elite=false,dormant=false,re
 std::array<Enemy,enemy_capacity>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id)return &e;return nullptr;}
 ActorId fopAcM_GetID(daE_OC_c* a){return a->id;}
+int dComIfGs_getMaxLife(){return 15;}
 Run s_run;unsigned s_map=0,s_spawnCooldown=0,s_spawnFailures=0;
 const Arena& arena(){return arenas[s_map];}
 bool arenaPresent=true;bool in_arena(){return arenaPresent;}
