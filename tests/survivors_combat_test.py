@@ -148,6 +148,7 @@ fpc_ProcID fopAcM_createItem(const cXyz*,int item,int bit,int room,void*,void*,i
     assert(bit==-1 && room==rewardRoom && mode==0);drops.push_back(item);return 1;
 }
 unsigned maxLife=15,rupees=0,life=4;
+unsigned dComIfGs_getMaxLife(){return maxLife;}
 void dComIfGs_setMaxLife(unsigned v){maxLife=v;}
 unsigned dComIfGs_getRupeeMax(){return 300;}unsigned dComIfGs_getRupee(){return rupees;}
 void dComIfGs_setRupee(unsigned v){rupees=v;}
@@ -346,7 +347,8 @@ int main(){
     arena=false;assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_CONTINUE);arena=true;
     // Heart Container raises capacity only; fallback currency clamps to the wallet.
     reset();unsigned choice=0;s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Heart;
-    select_upgrade(nullptr,&choice);assert(maxLife==20 && life==4);
+    maxLife=17; // Preserve two collected heart pieces when adding a container.
+    select_upgrade(nullptr,&choice);assert(maxLife==22 && life==4);
     s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Rupees;rupees=290;
     select_upgrade(nullptr,&choice);assert(rupees==300 && life==4);
     std::cout<<"Survivors combat: native four-hit combos, sword movement, wave timing, particles and rewards passed\n";

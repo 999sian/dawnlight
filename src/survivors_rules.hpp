@@ -19,6 +19,15 @@ inline constexpr unsigned elite_reward_capacity = timed_elite_count +
 inline constexpr unsigned enemy_capacity = 24 + elite_capacity;
 inline constexpr unsigned projectile_capacity = 24;
 inline constexpr unsigned orb_capacity = 64;
+inline constexpr unsigned pot_capacity = 72;
+inline unsigned pot_budget(unsigned map, float floorArea) {
+    // Density follows the loaded floor area, bounded per arena for native actor
+    // budgets. Outdoor maps always have substantially more pots than indoors.
+    constexpr std::array<unsigned,5> minimum{6,40,40,12,8}, maximum{10,72,72,24,12};
+    if (map>=minimum.size()) return 0;
+    const float density=floorArea>0 ? floorArea/2000000.f : 0.f;
+    return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
+}
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
 enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, Rupees, Count };
 enum class Rarity : unsigned { Common, Green, Blue, Purple, Orange };
@@ -218,6 +227,19 @@ struct Run {
             if (color < threshold) return Drop(unsigned(Drop::SilverRupee) - i);
         }
         return Drop::GreenRupee;
+    }
+    enum class PotDrop { HeartPiece, GreenRupee, BlueRupee, YellowRupee, RedRupee,
+                         PurpleRupee, OrangeRupee, SilverRupee, Count };
+    PotDrop roll_pot_drop() {
+        if (next_random()%10000 < lucky_chance(200)) return PotDrop::HeartPiece;
+        const unsigned color=next_random()%10000;
+        constexpr std::array<unsigned,6> chances{10,40,150,600,1000,2200};
+        unsigned threshold=0;
+        for (unsigned i=0;i<chances.size();++i) {
+            threshold+=lucky_chance(chances[i]);
+            if (color<threshold) return PotDrop(unsigned(PotDrop::SilverRupee)-i);
+        }
+        return PotDrop::GreenRupee;
     }
     unsigned block_chance() const { return std::min(10u, shield) * 5; }
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }

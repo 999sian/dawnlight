@@ -51,29 +51,23 @@ bool arenaPresent=true;bool in_arena(){return arenaPresent;}
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int i){return std::any_cast<T>(static_cast<std::any*>(args)[i]);}}
 struct fopAcM_prm_class{struct{unsigned parameters=0;cXyz position;struct{s16 y=0;}angle;}base;int room_no=51;};
-constexpr int fpcNm_TBOX_e=1,fpcNm_TBOX2_e=2,fpcNm_DOOR20_e=3,fpcNm_DBDOOR_e=4,fpcNm_BOSS_DOOR_e=5,fpcNm_L1BOSS_DOOR_e=6;
-struct stage_tresure_data_class{char name[8]{};decltype(fopAcM_prm_class::base) base;};
-struct stage_tgsc_data_class:stage_tresure_data_class{};
-struct stage_tresure_class{int num=0;stage_tresure_data_class* m_entries=nullptr;};
+constexpr int fpcNm_DOOR20_e=3,fpcNm_DBDOOR_e=4,fpcNm_BOSS_DOOR_e=5,fpcNm_L1BOSS_DOOR_e=6;
+struct stage_tgsc_data_class{char name[8]{};decltype(fopAcM_prm_class::base) base;};
 struct stage_tgsc_class{int num=0;stage_tgsc_data_class* m_entries=nullptr;};
-struct RoomData{stage_tresure_class* treasure=nullptr;stage_tgsc_class* doors=nullptr;
- auto* getTresure(){return treasure;}auto* getDrTg(){return doors;}auto* getDoor(){return doors;}}roomData,stageData;
+struct RoomData{stage_tgsc_class* doors=nullptr;
+ auto* getDrTg(){return doors;}auto* getDoor(){return doors;}}roomData,stageData;
 RoomData* dComIfGp_roomControl_getStatusRoomDt(int){return &roomData;}
 RoomData* dComIfGp_getStage(){return &stageData;}
 struct dStage_KeepDoorInfo{int mNum=0;stage_tgsc_data_class mDrTgData[64];}keepDoors,keepRoomDoors;
 auto* dStage_GetKeepDoorInfo(){return &keepDoors;}auto* dStage_GetRoomKeepDoorInfo(){return &keepRoomDoors;}
 struct NameInfo{int procname;};
 NameInfo* dStage_searchName(const char* name){static NameInfo doorInfo{fpcNm_DOOR20_e};
- if(std::strncmp(name,"tbox",4)==0)return nullptr; // Real Darknut name filter.
  return std::strcmp(name,"door")==0?&doorInfo:nullptr;}
 float cM_ssin(s16 a){return std::sin(float(a)*3.14159265f/32768.f);}float cM_scos(s16 a){return std::cos(float(a)*3.14159265f/32768.f);}
 struct dBgS_ObjGndChk{cXyz pos;void SetPos(cXyz* p){pos=*p;}};
 struct dBgS_LinChk{void Set(const cXyz*,const cXyz*,void*){}};
-bool raisedFloor=false,entrySteps=false;
 bool groundMissing=false,wallBlocked=false,barrierBlocked=false;int groundRoom=-2,groundCode=0;
-struct Bg{float GroundCross(dBgS_ObjGndChk* probe){
-  if(groundMissing || (entrySteps && probe->pos.z<-4100))return -1.e9f;
-  return raisedFloor && probe->pos.z>3000 ? 600.f : 0.f;}
+struct Bg{float GroundCross(dBgS_ObjGndChk*){return groundMissing ? -1.e9f : 0.f;}
  int GetRoomId(dBgS_ObjGndChk&){return groundRoom==-2?arena().room:groundRoom;}
  int GetGroundCode(dBgS_ObjGndChk&){return groundCode;}
  bool LineCross(dBgS_LinChk*){return wallBlocked;}}bg;
@@ -94,23 +88,22 @@ bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
 void finish(bool victory){++finishes;s_run.end(victory);}
 void update_enemy_effects(){}void update_weapons(daAlink_c*){}void update_orbs(daAlink_c*){}
-void clear_attacks(){}void update_chests(daAlink_c*){}
+void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c*){}
 
 '''
 main=r'''
-void fresh(unsigned map){s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};raisedFloor=entrySteps=false;s_run.start(42);s_enemies={};s_chests={};clear_elite_sites();player.current.pos={};reset_elite_encounters();
+void fresh(unsigned map){s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};clear_elite_sites();player.current.pos={};reset_elite_encounters();
  groundMissing=wallBlocked=barrierBlocked=failCreate=false;groundRoom=-2;groundCode=0;s_spawnCooldown=s_spawnFailures=ordinarySpawns=0;}
 unsigned guards(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.dormant;return n;}
 unsigned waves(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.elite&&!e.dormant;return n;}
-void door(float x,float z){fopAcM_prm_class p;p.room_no=arena().room;p.base.position={x,0,z};capture_elite_site(fpcNm_DOOR20_e,p);}
+void door(float x,float z){fopAcM_prm_class p;p.room_no=arena().room;p.base.parameters=unsigned(arena().room)<<13;p.base.position={x,0,z};capture_elite_site(fpcNm_DOOR20_e,p);}
 void add_floor(float size){capture_elite_floor({-size,0,-size},{size,0,-size},{-size,0,size},1,false);capture_elite_floor({size,0,-size},{size,0,size},{-size,0,size},1,false);}
 int main(){
- fresh(0);fopAcM_prm_class chest;chest.base.position={2000,0,1000};capture_elite_site(fpcNm_TBOX_e,chest);
- update_elite_spawns(&player);assert(guards()==1&&waves()==0);auto& guard=s_enemies[0];
- assert(guard.lootPosition.absXZ(chest.base.position)==0);assert(guard.eliteSlot==int(timed_elite_count));
- update_elite_spawns(&player);assert(guards()==1); // no duplicates
- for(unsigned minute=0;minute<20;++minute){s_run.ticks=minute*60*30;update_elite_spawns(&player);assert(waves()==minute/5);}
- assert(waves()==3&&guards()==1);
+ // Compact arenas have no map guards, even with captured doors or large floor.
+ for(unsigned map:{0u,4u}){fresh(map);add_floor(10000);door(2000,0);assert(s_eliteDoorSites.size()==1);
+  for(unsigned minute=0;minute<20;++minute){s_run.ticks=minute*60*30;update_elite_spawns(&player);
+   assert(guards()==0&&waves()==minute/5);}
+ }
  // Unaccepted creation retries; deletion is not a defeat and grants no chest.
  fresh(0);s_run.ticks=elite_interval;failCreate=true;update_elite_spawns(&player);assert(waves()==0);
  failCreate=false;update_elite_spawns(&player);assert(waves()==1);s_enemies[0]={};update_elite_spawns(&player);assert(waves()==1);
@@ -132,16 +125,6 @@ int main(){
  // One per authored building entrance; repeated layer records deduplicate.
  fresh(3);add_floor(10000);door(-4000,0);door(4000,0);door(0,6000);door(0,6000);update_elite_spawns(&player);assert(guards()==3);
  for(unsigned i=0;i<3;++i)assert(s_enemies[i].lootPosition.absXZ(s_eliteDoorSites[i].position)>=450);
- // Opposite throne-room ends, including a large floor with few triangles.
- fresh(4);player.current.pos={0,0,-4500};reset_elite_encounters();
- capture_elite_floor({-800,0,-5000},{800,0,-5000},{-800,0,5000},1,false);
- capture_elite_floor({800,0,-5000},{800,0,5000},{-800,0,5000},1,false);
- update_elite_spawns(&player);assert(guards()==2);assert(s_enemies[0].lootPosition.z<-3500&&s_enemies[1].lootPosition.z>4500);
- // Raw TRES survives the Darknut name filter, without any actor callback.
- fresh(0);stage_tresure_data_class rawChest;std::memcpy(rawChest.name,"tboxB0",7);
- rawChest.base.position={2200,0,900};stage_tresure_class treasures{1,&rawChest};roomData.treasure=&treasures;
- assert(!dStage_searchName(rawChest.name));update_elite_spawns(&player);assert(guards()==1);
- assert(s_enemies[0].lootPosition.absXZ(rawChest.base.position)==0);
  // Suspended/uncreated shared stage doors are recovered from native records.
  // Only doors adjoining room 0 count, regardless of the owning actor room.
  fresh(3);add_floor(10000);stage_tgsc_data_class rawDoors[4];
@@ -153,28 +136,13 @@ int main(){
  stage_tgsc_class doors{4,rawDoors};stageData.doors=&doors;
  update_elite_spawns(&player);assert(guards()==3&&s_eliteDoorSites.size()==3);
  update_elite_spawns(&player);assert(guards()==3); // cache refresh cannot append duplicates
- // Chest data can also be captured before a filtered actor lookup, and is room scoped.
- fresh(0);fopAcM_prm_class rawParams;rawParams.base=rawChest.base;rawParams.room_no=51;
- capture_elite_actor(rawChest.name,rawParams);assert(s_eliteChestSites.size()==1);
- rawParams.room_no=50;rawParams.base.position.x+=1000;capture_elite_actor(rawChest.name,rawParams);
- assert(s_eliteChestSites.size()==1);
- // Raised throne landing and blocked entry stairs: both guards find real floor,
- // with the rear guard near the throne rather than a triangle centroid.
- fresh(4);player.current.pos={0,0,-4500};reset_elite_encounters();
- capture_elite_floor({-800,0,-5000},{800,0,-5000},{-800,0,3000},1,false);
- capture_elite_floor({800,0,-5000},{800,0,3000},{-800,0,3000},1,false);
- capture_elite_floor({-800,600,3000},{800,600,3000},{-800,600,5000},1,false);
- capture_elite_floor({800,600,3000},{800,600,5000},{-800,600,5000},1,false);
- raisedFloor=entrySteps=true;player.current.pos={100,0,100}; // Link moved before the retry.
- update_elite_spawns(&player);assert(guards()==2);
- assert(s_enemies[0].lootPosition.z<-3500 && s_enemies[1].lootPosition.z>4500 && s_enemies[1].lootPosition.y==600);
  // Invalid room, holes, hazards, walls and exit curtains never accept placements.
  fresh(1);add_floor(10000);
  for(unsigned bad=0;bad<5;++bad){groundMissing=bad==0;groundRoom=bad==1?99:-2;groundCode=bad==2?4:0;wallBlocked=bad==3;barrierBlocked=bad==4;update_elite_spawns(&player);assert(guards()==0);}
  groundMissing=wallBlocked=barrierBlocked=false;groundRoom=-2;groundCode=0;update_elite_spawns(&player);assert(guards()==4);
 
  // Guards respawn three active minutes after the kill, not after spawning.
- fresh(0);capture_elite_site(fpcNm_TBOX_e,chest);update_elite_spawns(&player);
+ fresh(3);add_floor(10000);door(2000,0);update_elite_spawns(&player);
  const auto guardSlot=s_enemies[0].eliteSlot;const auto home=s_enemies[0].lootPosition;
  s_run.ticks=713;drop_elite_chest(s_enemies[0],&player);s_enemies[0]={};
  const unsigned deadline=713+guard_respawn_interval;
@@ -214,7 +182,7 @@ int main(){
  for(unsigned i=kPaidChestCount;i<kChestCount;++i)assert(s_chests[i].active&&s_chests[i].free);
  s_run.ticks=duration;update_elite_spawns(&player);assert(guards()==0&&waves()==0);
  // Dormant AI suppresses only idle action. Collision/damage Execute stays native.
- fresh(0);capture_elite_site(fpcNm_TBOX_e,chest);update_elite_spawns(&player);
+ fresh(3);add_floor(10000);door(2000,0);update_elite_spawns(&player);
  daE_OC_c actor;actor.id=s_enemies[0].id;actor.speedF=10;actor.speed={2,3,4};std::any args[]={&actor};
  assert(before_bokoblin_wait(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
  assert(actor.speedF==0&&actor.speed.x==0&&actor.speed.y==3&&actor.animations==1);
@@ -229,7 +197,7 @@ int main(){
  after_player(nullptr,playerArgs,nullptr,nullptr);assert(finishes==1);
  fresh(0);life=0;after_player(nullptr,playerArgs,nullptr,nullptr);assert(s_run.phase==Phase::Defeat&&s_run.ticks==0);
  reset_elite_encounters();for(const auto& e:s_eliteEncounters)assert(!e.placed&&!e.defeated);
- clear_elite_sites();assert(s_eliteFloors.empty()&&s_eliteDoorSites.empty()&&s_eliteChestSites.empty());
+ clear_elite_sites();assert(s_eliteFloors.empty()&&s_eliteDoorSites.empty());
  std::cout<<"Survivors elites: schedule, all map placements, respawns, dormancy and non-overwriting free drops passed\n";
 }
 '''

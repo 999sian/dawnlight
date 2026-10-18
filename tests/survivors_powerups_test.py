@@ -58,7 +58,8 @@ bool in_arena(){return arena;}bool ui_visible(){return visible;}
 std::array<unsigned,3>s_choices{0,1,2};
 unsigned money=100,lifeMax=15,closed=0,pushed=0;
 unsigned dComIfGs_getRupee(){return money;}unsigned dComIfGs_getRupeeMax(){return 1000;}
-void dComIfGs_setRupee(unsigned r){money=r;}void dComIfGs_setMaxLife(unsigned n){lifeMax=n;}
+void dComIfGs_setRupee(unsigned r){money=r;}unsigned dComIfGs_getMaxLife(){return lifeMax;}
+void dComIfGs_setMaxLife(unsigned n){lifeMax=n;}
 void close_window(){++closed;}
 struct Element{UiElementHandle parent=0;std::string kind,text,css,help;UiPressedFn pressed=nullptr;void* data=nullptr;bool visible=true;};
 std::map<UiElementHandle,Element> elements;UiElementHandle next=3;

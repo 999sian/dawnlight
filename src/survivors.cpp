@@ -23,6 +23,7 @@
 #include "d/actor/d_a_demo_item.h"
 #include "d/actor/d_a_e_ba.h"
 #include "d/actor/d_a_e_oc.h"
+#include "d/actor/d_a_obj_carry.h"
 #include "d/actor/d_a_e_ms.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_debug_viewer.h"
@@ -83,6 +84,7 @@ DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
 DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
 DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
+DEFINE_HOOK(&daObjCarry_c::obj_break, SurvivorsPotBreak);
 DEFINE_HOOK(&renderingAmap_c::afterDrawPath, SurvivorsEliteMinimap);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#pl_check", int(e_ms_class*, f32), SurvivorsRatAggro);
@@ -263,7 +265,11 @@ void close_window() {
     const auto handle = s_window; s_window = 0;
     if (handle) svc_ui->window_close(mod_ctx, handle);
 }
+void retire_pots();
+void cleanup_pots();
+void detach_pot_attacks();
 void retire_enemies() {
+    retire_pots();
     clear_enemy_effects();
     for (auto& e : s_enemies) if (e.id != kNone) e.retiring = true;
 }
@@ -286,6 +292,7 @@ bool own_collider(const cCcD_Obj* collider) {
     return false;
 }
 void detach_attack_references() {
+    detach_pot_attacks();
     // The collision server also keeps last-frame pointers for debug drawing.
     // Null only our entries; never reset another actor/mod's collision state.
     if (auto* server = dComIfG_Ccsp()) {
@@ -485,6 +492,7 @@ bool spawn_enemy(daAlink_c* link, bool elite, int eliteSlot = -1) {
     return false;
 }
 #include "survivors_elites.inc"
+#include "survivors_pots.inc"
 #include "survivors_minimap.inc"
 void update_spawns(daAlink_c* link) {
     unsigned population = 0;
@@ -756,7 +764,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     s_run.tick(true);
     if (s_run.ticks >= duration) { finish(true); return; }
     update_enemy_effects();
-    update_spawns(link); update_weapons(link); update_orbs(link);
+    update_spawns(link); update_pots(link); update_weapons(link); update_orbs(link);
     if (s_run.level_up()) clear_attacks();
     else update_chests(link);
 }
@@ -777,7 +785,7 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
 }
 bool pause_run_actor(bool enemy) {
     if (!in_arena() || s_run.phase == Phase::Loading) return false;
-    if (enemy && midna_dialog_busy()) return true;
+    if (enemy && (midna_dialog_busy() || dComIfGp_event_runCheck())) return true;
     if (ui_visible() || dComIfGp_isPauseFlag()) return true;
     // Native Get Item needs Link's Execute; enemies and the run clock stay paused.
     return s_run.phase != Phase::Running && (enemy || s_run.phase != Phase::Treasure);
@@ -788,13 +796,14 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     auto* actor = static_cast<fopAc_ac_c*>(process);
     const auto id = fopAcM_GetID(actor);
     auto* enemy = tracked(id);
+    auto* pot = tracked_pot(id);
     retain_treasure_actor(actor, args);
     if (in_arena()) {
         const auto* nativeMethods = reinterpret_cast<const process_method_class*>(actor->sub_method);
         if (nativeMethods && mods::arg<process_method_func>(args, 0) == nativeMethods->execute_method)
             collect_arena_mesh(actor);
     }
-    if (!enemy && (!in_arena() || id != s_player)) return HOOK_CONTINUE;
+    if (!enemy && !pot && (!in_arena() || id != s_player)) return HOOK_CONTINUE;
     const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);
     if (!methods) return HOOK_CONTINUE;
     const auto method = mods::arg<process_method_func>(args, 0);
@@ -803,9 +812,14 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
         if (enemy) {
             *enemy = {};
         }
+        if (pot) {
+            pot->id=kNone; pot->initialized=false;
+            if (pot->retiring) *pot={};
+        }
         return HOOK_CONTINUE;
     }
     if (method != methods->execute_method) return HOOK_CONTINUE;
+    if (pot) pot->initialized=true;
     if (enemy) s_processFrames.push_back({args, id});
     if (enemy && !enemy->initialized) {
         enemy->initialized = true;
@@ -823,7 +837,7 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
         if (guard->getActionMode() <= 3) guard->setActionMode(0, 0);
     }
     if (enemy) engage_enemy(actor, *enemy);
-    if ((enemy && enemy->retiring) || pause_run_actor(enemy != nullptr)) {
+    if ((enemy && enemy->retiring) || (pot && pot->retiring) || pause_run_actor(enemy != nullptr || pot != nullptr)) {
         *static_cast<int*>(result) = 1;
         return HOOK_SKIP_ORIGINAL;
     }
@@ -937,9 +951,11 @@ void select_upgrade(ModContext*, void* data) {
     const unsigned choice = *static_cast<unsigned*>(data);
     if (s_run.phase != Phase::Upgrade || choice >= 3) return;
     const auto selected = s_run.offers[choice];
+    const unsigned oldHearts=s_run.rank(Upgrade::Heart);
     const unsigned bonus = s_run.upgrade_rupees(selected, s_run.offer_rarities[choice]);
     if (!s_run.choose(choice)) return;
-    if (selected == Upgrade::Heart) dComIfGs_setMaxLife(15 + 5 * s_run.rank(Upgrade::Heart));
+    if (selected == Upgrade::Heart)
+        dComIfGs_setMaxLife(std::min(100u,unsigned(dComIfGs_getMaxLife())+5*(s_run.rank(Upgrade::Heart)-oldHearts)));
     if (bonus) dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(), dComIfGs_getRupee() + bonus));
     close_window();
     s_run.level_up(); // Preserve queued levels; do not resume combat between choices.
@@ -1037,6 +1053,7 @@ bool survivors_dark_link_active() {
 }
 void update_survivors() {
     cleanup_enemies();
+    cleanup_pots();
     if (s_treasure.retiring) retire_treasure_actor();
     if (!s_active || !s_gameStarted) return;
     if (s_savePrompt != kNone) {
@@ -1107,6 +1124,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
     PRE(SurvivorsBokoblinWait, before_bokoblin_wait);
+    PRE(SurvivorsPotBreak, before_pot_break);
     POST(SurvivorsEliteMinimap, after_elite_minimap);
     PRE(SurvivorsKeeseAggro, before_keese_aggro);
     PRE(SurvivorsRatAggro, before_rat_aggro);
@@ -1163,7 +1181,7 @@ ModResult initialize_survivors(ModError* error) {
     return MOD_OK;
 }
 void shutdown_survivors() {
-    s_active = false; reset_runtime(); cleanup_enemies();
+    s_active = false; reset_runtime(); cleanup_enemies(); cleanup_pots();
     s_midnaGraph.reset(); s_midnaPrompt.reset(); s_midnaOptions.reset(); s_midnaStart=0;
     s_treasureMessage.reset(); s_itemNameMessage.reset(); s_itemDescriptionMessage.reset();
     if (s_savePrompt != kNone) { d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone; }

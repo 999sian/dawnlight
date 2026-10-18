@@ -45,7 +45,6 @@ HookAction before_arena_stage_actor(ModContext*, void* args, void*, void*) {
     if (!record || !params) return HOOK_CONTINUE;
     // DZS names are fixed-width, not necessarily null-terminated.
     char name[9]{}; std::memcpy(name,record->name,8);
-    capture_elite_actor(record->name, *params);
     const auto* info=dStage_searchName(name);
     if (!info) return HOOK_CONTINUE; // native creator owns/frees its append
     if (info->procname==fpcNm_ALINK_e) {
@@ -57,6 +56,7 @@ HookAction before_arena_stage_actor(ModContext*, void* args, void*, void*) {
         return HOOK_CONTINUE;
     }
     const bool local=params->room_no==arena().room || params->room_no==-1;
+    if (s_map==3) capture_elite_site(info->procname,*params);
     bool skip=arena_story_actor(info->procname);
     if (info->procname==fpcNm_SCENE_EXIT_e || info->procname==fpcNm_SCENE_EXIT2_e) {
         if (local) {

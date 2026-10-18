@@ -169,25 +169,24 @@ Additional stationary elite guards wait at these map locations:
 | --- | --- |
 | Hyrule Field | Four random, separated positions across the room's floor |
 | Gerudo Desert | Four random, separated positions across the room's floor |
-| Darknut Arena | One at the authored chest position in the small side room |
-| Hyrule Castle Throne Room | One near the entrance and one at the opposite end |
+| Darknut Arena | None; scheduled elites only |
+| Hyrule Castle Throne Room | None; scheduled elites only |
 | Palace of Twilight | One in front of each authored building doorway |
 
 Guards use native idle animation, physics, collision and damage handling, but
 skip idle detection/social alerts. Only a damaging hit from Link wakes them.
 Once provoked they pursue Link at any distance, just like ordinary and scheduled
 enemies. Standing nearby alone does not provoke a guard. Placement uses loaded
-DZB/KCL floor geometry and authored chest/door records, with floor, room, hazard,
-footprint and exit-barrier checks. Retained native TRES/door records recover
-landmarks even when actor creation or name lookup is suppressed; door room pairs
-identify Palace entrances. Throne guards use an immutable entry landmark and
-interpolated floor searches at the entrance and near the far wall/throne,
-including raised landings. No map archives or assets are bundled.
+DZB/KCL floor geometry and authored Palace door records, with floor, room,
+hazard, footprint and exit-barrier checks. Retained Door/DRTG records recover
+Palace entrances even when their actors are suspended. Darknut chest-landmark
+capture and throne entrance/far-wall placement code have been removed entirely.
+No map archives or assets are bundled.
 
 Killed map guards respawn after **three minutes of active run time**, dormant
 until attacked again. Hyrule Field and Gerudo Desert choose a new safe random
 position, at least 1,800 units from the previous position and other guards;
-indoor guards return to their landmark. Failed placement/creation retries without
+Palace guards return to their landmark. Failed placement/creation retries without
 resetting the timer. Scheduled five-minute elites do not respawn.
 Living elites (guards and scheduled enemies) appear on the minimap using the
 native Tear-of-Light bug marker: same texture, palette and size, updated to their
@@ -208,6 +207,36 @@ death callbacks never generate extra loot. Guards and elites do not age-despawn.
 Spawn frequency, ordinary population and Bokoblin health increase during the run.
 Death opens a result screen with time, kills, level and weapon levels. **New run**
 reloads the arena and resets all run upgrades and elite encounters.
+
+## Breakable pots
+
+Each run distributes native small pots at random safe floor positions throughout
+the arena. Counts scale with loaded floor area (one per 2,000,000 square world
+units), clamped to these map-specific budgets:
+
+| Map | Pots per run |
+| --- | --- |
+| Darknut Arena | 6–10 |
+| Hyrule Castle Throne Room | 8–12 |
+| Palace of Twilight | 12–24 |
+| Hyrule Field | 40–72 |
+| Gerudo Desert | 40–72 |
+
+Creation is staggered to avoid loading every actor in one frame. Placement checks
+floor, room, hazards, walls, exit barriers, other pots, guard landmarks and Link's
+current position. Pots use native models, carrying/throwing, collision, fragments
+and sound. Breaking one yields one native pickup: a Piece of Heart (2% base
+chance) or a green, blue, yellow, red, purple, orange or silver rupee. Higher-value
+rupees are rarer; Luck multiplies the heart-piece and better-color chances.
+Heart pieces use the native Get Item sequence and five-piece heart progression;
+subsequent Heart Container upgrades preserve already collected pieces. Their
+capacity is reset with the rest of the run on restart.
+
+Destroyed pots do not refill during a run. Failed creation is retried, while
+unloading/deleting a pot never grants loot. Only these tracked pots bypass the
+Survivors suppression of vanilla drops. Pots and enemies pause during menus and
+native Get Item; the native reward event itself continues. Run end, mode changes
+and restart retire the pots, including actors still loading.
 
 ## Treasure chests
 
@@ -390,9 +419,9 @@ unlock trees and mid-run suspend are not part of this version.
 The budgets are 35 tracked enemies (24 ordinary slots plus three scheduled
 elites and up to eight guards, including pending/deleting actors), 24 attack
 objects (eight base-weapon slots and four per chest weapon), two paid chest props,
-up to 59 free chest props and 64 experience crystals. The free pool covers seven
+up to 59 free chest props, 64 experience crystals and up to 72 native pot actors. The free pool covers seven
 lives per guard plus the three scheduled elites; opened slots are reused. Model allocation is bounded by a 2 MiB heap,
-trimmed after loading. Excess crystals merge their value.
+trimmed after loading; native pot actors use their own engine-managed heaps. Excess crystals merge their value.
 These limits are starting budgets, not a measured Android performance guarantee.
 Spawns require a valid floor and unobstructed line from Link, and are staggered.
 A failed elite creation/despawn can be retried without granting loot or counting as a kill.
@@ -406,8 +435,11 @@ and native movement/root-motion equations.
 Before merging/releasing, test on Android and desktop:
 
 1. Create and reload a separate Survivors slot; verify story and Boss Rush saves.
+   Break/carry/throw pots on all maps; check rupee colors, rare native heart-piece
+   pickup, menu/event pause and cleanup on End Run/restart.
 2. Kill map guards and check their three-minute respawn, including pauses; check
-   new Field/Desert positions and fixed indoor positions. Leave earlier free
+   new Field/Desert positions and fixed Palace positions. Darknut Arena and Throne Room
+   must have no additional guards. Leave earlier free
    chests unopened and confirm later drops remain separate. Verify native
    Leuchtkaefer/Tear-of-Light minimap markers follow living elites and disappear
    on death in every map and with Twilight HD HUD.
