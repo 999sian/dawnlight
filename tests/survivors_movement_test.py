@@ -23,6 +23,7 @@ struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
 struct daAlink_c{
  enum{PROC_WAIT,PROC_MOVE,PROC_CUT_TURN,PROC_CUT_NORMAL,PROC_CUT_FINISH,PROC_GUARD_ATTACK,PROC_GUARD_SLIP,PROC_GUARD_BREAK,PROC_DAMAGE,PROC_JUMP,PROC_DODGE,PROC_GET_ITEM,MODE_PLAYER_FLY};
+ bool sprintHeld=false;bool doButton(){return sprintHeld;}bool doTrigger(){return false;}bool checkInputOnR(){return sprintHeld;}
  unsigned id=7;int mProcID=PROC_WAIT;bool matching=true;
  struct{cXyz pos;struct{short y=0;}angle;}current;
  struct{bool ground=true;bool ChkGroundHit(){return ground;}}mLinkAcch;
@@ -74,6 +75,13 @@ int main(){
   after_auto_position(nullptr,args,nullptr,nullptr);
   if(shield_pose(&link))assert(link.mNormalSpeed==2); // Native guard recoil can still reach zero and finish.
  }
+ // Talent sprint survives automatic sword movement at each fractional speed.
+ for(unsigned rank=0;rank<=2;++rank){
+  s_run.talents.ranks[unsigned(Talent::Sprint)]=1;s_run.talents.ranks[unsigned(Talent::SprintSpeed)]=rank;
+  link.sprintHeld=true;link.mProcID=daAlink_c::PROC_CUT_NORMAL;s_swordAction=SwordAction::Normal;link.mMoveValue=1;
+  before_auto_movement(nullptr,args,nullptr,nullptr);assert(link.mMaxSpeed==25+2.5f*rank&&link.mNormalSpeed==link.mMaxSpeed);
+ }
+ link.sprintHeld=false;s_run.talents={};
  // End-of-swing handoff: native checkCutCancelNextMode zeros speed, then
  // enters WAIT/MOVE before posMove; the scheduler clears sword ownership.
  // Recovery blend/foot speed must not slow any following locomotion frames.

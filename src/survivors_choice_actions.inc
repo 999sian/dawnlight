@@ -39,7 +39,7 @@ ModResult add_choice_actions(UiElementHandle pane,bool chest) {
     UiRowDesc rowDesc=UI_ROW_DESC_INIT;rowDesc.wrap=true;
     UiElementHandle row=0;auto result=svc_ui->pane_add_row(mod_ctx,pane,&rowDesc,&row);
     if(result!=MOD_OK)return result;
-    const std::string label=s_run.free_rerolls ? "Reroll (1 free)" : "Reroll ("+number(s_run.reroll_cost())+" rupees)";
+    const std::string label=s_run.free_rerolls ? "Reroll ("+number(s_run.free_rerolls)+" free)" : "Reroll ("+number(s_run.reroll_cost())+" rupees)";
     UiControlDesc control=UI_CONTROL_DESC_INIT;control.label=label.c_str();control.on_pressed=reroll_choices;
     control.is_disabled=[](ModContext*,void*) {
         const bool chest=s_run.phase==Phase::TreasureChoice;
@@ -53,7 +53,7 @@ ModResult add_choice_actions(UiElementHandle pane,bool chest) {
         const auto upgrade=chest ? Upgrade::Count : s_run.offers[i];
         const bool valid=chest ? s_run.chest_eligible(reward,potion_slot()>=0) : s_run.eligible(upgrade);
         any|=valid;if(!valid || !s_run.banishes)continue;
-        const std::string name="Banish "+std::string(chest ? reward_name(reward,s_run) : names[unsigned(upgrade)]);
+        const std::string name="Banish ("+number(s_run.banishes)+") "+std::string(chest ? reward_name(reward,s_run) : names[unsigned(upgrade)]);
         control=UI_CONTROL_DESC_INIT;control.label=name.c_str();control.on_pressed=banish_choice;control.user_data=&s_choices[i];
         result=svc_ui->pane_add_control(mod_ctx,row,&control,nullptr);if(result!=MOD_OK)return result;
     }

@@ -35,7 +35,8 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
     if (result!=MOD_OK) return result;
     for (unsigned i=0;i<arenas.size();++i) {
         UiControlDesc control=UI_CONTROL_DESC_INIT;
-        control.label=arenas[i].name; control.on_pressed=select_arena; control.user_data=&s_mapChoices[i];
+        const std::string mapLabel=std::string(arenas[i].name)+" — "+number(s_records.high_scores[i]);
+        control.label=mapLabel.c_str(); control.on_pressed=select_arena; control.user_data=&s_mapChoices[i];
         UiElementHandle option=0;
         result=svc_ui->pane_add_control(mod_ctx,left,&control,&option);
         if (result!=MOD_OK) return result;
@@ -54,8 +55,8 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
         "Collect XP, hearts and rupees. Chest prices: 20, 25, 32, 41, 52...",nullptr);
     if (result!=MOD_OK) return result;
     char records[160];
-    std::snprintf(records,sizeof(records),"Runs %u | Wins %u | Best kills %u | Best level %u",
-        s_records.runs,s_records.wins,s_records.best_kills,s_records.best_level);
+    std::snprintf(records,sizeof(records),"Map high score %u | Runs %u | Wins %u | Meta level %u",
+        s_records.high_scores[s_map],s_records.runs,s_records.wins,s_records.level());
     result=svc_ui->pane_add_text(mod_ctx,left,records,nullptr);
     if (result!=MOD_OK) return result;
     const std::string copy="<div class=\"survivors-map-preview-copy\"><div class=\"survivors-map-preview-title\" style=\"color: "+
@@ -101,7 +102,9 @@ ModResult build_run_controls(UiElementHandle left, UiElementHandle right, unsign
         result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
         if (result!=MOD_OK) return result;
     }
-    return svc_ui->pane_add_text(mod_ctx,right,"Settings apply to the next run. Return to Maps to start.",nullptr);
+    return svc_ui->pane_add_text(mod_ctx,right,first==0 ?
+        "Score bonus: +10% per Enemy HP step, +15% per Enemy Damage step, +25% per Enemy Speed step and +10% per Horde step. Bonuses add together (x1.00 to x4.15). Normal kill points are divided by Horde. Settings apply to the next run." :
+        "Settings apply to the next run. Return to Maps to start.",nullptr);
 }
 ModResult build_difficulty(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     return build_run_controls(left,right,0,4);

@@ -46,6 +46,7 @@ UiWindowHandle s_window=0,s_refreshChoices=0;
 bool ui_visible(){return false;}
 std::vector<std::string> tabNames;
 ModResult build_window(ModContext*,UiWindowHandle,UiElementHandle,UiElementHandle,void*,ModError*){return MOD_OK;}
+ModResult build_talents(ModContext*,UiWindowHandle,UiElementHandle,UiElementHandle,void*,ModError*){return MOD_OK;}
 const char* kTreasureStyle="treasure";const char* kArenaStyle="arena";
 ChestReward s_chosenTreasure=ChestReward::Count;
 void dismiss_treasure_choice(){}
@@ -64,7 +65,7 @@ struct Service{
 main=r'''
 int main(){
  s_run.start(1);s_run.phase=Phase::Ready;open_window();
- assert((tabNames==std::vector<std::string>{"Maps","Difficulty","Settings"}));
+ assert((tabNames==std::vector<std::string>{"Maps","Difficulty","Talents","Settings"}));
  s_window=0;s_run.phase=Phase::Upgrade;open_window();assert(tabNames.size()==1&&tabNames[0]=="Choose an upgrade");
  s_run.start(1);s_run.options.enemy_speed=3;
  daE_OC_c bok;bok.old.pos={10,0,10};bok.current.pos={12,3,14};dBgS_Acch acch{&bok};std::any movement[]={&acch};

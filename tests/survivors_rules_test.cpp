@@ -338,7 +338,7 @@ int main() {
     Records loaded;
     auto bytes = records.encode();
     assert(loaded.decode(bytes) && loaded.encode() == bytes);
-    auto corrupt = bytes; corrupt[4] = 2;
+    auto corrupt = bytes; corrupt[4] = 99;
     assert(!loaded.decode(corrupt) && loaded.encode() == bytes);
     assert(!loaded.decode(std::span(bytes.data(), bytes.size() - 1)));
     corrupt = bytes; corrupt[12] = 250; assert(!loaded.decode(corrupt));

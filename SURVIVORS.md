@@ -14,7 +14,7 @@ map and press **Start run**. Story and Boss Rush saves remain separate.
 - Start with three hearts and normal sword attacks. Unlock Sword Wave and
   Whirling Blade through level-ups. Passive upgrades, including Heart Container,
   remain available independently of other choices (maximum 20 hearts).
-- The HUD shows time, level, kills, XP and the next chest price. Inspect equipment
+- The HUD shows time, run level, score, XP and the next chest price. Inspect equipment
   in the item wheel and power-ups via the Hidden Skills scroll in Collection.
   Only bottles can be assigned to item buttons. Magnet also attracts rupees,
   hearts and heart pieces; nearby pots trigger normal automatic sword swings.
@@ -23,7 +23,7 @@ map and press **Start run**. Story and Boss Rush saves remain separate.
 
 ## Run setup
 
-Map selection also has **Difficulty** and **Settings** tabs. Choices carry over
+Map selection also has **Difficulty**, **Talents** and **Settings** tabs. Choices carry over
 between maps/replays in the current session and are fixed when the run starts.
 
 | Setting | Range | Default |
@@ -36,6 +36,49 @@ between maps/replays in the current session and are fixed when the run starts.
 
 At Horde ×N, every Nth normal kill gives XP and rolls a drop; pots and elite
 rewards are unchanged. Camera 100% is native distance; event cameras stay native.
+
+## Score and permanent talents
+
+Each map has its own high score, shown in Maps and the result screen. Final score:
+
+| Source | Points before difficulty bonus |
+| --- | ---: |
+| Survival | 2 per second, up to 20 minutes |
+| Normal kills | 10 each, divided by Horde |
+| Timed elite / additional elite | 500 / 250 |
+| Run levels gained | 50 each after level 1 |
+| Complete the run | 3,000 |
+
+Difficulty multiplier: `1 + 0.10 × (HP−1) + 0.15 × (Damage−1) +
+0.25 × (Speed−1) + 0.10 × (Horde−1)` (×1–×4.15). Camera settings do not
+change score. Final totals round down; normal kill points are normalized before
+applying difficulty. Example: a win at default difficulty with 400 normal kills,
+three timed elites and run level 20 earns **11,850 points**.
+
+On victory, defeat or **Midna → End Run**, the final score also grants permanent
+XP, shared across maps/runs in this Survivors save. Meta level 1 starts at 0 XP;
+the next level costs 2,000 XP, then 2,500, 3,000… Each grants **one Unlock Point**.
+Abruptly quitting an unfinished run does not award its score. Old saves retain
+previous statistics and start this new progression at level 1.
+
+Open **Talents** between Difficulty and Settings. Each rank costs one point;
+purchases are permanent and apply from the next run. Run power-up ranks remain
+separate. Use **Save progress** / **Save records** to write the native save before
+quitting, including after spending points.
+
+| Talent | Ranks | Effect / prerequisite |
+| --- | ---: | --- |
+| Max Health | 5 | +1 starting heart/rank, up to 8; overall health cap stays 20. |
+| Crit Chance | 5 | +1 percentage point base chance/rank before Luck. Combined final chance caps at 100%. |
+| Sprint | 1 | Unlock 125% running speed, including automatic combat. |
+| Sprint Speed | 2 | Requires Sprint; 137.5%, then 150%. |
+| Magnet | 5 | +10% pickup range/rank after run upgrades; includes all magnet pickups. |
+| Manual Jump | 1 | Unlock the configured Jump input/touch button. |
+| Glider | 1 | Requires Manual Jump; press Jump while airborne. |
+| Revali's Gale | 1 | Requires Glider; one charge, 120-second recovery. |
+| Gale Charges | 2 | Requires Gale; +1 charge/rank, up to three. Refilled each run. |
+| Rerolls | 2 | +1 free reroll/rank/run, up to three; shared by both choice menus. |
+| Banishes | 2 | +1 banishment/rank/run, up to three; shared by both choice menus. |
 
 ## Maps, elites and pots
 
@@ -83,7 +126,7 @@ Each run shares **one free Reroll and one Banish** across both selection menus.
 Reroll refreshes all offers; further uses cost **50, 100, 150… rupees**. Paid
 chests reserve their purchase price. Banish removes the named choice from future
 offers without removing its current ranks or equipment; weapon bans apply to
-both menus. All counters and bans reset on a new run.
+both menus. Talents can add two more free uses of each. All counters and bans reset on a new run.
 
 | Chest reward | Main effect |
 | --- | --- |
@@ -114,6 +157,7 @@ Two passive level-up rewards, both capped at **rank 30**:
 | Crit Chance | 0% | +1 percentage point base chance | 30% base; 90% at +200% Luck |
 | Crit Damage | ×2 damage | +0.05 multiplier | ×3.5 damage |
 
+Talents add up to five base percentage points; combined final chance caps at 100%.
 Final chance is `base chance × (1 + Luck / 100)`, inspired by
 [Vampire Survivors](https://vampire-survivors.fandom.com/wiki/Flash_Arrow).
 Each direct sword, spin, projectile, shield or Dual Wield hit rolls independently.

@@ -8,7 +8,7 @@ struct RunPickup {
 std::vector<RunPickup> s_pickups;
 struct FluteDrop { bool pending=false, collected=false; ActorId id=kNone; cXyz position{}; };
 std::array<FluteDrop,timed_elite_count> s_flutes;
-float magnet_range() { return 150.f+65.f*s_run.rank(Upgrade::Magnet); }
+float magnet_range() { return float(s_run.magnet_range()); }
 RunPickup* tracked_pickup(ActorId id) {
     if (id==kNone) return nullptr;
     for (auto& pickup:s_pickups) if (pickup.id==id) return &pickup;

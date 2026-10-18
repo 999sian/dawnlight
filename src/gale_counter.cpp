@@ -152,6 +152,8 @@ HookAction before_meter_delete(ModContext*, void*, void*, void*) {
 }
 }  // namespace
 
+void reset_gale_charges() { s_charges = {}; }
+
 bool gale_charge_available() {
     update_charges();
     return s_charges.available() > 0;

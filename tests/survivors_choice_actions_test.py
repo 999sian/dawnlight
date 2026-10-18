@@ -58,7 +58,7 @@ int main(){
  assert(rupees==0&&s_run.paid_rerolls==2&&s_run.reroll_cost()==150);
  fresh();s_run.phase=Phase::TreasureChoice;s_run.ranks[unsigned(Upgrade::Bow)]=4;
  s_chests[0].offers={ChestReward::Bow,ChestReward::Shield,ChestReward::MasterSword};
- assert(add_choice_actions(1,true)==MOD_OK&&buttons[1].label=="Banish Hero's Bow");
+ assert(add_choice_actions(1,true)==MOD_OK&&buttons[1].label=="Banish (1) Hero's Bow");
  buttons[1].pressed(nullptr,buttons[1].data);
  assert(s_chests[0].offers[0]==ChestReward::Count&&s_chests[0].offers[1]==ChestReward::Shield);
  assert(s_run.banishes==0&&s_run.rank(Upgrade::Bow)==4&&s_run.phase==Phase::TreasureChoice);

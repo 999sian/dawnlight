@@ -1210,18 +1210,17 @@ bool mode_config_override(ConfigVarHandle var, int64_t& value) {
     const auto setting = mode_setting_for_config(var);
     if (setting == ModeSetting::None) return false;
     if (survivors_active()) {
+        if(survivors_mobility_override(setting,value))return true;
         switch (setting) {
         case ModeSetting::JumpHeight:
         case ModeSetting::HealthScale:
-        case ModeSetting::SprintSpeed:
         case ModeSetting::WolfSpeed: value = 100; return true;
-        case ModeSetting::Jump: value = 1; return true;
         case ModeSetting::DualWield: value = survivors_dual_wield(); return true;
-        case ModeSetting::Progression: case ModeSetting::Sprint: case ModeSetting::WolfSprint:
+        case ModeSetting::Progression: case ModeSetting::WolfSprint:
         case ModeSetting::FlurryRush: case ModeSetting::BulletTime: case ModeSetting::EnemyHardMode:
         case ModeSetting::BossHardMode: case ModeSetting::ManualShielding: case ModeSetting::ArrowModes:
         case ModeSetting::GreatSpin: case ModeSetting::NoNormalHitInvulnerability:
-        case ModeSetting::Glide: case ModeSetting::Gale: case ModeSetting::FierceDeity:
+        case ModeSetting::FierceDeity:
         case ModeSetting::Stamina: case ModeSetting::DisableAutoJump:
             value = 0; return true;
         default: return false;
@@ -1455,6 +1454,7 @@ float wolf_speed_multiplier() {
 }
 
 float sprint_speed_multiplier() {
+    if(survivors_active())return survivors_sprint_multiplier();
     return static_cast<float>(get_int(s_sprintSpeedPercent, 150, 100, 300)) / 100.0f;
 }
 

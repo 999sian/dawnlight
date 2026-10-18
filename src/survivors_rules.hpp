@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include "survivors_progression.hpp"
 
 namespace dawnlight::survivors {
 // All durations are simulation ticks (TP runs its gameplay at 30 Hz).
@@ -64,6 +65,10 @@ inline constexpr std::array descriptions{
 struct RunOptions {
     unsigned enemy_hp = 1, enemy_damage = 1, enemy_speed = 1, horde = 1;
     unsigned camera_distance = 200;
+    unsigned score_percent() const {
+        return 100+10*(std::clamp(enemy_hp,1u,10u)-1)+15*(std::clamp(enemy_damage,1u,10u)-1)+
+            25*(std::clamp(enemy_speed,1u,3u)-1)+10*(std::clamp(horde,1u,5u)-1);
+    }
     void clamp() {
         enemy_hp=std::clamp(enemy_hp,1u,10u); enemy_damage=std::clamp(enemy_damage,1u,10u);
         enemy_speed=std::clamp(enemy_speed,1u,3u); horde=std::clamp(horde,1u,5u);
@@ -75,6 +80,8 @@ struct Run {
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
     RunOptions options;
+    Talents talents;
+    unsigned timed_elites = 0, guard_elites = 0;
     unsigned drop_progress = 0, maximum_hearts = 3;
     unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
     bool red_potion = false;
@@ -91,12 +98,25 @@ struct Run {
         random ^= random << 13; random ^= random >> 17; random ^= random << 5;
         return random;
     }
-    void start(uint32_t seed, RunOptions settings = {}) { *this = {}; options=settings; options.clamp(); random = seed ? seed : 1; phase = Phase::Running; }
+    void start(uint32_t seed, RunOptions settings = {}, Talents perks = {}) {
+        *this={}; options=settings; options.clamp(); talents=perks;
+        maximum_hearts=talents.starting_hearts();
+        free_rerolls+=talents.rank(Talent::Rerolls); banishes+=talents.rank(Talent::Banishes);
+        random=seed ? seed : 1; phase=Phase::Running;
+    }
+    unsigned magnet_range() const { return (150+65*rank(Upgrade::Magnet))*(100+10*talents.rank(Talent::Magnet))/100; }
+    unsigned normal_kills() const { return kills-std::min(kills,timed_elites+guard_elites); }
+    unsigned score() const {
+        const uint64_t base=2*(std::min(ticks,duration)/ticks_per_second)+uint64_t(normal_kills())*10/std::clamp(options.horde,1u,5u)+
+            uint64_t(timed_elites)*500+uint64_t(guard_elites)*250+uint64_t(level ? level-1 : 0)*50+
+            (phase==Phase::Victory ? 3000 : 0);
+        return unsigned(std::min<uint64_t>(UINT32_MAX,base*options.score_percent()/100));
+    }
     unsigned required_xp() const { return 5 + level * 3; }
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return i < ranks.size() ? ranks[i] : 0; }
     unsigned potion_heal_quarters() const { return 4 + rank(Upgrade::PotionHealing); }
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
-    unsigned crit_chance_basis_points() const { return std::min(10000u, std::min(30u,rank(Upgrade::CritChance))*luck_percent()); }
+    unsigned crit_chance_basis_points() const { return std::min(10000u, (std::min(30u,rank(Upgrade::CritChance))+talents.rank(Talent::CritChance))*luck_percent()); }
     unsigned crit_damage_percent() const { return 200 + 5*std::min(30u,rank(Upgrade::CritDamage)); }
     unsigned critical_power(unsigned base) {
         const auto chance=crit_chance_basis_points();
@@ -347,28 +367,48 @@ struct Run {
 // Explicit little-endian encoding, independent of ABI padding and game version.
 struct Records {
     uint32_t runs = 0, wins = 0, best_ticks = 0, best_kills = 0, best_level = 0;
-    void finish(const Run& run) {
+    std::array<uint32_t,5> high_scores{};
+    uint64_t total_xp=0;
+    Talents talents;
+    unsigned level() const { return 1+meta_levels(total_xp); }
+    unsigned available_points() const { return meta_levels(total_xp)-std::min(meta_levels(total_xp),talents.spent()); }
+    uint64_t level_xp() const { return total_xp-meta_threshold(level()-1); }
+    unsigned next_level_xp() const { return 2000+500*(level()-1); }
+    bool buy(Talent t) { if(!available_points() || !talents.can_buy(t))return false;++talents.ranks[unsigned(t)];return true; }
+    void finish(const Run& run, unsigned map=0) {
         if (run.phase != Phase::Victory && run.phase != Phase::Defeat) return;
+        if(map>=high_scores.size())return;
+        high_scores[map]=std::max(high_scores[map],run.score());
+        total_xp=std::min(max_meta_xp,total_xp+run.score());
         ++runs; wins += run.phase == Phase::Victory;
         best_ticks = std::max(best_ticks, run.ticks);
         best_kills = std::max(best_kills, run.kills);
         best_level = std::max(best_level, run.level);
     }
-    std::array<uint8_t, 28> encode() const {
-        const std::array<uint32_t, 7> words{0x56525348, 1, runs, wins, best_ticks, best_kills, best_level};
-        std::array<uint8_t, 28> bytes{};
-        for (unsigned i = 0; i < words.size(); ++i)
-            for (unsigned b = 0; b < 4; ++b) bytes[i * 4 + b] = uint8_t(words[i] >> (8 * b));
+    std::array<uint8_t,100> encode() const {
+        std::array<uint32_t,25> words{0x56525348,2,runs,wins,best_ticks,best_kills,best_level};
+        for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
+        words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
+        for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
+        std::array<uint8_t,100> bytes{};
+        for(unsigned i=0;i<words.size();++i)for(unsigned b=0;b<4;++b)bytes[i*4+b]=uint8_t(words[i]>>(8*b));
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if (bytes.size() != 28) return false;
-        std::array<uint32_t, 7> words{};
-        for (unsigned i = 0; i < words.size(); ++i)
-            for (unsigned b = 0; b < 4; ++b) words[i] |= uint32_t(bytes[i * 4 + b]) << (8 * b);
-        if (words[0] != 0x56525348 || words[1] != 1 || words[3] > words[2]) return false;
-        *this = {words[2], words[3], words[4], words[5], words[6]};
-        return true;
+        if(bytes.size()!=28 && bytes.size()!=100)return false;
+        std::array<uint32_t,25> words{};
+        for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
+        if(words[0]!=0x56525348 || words[3]>words[2])return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)))return false;
+        Records next;
+        next.runs=words[2];next.wins=words[3];next.best_ticks=words[4];next.best_kills=words[5];next.best_level=words[6];
+        if(words[1]==2){
+            for(unsigned i=0;i<5;++i)next.high_scores[i]=words[7+i];
+            next.total_xp=uint64_t(words[12])|(uint64_t(words[13])<<32);
+            for(unsigned i=0;i<next.talents.ranks.size();++i)next.talents.ranks[i]=words[14+i];
+            if(next.total_xp>max_meta_xp || !next.talents.valid() || next.talents.spent()>meta_levels(next.total_xp))return false;
+        }
+        *this=next;return true;
     }
 };
 } // namespace dawnlight::survivors

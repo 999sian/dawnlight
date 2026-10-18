@@ -110,10 +110,10 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::Power: return "+" + number(rank) + " damage";
     case Upgrade::Haste: return "-" + number(100 - run.cooldown_percent()) + "% cooldown";
     case Upgrade::Reach: return "+" + number(15 * rank) + "% attack size";
-    case Upgrade::Magnet: return number(150 + 65 * rank) + " pickup range";
+    case Upgrade::Magnet: return number(run.magnet_range()) + " pickup range";
     case Upgrade::Heart: return number(run.maximum_hearts) + " maximum hearts (max 20)";
     case Upgrade::FireArrows: return number(run.burn_damage()) + " damage/s for " + seconds(run.burn_duration());
-    case Upgrade::CritChance: return number(rank) + "% base; " + crit_chance(run) + " with Luck";
+    case Upgrade::CritChance: return number(rank+run.talents.rank(Talent::CritChance)) + "% base; " + crit_chance(run) + " with Luck";
     case Upgrade::CritDamage: return crit_multiplier(run) + " critical damage";
     case Upgrade::PotionHealing: return potion_healing(run) + " per red potion";
     case Upgrade::Luck: return "+" + number(run.luck_percent() - 100) + "% Luck";

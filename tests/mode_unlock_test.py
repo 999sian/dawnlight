@@ -22,10 +22,13 @@ fixture=r'''
 #include <string>
 #include <vector>
 #include "general_modes.hpp"
+#include "survivors_progression.hpp"
 #include "jump_button.hpp"
 #include "stamina_settings.hpp"
 #include "twilit_stamina.hpp"
 using namespace dawnlight;
+survivors::Talents testTalents;
+bool survivors_mobility_override(ModeSetting setting,int64_t& value){return survivors::talent_mode_override(testTalents,setting,value);}
 bool testSurvivors=false;
 bool survivors_active(){return testSurvivors;}
 bool testSurvivorsDual=false;bool survivors_dual_wield(){return testSurvivorsDual;}
@@ -350,7 +353,7 @@ int main(){
         assert(mode_config_override(var,effective)&&effective==0);
     }
     assert(mode_config_override(s_healthScale,effective)&&effective==100);
-    assert(mode_config_override(s_rJump,effective)&&effective==1);
+    assert(mode_config_override(s_rJump,effective)&&effective==0);
     testSurvivorsDual=true;assert(mode_config_override(s_dualWield,effective)&&effective==1);testSurvivorsDual=false;
     assert(configService.values==beforeSurvivors);
     testSurvivors=false;assert(dawnlight_mode_enabled());

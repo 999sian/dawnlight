@@ -6,6 +6,7 @@
 #include "enemy_spawner.hpp"
 #include "bow_fire_resource.hpp"
 #include "save_state.hpp"
+#include "gale_counter.hpp"
 #include "service_imports.hpp"
 #include "mods/hook.hpp"
 #include "mods/service.hpp"
@@ -77,6 +78,7 @@ using namespace survivors;
 constexpr char kMode[] = "hyrule_survivors";
 unsigned s_map = 0, s_requestedMap = 0;
 const Arena& arena() { return arenas[s_map]; }
+// Keep the original key so the versioned payload can migrate existing saves.
 constexpr char kBlob[] = "hyrule-survivors-records-v1";
 constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
@@ -413,7 +415,7 @@ void finish(bool won) {
     // scene, so no dead Link action or temporary combat state survives it.
     dComIfGs_setLife(dComIfGs_getMaxLifeGauge());
     if (!s_resultsStored) {
-        load_records(); s_records.finish(s_run);
+        load_records(); s_records.finish(s_run,s_map);
         const auto bytes = s_records.encode();
         s_storeFailed = svc_save->set_blob(mod_ctx, kBlob, bytes.data(), bytes.size()) != MOD_OK;
         s_resultsStored = true;
@@ -456,6 +458,10 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
+    if(e.elite) {
+        if(e.eliteSlot>=0 && unsigned(e.eliteSlot)<timed_elite_count)++s_run.timed_elites;
+        else ++s_run.guard_elites;
+    }
     if (e.elite || s_run.normal_kill_drops()) {
         if (!e.elite) drop_reward(actor);
         add_orb(actor->current.pos, e.elite ? 30 : e.profile == fpcNm_E_OC_e ? 3 : 1);
@@ -956,8 +962,8 @@ void draw_hud(ModContext*, void*, void*, void*) {
     draw_chest_prices();
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
     char text[180];
-    std::snprintf(text, sizeof(text), "%02u:%02u / 20:00   Level %u   Kills %u",
-        s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.level, s_run.kills);
+    std::snprintf(text, sizeof(text), "%02u:%02u / 20:00   Level %u   Score %u",
+        s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.level, s_run.score());
     label(text, x, 40, 17);
     std::snprintf(text, sizeof(text), "XP %u / %u", s_run.xp, s_run.required_xp());
     label(text, x, 62, 14);
@@ -1001,7 +1007,9 @@ void start_run(ModContext*, void*) {
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
     reset_elite_encounters();
-    s_run.start(seed, s_options); s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
+    s_run.start(seed, s_options, s_records.talents); reset_gale_charges();
+    dComIfGs_setMaxLife(s_run.maximum_hearts*5); dComIfGs_setLife(s_run.maximum_hearts*4);
+    s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
     s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
     s_comboStep = s_comboTimeout = 0;
@@ -1018,6 +1026,7 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_choice_actions.inc"
 #include "survivors_chest_ui.inc"
 #include "survivors_powerups.inc"
+#include "survivors_talents.inc"
 #include "survivors_maps_ui.inc"
 
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
@@ -1030,6 +1039,16 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         s_run.phase == Phase::Victory ? "Victory" : "Defeat", s_run.ticks / 1800,
         s_run.ticks / 30 % 60, s_run.kills, s_run.level);
     svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
+    std::snprintf(text,sizeof(text),"Score %u | Map high score %u | Difficulty x%.2f",
+        s_run.score(),s_records.high_scores[s_map],s_run.options.score_percent()/100.f);
+    svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
+    std::snprintf(text,sizeof(text),"Survival %us | Normal kills %u | Timed elites %u | Other elites %u",
+        std::min(s_run.ticks,duration)/ticks_per_second,s_run.normal_kills(),s_run.timed_elites,s_run.guard_elites);
+    svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
+    std::snprintf(text,sizeof(text),"Meta level %u | XP %llu / %u | Unlock Points %u (+%u this run)",
+        s_records.level(),static_cast<unsigned long long>(s_records.level_xp()),s_records.next_level_xp(),
+        s_records.available_points(),meta_levels(s_records.total_xp)-meta_levels(s_records.total_xp-std::min<uint64_t>(s_records.total_xp,s_run.score())));
+    svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
     std::snprintf(text, sizeof(text), "Sword Wave %u | Whirling Blade %u | Shield Attack %u",
         s_run.ranks[0], s_run.ranks[1], s_run.ranks[2]);
     svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
@@ -1047,7 +1066,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
 }
 void open_window() {
     if (s_window || ui_visible()) return;
-    UiTabDesc tabs[3] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
+    UiTabDesc tabs[4] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
     auto& tab=tabs[0];
     tab.title = s_run.phase == Phase::TreasureChoice ? "Choose a treasure" :
         s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivors";
@@ -1057,8 +1076,9 @@ void open_window() {
     if (s_run.phase==Phase::Ready) {
         tab.title="Maps";
         tabs[1].title="Difficulty"; tabs[1].build=build_difficulty;
-        tabs[2].title="Settings"; tabs[2].build=build_run_settings;
-        desc.tab_count=3;
+        tabs[2].title="Talents"; tabs[2].build=build_talents;
+        tabs[3].title="Settings"; tabs[3].build=build_run_settings;
+        desc.tab_count=4;
     }
     if (s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Upgrade) desc.rcss = kTreasureStyle;
     if (s_run.phase == Phase::Ready) desc.rcss = kArenaStyle;
@@ -1087,6 +1107,10 @@ ModResult reset(void*, ModError*) { reset_runtime(); return MOD_OK; }
 } // namespace
 
 bool survivors_active() { return s_active; }
+bool survivors_mobility_override(ModeSetting setting,int64_t& value) {
+    return talent_mode_override(s_run.talents,setting,value);
+}
+float survivors_sprint_multiplier() { return s_run.talents.sprint_multiplier(); }
 bool survivors_dual_wield() {
     return in_arena() && s_run.owns(ChestReward::OrdonSword) && !shield_pose(daAlink_getAlinkActorClass());
 }

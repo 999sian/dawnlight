@@ -45,6 +45,7 @@ struct Enemy {
     ActorId id=kNone; ProfileName profile=0;
     bool initialized=false, credited=false, retiring=false, elite=false;
     unsigned age=0;
+    int eliteSlot=-1;
 };
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
@@ -58,6 +59,7 @@ const Arena& arena(){return arenas[s_map];}
 void clear_arena_geometry(){}
 void reset_midna_dialog(){}
 void reset_elite_encounters(){}
+void reset_gale_charges(){}
 bool midna_dialog_busy(){return false;}
 bool s_arenaMeshReady=true;
 unsigned s_chestDelay=0;
@@ -188,6 +190,9 @@ int main() {
     credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1);
     enemy={8,fpcNm_E_OC_e,true,false,false,true,0}; actor.health=1; actor.action=9;
     credit_death(enemy,&actor); assert(s_run.phase==Phase::Running && xp==33 && rewards==1 && eliteChests==1);
+    assert(s_run.guard_elites==1&&s_run.timed_elites==0);
+    enemy.credited=false;enemy.eliteSlot=0;credit_death(enemy,&actor);
+    assert(s_run.timed_elites==1);credit_death(enemy,&actor);assert(s_run.timed_elites==1);
     // Horde throttles only normal kill rewards; elites never consume the counter.
     s_run.options.horde=5;s_run.drop_progress=0;xp=rewards=0;
     for(unsigned n=1;n<=10;++n){enemy.credited=false;enemy.elite=false;credit_death(enemy,&actor);
