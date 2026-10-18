@@ -246,6 +246,8 @@ jobs:
           CXX=clang++ python3 tests/survivors_options_test.py
           python3 tests/survivors_talents_test.py
           CXX=clang++ python3 tests/survivors_talents_test.py
+          python3 tests/survivors_progress_save_test.py
+          CXX=clang++ python3 tests/survivors_progress_save_test.py
           python3 tests/survivors_spawn_test.py dusklight
           CXX=clang++ python3 tests/survivors_spawn_test.py dusklight
           python3 tests/survivors_midna_test.py dusklight

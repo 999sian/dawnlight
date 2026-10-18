@@ -39,7 +39,7 @@ rewards are unchanged. Camera 100% is native distance; event cameras stay native
 
 ## Score and permanent talents
 
-Each map has its own high score, shown in Maps and the result screen. Final score:
+Each map has its own high score, shown in the right live preview and the result screen. Final score:
 
 | Source | Points before difficulty bonus |
 | --- | ---: |
@@ -62,9 +62,12 @@ Abruptly quitting an unfinished run does not award its score. Old saves retain
 previous statistics and start this new progression at level 1.
 
 Open **Talents** between Difficulty and Settings. Each rank costs one point;
-purchases are permanent and apply from the next run. Run power-up ranks remain
-separate. Use **Save progress** / **Save records** to write the native save before
-quitting, including after spending points.
+use **+ / −** to spend or refund points in the scrollable list. Click a perk name
+for its description. Removing a prerequisite also refunds its dependent perks;
+**Reset all perks** refunds every rank without changing XP, level or high scores.
+Changes apply next run; run power-up ranks remain separate. **Save progress**
+writes the native save in the background and keeps the menu open; wait for
+**Progress saved** before quitting. The results screen also offers **Save records**.
 
 | Talent | Ranks | Effect / prerequisite |
 | --- | ---: | --- |

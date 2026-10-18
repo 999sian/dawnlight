@@ -40,6 +40,18 @@ struct Talents {
         return t<Talent::Count && rank(t)<talent_caps[unsigned(t)] &&
             (talent_parent(t)==Talent::Count || rank(talent_parent(t))>0);
     }
+    bool refund(Talent t) {
+        if(!rank(t))return false;
+        --ranks[unsigned(t)];
+        // Refund dependents recursively when their prerequisite reaches zero.
+        bool changed;
+        do { changed=false;
+            for(unsigned i=0;i<ranks.size();++i)if(ranks[i] && talent_parent(Talent(i))!=Talent::Count && !rank(talent_parent(Talent(i)))) {
+                ranks[i]=0;changed=true;
+            }
+        } while(changed);
+        return true;
+    }
     unsigned starting_hearts() const { return 3+rank(Talent::MaxHealth); }
     float sprint_multiplier() const { return rank(Talent::Sprint) ? 1.25f+0.125f*rank(Talent::SprintSpeed) : 1.f; }
 };

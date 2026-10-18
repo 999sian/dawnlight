@@ -3,6 +3,11 @@
 constexpr const char* kArenaStyle=R"(
 window { background-color: transparent; backdrop-filter: none; }
 window content pane.survivors-settings { background-color: #171d19f5; padding: 16dp; gap: 12dp; }
+window content pane.survivors-talents { flex: 1 1 100%; border-right-width: 0dp; overflow: hidden auto; background-color: #171d19f5; padding: 16dp; gap: 12dp; }
+.survivors-talent-row { width: 100%; flex-shrink: 0; align-items: center; gap: 8dp; }
+button.survivors-talent-name { flex: 1 1 0; min-width: 0; font-size: 17dp; padding: 10dp; }
+button.survivors-talent-adjust { flex: 0 0 44dp; min-width: 44dp; font-size: 22dp; padding: 8dp; }
+.survivors-talent-rank { flex: 0 0 64dp; text-align: center; font-size: 16dp; }
 window tab-bar { background-color: #171d19ee; }
 window content pane.survivors-map-list { flex: 0 0 35%; background-color: #171d19ef; padding: 16dp; gap: 8dp; font-size: 15dp; }
 window content pane.survivors-map-preview { flex: 1 1 0; padding: 16dp; justify-content: space-between; }
@@ -22,7 +27,7 @@ button.survivors-map-selected { background-color: #e5bc3b28; border-color: #ffdc
 std::array<unsigned,arenas.size()> s_mapChoices{0,1,2,3,4};
 void select_arena(ModContext*, void* data) {
     const unsigned choice=*static_cast<unsigned*>(data);
-    if (s_run.phase!=Phase::Ready || s_restart || choice>=arenas.size() || choice==s_map) return;
+    if (s_run.phase!=Phase::Ready || s_restart || s_progressSaving || choice>=arenas.size() || choice==s_map) return;
     s_requestedMap=choice;
     close_window(); s_restart=true;
 }
@@ -35,8 +40,7 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
     if (result!=MOD_OK) return result;
     for (unsigned i=0;i<arenas.size();++i) {
         UiControlDesc control=UI_CONTROL_DESC_INIT;
-        const std::string mapLabel=std::string(arenas[i].name)+" — "+number(s_records.high_scores[i]);
-        control.label=mapLabel.c_str(); control.on_pressed=select_arena; control.user_data=&s_mapChoices[i];
+        control.label=arenas[i].name; control.on_pressed=select_arena; control.user_data=&s_mapChoices[i];
         UiElementHandle option=0;
         result=svc_ui->pane_add_control(mod_ctx,left,&control,&option);
         if (result!=MOD_OK) return result;
@@ -55,17 +59,17 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
         "Collect XP, hearts and rupees. Chest prices: 20, 25, 32, 41, 52...",nullptr);
     if (result!=MOD_OK) return result;
     char records[160];
-    std::snprintf(records,sizeof(records),"Map high score %u | Runs %u | Wins %u | Meta level %u",
-        s_records.high_scores[s_map],s_records.runs,s_records.wins,s_records.level());
+    std::snprintf(records,sizeof(records),"Runs %u | Wins %u | Meta level %u",
+        s_records.runs,s_records.wins,s_records.level());
     result=svc_ui->pane_add_text(mod_ctx,left,records,nullptr);
     if (result!=MOD_OK) return result;
     const std::string copy="<div class=\"survivors-map-preview-copy\"><div class=\"survivors-map-preview-title\" style=\"color: "+
-        std::string(arena().accent)+";\">"+treasure_rml_escape(arena().name)+"</div></div>";
+        std::string(arena().accent)+";\">"+treasure_rml_escape(arena().name)+"</div><div>High score: "+number(s_records.high_scores[s_map])+"</div></div>";
     result=svc_ui->pane_add_rml(mod_ctx,right,copy.c_str(),nullptr);
     if (result!=MOD_OK) return result;
     UiControlDesc start=UI_CONTROL_DESC_INIT;
     start.label="Start run"; start.on_pressed=start_run;
-    start.is_disabled=[](ModContext*,void*) { return !s_arenaMeshReady || s_restart; };
+    start.is_disabled=[](ModContext*,void*) { return !s_arenaMeshReady || s_restart || s_progressSaving; };
     UiElementHandle startButton=0;
     result=svc_ui->pane_add_control(mod_ctx,right,&start,&startButton);
     if (result!=MOD_OK) return result;

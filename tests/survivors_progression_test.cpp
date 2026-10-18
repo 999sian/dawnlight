@@ -23,6 +23,17 @@ int main(){
         assert(!records.buy(Talent(i)));
     }
     assert(records.available_points()==0&&records.talents.spent()==27&&records.talents.valid());
+    auto refunded=records;
+    assert(!refunded.talents.refund(Talent::Count));
+    assert(refunded.talents.refund(Talent::ManualJump));
+    assert(refunded.available_points()==5&&refunded.talents.valid());
+    assert(!refunded.talents.refund(Talent::ManualJump));
+    assert(refunded.talents.refund(Talent::SprintSpeed)&&refunded.available_points()==6);
+    assert(refunded.talents.rank(Talent::SprintSpeed)==1);
+    assert(refunded.talents.refund(Talent::Sprint)&&refunded.available_points()==8);
+    assert(refunded.talents.rank(Talent::SprintSpeed)==0&&refunded.talents.valid());
+    assert(refunded.total_xp==records.total_xp&&refunded.high_scores==records.high_scores);
+    Records refundLoaded;assert(refundLoaded.decode(refunded.encode()));
     r.start(3,{},records.talents);
     assert(r.maximum_hearts==8&&r.free_rerolls==3&&r.banishes==3);
     assert(r.rank(Upgrade::Heart)==0&&r.rank(Upgrade::Magnet)==0&&r.rank(Upgrade::CritChance)==0);

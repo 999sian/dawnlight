@@ -7,6 +7,7 @@
 #include "bow_fire_resource.hpp"
 #include "save_state.hpp"
 #include "gale_counter.hpp"
+#include "m_Do/m_Do_MemCard.h"
 #include "service_imports.hpp"
 #include "mods/hook.hpp"
 #include "mods/service.hpp"
@@ -158,8 +159,10 @@ bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 Run s_run;
 RunOptions s_options;
 Records s_records;
+bool s_progressSaving=false, s_progressSaved=false;
 UiWindowHandle s_refreshChoices=0;
 UiWindowHandle s_window = 0, s_powerupsWindow = 0;
+UiDialogHandle s_talentDialog=0;
 bool s_powerupsRequested = false;
 dMenu_Collect2D_c* s_powerupsMenu = nullptr;
 void close_powerup_window();
@@ -284,6 +287,8 @@ void clear_attacks() {
     for (auto& a : s_attacks) stop_attack(a);
 }
 void close_window() {
+    const auto dialog=s_talentDialog;s_talentDialog=0;
+    if(dialog)svc_ui->dialog_close(mod_ctx,dialog);
     const auto handle = s_window; s_window = 0;
     if (handle) svc_ui->window_close(mod_ctx, handle);
 }
@@ -356,6 +361,7 @@ void reset_runtime() {
     s_run = {}; s_orbs = {}; s_cooldowns = {};
     s_player = kNone; s_loaded = false; s_resultsStored = false;
     s_storeFailed = false; s_restart = false; s_saveRequested = false;
+    s_progressSaving=s_progressSaved=false;
     s_spawnCooldown = s_spawnFailures = s_warmup = 0;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
     s_comboStep = s_comboTimeout = 0;
@@ -408,6 +414,7 @@ void load_records() {
     if (result == MOD_OK) s_records.decode(std::span(bytes.data(), std::min(size, bytes.size())));
     s_loaded = true;
 }
+#include "survivors_progress_save.inc"
 void finish(bool won) {
     if (s_run.phase != Phase::Running && s_run.phase != Phase::Upgrade) return;
     s_run.end(won); clear_attacks(); retire_enemies();
@@ -415,7 +422,7 @@ void finish(bool won) {
     // scene, so no dead Link action or temporary combat state survives it.
     dComIfGs_setLife(dComIfGs_getMaxLifeGauge());
     if (!s_resultsStored) {
-        load_records(); s_records.finish(s_run,s_map);
+        load_records(); s_records.finish(s_run,s_map); s_progressSaved=false;
         const auto bytes = s_records.encode();
         s_storeFailed = svc_save->set_blob(mod_ctx, kBlob, bytes.data(), bytes.size()) != MOD_OK;
         s_resultsStored = true;
@@ -1002,7 +1009,7 @@ void select_upgrade(ModContext*, void* data) {
     s_run.level_up(); // Preserve queued levels; do not resume combat between choices.
 }
 void start_run(ModContext*, void*) {
-    if (s_run.phase != Phase::Ready || !s_arenaMeshReady || s_restart) return;
+    if (s_run.phase != Phase::Ready || !s_arenaMeshReady || s_restart || s_progressSaving) return;
     close_window(); clear_attacks(); clear_loot(); prepare_save();
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -1076,7 +1083,7 @@ void open_window() {
     if (s_run.phase==Phase::Ready) {
         tab.title="Maps";
         tabs[1].title="Difficulty"; tabs[1].build=build_difficulty;
-        tabs[2].title="Talents"; tabs[2].build=build_talents;
+        tabs[2].title="Talents"; tabs[2].build=build_talents; tabs[2].update=update_talent_tab;
         tabs[3].title="Settings"; tabs[3].build=build_run_settings;
         desc.tab_count=4;
     }
@@ -1124,6 +1131,7 @@ void update_survivors() {
     cleanup_pots(); cleanup_pickups();
     if (s_treasure.retiring) retire_treasure_actor();
     if (!s_active || !s_gameStarted) return;
+    if (s_progressSaving) { update_progress_save(); return; }
     if (s_savePrompt != kNone) {
         if (d_GameOver_CheckDelete(s_savePrompt) && dComIfGp_getGameoverStatus() == 1) {
             d_GameOver_Delete(s_savePrompt); dComIfGp_setGameoverStatus(0);
