@@ -307,6 +307,24 @@ int main(){
     assert(info.mAttackPower==s_run.attack_power(1));s_run.master_sword=false;
     cCcD_Obj unrelated;info={&unrelated};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==200 && info.mHitType==0);
     arena=false;info={&player.mAtCps[0]};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==200);arena=true;
+    // Native sword/spin/shield and every projectile use one critical roll per hit.
+    s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::CritDamage)]=30;
+    s_run.dark_link=1;s_run.dark_remaining=150;
+    auto checkCritical=[&](cCcD_Obj& collider,unsigned base){
+        s_run.random=1;info={&collider};after_power(nullptr,powerArgs,nullptr,nullptr);
+        assert(info.mAttackPower==((base*350+50)/100)*2);
+        assert(s_run.random==270369); // one roll, no second Master Sword/Dark multiplier
+    };
+    s_swordAction=SwordAction::Normal;checkCritical(player.mAtCps[0],s_run.melee_power());
+    info={&player.mAtCps[0]};after_power(nullptr,powerArgs,nullptr,nullptr);
+    assert(info.mAttackPower==s_run.melee_power()*2&&s_run.random==67634689); // next target can miss its crit
+    s_swordAction=SwordAction::Spin;checkCritical(player.mAtSph,s_run.attack_power(1));
+    checkCritical(player.mGuardAtCps,s_run.attack_power(unsigned(Upgrade::ShieldAttack)));
+    for(unsigned base:{4u,5u,6u,7u,8u}){s_attacks[0].collider.power=base;checkCritical(s_attacks[0].collider,base);}
+    info={&unrelated};const auto critRng=s_run.random;after_power(nullptr,powerArgs,nullptr,nullptr);
+    assert(info.mAttackPower==200&&s_run.random==critRng);
+    s_run.ranks[unsigned(Upgrade::CritChance)]=s_run.ranks[unsigned(Upgrade::CritDamage)]=0;
+    s_run.dark_link=s_run.dark_remaining=0;
     // Expired and missing emitters restart; all surviving emitters are invalidated on cleanup.
     Attack a;update_wave_effects(a,&player);auto first=a.emitters;
     a.position={10,20,30};update_wave_effects(a,&player);

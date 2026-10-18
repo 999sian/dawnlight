@@ -250,6 +250,7 @@ jobs:
           CXX=clang++ python3 tests/survivors_aggro_test.py dusklight
           CXX=clang++ python3 tests/survivors_potions_test.py
           CXX=clang++ python3 tests/survivors_defense_test.py
+          CXX=clang++ python3 tests/survivors_status_test.py
           CXX=clang++ python3 tests/survivors_elites_test.py
           CXX=clang++ python3 tests/survivors_pots_test.py
           CXX=clang++ python3 tests/survivors_ground_test.py

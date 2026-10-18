@@ -4,6 +4,41 @@
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
+    // Critical chance scales with full Luck, independently of the drop bonus cap.
+    Run crit;crit.start(98765);
+    const auto initialRandom=crit.random;
+    assert(crit.critical_power(7)==7&&crit.random==initialRandom);
+    assert(crit.crit_damage_percent()==200);
+    for(unsigned chanceRank:{1u,30u})for(unsigned luckRank:{0u,10u,20u}){
+        crit.start(98765);crit.ranks[unsigned(Upgrade::CritChance)]=chanceRank;
+        crit.ranks[unsigned(Upgrade::Luck)]=luckRank;
+        crit.ranks[unsigned(Upgrade::CritDamage)]=30;
+        const unsigned expected=chanceRank*(100+10*luckRank);
+        assert(crit.crit_chance_basis_points()==expected&&crit.crit_damage_percent()==350);
+        const auto before=crit.random;assert(crit.critical_power(0)==0&&crit.random==before);
+        unsigned criticalHits=0;
+        constexpr unsigned trials=200000;
+        for(unsigned i=0;i<trials;++i){const auto hit=crit.critical_power(100);
+            assert(hit==100||hit==350);criticalHits+=hit==350;}
+        assert(std::abs(int(criticalHits*10000/trials)-int(expected))<40);
+    }
+    for(auto power:{Upgrade::CritChance,Upgrade::CritDamage}){
+        assert(upgrade_cap(power)==30);
+        crit.start(1);crit.ranks[unsigned(power)]=29;crit.phase=Phase::Upgrade;
+        crit.offers[0]=power;crit.offer_rarities[0]=Rarity::Legendary;
+        assert(crit.eligible(power)&&crit.upgrade_gain(power,Rarity::Legendary)==1);
+        assert(crit.upgrade_rupees(power,Rarity::Legendary)==80&&crit.choose(0));
+        assert(crit.rank(power)==30&&!crit.eligible(power));
+        crit.start(1);crit.ranks[unsigned(power)]=5;crit.phase=Phase::Upgrade;
+        assert(crit.banish(power)&&crit.rank(power)==5&&!crit.eligible(power));
+        crit.start(1);assert(crit.rank(power)==0&&crit.eligible(power));
+    }
+    for(unsigned rank=0;rank<=30;++rank){
+        crit.ranks[unsigned(Upgrade::CritDamage)]=rank;
+        assert(crit.crit_damage_percent()==200+5*rank);
+    }
+    crit.ranks[unsigned(Upgrade::CritChance)]=30;crit.random=1;
+    assert(crit.critical_power(3)==11); // x3.5 rounds once to native integer health.
     // Published chart checkpoints (basis points), sampled from actual rarity rolls.
     constexpr std::array<std::array<unsigned,5>,7> chart{{
         {6000,2500,1000,400,100}, {5640,2585,1137,500,138},

@@ -31,7 +31,7 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
     return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, Rupees, Count };
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, Rupees, Count };
 inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::Luck ? 20 : 30; }
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
@@ -42,7 +42,7 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Rupees"};
+    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Rupees"};
 inline constexpr std::array descriptions{
     "Automatic piercing sword waves. Higher levels add damage and extra waves.",
     "Unlock or improve a moving spin attack.",
@@ -55,8 +55,10 @@ inline constexpr std::array descriptions{
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
     "Ignite enemies for periodic damage. Hits refresh the burn; upgrades improve damage and duration.",
-    "Improve reward rarities. +10% Luck per level, max +200%. Heart and rupee bonuses stop at +50%.",
+    "Improve reward rarities and critical chance. +10% Luck per level, max +200%. Heart and rupee bonuses stop at +50%.",
     "Red potions restore an extra quarter heart per level.",
+    "Direct hits gain +1% base critical chance per level. Luck multiplies this chance.",
+    "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
     "Receive 20 rupees."};
 
 struct RunOptions {
@@ -94,6 +96,18 @@ struct Run {
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return i < ranks.size() ? ranks[i] : 0; }
     unsigned potion_heal_quarters() const { return 4 + rank(Upgrade::PotionHealing); }
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
+    unsigned crit_chance_basis_points() const { return std::min(10000u, std::min(30u,rank(Upgrade::CritChance))*luck_percent()); }
+    unsigned crit_damage_percent() const { return 200 + 5*std::min(30u,rank(Upgrade::CritDamage)); }
+    unsigned critical_power(unsigned base) {
+        const auto chance=crit_chance_basis_points();
+        if (!base || !chance) return base;
+        // Rejection sampling avoids modulo bias. Zero chance consumes no RNG.
+        constexpr uint32_t limit=UINT32_MAX-UINT32_MAX%10000;
+        uint32_t roll;do {roll=next_random()-1;} while(roll>=limit);
+        if (roll%10000>=chance) return base;
+        // Native health/damage are integral; round once, before Dark Link.
+        return unsigned(std::min<uint64_t>(65535,(uint64_t(base)*crit_damage_percent()+50)/100));
+    }
     // Drop frequency/quality retain their old +50% cap independently of rarities.
     unsigned lucky_chance(unsigned basis_points) const { return basis_points * std::min(150u, luck_percent()) / 100; }
     std::array<uint32_t, 5> rarity_weights() const {

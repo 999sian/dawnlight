@@ -114,6 +114,24 @@ int main(){
  assert(s_effects[2].pending==3&&!s_effects[2].injected&&target.mSph1.attack==&s_attacks[0].collider);
  target.mSph1.ResetTgHit();hit(target);assert(!s_effects[2].pending);
  clear_enemy_effects();for(auto& e:s_effects)assert(!e.burn&&!e.pending&&!e.injected);
+ // Secondary melee rolls independently; queued burn never rolls or doubles again.
+ s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::CritDamage)]=30;
+ s_run.ranks[unsigned(Upgrade::Luck)]=20;s_run.dark_remaining=150;s_run.dual_wield=1;
+ ++s_meleeSerial;s_run.random=1;record_status_hit(&group[0],&sword);
+ assert(s_effects[1].pending==11&&s_run.random==270369);
+ group[1].health=50;group[1].mSph1.ResetTgHit();hit(group[1]);
+ assert(group[1].health==28&&s_run.random==270369); // x3.5 then Dark x2, exactly once
+ clear_enemy_effects();record_status_hit(&group[1],&arrow);
+ const auto burnRandom=s_run.random;
+ for(int t=0;t<30;++t){update_enemy_effects();hit(group[1]);}
+ assert(group[1].health==20&&s_run.random==burnRandom); // 4 damage/s, only Dark x2
+ clear_enemy_effects();record_status_hit(&group[1],&arrow);
+ for(int t=0;t<30;++t)update_enemy_effects();
+ assert(s_effects[1].pending==4);
+ ++s_meleeSerial;s_run.random=1;record_status_hit(&group[0],&sword);
+ assert(s_effects[1].pending==15);group[1].health=50;hit(group[1]);
+ assert(group[1].health==20&&s_run.random==270369); // (11 melee + 4 burn) x2
+ clear_enemy_effects();
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

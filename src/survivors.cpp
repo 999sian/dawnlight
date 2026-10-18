@@ -757,11 +757,11 @@ void after_power(ModContext*, void* args, void*, void*) {
     }
     auto* link = daAlink_getAlinkActorClass();
     if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {
-        info->mAttackPower = s_run.attack_power(unsigned(Upgrade::ShieldAttack)) * s_run.damage_multiplier(); return;
+        info->mAttackPower = s_run.critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack))) * s_run.damage_multiplier(); return;
     }
     if (native_sword_collider(info->mpCollider)) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Keep cc_at_check from doubling the linear value for Master Sword.
-        info->mAttackPower = (s_swordAction == SwordAction::Spin ? s_run.attack_power(1) :
+        info->mAttackPower = s_run.critical_power(s_swordAction == SwordAction::Spin ? s_run.attack_power(1) :
             s_run.melee_power()) * s_run.damage_multiplier();
         return;
     }
@@ -771,7 +771,7 @@ void after_power(ModContext*, void* args, void*, void*) {
             // Keep native collision, defense, damage reactions and death handling,
             // but use a linear power value for our own weapons only.
             info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
-            info->mAttackPower = info->mpCollider->GetAtAtp() * s_run.damage_multiplier();
+            info->mAttackPower = s_run.critical_power(info->mpCollider->GetAtAtp()) * s_run.damage_multiplier();
             return;
         }
     }

@@ -105,6 +105,22 @@ at level-up. Ordinary hits do not stagger enemies; Shield Attack and Ball and
 Chain do. Knocked-down enemies remain damageable while falling, lying down
 and getting back up.
 
+## Critical hits
+
+Two passive level-up rewards, both capped at **rank 30**:
+
+| Power-up | Start | Per rank | At rank 30 |
+| --- | --- | --- | --- |
+| Crit Chance | 0% | +1 percentage point base chance | 30% base; 90% at +200% Luck |
+| Crit Damage | ×2 damage | +0.05 multiplier | ×3.5 damage |
+
+Final chance is `base chance × (1 + Luck / 100)`, inspired by
+[Vampire Survivors](https://vampire-survivors.fandom.com/wiki/Flash_Arrow).
+Each direct sword, spin, projectile, shield or Dual Wield hit rolls independently.
+Burn ticks cannot crit. Critical damage rounds to native integer health before
+Dark Link doubles it. Both power-ups support rarities, rerolls and banishment;
+the menu shows the effective chance including current Luck.
+
 ## Rarities and Luck
 
 Each offered card rolls independently, including **free elite chests**. Rarity

@@ -139,6 +139,22 @@ int main(){
  assert(healing&&s_run.potion_heal_quarters()==4);
  for(const auto& [id,e]:elements)if(e.kind=="button")e.pressed(nullptr,e.data);
  assert(s_run.potion_heal_quarters()==5&&s_run.equipment_count()==1);
+ // Critical cards show the exact Luck-adjusted chance and damage multiplier.
+ for(auto power:{Upgrade::CritChance,Upgrade::CritDamage}){
+   fresh();s_run.phase=Phase::Upgrade;s_run.ranks[unsigned(Upgrade::Luck)]=20;
+   s_run.offers={power,Upgrade::Count,Upgrade::Count};
+   const auto previewRng=s_run.random;assert(build_upgrade_choices(1,2)==MOD_OK);
+   bool delta=false;
+   for(const auto& [id,e]:elements)if(e.kind=="rml"){
+     const auto expected=power==Upgrade::CritChance?
+       "0% base; 0.00% with Luck -&gt; 1% base; 3.00% with Luck":
+       "x2.00 critical damage -&gt; x2.05 critical damage";
+     delta|=e.text.find(expected)!=std::string::npos;
+   }
+   assert(delta&&s_run.random==previewRng&&s_run.rank(power)==0);
+   for(const auto& [id,e]:elements)if(e.kind=="button")e.pressed(nullptr,e.data);
+   assert(s_run.rank(power)==1&&s_run.equipment_count()==0);
+ }
  // Rarity presentation and the actual activation agree, including overflow.
  for(unsigned r=0;r<5;++r){
    fresh();s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::Luck,Upgrade::Power,Upgrade::Rupees};
@@ -180,6 +196,7 @@ int main(){
  assert(before_powerup_collection_wait(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
  // Overview is a read-only list of owned ranks with effective descriptions.
  fresh();s_run.ranks[3]=2;s_run.ranks[8]=5;s_run.ranks[12]=3;
+ s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::CritDamage)]=30;
  menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);
  open_powerup_window();assert(s_powerupsWindow==42&&pushed==1);
  const auto ranks=s_run.ranks;const auto overviewRng=s_run.random;unsigned count=0;
@@ -189,8 +206,10 @@ int main(){
    e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);
    if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("2 arrows/shot")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
    if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);
+   if(e.text.find("Crit Chance")!=std::string::npos)assert(e.help.find("30.00% with Luck")!=std::string::npos);
+   if(e.text.find("Crit Damage")!=std::string::npos)assert(e.help.find("x3.50 critical damage")!=std::string::npos);
  }
- assert(count==3&&s_run.ranks==ranks&&s_run.random==overviewRng);
+ assert(count==5&&s_run.ranks==ranks&&s_run.random==overviewRng);
  assert(money==100&&lifeMax==15&&closed==0&&s_run.phase==Phase::Running);
  close(nullptr,42);assert(!s_powerupsWindow&&!s_powerupsRequested&&!s_powerupsMenu);
  menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);

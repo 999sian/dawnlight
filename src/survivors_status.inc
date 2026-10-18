@@ -103,7 +103,8 @@ void spread_melee_hit(fopAc_ac_c* primary) {
         }
         if (!best) break;
         auto& effect = effect_for(*best); effect.meleeSerial = s_meleeSerial;
-        effect.pending += s_run.melee_power();
+        // Roll once per secondary target before combining with non-critical burn ticks.
+        effect.pending += s_run.critical_power(s_run.melee_power());
     }
 }
 void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
