@@ -121,13 +121,13 @@ The remaining rolls use the basic pool. Full specialist pools fall back to basic
 | Map | Basic enemies | Specialists (unlock time) |
 | --- | --- | --- |
 | Darknut Arena | Bokoblin, Rat, Keese | Lizalfos (1:00), Helmasaur (2:00), club Bulblin (3:00) |
-| Hyrule Field | Bokoblin, club Bulblin, Tektite | bow Bulblin (1:00), Guay (2:00), Kargarok (3:00), Bomskit (4:00) |
+| Hyrule Field | Bokoblin, club Bulblin, Tektite | bow Bulblin (1:00), Guay (2:00), Kargarok (3:00) |
 | Gerudo Desert | Stalchild, club Bulblin, bow Bulblin | Stalhound (1:00), Dodongo (2:00), Gibdo (4:00) |
 | Palace of Twilight | Shadow club Bulblin, Shadow bow Bulblin, Shadow Keese | Shadow Beast (2:00), Shadow Kargarok (3:00) |
 | Hyrule Castle Throne Room | Bokoblin, club Bulblin, Rat | bow Bulblin (1:00), Lizalfos (2:00), Helmasaur (3:00) |
 
-Staltroops are excluded. Ordinary bow Bulblins and Guays each cap at
-`min(12, 4 × Horde)`; Kargaroks and Bomskits each at `min(6, 2 × Horde)`;
+Staltroops and Bomskits are excluded. Ordinary bow Bulblins and Guays each cap at
+`min(12, 4 × Horde)`; Kargaroks cap at `min(6, 2 × Horde)`;
 Gibdos, Dynalfos and Shadow Beasts each at `min(4, 2 × Horde)`. Shadow bow
 Bulblins and Shadow Kargaroks use the corresponding bow/Kargarok caps.
 Pending spawns count toward caps.

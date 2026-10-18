@@ -22,7 +22,7 @@ inline constexpr std::array<MapRoster,5> map_rosters{{
      {{{Species::Lizalfos,60},{Species::Helmasaur,120},{Species::Club,180}}},3,
      {{Species::Bokoblin,Species::Helmasaurus,Species::Dynalfos,Species::Darknut}}},
     {{{Species::Bokoblin,Species::Club,Species::Tektite}},
-     {{{Species::Bow,60},{Species::Guay,120},{Species::Kargarok,180},{Species::Bomskit,240}}},4,
+     {{{Species::Bow,60},{Species::Guay,120},{Species::Kargarok,180}}},3,
      {{Species::Tektite,Species::Club,Species::Kargarok,Species::Aeralfos}}},
     {{{Species::Stalchild,Species::Club,Species::Bow}},
      {{{Species::Stalhound,60},{Species::Dodongo,120},{Species::Gibdo,240}}},3,
