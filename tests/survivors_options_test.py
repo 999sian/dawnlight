@@ -31,7 +31,7 @@ struct e_ba_class:fopAc_ac_c{enum{ACT_FIGHT_FLY=1,ACT_RETURN=4,ACT_FLY=5,ACT_PAT
 constexpr int fpcNm_E_OC_e=1,fpcNm_E_MS_e=2,fpcNm_E_BA_e=3,fpcNm_E_RD_e=4;
 struct e_rd_class{fopAc_ac_c enemy;int action=3,mode=1,anm=0x32;float jump_z=0,field_0x9f0=0;};
 bool arrowActive=false;bool active_enemy_arrow(int id){return arrowActive&&id==7;}
-struct Enemy{bool initialized=true,retiring=false,credited=false,dormant=false;int profile=1;}enemy;
+struct Enemy{bool initialized=true,retiring=false,credited=false,dormant=false;int profile=1;unsigned stagger=0;}enemy;
 bool owned=true,active=true,paused=false,transition=false,event=false,aim=false,blocked=false;
 Enemy* tracked(int id){return owned&&id==2?&enemy:nullptr;}
 void suppress_player_reaction(daAlink_c*){}
@@ -155,7 +155,7 @@ window=core[core.index('void open_window() {'):core.index('ModResult activated('
 ui=(root/'src/survivors_maps_ui.inc').read_text().split('struct RunOptionControl',1)[1]
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+(root/'src/survivors_options.inc').read_text()+'struct RunOptionControl'+ui+window+main)
+ cpp.write_text(fixture+'bool extended_locomotion(fopAc_ac_c*,int){return false;}\n'+(root/'src/survivors_options.inc').read_text()+'struct RunOptionControl'+ui+window+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors options: native movement/damage scoping, stable camera zoom/collision and UI boundaries passed')

@@ -1,5 +1,6 @@
 #include "survivors.hpp"
 #include "survivors_rules.hpp"
+#include "survivors_roster.hpp"
 #include "survivors_items.hpp"
 #include "survivors_maps.hpp"
 #include "survivors_barriers.hpp"
@@ -35,6 +36,23 @@
 #include "m_Do/m_Do_lib.h"
 #include "d/actor/d_a_e_ms.h"
 #include "d/actor/d_a_e_rd.h"
+#include "d/actor/d_a_e_tt.h"
+#include "d/actor/d_a_e_dn.h"
+#include "d/actor/d_a_e_mm.h"
+#include "d/actor/d_a_e_mm_mt.h"
+#include "d/actor/d_a_e_ge.h"
+#include "d/actor/d_a_e_kr.h"
+#include "d/actor/d_a_e_cr.h"
+#include "d/actor/d_a_e_bs.h"
+#include "d/actor/d_a_e_gi.h"
+#include "d/actor/d_a_e_sf.h"
+#include "d/actor/d_a_e_fs.h"
+#include "d/actor/d_a_e_bu.h"
+#include "d/actor/d_a_e_sm2.h"
+#include "d/actor/d_a_e_mf.h"
+#include "d/actor/d_a_b_gg.h"
+#include "d/actor/d_a_b_tn.h"
+
 #include "d/d_com_inf_game.h"
 #include "d/d_debug_viewer.h"
 #include "d/d_gameover.h"
@@ -79,6 +97,7 @@
 namespace dawnlight {
 namespace {
 using namespace survivors;
+#include "survivors_roster_native.inc"
 constexpr char kMode[] = "hyrule_survivors";
 unsigned s_map = 0, s_requestedMap = 0;
 const Arena& arena() { return arenas[s_map]; }
@@ -213,6 +232,7 @@ unsigned treasure_message_id();
 void sync_survivors_inventory();
 bool queue_ranged(daAlink_c*, Upgrade);
 struct Enemy;
+void initialize_extended_enemy(Enemy&,fopAc_ac_c*);
 void drop_elite_chest(Enemy&, fopAc_ac_c*);
 std::array<unsigned, 3> s_choices{0, 1, 2};
 struct ProcessFrame { void* args; ActorId id; };
@@ -226,6 +246,8 @@ struct Enemy {
     int eliteSlot = -1;
     bool dormant = false, idleAnimation = false;
     cXyz lootPosition{};
+    unsigned species=0, hitCooldown=0, stagger=0;
+    cCcD_Obj* childHit=nullptr;
 };
 std::array<Enemy, enemy_capacity> s_enemies;
 struct Orb { cXyz position{}; unsigned value = 0; bool summoned = false, merged = false; };
@@ -282,6 +304,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_enemy_arrows.inc"
 #include "survivors_elite_positions.inc"
 #include "survivors_maps.inc"
+#include "survivors_extended_ai.inc"
 #include "survivors_aggro.inc"
 #include "survivors_enemy_facing.inc"
 #include "survivors_feedback.inc"
@@ -525,34 +548,40 @@ void update_orbs(daAlink_c* link) {
 bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot = -1, bool dormant = false) {
     auto slot = std::find_if(s_enemies.begin(), s_enemies.end(), [](const auto& e) { return e.id == kNone; });
     if (slot == s_enemies.end()) return false;
-    constexpr std::array<ProfileName, 5> profiles{fpcNm_E_OC_e, fpcNm_E_BA_e, fpcNm_E_MS_e, fpcNm_E_RD_e, fpcNm_E_RD_e};
-    constexpr std::array<u32, 5> parameters{0x00ff0000, 0xffff0f01, 0xffff0000, 0xff000100, 0xff000200};
-    if (type >= profiles.size()) return false;
+    if (type >= native_roster.size()) return false;
+    const auto& native=native_roster[type];
     ActorId id = kNone;
-    const float scale = elite ? 2.0f : 1.0f;
+    const float scale = elite ? elite_scale(Species(type)) : 1.0f;
     const ActorSpawnParams params{
-        .parameters = parameters[type], .argument = -1, .room_num = arena().room,
+        .parameters = native.parameters, .argument = native.argument, .room_num = arena().room,
         .position = {pos.x, pos.y, pos.z},
-        .angle = {0, static_cast<s16>(yaw + 0x8000), 0},
+        .angle = {0, static_cast<s16>(yaw + 0x8000), static_cast<s16>(native.profile==fpcNm_E_KR_e ? 0xff : 0)},
         .scale = {scale, scale, scale}, .create_function = nullptr,
     };
-    if (create_standalone_actor(profiles[type], params, id) != MOD_OK) return false;
-    *slot = {id, profiles[type], false, false, false, elite, 0};
+    if (create_standalone_actor(native.profile, params, id) != MOD_OK) return false;
+    *slot = {id, native.profile, false, false, false, elite, 0};
+    slot->species=type;
     slot->eliteSlot = eliteSlot; slot->dormant = dormant; slot->lootPosition = pos;
     return true;
 }
 bool spawn_enemy(daAlink_c* link, bool elite, int eliteSlot = -1) {
     auto slot = std::find_if(s_enemies.begin(), s_enemies.end(), [](const auto& e) { return e.id == kNone; });
     if (slot == s_enemies.end()) return false;
-    const unsigned type = elite ?
-        (eliteSlot >= 0 && unsigned(eliteSlot) < timed_elite_count ? timed_elite_types[eliteSlot] : 0) :
-        s_run.next_random() % (s_run.ticks < 900 ? 2 : 5);
+    std::array<unsigned,species_count> counts{};
+    for (const auto& e:s_enemies) if (e.id!=kNone && !e.elite && !e.retiring && !e.credited && e.species<species_count)
+        ++counts[e.species];
+    const unsigned groupRoll=elite?0:s_run.next_random(),pickRoll=elite?0:s_run.next_random();
+    const unsigned type=elite ? unsigned(eliteSlot>=0 && unsigned(eliteSlot)<timed_elite_count ?
+        map_roster(s_map).elites[eliteSlot] : Species::Bokoblin) :
+        unsigned(choose_species(s_map,s_run.ticks/ticks_per_second,s_run.horde_remaining!=0,
+            s_run.options.horde,counts,groupRoll,pickRoll));
+    if (type>=native_roster.size()) return false;
     for (unsigned attempt = 0; attempt < 12; ++attempt) {
         const auto yaw = static_cast<s16>(s_run.next_random());
         const float radius = 600.0f + float(s_run.next_random() % 450);
         cXyz pos = link->current.pos + cXyz(cM_ssin(yaw) * radius, 0, cM_scos(yaw) * radius);
         if (!walkable_spawn_path(link->current.pos, pos, elite ? 100.f : 40.f)) continue;
-        if (type == 1) pos.y += 180;
+        pos.y += native_roster[type].height;
         return create_enemy_at(pos, yaw, type, elite, eliteSlot);
     }
     return false;
@@ -887,6 +916,7 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
     if (s_autoSwordCall) return HOOK_CONTINUE;
     return before_cut(ctx, args, result, user);
 }
+#include "survivors_extended_damage.inc"
 bool pause_run_actor(bool enemy) {
     if (!in_arena() || s_run.phase == Phase::Loading) return false;
     if (enemy && (midna_dialog_busy() || dComIfGp_event_runCheck())) return true;
@@ -949,6 +979,9 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     if ((enemy && enemy->retiring) || (pot && pot->retiring) || pause_run_actor(enemy != nullptr || pot != nullptr)) {
         *static_cast<int*>(result) = 1;
         return HOOK_SKIP_ORIGINAL;
+    }
+    if (enemy && extended_enemy(enemy->profile) && !update_extended_enemy(actor,*enemy)) {
+        *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
     }
     return HOOK_CONTINUE;
 }
@@ -1260,6 +1293,7 @@ ModResult initialize_survivors(ModError* error) {
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
+#include "survivors_roster_hooks.inc"
     PRE(SurvivorsEnemySpeed, before_enemy_speed); POST(SurvivorsEnemySpeed, after_enemy_facing);
     PRE(SurvivorsEnemyDamage, before_enemy_damage);
     PRE(SurvivorsPotionDrink, before_potion_drink); POST(SurvivorsPotionDrink, after_potion_drink);

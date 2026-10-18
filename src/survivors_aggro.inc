@@ -32,6 +32,7 @@ HookAction before_keese_aggro(ModContext*, void* args, void* result, void*) {
 }
 void engage_enemy(fopAc_ac_c* actor, const Enemy& enemy) {
     if (!arena_aggro(actor, enemy.profile)) return;
+    engage_extended_enemy(actor,enemy);
     if (enemy.profile == fpcNm_E_MS_e) {
         auto* rat = static_cast<e_ms_class*>(actor);
         if (rat->mAction == 0) { rat->mAction = 1; rat->mMode = 0; }

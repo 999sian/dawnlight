@@ -174,13 +174,30 @@ shown in the preview/message and capped by the wallet when granted. This also
 applies to extra Ordon Sword units and potion units beyond available bottle slots.
 One chest still charges only once. Price increases are +5, +7, +9, +11 rupees, etc.
 
-Bokoblins and Keese appear first; Rats, club Bulblins and bow Bulblins join after
-30 seconds. Timed elites are Rat at **5:00**, Keese at **10:00**, bow Bulblin at
-**15:00**, and Bokoblin at **20:00**. Victory requires 20 minutes and all four
-confirmed elite kills. New horde spawns and guard respawns stop at 20:00; combat
-continues for surviving timed elites. Menus, Get Item and Midna dialogue pause
-the timer. All elite species have 120 base HP (before difficulty), double-sized
-models and matching target radii.
+`survivors_roster.hpp` defines each map's basic pool, timed specialist unlocks,
+ordinary caps and four elite species. See [the player guide](../../SURVIVORS.md#maps-elites-and-pots)
+for the exact tables. Staltroops are deliberately excluded, including their native
+hooks. Basic/specialist weights are 75/25 normally and 90/10 during hordes;
+capped or still-locked specialists fall back to basic species. Pending actors count
+toward species caps, while timed elites and dormant guards do not.
+
+Victory requires 20 minutes and all four confirmed timed elite kills. New horde
+spawns and guard respawns stop at 20:00; combat continues for surviving elites.
+Menus, Get Item and Midna dialogue pause the timer. Elites have 120 base HP before
+difficulty. Giant variants use double models and target radii; Helmasaurus,
+Dynalfos, Stalfos, Aeralfos and Darknut retain native size.
+
+The extended roster adapters retain native models, movement and attack states,
+but replace puzzle-specific damage handlers for run-owned actors. Registered body
+and armor targets accept Survivors attacks; one shared damage pass applies power,
+crit and status hooks, cooldowns, and Ball/Shield stagger. Defeat credits the enemy
+before requesting deletion and uses the native disappearance effect. This prevents
+armor HP resets, resurrection and Chu splitting from losing kills or duplicating
+loot. Chu merging and Gibdo paralysis are suppressed only for run-owned actors.
+Helmasaur shell contacts route to parent HP regardless of parent/child execution
+order. Shells retire with their owner; Bomskit eggs and Bulblin arrows retain
+independent ownership for pause, difficulty, defense and deferred teardown.
+Native hooks pass through for actors outside Survivors ownership.
 
 Bulblins use their native club/bow AI and effects. Owned actors disable
 `one_hit_kill`; scoped arrow classification avoids the native pre-damage HP-zero

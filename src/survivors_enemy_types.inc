@@ -2,6 +2,7 @@
 void initialize_enemy(Enemy* enemy, fopAc_ac_c* actor) {
     if (!enemy || enemy->initialized) return;
     enemy->initialized = true;
+    if (extended_enemy(enemy->profile)) {initialize_extended_enemy(*enemy,actor);return;}
     if (enemy->elite) {
         // These native matrix paths use HIO scale, ignoring actor scale.
         if (enemy->profile == fpcNm_E_OC_e) static_cast<daE_OC_c*>(actor)->getOcModel()->setBaseScale(actor->scale);

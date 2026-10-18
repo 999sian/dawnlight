@@ -17,9 +17,11 @@ fixture=r'''
 #include <map>
 #include <set>
 #include "survivors_rules.hpp"
+#include "survivors_roster.hpp"
 using namespace dawnlight::survivors;
-using ActorId=unsigned;using ProfileName=int;using u32=unsigned;using s16=short;
-constexpr ActorId kNone=~0u;constexpr int fpcNm_E_OC_e=1,fpcNm_E_BA_e=2,fpcNm_E_MS_e=3,fpcNm_E_RD_e=4,fpcNm_E_ARROW_e=5;
+using ActorId=unsigned;using ProfileName=int;using u32=unsigned;using s16=short;using s8=signed char;
+unsigned s_map=0;constexpr ActorId kNone=~0u;constexpr int fpcNm_E_OC_e=1,fpcNm_E_BA_e=2,fpcNm_E_MS_e=3,fpcNm_E_RD_e=4,fpcNm_E_ARROW_e=5;
+constexpr int fpcNm_E_TT_e=6,fpcNm_E_DN_e=7,fpcNm_E_MM_e=8,fpcNm_E_GE_e=9,fpcNm_E_KR_e=10,fpcNm_E_CR_e=11,fpcNm_E_BS_e=12,fpcNm_E_GI_e=13,fpcNm_E_SF_e=14,fpcNm_E_FS_e=15,fpcNm_E_BU_e=16,fpcNm_E_SM2_e=17,fpcNm_E_MF_e=18,fpcNm_E_CR_EGG_e=19,fpcNm_E_MM_MT_e=20,fpcNm_B_GG_e=21,fpcNm_B_TN_e=22;
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 ModContext* mod_ctx=nullptr;
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
@@ -36,7 +38,7 @@ struct e_ba_class{fopAc_ac_c enemy;Morf morph;Morf* mpMorf=&morph;Sphere mSph;};
 struct e_ms_class:fopAc_ac_c{Morf morph;Morf* mpModelMorf=&morph;Sphere mSph1,mSph2;};
 struct e_rd_class{fopAc_ac_c enemy;Sphere cc_sph[3];};
 struct Enemy{ActorId id=kNone;ProfileName profile=0;bool initialized=false,credited=false,retiring=false,elite=false;
- unsigned age=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{};};
+ unsigned age=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{};unsigned species=0;};
 std::array<Enemy,enemy_capacity>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id!=kNone&&e.id==id)return &e;return nullptr;}
 Run s_run;bool arenaPresent=true;bool in_arena(){return arenaPresent;}
@@ -55,19 +57,27 @@ struct Service{void delete_actor(ModContext*,ActorId id){deleted.insert(id);}}se
 '''
 main=r'''
 int main(){
- s_run.start(42);s_run.ticks=900;daAlink_c player;std::set<unsigned>variants;
- for(unsigned i=0;i<300;++i){s_enemies={};assert(spawn_enemy(&player,false));
-  variants.insert((unsigned(lastProfile)<<24)|(lastParams.parameters&0xffffff));
-  assert(lastParams.scale.x==1&&lastParams.position.y==(lastProfile==fpcNm_E_BA_e?210:30));}
- assert(variants.size()==5);
- assert(variants.contains((fpcNm_E_RD_e<<24)|0x100)&&variants.contains((fpcNm_E_RD_e<<24)|0x200));
+ s_run.start(42);s_run.ticks=18000;daAlink_c player;
+ for(s_map=0;s_map<5;++s_map){std::set<unsigned>variants;
+  for(unsigned i=0;i<1000;++i){s_enemies={};assert(spawn_enemy(&player,false));
+   variants.insert(s_enemies[0].species);
+   assert(lastParams.scale.x==1&&lastParams.position.y==30+native_roster[s_enemies[0].species].height);
+   if(lastProfile==fpcNm_E_KR_e)assert(lastParams.angle.z==0xff);
+  }
+  assert(variants.size()==3+map_roster(s_map).specialist_count);
+  for(unsigned i=0;i<4;++i){s_enemies={};assert(spawn_enemy(&player,true,i));
+   const auto kind=map_roster(s_map).elites[i];
+   assert(lastProfile==native_roster[unsigned(kind)].profile&&lastParams.scale.x==elite_scale(kind));
+   assert(s_enemies[0].eliteSlot==int(i)&&s_enemies[0].species==unsigned(kind));
+   if(kind==Species::Helmasaurus)assert(lastParams.argument==1);
+  }
+ }
  const int profiles[]={fpcNm_E_MS_e,fpcNm_E_BA_e,fpcNm_E_RD_e,fpcNm_E_OC_e};
- for(unsigned i=0;i<4;++i){s_enemies={};assert(spawn_enemy(&player,true,i));
-  assert(lastProfile==profiles[i]&&lastParams.scale.x==2&&s_enemies[0].eliteSlot==int(i));
-  if(i==2)assert(lastParams.parameters==0xff000200);}
+ s_map=0;
  s_enemies={};dryPath=false;assert(!spawn_enemy(&player,true,0)&&s_enemies[0].id==kNone);dryPath=true;
  createFailed=true;assert(!spawn_enemy(&player,false)&&s_enemies[0].id==kNone);createFailed=false;
- assert(!create_enemy_at({},0,5,false));
+ assert(!create_enemy_at({},0,species_count,false));
+ s_run.ticks=900;
  // Elite HP applies to every species, once, including difficulty; sizes do not accumulate.
  s_run.options.enemy_hp=10;
  daE_OC_c bok;e_ba_class bat;e_ms_class rat;e_rd_class bulblin;
@@ -89,6 +99,16 @@ int main(){
  assert(tracked_enemy_arrow(100)&&!active_enemy_arrow(100)&&deleted.empty());
  creating.clear();actors[100]=&player;cleanup_enemy_arrows();assert(deleted.contains(100));
  actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(100));
+ // Bomskit eggs survive their owner; armor shells retire immediately with it.
+ for(auto spec:{std::pair{fpcNm_E_CR_e,fpcNm_E_CR_EGG_e},std::pair{fpcNm_E_MM_e,fpcNm_E_MM_MT_e}}){
+  s_enemyArrows={};s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=spec.first;
+  std::any childArgs[]={s16(spec.second),ActorId(42)};ActorId child=200;
+  assert(before_enemy_arrow(nullptr,childArgs,&child,nullptr)==HOOK_CONTINUE);
+  after_enemy_arrow(nullptr,childArgs,&child,nullptr);assert(active_enemy_arrow(200));
+  s_enemies[0]={};assert(active_enemy_arrow(200)==(spec.first==fpcNm_E_CR_e));
+  actors[200]=&player;retire_enemy_arrows();cleanup_enemy_arrows();assert(deleted.contains(200));
+  actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(200));
+ }
  // Foreign children and failed creates are ignored; capacity/pause reject new owned arrows.
  arrowId=101;after_enemy_arrow(nullptr,args,&arrowId,nullptr);assert(!tracked_enemy_arrow(101));
  s_enemies[0].id=42;s_enemies[0].profile=fpcNm_E_RD_e;
@@ -100,8 +120,9 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+(root/'src/survivors_enemy_types.inc').read_text()+(root/'src/survivors_enemy_arrows.inc').read_text()+
+ native=(root/'src/survivors_roster_native.inc').read_text().split('// Suppress only')[0]
+ cpp.write_text(fixture+native+'void initialize_extended_enemy(Enemy&,fopAc_ac_c*){assert(false);}' +(root/'src/survivors_enemy_types.inc').read_text()+(root/'src/survivors_enemy_arrows.inc').read_text()+
   function('create_enemy_at')+function('spawn_enemy')+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
-print('Survivors enemies: five normal variants, ordered elites, dry placement, HP/scale, projectile ownership/caps and deferred cleanup passed')
+print('Survivors enemies: map-specific variants, five elite sequences, dry placement, HP/scale, projectile ownership/caps and deferred cleanup passed')

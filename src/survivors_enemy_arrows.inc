@@ -1,9 +1,15 @@
-// Native bow projectiles outlive their shooter. Retain ownership independently
-// so pause, difficulty and teardown still apply after the Bulblin dies.
-struct EnemyArrow { ActorId id=kNone; bool retiring=false; };
+// Arrows and Bomskit eggs outlive their shooter; Helmasaur shells retire with
+// their owner. All children share run pause, damage difficulty and teardown.
+struct EnemyArrow { ActorId id=kNone; bool retiring=false; ActorId parent=kNone; bool shell=false; };
 std::array<EnemyArrow, enemy_capacity*3> s_enemyArrows;
 EnemyArrow* tracked_enemy_arrow(ActorId id) {
-    for (auto& arrow:s_enemyArrows) if (arrow.id!=kNone && arrow.id==id) return &arrow;
+    for (auto& arrow:s_enemyArrows) if (arrow.id!=kNone && arrow.id==id) {
+        if(arrow.shell) {
+            const auto* parent=tracked(arrow.parent);
+            if(!parent||parent->retiring||parent->credited)arrow.retiring=true;
+        }
+        return &arrow;
+    }
     return nullptr;
 }
 bool active_enemy_arrow(ActorId id) {
@@ -11,9 +17,12 @@ bool active_enemy_arrow(ActorId id) {
     return arrow && !arrow->retiring;
 }
 bool owned_arrow_spawn(void* args) {
-    if (!in_arena() || mods::arg<s16>(args,0)!=fpcNm_E_ARROW_e) return false;
-    const auto* enemy=tracked(mods::arg<ActorId>(args,1));
-    return enemy && enemy->profile==fpcNm_E_RD_e;
+    if (!in_arena()) return false;
+    const auto* enemy=tracked(mods::arg<ActorId>(args,1));if(!enemy)return false;
+    const auto profile=mods::arg<s16>(args,0);
+    return (enemy->profile==fpcNm_E_RD_e&&profile==fpcNm_E_ARROW_e) ||
+        (enemy->profile==fpcNm_E_CR_e&&profile==fpcNm_E_CR_EGG_e) ||
+        (enemy->profile==fpcNm_E_MM_e&&profile==fpcNm_E_MM_MT_e);
 }
 HookAction before_enemy_arrow(ModContext*, void* args, void* result, void*) {
     if (!owned_arrow_spawn(args)) return HOOK_CONTINUE;
@@ -28,7 +37,7 @@ HookAction before_enemy_arrow(ModContext*, void* args, void* result, void*) {
 void after_enemy_arrow(ModContext*, void* args, void* result, void*) {
     const auto id=*static_cast<ActorId*>(result);
     if (id==kNone || !owned_arrow_spawn(args) || tracked_enemy_arrow(id)) return;
-    for (auto& arrow:s_enemyArrows) if (arrow.id==kNone) {arrow={id,false};return;}
+    for (auto& arrow:s_enemyArrows) if (arrow.id==kNone) {arrow={id,false,mods::arg<ActorId>(args,1),mods::arg<s16>(args,0)==fpcNm_E_MM_MT_e};return;}
 }
 void retire_enemy_arrows() {
     for (auto& arrow:s_enemyArrows) if (arrow.id!=kNone) arrow.retiring=true;
@@ -36,6 +45,10 @@ void retire_enemy_arrows() {
 void cleanup_enemy_arrows() {
     for (auto& arrow:s_enemyArrows) {
         if (arrow.id==kNone) continue;
+        if(arrow.shell) {
+            const auto* parent=tracked(arrow.parent);
+            if(!parent||parent->retiring||parent->credited)arrow.retiring=true;
+        }
         auto* actor=actor_by_id(arrow.id);
         if (!actor && !fpcM_IsCreating(arrow.id)) arrow={};
         else if (actor && arrow.retiring) svc_actor->delete_actor(mod_ctx,arrow.id);

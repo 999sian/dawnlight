@@ -11,8 +11,6 @@ inline constexpr unsigned ticks_per_second = 30;
 inline constexpr unsigned duration = 20 * 60 * ticks_per_second;
 inline constexpr unsigned elite_interval = 5 * 60 * ticks_per_second;
 inline constexpr unsigned timed_elite_count = duration / elite_interval;
-// Spawn-table indices: Rat, Keese, bow Bulblin, Bokoblin at 5/10/15/20 minutes.
-inline constexpr std::array<unsigned, timed_elite_count> timed_elite_types{2, 1, 4, 0};
 inline constexpr unsigned guard_capacity = 8;
 inline constexpr unsigned elite_capacity = timed_elite_count + guard_capacity;
 inline constexpr unsigned guard_respawn_interval = 3 * 60 * ticks_per_second;

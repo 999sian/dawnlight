@@ -1,0 +1,72 @@
+#pragma once
+#include <array>
+#include <algorithm>
+namespace dawnlight::survivors {
+// First five IDs retain the existing combat variants.
+enum class Species : unsigned {
+    Bokoblin, Keese, Rat, Club, Bow, Tektite, Lizalfos, Helmasaur, Helmasaurus,
+    Guay, Kargarok, Bomskit, Stalchild, Gibdo, Stalfos, Puppet,
+    Bubble, FireBubble, BlackChu, Dynalfos, Aeralfos, Darknut, Count
+};
+constexpr unsigned species_count=unsigned(Species::Count);
+struct RosterEntry { Species species; unsigned unlock_seconds=0; };
+struct MapRoster {
+    std::array<Species,3> basic;
+    std::array<RosterEntry,4> specialists;
+    unsigned specialist_count;
+    std::array<Species,4> elites;
+};
+inline constexpr std::array<MapRoster,5> map_rosters{{
+    {{{Species::Bokoblin,Species::Rat,Species::Keese}},
+     {{{Species::Lizalfos,60},{Species::Helmasaur,120},{Species::Club,180}}},3,
+     {{Species::Bokoblin,Species::Helmasaurus,Species::Dynalfos,Species::Darknut}}},
+    {{{Species::Bokoblin,Species::Club,Species::Tektite}},
+     {{{Species::Bow,60},{Species::Guay,120},{Species::Kargarok,180},{Species::Bomskit,240}}},4,
+     {{Species::Tektite,Species::Club,Species::Kargarok,Species::Aeralfos}}},
+    {{{Species::Stalchild,Species::Club,Species::Bow}},
+     {{{Species::Lizalfos,120},{Species::Gibdo,240}}},2,
+     {{Species::Lizalfos,Species::Gibdo,Species::Stalfos,Species::Aeralfos}}},
+    {{{Species::Puppet,Species::Keese,Species::Bubble}},
+     {{{Species::FireBubble,60},{Species::BlackChu,120},{Species::Dynalfos,300}}},3,
+     {{Species::Puppet,Species::FireBubble,Species::Dynalfos,Species::Darknut}}},
+    {{{Species::Bokoblin,Species::Club,Species::Rat}},
+     {{{Species::Bow,60},{Species::Lizalfos,120},{Species::Helmasaur,180}}},3,
+     {{Species::Club,Species::Helmasaurus,Species::Dynalfos,Species::Darknut}}}
+}};
+constexpr const MapRoster& map_roster(unsigned map) { return map_rosters[map<map_rosters.size()?map:0]; }
+constexpr unsigned ordinary_limit(Species type,unsigned horde) {
+    horde=std::clamp(horde,1u,5u);
+    switch(type) {
+    case Species::Bow:return std::min(12u,4*horde);
+    case Species::Kargarok:return std::min(6u,2*horde);
+    case Species::Guay:return std::min(12u,4*horde);
+    case Species::Bomskit:return std::min(6u,2*horde);
+    case Species::Gibdo:case Species::Dynalfos:return std::min(4u,2*horde);
+    default:return 345;
+    }
+}
+// Filter before choosing; saturated specialists fall back to the basic pool.
+// Counts include pending actors so async creation cannot overbook a cap.
+inline Species choose_species(unsigned map,unsigned seconds,bool horde_event,unsigned horde,
+                              const std::array<unsigned,species_count>& counts,unsigned group_roll,unsigned pick_roll) {
+    const auto& roster=map_roster(map);
+    std::array<Species,4> candidates{};unsigned count=0;
+    if(group_roll%100<(horde_event?10u:25u)) {
+        for(unsigned i=0;i<roster.specialist_count;++i) {
+            const auto entry=roster.specialists[i];
+            if(seconds>=entry.unlock_seconds && counts[unsigned(entry.species)]<ordinary_limit(entry.species,horde))
+                candidates[count++]=entry.species;
+        }
+    }
+    if(!count) for(auto type:roster.basic)
+        if(counts[unsigned(type)]<ordinary_limit(type,horde)) candidates[count++]=type;
+    return count?candidates[pick_roll%count]:Species::Count;
+}
+constexpr float elite_scale(Species type) {
+    switch(type) {
+    case Species::Helmasaurus:case Species::Dynalfos:case Species::Stalfos:
+    case Species::Aeralfos:case Species::Darknut:return 1.f;
+    default:return 2.f;
+    }
+}
+} // namespace dawnlight::survivors

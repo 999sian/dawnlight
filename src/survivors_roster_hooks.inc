@@ -1,0 +1,14 @@
+    PRE(RosterTargets,before_roster_targets);
+    PRE(RosterGibdoCry,before_roster_cry);
+    PRE(RosterTT,before_roster_native_damage); PRE(RosterDN,before_roster_native_damage);
+    PRE(RosterMM,before_roster_native_damage); PRE(RosterMMArmor,before_roster_native_damage);
+    PRE(RosterGE,before_roster_native_damage); PRE(RosterKR,before_roster_native_damage);
+    PRE(RosterCR,before_roster_native_damage); PRE(RosterBS,before_roster_native_damage);
+    PRE(RosterGI,before_roster_native_damage);
+    PRE(RosterSF,before_roster_native_damage); PRE(RosterFS,before_roster_native_damage);
+    PRE(RosterBU,before_roster_native_damage); PRE(RosterSM,before_roster_native_damage);
+    PRE(RosterMF,before_roster_native_damage); PRE(RosterGG,before_roster_native_damage);
+    PRE(RosterTN,before_roster_native_damage);
+    PRE(RosterShell,before_roster_shell);
+    PRE(RosterTTSearch,before_roster_search);
+    PRE(RosterBubbleSearch,before_roster_bubble_search);

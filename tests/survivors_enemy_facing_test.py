@@ -56,7 +56,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
-    cpp.write_text(fixture+(root/'src/survivors_enemy_facing.inc').read_text()+main)
+    cpp.write_text(fixture+'bool extended_enemy(int){return false;}void face_extended_enemy(fopAc_ac_c*,const Enemy&){}\n'+(root/'src/survivors_enemy_facing.inc').read_text()+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
 print('Survivors enemy facing: live melee tracking, native movement boundary, elite range and reaction/isolation gates passed')

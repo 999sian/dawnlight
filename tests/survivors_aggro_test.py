@@ -110,7 +110,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
-    cpp.write_text(fixture+native+(root/'src/survivors_aggro.inc').read_text()+main)
+    cpp.write_text(fixture+'void engage_extended_enemy(fopAc_ac_c*,const Enemy&){}\n'+native+(root/'src/survivors_aggro.inc').read_text()+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
 print('Survivors aggro: unlimited detection, native close attack range, chase entry, recovery/death and mode isolation passed')

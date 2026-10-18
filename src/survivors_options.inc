@@ -31,7 +31,7 @@ HookAction before_enemy_speed(ModContext*, void* args, void*, void*) {
             (bulblin->anm==0x32 || bulblin->anm==0x1b);
         const bool bowRun=bulblin->action==5 && (bulblin->mode==1 || bulblin->mode==2) && bulblin->anm==0x32;
         if ((!chase && !bowRun) || bulblin->jump_z!=0 || bulblin->field_0x9f0>0.1f) return HOOK_CONTINUE;
-    } else return HOOK_CONTINUE;
+    } else if (!extended_locomotion(actor,enemy->profile) || enemy->stagger) return HOOK_CONTINUE;
     const float extra=float(std::clamp(s_run.options.enemy_speed,1u,3u)-1);
     // Add only horizontal locomotion velocity before native wall correction.
     // Do not multiply animation translations, collision pushes, falls or teleports.

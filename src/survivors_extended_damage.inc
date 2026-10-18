@@ -1,0 +1,141 @@
+// New roster species share Survivors HP and hit processing. Their native AI,
+// attack colliders, models and movement remain active, but puzzle-specific HP
+// resets, armor checks, resurrection and splitting cannot override run damage.
+bool roster_owned(fopAc_ac_c* actor) {
+    const auto* enemy=actor?tracked(fopAcM_GetID(actor)):nullptr;
+    return in_arena() && enemy && extended_enemy(enemy->profile);
+}
+HookAction before_roster_native_damage(ModContext*,void* args,void*,void*) {
+    return roster_owned(mods::arg<fopAc_ac_c*>(args,0)) ? HOOK_SKIP_ORIGINAL : HOOK_CONTINUE;
+}
+HookAction before_roster_cry(ModContext*,void* args,void* result,void*) {
+    if(!roster_owned(mods::arg<fopAc_ac_c*>(args,0)))return HOOK_CONTINUE;
+    *static_cast<bool*>(result)=false;return HOOK_SKIP_ORIGINAL;
+}
+HookAction before_roster_targets(ModContext*,void* args,void*,void*) {
+    auto* object=mods::arg<cCcD_Obj*>(args,1);if(!object||!in_arena())return HOOK_CONTINUE;
+    auto* actor=object->GetAc();if(!actor)return HOOK_CONTINUE;
+    // Route shell contacts to the owner's HP; retain the native shell model.
+    if(fopAcM_GetName(actor)==fpcNm_E_MM_MT_e && tracked(actor->parentActorID)) {
+        actor=actor_by_id(actor->parentActorID);if(!actor)return HOOK_CONTINUE;
+    }
+    auto* enemy=tracked(fopAcM_GetID(actor));
+    if(!enemy||!extended_enemy(enemy->profile)||!enemy->initialized)return HOOK_CONTINUE;
+    const auto body=extended_body(actor,enemy->profile);
+    for(auto* target:body.targets) if(target==object) {
+        if(enemy->credited||enemy->retiring||actor->health<=0) {target->OffTgSetBit();target->OffAtSetBit();break;}
+        target->OnTgSetBit();target->SetTgType(0xffffffff);target->OffTgShield();target->OffTgShieldFrontRange();
+        // Absolute radii: these native paths omit actor scale, some only set R
+        // at creation. Never multiply the previous frame's radius.
+        const float scale=enemy->elite?elite_scale(Species(enemy->species)):1.f;
+        if(enemy->profile==fpcNm_E_TT_e) {
+            auto* e=reinterpret_cast<daE_TT_c*>(actor);e->mSphere.SetR((e->mAction==6?80.f:55.f)*scale);
+        } else if(enemy->profile==fpcNm_E_GI_e) static_cast<dCcD_Sph*>(target)->SetR(55.f*scale);
+        else if(enemy->profile==fpcNm_E_BU_e) static_cast<dCcD_Sph*>(target)->SetR(45.f*scale);
+        else if(enemy->profile==fpcNm_E_KR_e) {
+            auto* e=reinterpret_cast<e_kr_class*>(actor);
+            e->mSphere2.SetR(62.5f*scale);e->mSphere3.SetR(65.f*scale);
+        } else if(enemy->profile==fpcNm_E_FS_e) {
+            auto* e=reinterpret_cast<e_fs_class*>(actor);e->mCcCyl.SetR(80.f*scale);e->mCcCyl.SetH(230.f*scale);
+        } else if(enemy->profile==fpcNm_E_DN_e) {
+            auto* e=reinterpret_cast<e_dn_class*>(actor);
+            e->cc_sph[0].SetR(50.f*scale);e->cc_sph[1].SetR(45.f*scale);e->cc_sph[2].SetR(45.f*scale);
+        }
+        break;
+    }
+    // Frozen heavy-hit stagger must not leave a damaging attack in the scene.
+    if(enemy->stagger)object->OffAtSetBit();
+    return HOOK_CONTINUE;
+}
+bool roster_attack(const cCcD_Obj* attack) {
+    if(!attack)return false;
+    auto* link=daAlink_getAlinkActorClass();
+    if(native_sword_collider(attack)||effect_collider(attack)||(link&&attack==&link->mGuardAtCps))return true;
+    for(const auto& a:s_attacks)if(attack==&a.collider)return true;
+    return false;
+}
+// The shell may execute before its parent. Preserve one contact for the shared
+// parent damage pass and clear native contacts before armor/puzzle code sees them.
+HookAction before_roster_shell(ModContext*,void* args,void*,void*) {
+    auto* shell=mods::arg<e_mm_mt_class*>(args,0);
+    auto* actor=reinterpret_cast<fopAc_ac_c*>(shell);
+    auto* parent=actor_by_id(actor->parentActorID);
+    if(!roster_owned(parent))return HOOK_CONTINUE;
+    auto* enemy=tracked(actor->parentActorID);
+    for(auto* target:{&shell->m_sphere,&shell->m_sph}) {
+        if(target->ChkTgHit() && !enemy->childHit && roster_attack(target->GetTgHitObj()))
+            enemy->childHit=target->GetTgHitObj();
+        target->ResetTgHit();
+    }
+    return HOOK_CONTINUE;
+}
+HookAction before_roster_search(ModContext*,void* args,void* result,void*) {
+    auto* actor=mods::arg<fopAc_ac_c*>(args,0);
+    if(!arena_aggro(actor,fpcNm_E_TT_e))return HOOK_CONTINUE;
+    *static_cast<bool*>(result)=true;return HOOK_SKIP_ORIGINAL;
+}
+HookAction before_roster_bubble_search(ModContext*,void* args,void* result,void*) {
+    auto* actor=mods::arg<e_bu_class*>(args,0);
+    const float range=mods::arg<float>(args,1);
+    if(!arena_aggro(reinterpret_cast<fopAc_ac_c*>(actor),fpcNm_E_BU_e) ||
+       (range!=2000.f && range!=actor->pl_search_range))return HOOK_CONTINUE;
+    *static_cast<int*>(result)=1;return HOOK_SKIP_ORIGINAL;
+}
+bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
+    auto body=extended_body(actor,enemy.profile);
+    if(!body.targets[0])return true;
+    if(enemy.hitCooldown)--enemy.hitCooldown;
+    if(body.status)body.status->Move();
+    auto& effect=effect_for(enemy);
+    cCcD_Obj* attack=enemy.childHit;enemy.childHit=nullptr;
+    if(attack && s_run.dual_wield && effect.meleeSerial==s_meleeSerial &&
+       s_swordAction==SwordAction::Normal && native_sword_collider(attack))attack=nullptr;
+    for(auto* target:body.targets) if(target&&target->ChkTgHit()) {
+        auto* hit=target->GetTgHitObj();
+        const bool duplicate=s_run.dual_wield&&effect.meleeSerial==s_meleeSerial&&
+            s_swordAction==SwordAction::Normal&&native_sword_collider(hit);
+        if(!attack&&!duplicate&&roster_attack(hit))attack=hit;
+    }
+    const int ball=ball_contact(actor,attack);
+    if(ball==0)attack=nullptr;
+    if(ball==1)enemy.hitCooldown=0;
+    // Consume status damage only when it can be applied; real hits take priority.
+    if(!attack&&effect.pending&&!enemy.hitCooldown) {
+        auto* link=daAlink_getAlinkActorClass();
+        if(link&&fopAcM_GetID(link)==s_player) {
+            effect.damage=effect.pending;effect.pending=0;effect.injected=true;
+            effect.critical=effect.pendingCritical;effect.pendingCritical=false;
+            effect.status.Init(120,0xff,link);effect.collider.Set(kAttackSource);
+            effect.collider.SetStts(&effect.status);effect.collider.SetAtType(AT_TYPE_ARROW);
+            effect.collider.SetAtAtp(1);effect.collider.SetAtMtrl(dCcD_MTRL_NONE);
+            attack=&effect.collider;
+        }
+    }
+    if(attack&&!enemy.hitCooldown&&actor->health>0) {
+        dCcU_AtInfo info=body.info?*body.info:dCcU_AtInfo{};
+        info.mpCollider=attack;info.mPowerType=0;
+        const int before=actor->health;
+        cc_at_check(actor,&info); // Existing power, material, Crit and status hooks run once.
+        if(actor->health<before) {
+            enemy.hitCooldown=10;
+            if(causes_stagger(attack))enemy.stagger=8;
+        }
+        effect.injected=false;effect.damage=0;effect.critical=false;
+    }
+    for(auto* target:body.targets)if(target)target->ResetTgHit();
+    if(actor->health<=0) {
+        credit_death(enemy,actor); // Credit before requesting deletion; never credit unloads.
+        for(auto* target:body.targets)if(target){target->OffAtSetBit();target->OffTgSetBit();}
+        fopAcM_createDisappear(actor,&actor->current.pos,15,0,0xff);
+        enemy.retiring=true;svc_actor->delete_actor(mod_ctx,enemy.id);
+        return false;
+    }
+    if(enemy.stagger) {
+        --enemy.stagger;
+        // Re-register body targets during the short stagger; movement/AI and
+        // attack colliders pause, while new hits and burn ticks remain possible.
+        for(auto* target:body.targets)if(target){target->OffAtSetBit();dComIfG_Ccsp()->Set(target);}
+        return false;
+    }
+    return true;
+}

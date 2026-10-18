@@ -1,5 +1,5 @@
-// Run-local burns and secondary melee hits use each enemy's native damage
-// handler. Never subtract health behind that handler or bypass its death state.
+// Run-local burns and secondary melee hits enter the owned damage path:
+// native handlers for the original roster, the shared adapter for new species.
 struct EnemyEffect {
     ActorId id = kNone;
     unsigned burn = 0, pulse = ticks_per_second, pending = 0, meleeSerial = 0;

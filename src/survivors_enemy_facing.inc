@@ -6,6 +6,7 @@ void track_enemy_facing(fopAc_ac_c* actor) {
     auto* link=daAlink_getAlinkActorClass();
     if (!enemy || !enemy->initialized || enemy->retiring || enemy->credited || enemy->dormant ||
         !link || fopAcM_GetID(link)!=s_player) return;
+    if (extended_enemy(enemy->profile)) {face_extended_enemy(actor,*enemy);return;}
     bool combat=false;
     if (enemy->profile==fpcNm_E_OC_e) {
         const auto* e=static_cast<daE_OC_c*>(actor);
