@@ -36,6 +36,14 @@
 #include "m_Do/m_Do_lib.h"
 #include "d/actor/d_a_e_ms.h"
 #include "d/actor/d_a_e_rd.h"
+#include "d/actor/d_a_e_dd.h"
+#include "d/actor/d_a_e_sh.h"
+#include "d/actor/d_a_e_rdy.h"
+#include "d/actor/d_a_e_s1.h"
+#include "d/actor/d_a_e_yk.h"
+#include "d/actor/d_a_e_yc.h"
+#include "d/actor/d_a_b_ds.h"
+#include "d/actor/d_a_e_zh.h"
 #include "d/actor/d_a_e_tt.h"
 #include "d/actor/d_a_e_dn.h"
 #include "d/actor/d_a_e_mm.h"
@@ -248,6 +256,9 @@ struct Enemy {
     cXyz lootPosition{};
     unsigned species=0, hitCooldown=0, stagger=0;
     cCcD_Obj* childHit=nullptr;
+    bool encounterReady=false;
+    unsigned encounterTick=0;
+    cXyz encounterTarget{};
 };
 std::array<Enemy, enemy_capacity> s_enemies;
 struct Orb { cXyz position{}; unsigned value = 0; bool summoned = false, merged = false; };
@@ -555,7 +566,7 @@ bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot
     const ActorSpawnParams params{
         .parameters = native.parameters, .argument = native.argument, .room_num = arena().room,
         .position = {pos.x, pos.y, pos.z},
-        .angle = {0, static_cast<s16>(yaw + 0x8000), static_cast<s16>(native.profile==fpcNm_E_KR_e ? 0xff : 0)},
+        .angle = {static_cast<s16>(native.profile==fpcNm_E_RDY_e ? 0xff : 0), static_cast<s16>(yaw + 0x8000), static_cast<s16>(native.profile==fpcNm_E_KR_e ? 0xff : 0)},
         .scale = {scale, scale, scale}, .create_function = nullptr,
     };
     if (create_standalone_actor(native.profile, params, id) != MOD_OK) return false;
@@ -917,6 +928,7 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
     return before_cut(ctx, args, result, user);
 }
 #include "survivors_extended_damage.inc"
+#include "survivors_encounters.inc"
 bool pause_run_actor(bool enemy) {
     if (!in_arena() || s_run.phase == Phase::Loading) return false;
     if (enemy && (midna_dialog_busy() || dComIfGp_event_runCheck())) return true;
@@ -994,6 +1006,7 @@ void after_process(ModContext*, void* args, void*, void*) {
     auto* enemy = tracked(frame.id);
     auto* actor = actor_by_id(frame.id);
     scale_elite_colliders(enemy,actor);
+    finish_extended_targets(enemy,actor);
     if (enemy && actor) {
         confine_arena_actor(actor, enemy->elite ? 80.f : 35.f);
         if (enemy->elite && actor->health > 0 && enemy->age % 15 == 0) {

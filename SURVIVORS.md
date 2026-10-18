@@ -117,13 +117,15 @@ The remaining rolls use the basic pool. Full specialist pools fall back to basic
 | --- | --- | --- |
 | Darknut Arena | Bokoblin, Rat, Keese | Lizalfos (1:00), Helmasaur (2:00), club Bulblin (3:00) |
 | Hyrule Field | Bokoblin, club Bulblin, Tektite | bow Bulblin (1:00), Guay (2:00), Kargarok (3:00), Bomskit (4:00) |
-| Gerudo Desert | Stalchild, club Bulblin, bow Bulblin | Lizalfos (2:00), Gibdo (4:00) |
-| Palace of Twilight | Puppet, Keese, Bubble | Fire Bubble (1:00), Black Chu (2:00), Dynalfos (5:00) |
+| Gerudo Desert | Stalchild, club Bulblin, bow Bulblin | Stalhound (1:00), Dodongo (2:00), Gibdo (4:00) |
+| Palace of Twilight | Shadow club Bulblin, Shadow bow Bulblin, Shadow Keese | Shadow Beast (2:00), Shadow Kargarok (3:00) |
 | Hyrule Castle Throne Room | Bokoblin, club Bulblin, Rat | bow Bulblin (1:00), Lizalfos (2:00), Helmasaur (3:00) |
 
 Staltroops are excluded. Ordinary bow Bulblins and Guays each cap at
 `min(12, 4 × Horde)`; Kargaroks and Bomskits each at `min(6, 2 × Horde)`;
-Gibdos and Dynalfos each at `min(4, 2 × Horde)`. Pending spawns count toward caps.
+Gibdos, Dynalfos and Shadow Beasts each at `min(4, 2 × Horde)`. Shadow bow
+Bulblins and Shadow Kargaroks use the corresponding bow/Kargarok caps.
+Pending spawns count toward caps.
 Bulblins take regular arrow damage. New roster enemies use Survivors damage and
 HP without puzzle-specific armor immunity, resurrection, Chu merging/splitting
 or Gibdo paralysis; their native appearance, movement and attacks remain active.
@@ -141,17 +143,25 @@ Each map spawns four timed elites:
 | --- | --- | --- | --- | --- |
 | Darknut Arena | Giant Bokoblin | Helmasaurus | Dynalfos | Darknut |
 | Hyrule Field | Giant Tektite | Giant club Bulblin | Giant Kargarok | Aeralfos |
-| Gerudo Desert | Giant Lizalfos | Giant Gibdo | Stalfos | Aeralfos |
-| Palace of Twilight | Giant Puppet | Giant Fire Bubble | Dynalfos | Darknut |
+| Gerudo Desert | Giant Dodongo | Giant Stalhound | Stalfos | Stallord’s flying head |
+| Palace of Twilight | Giant Shadow bow Bulblin | Giant Shadow Beast | Giant Shadow Kargarok | Zant’s Hand |
 | Hyrule Castle Throne Room | Giant club Bulblin | Helmasaurus | Dynalfos | Darknut |
 
 At 20:00, new horde spawns and guard respawns stop; the fight continues until all
 four timed elites are defeated. Giant variants are twice normal size; naturally
 large elite species keep their native scale. All elites have 120 base HP before
 difficulty and use the native Tear-of-Light minimap icon. Dormant guards remain
-giant Bokoblins. Dormant
+giant Bokoblins except in the Palace, where they are giant Shadow club Bulblins. Dormant
 elites wake only after taking damage; after a kill they respawn in three minutes,
 with new positions in Field/Desert. Timed elites do not respawn.
+
+Stalhounds emerge and fight in daylight as well as at night. Shadow Beasts do
+not require simultaneous group kills. Shadow Kargaroks use independent dive
+attacks without a rider or capture cutscene. Stallord’s flying head fires native
+fireballs, then descends for a melee recovery window; no Spinner, rails, traps
+or Staltroops are required. Zant’s Hand pursues Link, telegraphs a fixed landing
+point, then slams down and briefly rests. It requires no Sol orb. Both final
+bosses use regular Survivors damage, rewards and victory accounting.
 
 Every elite drops a **free large chest**. The four timed elites also drop an
 **large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals

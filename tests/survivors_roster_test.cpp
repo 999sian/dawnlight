@@ -7,8 +7,8 @@ int main() {
     const std::array<std::array<Species,4>,5> expected{{
         {Species::Bokoblin,Species::Helmasaurus,Species::Dynalfos,Species::Darknut},
         {Species::Tektite,Species::Club,Species::Kargarok,Species::Aeralfos},
-        {Species::Lizalfos,Species::Gibdo,Species::Stalfos,Species::Aeralfos},
-        {Species::Puppet,Species::FireBubble,Species::Dynalfos,Species::Darknut},
+        {Species::Dodongo,Species::Stalhound,Species::Stalfos,Species::StallordHead},
+        {Species::ShadowBow,Species::ShadowBeast,Species::ShadowKargarok,Species::ZantHand},
         {Species::Club,Species::Helmasaurus,Species::Dynalfos,Species::Darknut}
     }};
     for(unsigned map=0;map<5;++map) {
@@ -50,10 +50,17 @@ int main() {
             assert(counts[unsigned(kind)]<=ordinary_limit(kind,5));
         }
     }
-    assert(map_roster(2).specialist_count==2); // No Stallord-dependent Staltroops.
+    assert(map_roster(2).specialist_count==3); // No Stallord-dependent Staltroops.
     assert(ordinary_limit(Species::Bow,1)==4&&ordinary_limit(Species::Bow,5)==12);
     assert(ordinary_limit(Species::Kargarok,1)==2&&ordinary_limit(Species::Kargarok,5)==6);
     assert(ordinary_limit(Species::Gibdo,5)==4&&ordinary_limit(Species::Dynalfos,5)==4);
     assert(elite_scale(Species::Darknut)==1&&elite_scale(Species::Helmasaurus)==1);
+    assert(map_roster(3).basic== (std::array{Species::ShadowClub,Species::ShadowBow,Species::ShadowKeese}));
+    assert(map_roster(3).specialist_count==2);
+    assert(ordinary_limit(Species::ShadowBow,5)==12&&ordinary_limit(Species::ShadowKargarok,5)==6);
+    assert(ordinary_limit(Species::ShadowBeast,5)==4);
+    assert(guard_species(3)==Species::ShadowClub&&guard_species(2)==Species::Bokoblin);
+    assert(elite_scale(Species::StallordHead)==1&&elite_scale(Species::ZantHand)==1);
+    assert(elite_scale(Species::Stalhound)==2&&elite_scale(Species::ShadowBeast)==2);
     assert(elite_scale(Species::Tektite)==2&&elite_scale(Species::FireBubble)==2);
 }

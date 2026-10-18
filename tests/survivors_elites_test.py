@@ -25,6 +25,7 @@ fixture=r'''
 #include <iostream>
 #include "survivors_rules.hpp"
 #include "../include/survivors_maps.hpp"
+#include "survivors_roster.hpp"
 using namespace dawnlight::survivors;
 using s16=short;using ActorId=unsigned;constexpr ActorId kNone=~0u;
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
@@ -80,7 +81,8 @@ bool dry_arena_floor(cXyz& p,float,float){if(groundMissing||groundCode==4||groun
 bool walkable_spawn_path(cXyz,cXyz&,float){return !groundMissing&&!wallBlocked&&!barrierBlocked;}
 bool failCreate=false;unsigned nextId=1,ordinarySpawns=0;
 fopAc_ac_c* actor_by_id(ActorId){return &player;}
-bool create_enemy_at(cXyz pos,s16,unsigned,bool elite,int slot=-1,bool dormant=false){
+bool create_enemy_at(cXyz pos,s16,unsigned kind,bool elite,int slot=-1,bool dormant=false){
+ if(dormant)assert(kind==unsigned(guard_species(s_map)));
  if(failCreate)return false;
  for(auto& e:s_enemies)if(e.id==kNone){e={};e.id=nextId++;e.elite=elite;e.eliteSlot=slot;e.dormant=dormant;e.lootPosition=pos;return true;}
  return false;

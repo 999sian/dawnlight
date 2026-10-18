@@ -22,6 +22,8 @@ using namespace dawnlight::survivors;
 using ActorId=unsigned;using ProfileName=int;using u32=unsigned;using s16=short;using s8=signed char;
 unsigned s_map=0;constexpr ActorId kNone=~0u;constexpr int fpcNm_E_OC_e=1,fpcNm_E_BA_e=2,fpcNm_E_MS_e=3,fpcNm_E_RD_e=4,fpcNm_E_ARROW_e=5;
 constexpr int fpcNm_E_TT_e=6,fpcNm_E_DN_e=7,fpcNm_E_MM_e=8,fpcNm_E_GE_e=9,fpcNm_E_KR_e=10,fpcNm_E_CR_e=11,fpcNm_E_BS_e=12,fpcNm_E_GI_e=13,fpcNm_E_SF_e=14,fpcNm_E_FS_e=15,fpcNm_E_BU_e=16,fpcNm_E_SM2_e=17,fpcNm_E_MF_e=18,fpcNm_E_CR_EGG_e=19,fpcNm_E_MM_MT_e=20,fpcNm_B_GG_e=21,fpcNm_B_TN_e=22;
+constexpr int fpcNm_E_DD_e=23,fpcNm_E_SH_e=24,fpcNm_E_RDY_e=25,fpcNm_E_S1_e=26,fpcNm_E_YK_e=27,fpcNm_E_YC_e=28,fpcNm_B_DS_e=29,fpcNm_E_ZH_e=30;
+struct daB_DS_c{enum {TYPE_BULLET_B=3};};
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 ModContext* mod_ctx=nullptr;
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
@@ -63,6 +65,7 @@ int main(){
    variants.insert(s_enemies[0].species);
    assert(lastParams.scale.x==1&&lastParams.position.y==30+native_roster[s_enemies[0].species].height);
    if(lastProfile==fpcNm_E_KR_e)assert(lastParams.angle.z==0xff);
+   if(lastProfile==fpcNm_E_RDY_e)assert(lastParams.angle.x==0xff&&(lastParams.parameters&0xff)==7);
   }
   assert(variants.size()==3+map_roster(s_map).specialist_count);
   for(unsigned i=0;i<4;++i){s_enemies={};assert(spawn_enemy(&player,true,i));
@@ -108,6 +111,17 @@ int main(){
   s_enemies[0]={};assert(active_enemy_arrow(200)==(spec.first==fpcNm_E_CR_e));
   actors[200]=&player;retire_enemy_arrows();cleanup_enemy_arrows();assert(deleted.contains(200));
   actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(200));
+ }
+ // Shadow arrows and Stallord fireballs share pause/teardown ownership.
+ for(auto spec:{std::pair{fpcNm_E_RDY_e,fpcNm_E_ARROW_e},std::pair{fpcNm_B_DS_e,fpcNm_B_DS_e}}){
+  s_enemyArrows={};s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=spec.first;
+  std::any childArgs[]={s16(spec.second),ActorId(42),u32(daB_DS_c::TYPE_BULLET_B)};ActorId child=250;
+  assert(before_enemy_arrow(nullptr,childArgs,&child,nullptr)==HOOK_CONTINUE);
+  after_enemy_arrow(nullptr,childArgs,&child,nullptr);assert(active_enemy_arrow(child));
+  s_enemies[0]={};assert(active_enemy_arrow(child));
+  retire_enemy_arrows();creating.insert(child);cleanup_enemy_arrows();assert(tracked_enemy_arrow(child)&&!active_enemy_arrow(child));
+  creating.clear();actors[child]=&player;cleanup_enemy_arrows();assert(deleted.contains(child));
+  actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(child));
  }
  // Foreign children and failed creates are ignored; capacity/pause reject new owned arrows.
  arrowId=101;after_enemy_arrow(nullptr,args,&arrowId,nullptr);assert(!tracked_enemy_arrow(101));

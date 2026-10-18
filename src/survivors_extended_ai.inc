@@ -32,6 +32,14 @@ ExtendedBody extended_body(fopAc_ac_c* actor,ProfileName profile) {
     BODY(fpcNm_E_MF_e,e_mf_class,(std::array<dCcD_GObjInf*,8>{&e->field_0xa7c[0],&e->field_0xa7c[1],&e->field_0xa7c[2],&e->field_0xf5c}),&e->mAtInfo,&e->mStts,e->mpModelMorf)
     BODY(fpcNm_B_GG_e,daB_GG_c,(std::array<dCcD_GObjInf*,8>{&e->mCcCyl,&e->mCcHookCyl,&e->mCcShieldSph}),&e->mAtInfo,&e->mCcStts,e->mpModelMorf)
     BODY(fpcNm_B_TN_e,daB_TN_c,(std::array<dCcD_GObjInf*,8>{&e->mSphA[0],&e->mSphA[1],&e->mSphA[2],&e->mSphB[0],&e->mSphB[1],&e->mSphB[2],&e->mSphC}),&e->mAtInfo,&e->mStts1,e->mpModelMorf1)
+    BODY(fpcNm_E_DD_e,e_dd_class,(std::array<dCcD_GObjInf*,8>{&e->field_0xa74[0],&e->field_0xa74[1],&e->field_0xa74[2]}),&e->mAtInfo,&e->mStts,e->mpModelMorf)
+    BODY(fpcNm_E_SH_e,e_sh_class,(std::array<dCcD_GObjInf*,8>{&e->mSphArr[0],&e->mSphArr[1]}),&e->mAtInfo,&e->mStts,e->mAnm_p)
+    BODY(fpcNm_E_RDY_e,e_rdy_class,(std::array<dCcD_GObjInf*,8>{&e->mCcSph[0],&e->mCcSph[1],&e->mCcSph[2]}),&e->mAtInfo,&e->mCcStts,e->mpMorf)
+    BODY(fpcNm_E_S1_e,e_s1_class,(std::array<dCcD_GObjInf*,8>{&e->mCcSph[0],&e->mCcSph[1],&e->mCcSph[2]}),&e->mAtInfo,&e->mCcStts,e->mpMorf)
+    BODY(fpcNm_E_YK_e,e_yk_class,(std::array<dCcD_GObjInf*,8>{&e->mCollisionSphere}),&e->mAtColliderInfo,&e->mCollisionStatus,e->mpMorfSO)
+    BODY(fpcNm_E_YC_e,e_yc_class,(std::array<dCcD_GObjInf*,8>{&e->mCcSph}),&e->mAtInfo,&e->mCcStts,e->mpMorf)
+    BODY(fpcNm_B_DS_e,daB_DS_c,(std::array<dCcD_GObjInf*,8>{&e->mHeadSph[0],&e->mHeadSph[1],&e->mHeadSph[2],&e->mHeadSph[3],&e->mHeadSph[4]}),&e->mAtInfo,&e->mCcStts,e->mpMorf)
+    BODY(fpcNm_E_ZH_e,daE_ZH_c,(std::array<dCcD_GObjInf*,8>{&e->field_0xa08,&e->field_0xb40}),&e->mAtInfo,&e->mStts,e->mpModelMorf)
     default:return {};
     }
 #undef BODY
@@ -41,7 +49,8 @@ void initialize_extended_enemy(Enemy& enemy,fopAc_ac_c* actor) {
     actor->health=actor->field_0x560=s16(std::clamp(int(enemy.elite?120:native.hp+std::min(24u,s_run.ticks/900))*int(s_run.options.enemy_hp),1,32767));
     // Only these doubled elites omit actor scale in their native model matrix.
     if (enemy.elite && (enemy.profile==fpcNm_E_TT_e || enemy.profile==fpcNm_E_GI_e ||
-        enemy.profile==fpcNm_E_FS_e || enemy.profile==fpcNm_E_BU_e)) {
+        enemy.profile==fpcNm_E_FS_e || enemy.profile==fpcNm_E_BU_e ||
+        enemy.profile==fpcNm_E_DD_e || enemy.profile==fpcNm_E_SH_e || enemy.profile==fpcNm_E_YC_e)) {
         if(auto* morph=extended_body(actor,enemy.profile).morph) morph->getModel()->setBaseScale(actor->scale);
     }
     if (enemy.profile==fpcNm_E_GI_e) reinterpret_cast<daE_GI_c*>(actor)->setBck(12,2,3.f,1.f);
@@ -65,6 +74,11 @@ void engage_extended_enemy(fopAc_ac_c* actor,const Enemy& enemy) {
     case fpcNm_E_BU_e: {auto* e=reinterpret_cast<e_bu_class*>(actor);e->pl_search_range=1.e9f;if(e->action==0||e->action==5||e->action==6){e->action=1;e->mode=0;}break;}
     case fpcNm_E_SM2_e: {auto* e=reinterpret_cast<e_sm2_class*>(actor);e->combine_off_timer=30000;if(e->action==ACTION_COMBINE){e->action=ACTION_ATTACK;e->mode=0;}break;}
     case fpcNm_B_TN_e: {auto* e=reinterpret_cast<daB_TN_c*>(actor);if(e->mActionMode1<=2)e->setActionMode(daB_TN_c::ACT_CHASEH,0);break;}
+    case fpcNm_E_DD_e: {auto* e=reinterpret_cast<e_dd_class*>(actor);if(e->mAction==0){e->mAction=3;e->field_0x68c=0;}break;}
+    case fpcNm_E_SH_e: {auto* e=reinterpret_cast<e_sh_class*>(actor);e->field_0x6b8=e->field_0x6bc=1.e9f;break;}
+    case fpcNm_E_RDY_e: {auto* e=reinterpret_cast<e_rdy_class*>(actor);e->mPlayerCheckDist=1.e9f;if(e->mAction==0){e->mAction=e->mWeaponType==1?3:5;e->mMode=0;}break;}
+    case fpcNm_E_S1_e: {auto* e=reinterpret_cast<e_s1_class*>(actor);e->mSearchRange=1.e9f;e->mGroupID=0xff;if(e->mAction==0){e->mAction=2;e->mMode=0;}break;}
+    case fpcNm_E_YK_e: {auto* e=reinterpret_cast<e_yk_class*>(actor);e->mPlayerTrigger=1.e9f;if(e->mAction==0||e->mAction==4||e->mAction==5||e->mAction==6){e->mAction=1;e->mActionPhase=0;}break;}
     default:break;
     }
 }
@@ -80,11 +94,16 @@ bool extended_locomotion(fopAc_ac_c* actor,ProfileName p) {
     case fpcNm_E_FS_e:return reinterpret_cast<e_fs_class*>(actor)->mAction==e_fs_class::ACT_MOVE;
     case fpcNm_E_CR_e:return reinterpret_cast<e_cr_class*>(actor)->action==0;
     case fpcNm_B_TN_e:return reinterpret_cast<daB_TN_c*>(actor)->mActionMode1==daB_TN_c::ACT_CHASEH;
+    case fpcNm_E_DD_e:return reinterpret_cast<e_dd_class*>(actor)->mAction==3;
+    case fpcNm_E_SH_e:return reinterpret_cast<e_sh_class*>(actor)->field_0x676==2;
+    case fpcNm_E_RDY_e:{const auto a=reinterpret_cast<e_rdy_class*>(actor)->mAction;return a==3||a==5;}
+    case fpcNm_E_S1_e:return reinterpret_cast<e_s1_class*>(actor)->mAction==2;
     default:return false;
     }
 }
 void face_extended_enemy(fopAc_ac_c* actor,const Enemy& enemy) {
-    if(!extended_enemy(enemy.profile)||enemy.stagger)return;
+    if(!extended_enemy(enemy.profile)||enemy.stagger || enemy.profile==fpcNm_B_DS_e ||
+       enemy.profile==fpcNm_E_ZH_e || enemy.profile==fpcNm_E_YC_e)return;
     auto* link=daAlink_getAlinkActorClass();if(!link)return;
     const cXyz delta=link->current.pos-actor->current.pos;
     if(delta.absXZ()<1||delta.absXZ()>400*std::max(1.f,actor->scale.x)||std::abs(delta.y)>250*std::max(1.f,actor->scale.y))return;

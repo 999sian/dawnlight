@@ -111,7 +111,7 @@ void update_elite_spawns(daAlink_c* link) {
             if (!found) {++s_spawnFailures;continue;}
             yaw=s16(s_run.next_random());
         }
-        if (create_enemy_at(pos,yaw,0,true,int(i),true)) {
+        if (create_enemy_at(pos,yaw,unsigned(guard_species(s_map)),true,int(i),true)) {
             encounter.position=pos; encounter.yaw=yaw; encounter.placed=true;
             encounter.defeated=false; encounter.respawnAt=0;
         } else ++s_spawnFailures;

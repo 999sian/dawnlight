@@ -57,6 +57,7 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_roster_test.cpp -o /tmp/survivors-roster
           /tmp/survivors-roster
           python3 tests/survivors_roster_native_test.py
+          python3 tests/survivors_encounters_test.py
           python3 tests/survivors_enemy_types_test.py
           python3 tests/survivors_pots_test.py
           python3 tests/survivors_ground_test.py
@@ -268,6 +269,7 @@ jobs:
           CXX=clang++ python3 tests/survivors_elites_test.py
           CXX=clang++ python3 tests/survivors_enemy_types_test.py
           CXX=clang++ python3 tests/survivors_roster_native_test.py
+          CXX=clang++ python3 tests/survivors_encounters_test.py
           python3 tests/survivors_bulblin_test.py
           CXX=clang++ python3 tests/survivors_bulblin_test.py
           CXX=clang++ python3 tests/survivors_pots_test.py

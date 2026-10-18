@@ -12,6 +12,15 @@ HookAction before_roster_cry(ModContext*,void* args,void* result,void*) {
     if(!roster_owned(mods::arg<fopAc_ac_c*>(args,0)))return HOOK_CONTINUE;
     *static_cast<bool*>(result)=false;return HOOK_SKIP_ORIGINAL;
 }
+void allow_roster_target(dCcD_GObjInf* target) {
+    target->OnTgSetBit();target->SetTgType(0xffffffff);target->OffTgShield();target->OffTgShieldFrontRange();
+}
+void finish_extended_targets(const Enemy* enemy,fopAc_ac_c* actor) {
+    if(!enemy||!actor||!enemy->initialized||enemy->retiring||enemy->credited||
+       actor->health<=0||!extended_enemy(enemy->profile))return;
+    // Dodongo and some armor paths change shield flags after registering CC.
+    for(auto* target:extended_body(actor,enemy->profile).targets)if(target)allow_roster_target(target);
+}
 HookAction before_roster_targets(ModContext*,void* args,void*,void*) {
     auto* object=mods::arg<cCcD_Obj*>(args,1);if(!object||!in_arena())return HOOK_CONTINUE;
     auto* actor=object->GetAc();if(!actor)return HOOK_CONTINUE;
@@ -24,7 +33,7 @@ HookAction before_roster_targets(ModContext*,void* args,void*,void*) {
     const auto body=extended_body(actor,enemy->profile);
     for(auto* target:body.targets) if(target==object) {
         if(enemy->credited||enemy->retiring||actor->health<=0) {target->OffTgSetBit();target->OffAtSetBit();break;}
-        target->OnTgSetBit();target->SetTgType(0xffffffff);target->OffTgShield();target->OffTgShieldFrontRange();
+        allow_roster_target(target);
         // Absolute radii: these native paths omit actor scale, some only set R
         // at creation. Never multiply the previous frame's radius.
         const float scale=enemy->elite?elite_scale(Species(enemy->species)):1.f;
@@ -40,8 +49,28 @@ HookAction before_roster_targets(ModContext*,void* args,void*,void*) {
         } else if(enemy->profile==fpcNm_E_DN_e) {
             auto* e=reinterpret_cast<e_dn_class*>(actor);
             e->cc_sph[0].SetR(50.f*scale);e->cc_sph[1].SetR(45.f*scale);e->cc_sph[2].SetR(45.f*scale);
-        }
+        } else if(enemy->profile==fpcNm_E_DD_e) {
+            auto* e=reinterpret_cast<e_dd_class*>(actor);
+            e->field_0xa74[0].SetR(60.f*scale);e->field_0xa74[1].SetR(75.f*scale);e->field_0xa74[2].SetR(50.f*scale);
+        } else if(enemy->profile==fpcNm_E_SH_e) {
+            auto* e=reinterpret_cast<e_sh_class*>(actor);e->mSphArr[0].SetR(30.f*scale);e->mSphArr[1].SetR(40.f*scale);
+        } else if(enemy->profile==fpcNm_E_RDY_e) {
+            auto* e=reinterpret_cast<e_rdy_class*>(actor);for(auto& sphere:e->mCcSph)sphere.SetR(35.f*scale);
+        } else if(enemy->profile==fpcNm_E_S1_e) {
+            auto* e=reinterpret_cast<e_s1_class*>(actor);
+            e->mCcSph[0].SetR(35.f*scale);e->mCcSph[1].SetR(60.f*scale);e->mCcSph[2].SetR(50.f*scale);
+        } else if(enemy->profile==fpcNm_E_YC_e) reinterpret_cast<e_yc_class*>(actor)->mCcSph.SetR(80.f*scale);
         break;
+    }
+    if(enemy->elite) {
+        const float scale=elite_scale(Species(enemy->species));
+        if(enemy->profile==fpcNm_E_SH_e) {
+            auto* e=reinterpret_cast<e_sh_class*>(actor);if(object==&e->mSph2)e->mSph2.SetR(35.f*scale);
+        } else if(enemy->profile==fpcNm_E_S1_e) {
+            auto* e=reinterpret_cast<e_s1_class*>(actor);if(object==&e->mCcAtSph)e->mCcAtSph.SetR(40.f*scale);
+        } else if(enemy->profile==fpcNm_E_RDY_e) {
+            auto* e=reinterpret_cast<e_rdy_class*>(actor);if(object==&e->mAtSph && e->mAtSph.GetR()>0)e->mAtSph.SetR(50.f*scale);
+        }
     }
     // Frozen heavy-hit stagger must not leave a damaging attack in the scene.
     if(enemy->stagger)object->OffAtSetBit();

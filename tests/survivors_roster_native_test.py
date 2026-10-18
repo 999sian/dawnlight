@@ -31,7 +31,7 @@ struct cCcD_Obj {fopAc_ac_c* owner=nullptr;bool tg=true,at=true;fopAc_ac_c* GetA
 struct dCcD_GObjInf:cCcD_Obj {cCcD_Obj* hit=nullptr;bool shield=true;unsigned type=0,atp=0;float r=1,h=1;
  bool ChkTgHit(){return hit;}cCcD_Obj* GetTgHitObj(){return hit;}void ResetTgHit(){hit=nullptr;}
  void OnTgSetBit(){tg=true;}void SetTgType(unsigned t){type=t;}void OffTgShield(){shield=false;}
- void OffTgShieldFrontRange(){}void SetR(float n){r=n;}void SetH(float n){h=n;}
+ void OffTgShieldFrontRange(){}float GetR(){return r;}void SetR(float n){r=n;}void SetH(float n){h=n;}
  void Set(int){}void SetStts(dCcD_Stts*){}void SetAtType(unsigned){}void SetAtAtp(unsigned n){atp=n;}
  void SetAtMtrl(int){} };
 using dCcD_Sph=dCcD_GObjInf;using dCcD_Cyl=dCcD_GObjInf;
@@ -40,7 +40,8 @@ struct Model {cXyz scale;void setBaseScale(cXyz s){scale=s;}};
 struct mDoExt_McaMorfSO {Model model;Model* getModel(){return &model;}};
 // Some SDK actors use a scalar sphere, others an array; both share the same mock interface.
 struct TargetSet:dCcD_GObjInf {dCcD_GObjInf extra[3];
- dCcD_GObjInf& operator[](unsigned i){return i?extra[i-1]:*this;}};
+ dCcD_GObjInf& operator[](unsigned i){return i?extra[i-1]:*this;}
+ struct Iter {TargetSet* a;unsigned i;auto& operator*(){return (*a)[i];}Iter& operator++(){++i;return *this;}bool operator!=(Iter o){return i!=o.i;}};Iter begin(){return {this,0};}Iter end(){return {this,3};}};
 struct NativeActor:fopAc_ac_c {
  enum {ACT_WAIT=1,ACT_MOVE=2,ACT_CHASEH=3};
  int mAction=0,mMode=0,mActionMode=0,mMoveMode=0,mActionMode1=0,action=0,mode=0,mActionPhase=0;
@@ -48,14 +49,20 @@ struct NativeActor:fopAc_ac_c {
  float field_0x6d4=0,pl_range=0,field_0x6b8=0,mRecognizeDist=0,pl_recognize_dist=0,pl_search_range=0;
  s16 angle_target=0,mTargetAngleY=0,mCurrentAngleYTarget=0,field_0x6c0=0;int timers[4]{};
  ActorId armorChildId=kNone;
- dCcD_Sph mSphere,mSphere2,mSphere3,cc_sph[3],tate_sph,mCcSph[3],mCcSphs[3],mTateSph;
+ dCcD_Sph mSphere,mSphere2,mSphere3,cc_sph[3],tate_sph,mCcSphs[3],mTateSph;
  dCcD_Sph field_0xa7c[3],field_0xf5c,mCcHookCyl,mCcShieldSph,mSphA[3],mSphB[3],mSphC,m_sphere,m_sph;
- TargetSet ccSph;dCcD_Cyl mCcCyl;
+ TargetSet ccSph,mCcSph;
+ dCcD_Sph field_0xa74[3],mSphArr[2],mSph2,mCcAtSph,mAtSph,mCollisionSphere,mHeadSph[5],field_0xa08;dCcD_Cyl field_0xb40;
+ dCcU_AtInfo mAtColliderInfo;dCcD_Stts mCollisionStatus;
+ mDoExt_McaMorfSO* mAnm_p=&morph;
+ float field_0x6bc=0,mPlayerCheckDist=0,mSearchRange=0,mPlayerTrigger=0;
+ int field_0x68c=0,field_0x676=0,mWeaponType=1,mGroupID=0;dCcD_Cyl mCcCyl;
  dCcU_AtInfo mAtInfo,at_info,atInfo;dCcD_Stts mStts,stts,ccStts,mCcStts,mStts1;
  mDoExt_McaMorfSO morph; mDoExt_McaMorfSO* mpMorfSO=&morph,*mpMorf=&morph,*anm_p=&morph,*modelMorf=&morph,*mpModelMorf=&morph,*mpModelMorf1=&morph;
  void setActionMode(int a,int m=0){mAction=mActionMode=mActionMode1=a;mMode=mMoveMode=m;}
  void setBck(int,int,float,float){}
 };
+using e_dd_class=NativeActor;using e_sh_class=NativeActor;using e_rdy_class=NativeActor;using e_s1_class=NativeActor;using e_yk_class=NativeActor;using e_yc_class=NativeActor;using daB_DS_c=NativeActor;using daE_ZH_c=NativeActor;
 using daE_TT_c=NativeActor;using daE_GE_c=NativeActor;using e_kr_class=NativeActor;using e_dn_class=NativeActor;
 using e_mm_class=NativeActor;using e_mm_mt_class=NativeActor;using e_cr_class=NativeActor;using e_bs_class=NativeActor;
 using daE_GI_c=NativeActor;using e_sf_class=NativeActor;using e_fs_class=NativeActor;using e_bu_class=NativeActor;
@@ -108,6 +115,7 @@ int main(){
    before_roster_targets(nullptr,args,nullptr,nullptr);const float radius=target->r;
    before_roster_targets(nullptr,args,nullptr,nullptr);assert(target->r==radius&&!target->shield&&target->tg);
   }
+  body.targets[0]->shield=true;finish_extended_targets(&enemy,&actor);assert(!body.targets[0]->shield);
   body.targets[0]->hit=&sword;update_extended_enemy(&actor,enemy);assert(actor.health==93); // real cooldown
   auto& effect=effect_for(enemy);effect.pending=13;effect.pendingCritical=true;enemy.hitCooldown=0;
   update_extended_enemy(&actor,enemy);assert(actor.health==80&&injectedCritical&&!effect.pending&&!effect.injected&&!effect.critical);

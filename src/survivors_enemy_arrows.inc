@@ -20,9 +20,11 @@ bool owned_arrow_spawn(void* args) {
     if (!in_arena()) return false;
     const auto* enemy=tracked(mods::arg<ActorId>(args,1));if(!enemy)return false;
     const auto profile=mods::arg<s16>(args,0);
-    return (enemy->profile==fpcNm_E_RD_e&&profile==fpcNm_E_ARROW_e) ||
+    return ((enemy->profile==fpcNm_E_RD_e||enemy->profile==fpcNm_E_RDY_e)&&profile==fpcNm_E_ARROW_e) ||
         (enemy->profile==fpcNm_E_CR_e&&profile==fpcNm_E_CR_EGG_e) ||
-        (enemy->profile==fpcNm_E_MM_e&&profile==fpcNm_E_MM_MT_e);
+        (enemy->profile==fpcNm_E_MM_e&&profile==fpcNm_E_MM_MT_e) ||
+        (enemy->profile==fpcNm_B_DS_e&&profile==fpcNm_B_DS_e&&
+         (mods::arg<u32>(args,2)&0xff)==daB_DS_c::TYPE_BULLET_B);
 }
 HookAction before_enemy_arrow(ModContext*, void* args, void* result, void*) {
     if (!owned_arrow_spawn(args)) return HOOK_CONTINUE;

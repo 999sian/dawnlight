@@ -185,7 +185,7 @@ Victory requires 20 minutes and all four confirmed timed elite kills. New horde
 spawns and guard respawns stop at 20:00; combat continues for surviving elites.
 Menus, Get Item and Midna dialogue pause the timer. Elites have 120 base HP before
 difficulty. Giant variants use double models and target radii; Helmasaurus,
-Dynalfos, Stalfos, Aeralfos and Darknut retain native size.
+Dynalfos, Stalfos, Aeralfos, Darknut, Stallord’s head and Zant’s Hand retain native size.
 
 The extended roster adapters retain native models, movement and attack states,
 but replace puzzle-specific damage handlers for run-owned actors. Registered body
@@ -198,6 +198,38 @@ Helmasaur shell contacts route to parent HP regardless of parent/child execution
 order. Shells retire with their owner; Bomskit eggs and Bulblin arrows retain
 independent ownership for pause, difficulty, defense and deferred teardown.
 Native hooks pass through for actors outside Survivors ownership.
+
+Gerudo replaces Lizalfos with Dodongo and adds Stalhounds; its second/final elites
+are a giant Stalhound and Stallord’s flying head. Palace enemies are entirely
+Shadow club/bow Bulblins, Shadow Keese, specialist Shadow Beasts/Kargaroks and
+Zant’s Hand. Palace doorway guards are giant Shadow club Bulblins and remain
+dormant until damaged. Shadow Bulblin X-angle uses the native no-path sentinel;
+Shadow Beasts use the ungrouped sentinel to avoid resurrection/shout orchestration.
+Stalhound Execute temporarily sees midnight, with nested-process restoration;
+no persistent time/weather change is made.
+
+`survivors_encounters.inc` replaces owned action dispatch for three actors with
+hard dungeon dependencies. Shadow Kargarok uses its real model/animation/CC with
+a riderless chase and dive, avoiding native unguarded rider accesses. Stallord
+uses `TYPE_BATTLE_2`, restores the requested spawn after native Create's hardcoded
+arena relocation, flies and fires bounded owned `TYPE_BULLET_B` fireballs, then
+lowers for melee recovery. Native phase-two cutscenes, rail/trap spawning and
+Staltroop orchestration never run. Its creation-time boss-clear query and zone
+writes are scoped out; unrelated processes retain real room state. The Hand
+uses no Sol switches (`0xff`), bypasses orb search/return/gate action logic and
+executes pursuit, telegraphed locked-target slam and recovery, using its native
+attack cylinder. Animation/resources, matrices and drawing remain native.
+Encounter counters live in the owned enemy slot and obey pause, stagger,
+deferred deletion and restart. Arrows/fireballs survive their owner but remain
+owned through teardown. Head/Hand have 120 base HP like the other timed elites.
+
+Dodongo armor flags are also normalized after Execute, because its native code
+sets them after collision registration. Only owned target objects are changed;
+attack colliders retain their native role. The fixture exercises the actual new
+action hooks over complete cycles, ownership boundaries, pause/retirement,
+phase-two spawn restoration, fireball production, riderless dives, orb-free
+slams, nested clock/flag scopes and slot reuse. Runtime rendering, attack feel,
+terrain interaction and device performance still require in-game checks.
 
 Bulblins use their native club/bow AI and effects. Owned actors disable
 `one_hit_kill`; scoped arrow classification avoids the native pre-damage HP-zero
@@ -217,7 +249,7 @@ Additional stationary elite guards wait at these map locations:
 | Hyrule Castle Throne Room | None; scheduled elites only |
 | Palace of Twilight | One in front of each authored building doorway |
 
-Guards use native idle animation, physics, collision and damage handling, but
+Guards (Bokoblins, or Shadow club Bulblins in the Palace) use native idle animation, physics and collision, but
 skip idle detection/social alerts. Only a damaging hit from Link wakes them.
 Once provoked they pursue Link at any distance, just like ordinary and scheduled
 enemies. Standing nearby alone does not provoke a guard. Placement uses loaded

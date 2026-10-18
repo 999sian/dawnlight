@@ -12,3 +12,15 @@
     PRE(RosterShell,before_roster_shell);
     PRE(RosterTTSearch,before_roster_search);
     PRE(RosterBubbleSearch,before_roster_bubble_search);
+    PRE(RosterDD,before_roster_native_damage); PRE(RosterSH,before_roster_native_damage);
+    PRE(RosterRDY,before_roster_native_damage); PRE(RosterS1,before_roster_native_damage);
+    PRE(RosterYK,before_roster_native_damage);
+    PRE(RosterDDSearch,before_roster_dd_search); PRE(RosterRDYSearch,before_roster_rdy_search);
+    PRE(RosterYKSearch,before_roster_yk_search); PRE(RosterS1Search,before_roster_s1_search);
+    PRE(RosterRDYIdle,before_roster_rdy_idle);
+    PRE(RosterYCAction,before_roster_yc_action);
+    PRE(RosterHeadAction,before_roster_head_action); PRE(RosterHandAction,before_roster_hand_action);
+    POST(RosterHandCollision,after_roster_hand_collision);
+    PRE(RosterHeadCreate,before_roster_head_create); POST(RosterHeadCreate,after_roster_head_create);
+    PRE(RosterHeadCleared,before_roster_head_cleared); PRE(RosterHeadZone,before_roster_head_zone);
+    PRE(SurvivorsProcess,before_roster_time); POST(SurvivorsProcess,after_roster_time);
