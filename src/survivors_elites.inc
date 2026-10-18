@@ -2,7 +2,7 @@
 // Actor IDs are checked on every spawn pass; failed creation/unload is retried
 // without treating a deletion as a kill or issuing another chest.
 struct EliteEncounter {
-    bool placed = false, defeated = false;
+    bool placed = false, defeated = false, rewarded = false;
     unsigned respawnAt = 0;
     cXyz position{};
     s16 yaw = 0;

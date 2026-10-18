@@ -59,9 +59,12 @@ enum class SwordAction{None,Normal};SwordAction s_swordAction=SwordAction::Norma
 bool s_wavePending=false;unsigned s_comboStep=0,s_comboTimeout=0;
 bool nearest_item_target(daAlink_c*,cXyz& target,float range){target={targetDistance,100,0};return targetExists&&targetDistance<range;}
 constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
-struct Attack{bool active=false,returning=false;unsigned age=0;};std::array<Attack,projectile_capacity>s_attacks;
+struct Attack{bool active=false,returning=false;unsigned age=0,bowVolleySlot=20;uint64_t bowVolley=0;};std::array<Attack,projectile_capacity>s_attacks;
 std::vector<Upgrade>shots;std::vector<float>spread;
-bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0){shots.push_back(weapon);spread.push_back(angle);if(weapon==Upgrade::Ball)s_attacks[item_projectile_begin(3)].active=true;return true;}
+bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0,unsigned group=20,uint64_t volley=0){
+ unsigned type=unsigned(weapon)-unsigned(Upgrade::Bow);auto b=s_attacks.begin()+item_projectile_begin(type),e=b+item_projectile_count(type);
+ auto slot=std::find_if(b,e,[](const auto&a){return !a.active;});if(slot==e)return false;
+ slot->active=true;slot->bowVolleySlot=group;slot->bowVolley=volley;shots.push_back(weapon);spread.push_back(angle);return true;}
 '''
 main=r'''
 void fresh(){targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
@@ -79,9 +82,18 @@ int main(){
  assert(player.mEquipItem==0x103 && s_ranged.active);
  player.proc=1;update_ranged(&player);assert(!s_ranged.active && player.proc==1);
  assert(shots.size()==6); // cosmetic cancellation never duplicates/cancels releases
- fresh();targetDistance=2500;s_run.ranks[unsigned(Upgrade::Reach)]=10;
+ fresh();targetDistance=2300;s_run.ranks[unsigned(Upgrade::Reach)]=10;
  assert(queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
  assert(!queue_ranged(&player,Upgrade::Bombs));assert(!queue_ranged(&player,Upgrade::Ball));
+ // A nearly full pool emits a narrower symmetric partial volley, not one wing.
+ fresh();s_run.ranks[8]=30;for(unsigned i=8;i<25;++i)s_attacks[i].active=true;
+ assert(queue_ranged(&player,Upgrade::Bow)&&shots.size()==3);
+ assert(std::abs(spread[1]+spread[2])<1.e-6f);
+ auto group=s_attacks[25].bowVolleySlot;auto serial=s_attacks[25].bowVolley;
+ assert(group<20&&serial&&s_attacks[26].bowVolley==serial&&s_attacks[27].bowVolley==serial);
+ s_cooldowns[8]=0;assert(!queue_ranged(&player,Upgrade::Bow));
+ s_attacks[8].active=false;assert(queue_ranged(&player,Upgrade::Bow));
+ assert(s_attacks[8].bowVolleySlot!=group&&s_attacks[8].bowVolley!=serial);
  fresh();targetExists=false;assert(!queue_ranged(&player,Upgrade::Bow)&&!s_cooldowns[8]);
  targetExists=true;playing=false;assert(!queue_ranged(&player,Upgrade::Bow));
  playing=true;s_loot.ready=false;assert(!queue_ranged(&player,Upgrade::Bow));

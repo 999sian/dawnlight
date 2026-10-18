@@ -203,7 +203,7 @@ int main(){
         reset();s_run.dual_wield=dual;s_run.talents.ranks[unsigned(Talent::MeleeHaste)]=haste;
         for(unsigned swing=0;swing<4;++swing) {
             s_meleeCooldown=0;player.mUnderFrameCtrl[0].frame=16;update_sword(&player);
-            assert(std::abs(player.mUnderFrameCtrl[0].rate-(1+.05f*(dual+haste)))<.0001f);
+            assert(std::abs(player.mUnderFrameCtrl[0].rate-(1+float(5*dual/2+5*haste)/100.f))<.0001f);
             assert(player.mUpperFrameCtrl[0].rate==player.mUnderFrameCtrl[0].rate);
             assert(s_meleeCooldown==s_run.melee_cooldown());
         }
@@ -220,7 +220,7 @@ int main(){
             for(unsigned frame=0;frame<3;++frame) {
                 after_sword_move(nullptr,spinArgs,nullptr,nullptr);
                 after_spin_effect(nullptr,spinArgs,nullptr,nullptr);
-                const float radius=current*(1+.15f*reach);
+                const float radius=current*std::sqrt(1+.075f*reach);
                 assert(std::abs(player.mAtSph.radius-radius)<.001f);
                 for(unsigned i=0;i<count;++i){
                     const auto& emitter=emitters[player.field_0x3204[i]];
@@ -468,7 +468,7 @@ int main(){
     particles.clear();particleScales.clear();s_run.ranks[unsigned(Upgrade::Reach)]=5;
     assert(before_jump_strike_effect(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
     assert((particles==std::vector<u16>{0x161,0x162}));
-    assert(std::abs(particleScales[0]-2.625f)<.01f&&particleScales[0]==particleScales[1]);
+    assert(std::abs(particleScales[0]-2.0625f)<.01f&&particleScales[0]==particleScales[1]);
     for(unsigned rank:{1u,30u}){
         s_run.ranks[unsigned(Upgrade::JumpStrike)]=rank;
         info={&player.mAtSph};after_power(nullptr,powerArgs,nullptr,nullptr);

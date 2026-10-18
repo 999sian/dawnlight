@@ -116,7 +116,7 @@ int main(){
  std::array<e_ms_class,7> group;
  for(unsigned i=0;i<group.size();++i){group[i].id=i+2;group[i].current.pos={float(30*i),0,50};group[i].eyePos=group[i].current.pos;
   actors[i+2]=&group[i];s_enemies[i]={i+2,fpcNm_E_MS_e,true};}
- group[4].eyePos.x=999;group[5].current.pos.y=200;group[6].current.pos.x=500;
+ group[4].eyePos.x=999;group[5].current.pos.y=200;group[6].current.pos.x=450;
  s_run.dual_wield=1;s_swordAction=SwordAction::Normal;dCcU_AtInfo sword{&player.mAtCps[0],3};
  record_status_hit(&group[0],&sword);assert(s_effects[1].pending==3&&s_effects[2].pending==0);
  record_status_hit(&group[0],&sword);assert(s_effects[1].pending==3); // once per swing

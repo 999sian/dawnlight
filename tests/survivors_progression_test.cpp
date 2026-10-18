@@ -52,8 +52,9 @@ int main(){
     assert(r.rank(Upgrade::Heart)==0&&r.rank(Upgrade::Magnet)==0&&r.rank(Upgrade::CritChance)==0);
     assert(r.magnet_range()==225&&r.crit_chance_basis_points()==500);
     r.ranks[unsigned(Upgrade::CritChance)]=30;r.ranks[unsigned(Upgrade::Luck)]=20;
-    assert(r.crit_chance_basis_points()==10000);
-    for(int i=0;i<10000;++i)assert(r.critical_power(100)==250);
+    assert(r.crit_chance_basis_points()==4125);
+    unsigned crits=0;for(int i=0;i<10000;++i){auto damage=r.critical_power(100);assert(damage==100||damage==250);crits+=damage==250;}
+    assert(crits>3900&&crits<4350);
     r.ranks[unsigned(Upgrade::Magnet)]=30;assert(r.magnet_range()==3150);
     unsigned money=0;for(int i=0;i<3;++i){r.phase=Phase::Upgrade;assert(r.pay_reroll(money));assert(r.banish(Upgrade(i==0?3:i==1?4:5)));}
     assert(!r.pay_reroll(money)&&r.reroll_cost()==50&&!r.banish(Upgrade::Magnet));

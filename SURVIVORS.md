@@ -154,8 +154,8 @@ Each map spawns four timed elites:
 
 At 20:00, new horde spawns and guard respawns stop; the fight continues until all
 four timed elites are defeated. Giant variants are twice normal size; naturally
-large elite species keep their native scale. All elites have 120 base HP before
-difficulty and use the native Tear-of-Light minimap icon. Dormant guards remain
+large elite species keep their native scale. Elites use the map/time HP budgets described below, multiplied by difficulty,
+and use the native Tear-of-Light minimap icon. Dormant guards remain
 giant Bokoblins except in the Palace, where they are giant Shadow club Bulblins. Dormant
 elites wake only after taking damage; after a kill they respawn in three minutes,
 with new positions in Field/Desert. Timed elites do not respawn.
@@ -168,7 +168,7 @@ or Staltroops are required. Zant’s Hand pursues Link, telegraphs a fixed landi
 point, then slams down and briefly rests. It requires no Sol orb. Both final
 bosses use regular Survivors damage, rewards and victory accounting.
 
-Every elite drops a **free large chest**. The four timed elites also drop an
+Each timed elite and the first kill of each guard slot drops a **free large chest**. Guard respawns still give XP but no repeated chest, including after relocation. The four timed elites also drop an
 **large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals
 to Link from anywhere on the map. It is a one-time pickup, not an inventory item. Pots are scattered according to floor
 area and safe placement, drop rupees of different values or rare heart pieces,
@@ -216,14 +216,14 @@ banish symbol at the top right of a card to remove that choice. Talents can add 
 
 | Chest reward | Main effect |
 | --- | --- |
-| Hero's Bow | Automatic aimed arrows; one extra arrow every three ranks (4, 7, 10…), max 10 arrows. Unlocks Fire Arrows level-ups: burning damage over time, refreshed on hit. |
+| Hero's Bow | Automatic aimed arrows; one extra arrow every three ranks (4, 7, 10…), max 10 arrows. The symmetric fan widens by 5° per added arrow, reaching 45° total (±22.5°). Additional hits on the same enemy within one volley deal 25% damage; each new volley starts at full damage. Unlocks Fire Arrows level-ups: burning damage over time, refreshed on hit. |
 | Boomerang | Gale throws that hop between enemies; one extra hop every three ranks (4, 7, 10…), max 10 hops / 11 targets. |
 | Bombs | Automatic throws and area explosions; upgrades improve damage, radius and frequency. |
 | Ball and Chain | Pierces outward and back, damaging and staggering enemies on both legs. |
 | Master Sword | More sword damage; rank 5 becomes the Light Sword. Unlocks Jump Strike level-ups. |
-| Ordon Sword | Dual Wield: two nearby melee targets at rank 1, up to five total targets at rank 9; capped at rank 10. |
+| Ordon Sword | Dual Wield: 2/3/4/5 total targets at ranks 1/10/20/30; +2.5% melee speed per rank (whole-percent rounding), capped at rank 30. Can coexist with a shield. |
 | Shield | 5% block chance per rank, max 50%; evolves to Ordon at 20% and Hylian at 35%. Unlocks Shield Attack level-ups. |
-| Dark Link | Double damage for 5 seconds every 20 seconds; upgrades alternate shorter intervals and longer duration, becoming permanent at rank 11. |
+| Dark Link | Starts at 1.3× damage for 5 seconds every 20 seconds. Odd ranks increase damage, even ranks increase duration; rank 30 is permanent 2× damage. |
 | Red Potion | One equipment slot; adds filled bottles up to four, then refills empty ones. Rank 0 heals 1 heart. Potion Healing level-ups add ¼ heart per rank, up to 8½ hearts at rank 30. Use manually. |
 
 **Jump Strike:** 20% chance at an eligible normal melee attack, with a 6-second
@@ -231,16 +231,49 @@ cooldown reduced by Haste. Uses the native quick jump attack and the original
 bomb shockwave on landing. Landing splash deals 30% of melee damage at rank 1,
 +5 percentage points per rank (175% at rank 30), rounded to native whole damage.
 Direct sword contact deals normal melee damage; critical hits and Dark Link apply.
-**Reach** scales both Jump Strike and Spin collision radii by +15% per rank.
-Other automatic attacks pause throughout Jump Strike, as they do during traversal.
+**Reach** adds 7.5% linear melee/projectile range per rank. Spin, Bomb and Shield
+radii use the square root of that factor, so their area grows approximately linearly.
+Jump Strike keeps the linear radius factor. Spin visuals follow the actual hitbox.
+Automatic item attacks, Sword Waves, Spin and Shield Attack have independent
+cooldowns and overlap, including during Jump Strike. Distinct attacks damage
+immediately without a shared enemy iFrame gate. A persistent hitbox still hits
+each enemy only once per activation (Ball: once on each leg).
 
-Weapons, passives, Fire Arrows, Shield Attack and Jump Strike reach rank 30.
-Luck caps at 20, Master Sword at 5, Dual Wield and shield block at 10, and Dark Link at 11.
-Haste retains its first five ranks, then improves with diminishing returns;
-weapon cooldowns never fall below six ticks (0.2 seconds). Unlocked chest weapons can also be upgraded
-at level-up. Ordinary hits do not stagger enemies; Shield Attack and Ball and
-Chain do. Knocked-down enemies remain damageable while falling, lying down
-and getting back up.
+Weapons, ordinary power-ups, Master Sword, Ordon Sword and Dark Link reach rank 30.
+Luck caps at 20 and shield block at 10. Haste uses approximately
+`1 / (1 + 0.025 × rank)` cooldown scaling, with integer rounding.
+Item intervals start from 75/85/110/100 ticks for Bow/Boomerang/Bombs/Ball,
+divided by `1 + 0.025 × (item rank − 1)`, then Haste. Their minimum intervals are
+20/30/45/40 ticks respectively; gameplay runs at 30 ticks per second.
+Waves and Spin use base intervals of 60 and 120 ticks. Shield Attack uses
+`90 / (1 + 0.03 × rank)` ticks before Haste, with a 30-tick minimum.
+Bomb radius is `(170 + 12 × Bomb rank) × sqrt(Reach factor)`;
+Shield Attack radius is `(60 + 3 × rank) × sqrt(Reach factor)`.
+Unlocked chest weapons can also be upgraded at level-up. Ordinary hits do not
+stagger enemies; Shield Attack and Ball and Chain do. Knocked-down enemies remain
+damageable. Ball lifetime grows with Reach so its return leg is preserved.
+
+### Enemy health curves
+
+Normal HP multiply the species' base HP by the following fixed map/time factors.
+Interpolate linearly; start at 1× at minute zero and stop growth at minute 20.
+These curves do not react to the player's equipment or luck. HP is sampled on
+spawn; untouched dormant guards refresh until engaged. Ordinary elite HP is
+`max(120, 32 × factor)`. Final bosses instead use the separate absolute budgets
+below. The selected Enemy HP difficulty multiplier applies once to every type;
+round once and cap at native signed-HP maximum 32,767.
+
+| Map | 1 min | 5 min | 10 min | 15 min | 20 min | Final boss HP |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Darknut Arena | 1.00 | 4.09 | 10.76 | 19.22 | 28.30 | 2,300 |
+| Hyrule Field | 1.08 | 8.76 | 25.39 | 49.66 | 67.44 | 5,400 |
+| Gerudo Desert | 1.04 | 8.39 | 23.26 | 44.30 | 59.43 | 4,800 |
+| Palace of Twilight | 1.00 | 5.70 | 14.62 | 24.38 | 34.54 | 2,800 |
+| Hyrule Castle Throne Room | 1.10 | 4.98 | 12.79 | 22.41 | 32.73 | 2,600 |
+
+These are balance starting points from the progression model; actual boss flight
+windows, attack geometry and survival pressure still need in-game validation.
+No optional Legendary global-damage bonus is included.
 
 ## Critical hits
 
@@ -248,12 +281,11 @@ Two passive level-up rewards, both capped at **rank 30**:
 
 | Power-up | Start | Per rank | At rank 30 |
 | --- | --- | --- | --- |
-| Crit Chance | 0% | +1 percentage point base chance | 30% base; 90% at +200% Luck |
+| Crit Chance | 0% | +0.75 percentage points base chance | 22.5% base; 33.75% at Luck rank 20 |
 | Crit Damage | ×2 damage | +0.05 multiplier | ×3.5 damage |
 
 Talents add up to five base percentage points; combined final chance caps at 100%.
-Final chance is `base chance × (1 + Luck / 100)`, inspired by
-[Vampire Survivors](https://vampire-survivors.fandom.com/wiki/Flash_Arrow).
+Final chance is `base chance × (1 + 0.025 × Luck rank)`, with integer basis-point rounding.
 Each direct sword, spin, projectile, shield or Dual Wield hit rolls independently.
 Burn ticks cannot crit. Critical damage rounds to native integer health before
 Dark Link doubles it. Both power-ups support rarities, rerolls and banishment;
@@ -266,27 +298,27 @@ controls ranks/units of the chosen reward: **Common ×1, Uncommon ×2, Rare ×3,
 Epic ×4, Legendary ×5**. Names and icon borders show the rarity. Units exceeding
 a reward's cap become 20 rupees each, subject to wallet capacity.
 
-Luck grants **+10% per rank**, up to **20 ranks / +200%**, and resets each run.
-Higher-rarity Luck cards grant multiple ranks too. With `k = 1 + Luck / 100`,
-rarity weights are **60 / 25k / 10k² / 4k³ / k⁴**. Divide each weight by their
-sum to get its chance. There is no player-level or chest-source bonus.
+Luck has **20 ranks** and resets each run. Rarity weighting gains +5% per rank;
+crit chance gains +2.5% per rank. Higher-rarity Luck cards grant multiple ranks.
+With `k = 1 + 0.05 × Luck rank`, rarity weights are **60 / 25k / 10k² / 4k³ / k⁴**,
+normalized by their sum. There is no player-level or chest-source bonus.
 
-| Luck | Common | Uncommon | Rare | Epic | Legendary |
+| Luck rank | Common | Uncommon | Rare | Epic | Legendary |
 | ---: | ---: | ---: | ---: | ---: | ---: |
-| +0% | 60.00% | 25.00% | 10.00% | 4.00% | 1.00% |
-| +10% | 56.40% | 25.85% | 11.37% | 5.00% | 1.38% |
-| +30% | 49.57% | 26.85% | 13.96% | 7.26% | 2.36% |
-| +50% | 43.30% | 27.06% | 16.24% | 9.74% | 3.65% |
-| +100% | 30.30% | 25.25% | 20.20% | 16.16% | 8.08% |
-| +150% | 20.94% | 21.81% | 21.81% | 21.81% | 13.63% |
-| +200% | 14.49% | 18.12% | 21.74% | 26.09% | 19.57% |
+| 0 | 60.00% | 25.00% | 10.00% | 4.00% | 1.00% |
+| 1 | 58.18% | 25.46% | 10.69% | 4.49% | 1.18% |
+| 3 | 54.64% | 26.18% | 12.04% | 5.54% | 1.59% |
+| 5 | 51.23% | 26.68% | 13.34% | 6.67% | 2.08% |
+| 10 | 43.30% | 27.06% | 16.24% | 9.74% | 3.65% |
+| 15 | 36.32% | 26.48% | 18.54% | 12.98% | 5.68% |
+| 20 | 30.30% | 25.25% | 20.20% | 16.16% | 8.08% |
 
-Rounded chances **per card**, not per three-card selection. At +200% Luck,
-a selection has about **47.96%** chance to contain at least one Legendary card.
+Rounded chances **per card**, not per three-card selection. At rank 20, a
+selection has about **22.34%** chance to contain at least one Legendary card.
 Luck never rerolls existing offers.
 
 Heart, heart-piece and rupee bonuses use a separate multiplier capped at **+50%
-Luck**: enemy drops start at 2.5% heart / 45% rupee / 52.5% nothing and reach
+Luck** (+10% per rank, capped at rank 5): enemy drops start at 2.5% heart / 45% rupee / 52.5% nothing and reach
 3.75% heart / 67.5% rupee / 28.75% nothing; pot heart pieces
 reach 3%. Better rupee-color chances also stop improving above +50%.
 

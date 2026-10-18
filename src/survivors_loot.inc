@@ -136,11 +136,13 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
     encounter.defeated=true;
     if (unsigned(enemy.eliteSlot)>=timed_elite_count)
         encounter.respawnAt=s_run.ticks+guard_respawn_interval;
-    // Keep unopened drops from earlier lives. The pool covers every possible
-    // kill in a full run, even if no rewards are collected.
+    // A guard slot rewards its first confirmed kill only, including relocation.
+    // Respawns still give XP and retain their respawn schedule.
+    if (encounter.rewarded) return;
     auto available=std::find_if(s_chests.begin()+kSmallChestCount,s_chests.end(),
         [](const Chest& chest){return !chest.active;});
     if (available==s_chests.end()) return;
+    encounter.rewarded=true;
     auto& chest=*available;
     chest={}; chest.active=true; chest.free=true; chest.yaw=actor->shape_angle.y;
     cXyz pos=actor->current.pos;
@@ -191,7 +193,7 @@ void update_boom_wind(Attack& a, daAlink_c* link) {
             &angle, nullptr, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
     }
 }
-bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0) {
+bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0, unsigned volleySlot = 20, uint64_t volley = 0) {
     const unsigned index = unsigned(weapon), type = index - unsigned(Upgrade::Bow);
     auto begin = s_attacks.begin() + item_projectile_begin(type);
     auto end = begin + item_projectile_count(type);
@@ -199,6 +201,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     if (slot == end) return false;
     auto& a = *slot;
     a.weapon = index; a.age = 0; a.life = 100;
+    a.bowVolleySlot=volleySlot;a.bowVolley=volley;
     a.returning = a.exploding = false; a.travel = 0;
     a.target = kNone; a.visitedCount = 0; a.hops = 0; a.ballVictimCount = 0;
     a.position = link->current.pos + cXyz(0, 70, 0);
@@ -223,6 +226,10 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
         // Keep enough flight time for the longer first leg, every hop and return.
         a.life = unsigned(std::ceil(s_run.radius(float(120 + 40 * a.hops))));
         if (!next_boom_target(a, link, s_run.item_range(weapon))) return false;
+    }
+    if (weapon == Upgrade::Ball) {
+        // Reach must not expire the projectile before its outbound/return legs.
+        a.life=std::max(a.life,unsigned(std::ceil(a.limit/40.f+a.limit/55.f))+30);
     }
     if (weapon == Upgrade::Bow) {
         // Reach extends acquisition and flight, never the arrow's hit radius.
@@ -250,7 +257,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
 }
 void explode_item(Attack& a, daAlink_c* link) {
     a.exploding = true; a.life = 60; a.age = 0; a.velocity = cXyz(0, 0, 0);
-    a.radius = s_run.radius(170 + 30 * s_run.rank(Upgrade::Bombs));
+    a.radius = s_run.bomb_radius();
     a.collider.ResetAtHit(); a.collider.OnAtSetBit();
     // Complete native normal-bomb burst, including splash, debris and smoke.
     constexpr std::array<u16, 9> effects{0x161, 0x162, 0x163, 0x164, 0x165, 0x166, 0x167, 0x168, 0x1ec};

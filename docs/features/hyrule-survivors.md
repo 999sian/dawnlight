@@ -97,21 +97,21 @@ is retained and multiple earned levels are offered consecutively.
 | Whirling Blade | Unlock or improve a native Spin Attack with freely steerable movement |
 | Shield Attack | Requires a chest shield; automatic native shield bash, with damage, range and cooldown upgrades; retains stagger |
 | Fire Arrows | Requires Hero's Bow; ignite enemies for 1 damage/second over 3 seconds; +1 periodic damage per rank and +1 second after every three further upgrades (rank 4) |
-| Hero's Bow | Chest unlock; stronger/faster arrows, spread shots at ranks 3 and 5 |
+| Hero's Bow | Chest unlock; extra arrows at ranks 4/7/10… up to ten, symmetric 5° wider fan per added arrow up to 45°; same-volley extra hits per target deal 25% damage |
 | Boomerang | Chest unlock; Gale wind effect and one extra target at rank 1; each upgrade adds another hop and improves damage/size/cooldown |
 | Bombs | Chest unlock; aimed ballistic throws with larger, stronger blasts and shorter cooldowns |
 | Ball and Chain | Native throw/pull/catch animation and chain links; pierces to full range, damages each enemy once per leg and retains stagger |
 | Power | Increase automatic weapon damage |
 | Haste | Reduce automatic weapon cooldowns |
-| Reach | Increase weapon size |
+| Reach | +7.5% linear reach/range per rank; Spin/Bomb/Shield radii use the square root of that factor |
 | Magnet | Attract XP, rupees, hearts and heart pieces from farther away |
 | Heart Container | Add one maximum heart without healing |
-| Luck | +10% Luck per rank (20 ranks, +200% max); weighted rarity chances; drop bonuses cap at +50% |
+| Luck | 20 ranks; rarity weights +5% and crit multiplier +2.5% per rank; drop bonuses +10% per rank capped at +50% |
 | Rupees | Receive 20 rupees per reward unit without healing |
 
 All passive upgrades are independently available, including Heart Container
 until the native maximum of 20 hearts. Weapons, Fire Arrows, Shield Attack and
-passives have up to 30 levels; Luck retains its +200% cap. Rupees remain available after the
+passives have up to 30 levels; Luck retains its 20-rank cap. Rupees remain available after the
 other upgrades reach their caps. Native enemy defense and death reactions still apply. Ordinary nonlethal hits
 keep their hit effects and damage but do not interrupt enemy movement or attacks.
 Shield Attack and Ball and Chain retain native stagger. Living knocked-down
@@ -157,11 +157,11 @@ its offers are generated. Rarity controls how many ranks of the selected reward
 are granted; it does not choose additional random items after confirmation.
 
 The player-facing [Luck chart](../../SURVIVORS.md#rarities-and-luck) lists the
-rounded probabilities. With `k = 1 + Luck / 100`, weights for Common through
+rounded probabilities. With `k = 1 + 0.05 × Luck rank`, weights for Common through
 Legendary are `60 / 25k / 10k² / 4k³ / k⁴`, normalized by their sum. Integer-scaled
 weights and rejection sampling avoid modulo bias. All three cards roll separately
 for level-ups, paid chests and free elite chests; no level/source bonus applies.
-Luck has 20 ranks (+10% each, max +200%) and resets each run. Heart, heart-piece,
+Luck has 20 ranks (+5% rarity weighting each, max +100%) and resets each run. Heart, heart-piece,
 rupee frequency and rupee-quality bonuses retain their previous +50% effective
 Luck cap. Existing offers never reroll merely because Luck changes or a window
 is reopened; previews consume no randomness.
@@ -277,13 +277,13 @@ current position with the native room rotation/offset. Markers disappear on deat
 and return when the replacement has loaded. No story flags or treasure records
 are modified.
 
-Each killed elite leaves **one free large chest** at its death position (or its
+Each scheduled elite and first kill of a guard slot leaves **one free large chest** at its death position (or its
 last safe floor position). It uses native Dalways large-chest model 13 and lid
 animation 8, not a scaled small chest. Opening shows the same three-card
 controller/touch selection as paid chests, labelled as free. Choose one item;
 only then does its native Get Item sequence start. Cancel keeps the offers.
 Free chests cost zero rupees, never advance the paid-chest price, and disappear
-once the reward completes. A separate pool retains all unopened drops from earlier guard lives, independent
+once the reward completes. Guard respawns do not repeat the chest reward. A separate pool retains unopened first-kill drops, independent
 of the six replenishing paid chests and the one-use map chests. Failed creation is retried; deletion, cleanup and repeated
 death callbacks never generate extra loot. Guards and elites do not age-despawn.
 
@@ -618,7 +618,7 @@ Before merging/releasing, test on Android and desktop:
 21. Compare all rarity colors on names and icon borders, quantities and full deltas.
     Test multi-rank grants near a cap, shield/sword evolution, potion batches with
     mixed empty/full/missing bottles, overflow currency and cancel/reopen stability.
-    Check Luck's +10% increments through +200%, cap/overflow, reset and appearance in the power-up overview.
+    Check Luck's +5% rarity weighting increments through +100%, cap/overflow, reset and appearance in the power-up overview.
 
 22. Collect Dark Link, verify the Poe Soul icon/Get Item text and automatic-only
     wheel slot, first activation at 20 seconds for 5 seconds, x2 damage for every
@@ -629,7 +629,7 @@ Before merging/releasing, test on Android and desktop:
 
 Automated tests cover burn timing/refresh/final ticks and emitter cleanup,
 Dark Link timing/pause/caps/visual isolation, nearest-target multihit selection,
-duplicate suppression and rarity distributions through +200% Luck and the separate +50% drop cap, colored card
+duplicate suppression and rarity distributions through Luck rank 20 and the separate +50% drop cap, colored card
 previews, multi-rank grants and overflow, potion transactions and cancellation,
 continuous melee facing while orbiting, target retention/replacement, rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared
@@ -732,3 +732,37 @@ Regression tests cover all nine reward kinds, paused timing, stable reopening,
 shared choice budgets, all-banned continuation, duplicate callbacks, restart,
 native inventory effects, talent spending/refunds and legacy save migration.
 In-game controller/touch selection and run-start presentation remain to be checked.
+
+## Concurrent-combat balance and 45-degree bow fan
+
+The current formulas and full map HP table are in [the player guide](../../SURVIVORS.md#enemy-health-curves).
+This revision applies the offline balance proposal: flatter Haste/item cooldowns,
++2.5% Dual Wield speed per rank, reduced AoE growth, separate Luck rarity/crit/drop
+multipliers, first-kill-only guard chests, and fixed map/time HP curves with
+absolute final-boss budgets. Power, Master Sword damage, Dark Link's permanent
+2× at rank 30, shield block and rupee drop rates are retained. The optional rare
+Legendary global multiplier is not implemented.
+
+Bow volleys use a symmetric center-out fan with 5 degrees between arrows:
+one arrow 0°, two ±2.5°, three −5°/0°/+5°, ten −22.5°…+22.5°. A partial volley
+uses its actual arrow count and remains symmetric. Twenty group slots follow
+active arrows; an occupied group cannot be reused. Each enemy tracks the last
+volley ID in each slot. The first arrow of a volley deals full damage to that
+enemy, later arrows 25% (rounded to at least one HP before Crit/Dark Link).
+Other targets and later/overlapping volleys retain independent first hits.
+No damage iFrame or shared time gate is introduced. Per-projectile deduplication
+still prevents a persistent arrow collider from hitting twice.
+
+Ball lifetime includes the Reach-scaled outbound and return travel plus a short
+margin. Spin particle scale and collider radius use the same area-radius rule.
+Menus/previews display the new radii, intervals, crit chance, rarity weighting
+and bow fan angle. Guard reward state resets with the run but survives respawn
+and outdoor relocation; every confirmed respawn kill still awards XP.
+
+Validation: native Linux build, rules/distribution tests, production ranged/hit
+collector fixtures, map/elite health and reward lifecycle, and UI regression
+fixtures. Device validation should compare full/partial 45° volleys, simultaneous
+volleys at different distances, large and small targets, high-Reach ball returns,
+first versus repeated guard rewards, and every map's final boss on desktop/Android.
+The previous balancing simulation predates the requested wider fan; its DPS
+figures are not a new measurement of this build.

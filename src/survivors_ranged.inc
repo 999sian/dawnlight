@@ -10,6 +10,7 @@ struct RangedAction {
 } s_ranged;
 unsigned s_rangedRest = 0;
 Upgrade s_lastRanged = Upgrade::Ball;
+uint64_t s_bowVolleySerial = 0;
 
 void cancel_ranged() {
     auto* link = daAlink_getAlinkActorClass();
@@ -30,14 +31,21 @@ void ranged_anime(daAlink_c* link, u16 animation, unsigned ticks) {
 bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     if (!s_loot.ready || !playable() || !s_run.rank(weapon) || s_cooldowns[unsigned(weapon)]) return false;
     cXyz target;
-    if (!nearest_item_target(link, target, s_run.item_range(weapon)) || !launch_item(link, weapon, target)) return false;
-    s_cooldowns[unsigned(weapon)] = s_run.item_cooldown(weapon);
+    if (!nearest_item_target(link, target, s_run.item_range(weapon))) return false;
     if (weapon == Upgrade::Bow) {
-        for (unsigned i=1;i<s_run.bow_shots();++i) {
-            const float spread=0.07f*float((i+1)/2)*(i%2 ? 1.f : -1.f);
-            if (!launch_item(link,weapon,target,spread)) break;
-        }
-    }
+        const auto begin=s_attacks.begin()+item_projectile_begin(0),end=begin+item_projectile_count(0);
+        const unsigned count=std::min(s_run.bow_shots(),unsigned(std::count_if(begin,end,[](const auto& a){return !a.active;})));
+        if(!count)return false;
+        // A group slot is never reused while any arrow from its previous volley
+        // remains active, so late hits and overlapping volleys stay independent.
+        unsigned group=0;
+        for(;group<20;++group) if(std::none_of(begin,end,[&](const auto& a){return a.active&&a.bowVolleySlot==group;}))break;
+        if(group==20)return false;
+        const uint64_t volley=++s_bowVolleySerial;
+        for(unsigned i=0;i<count;++i)
+            if(!launch_item(link,weapon,target,Run::bow_spread(i,count),group,volley))return false;
+    } else if(!launch_item(link,weapon,target))return false;
+    s_cooldowns[unsigned(weapon)] = s_run.item_cooldown(weapon);
     // One native upper-body pose can be displayed at a time. It is cosmetic:
     // other weapons and the normal sword combo do not wait for it to finish.
     if (!s_ranged.active && !s_rangedRest && sword_action_available(link) && !link->checkEquipAnime()) {

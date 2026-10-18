@@ -7,7 +7,7 @@ void initialize_enemy(Enemy* enemy, fopAc_ac_c* actor) {
         if (enemy->elite && enemy->dormant && !enemy->retiring && !enemy->credited &&
             actor->health > 0 && actor->health == actor->field_0x560)
             actor->field_0x560 = actor->health = static_cast<s16>(
-                s_run.enemy_health(native_roster[enemy->species].hp, true));
+                s_run.enemy_health(native_roster[enemy->species].hp, true, s_map));
         return;
     }
     enemy->initialized = true;
@@ -20,7 +20,7 @@ void initialize_enemy(Enemy* enemy, fopAc_ac_c* actor) {
         // Bulblin's native matrix already includes actor->scale.
     }
     actor->field_0x560 = actor->health = static_cast<s16>(
-        s_run.enemy_health(native_roster[enemy->species].hp, enemy->elite));
+        s_run.enemy_health(native_roster[enemy->species].hp, enemy->elite, s_map, enemy->eliteSlot==int(timed_elite_count-1)));
 }
 void scale_elite_colliders(const Enemy* enemy, fopAc_ac_c* actor) {
     if (enemy && actor && enemy->elite && enemy->profile == fpcNm_E_OC_e) {

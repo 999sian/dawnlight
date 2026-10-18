@@ -13,13 +13,13 @@ void update_parallel_pulse(Attack& a, daAlink_c* link) {
 }
 bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     const bool spin=weapon==Upgrade::Spin;
-    const float base=spin?parallel_spin_base_radius(link):60+8*s_run.rank(weapon);
-    const float range=spin?s_run.radius(base):s_run.radius(200);
+    const float base=spin?parallel_spin_base_radius(link):60+3*s_run.rank(weapon);
+    const float range=spin?s_run.area_radius(base):100+s_run.shield_radius();
     if (!enemy_in_range(link,range)) return false;
     auto& a=s_attacks[spin?kSpinSlot:kShieldSlot];
     stop_attack(a);a={};
     a.active=true;a.weapon=unsigned(weapon);a.life=6; // Six registered frames; minimum cooldown is six.
-    a.radius=s_run.radius(base);
+    a.radius=s_run.area_radius(base);
     // Keep pulse centers attached to Link without adding projectile movement.
     a.status.Init(120,0xff,link);a.collider.Set(kAttackSource);a.collider.SetStts(&a.status);
     a.collider.SetAtType(AT_TYPE_NORMAL_SWORD);a.collider.SetAtMtrl(dCcD_MTRL_NONE);
@@ -41,10 +41,10 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
 void update_parallel_skills(daAlink_c* link) {
     if(s_run.rank(Upgrade::Wave) && !s_cooldowns[unsigned(Upgrade::Wave)] && enemy_in_range(link,1600)) {
         release_sword_wave(link);
-        s_cooldowns[unsigned(Upgrade::Wave)]=s_run.cooldown(40);
+        s_cooldowns[unsigned(Upgrade::Wave)]=s_run.cooldown(60);
     }
     if(s_run.rank(Upgrade::Spin) && !s_cooldowns[unsigned(Upgrade::Spin)] && launch_parallel_pulse(link,Upgrade::Spin))
-        s_cooldowns[unsigned(Upgrade::Spin)]=s_run.cooldown(100);
+        s_cooldowns[unsigned(Upgrade::Spin)]=s_run.cooldown(120);
     if(s_run.owns(ChestReward::Shield) && s_run.rank(Upgrade::ShieldAttack) &&
        !s_cooldowns[unsigned(Upgrade::ShieldAttack)] && launch_parallel_pulse(link,Upgrade::ShieldAttack))
         s_cooldowns[unsigned(Upgrade::ShieldAttack)]=s_run.shield_cooldown();

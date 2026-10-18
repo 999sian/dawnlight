@@ -280,6 +280,8 @@ struct Attack {
     std::array<ActorId, 11> visited{};
     std::array<ActorId, enemy_capacity> ballVictims{};
     unsigned ballVictimCount = 0;
+    unsigned bowVolleySlot = 20;
+    uint64_t bowVolley = 0;
     float travel = 0, limit = 0;
     cXyz position{}, velocity{};
     float radius = 0;
@@ -739,7 +741,7 @@ void sync_spin_radius(daAlink_c* link) {
     // Native normal/light particles are authored for the final native radius.
     // Match their geometry and particle size to the current expanding hitbox,
     // including Reach. Absolute scales avoid compounding on reused emitters.
-    const float radius = s_run.radius(link->field_0x347c);
+    const float radius = s_run.area_radius(link->field_0x347c);
     const float nativeRadius = link->field_0x3478;
     if (!std::isfinite(radius) || !std::isfinite(nativeRadius) || radius <= 0 || nativeRadius <= 0) return;
     link->mAtSph.SetR(radius);

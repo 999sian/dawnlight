@@ -34,9 +34,9 @@ Actor* actor_by_id(unsigned id){for(auto&a:actors)if(a.id==id)return &a;return n
 unsigned fopAcM_GetID(Actor*a){return a->id;}int fopAcM_GetName(Actor*a){return a->name;}
 constexpr int fpcNm_E_MM_MT_e=77;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
-struct Effect{unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,2>effects;
+struct Effect{std::array<uint64_t,20>bowVolleys{};unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,2>effects;
 Effect& effect_for(Enemy&e){return effects[&e-enemies.data()];}
-struct Attack{bool active=false;unsigned weapon=0,life=0,ballVictimCount=0;std::array<unsigned,enemy_capacity>ballVictims{};
+struct Attack{unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0;std::array<unsigned,enemy_capacity>ballVictims{};
  Collider collider;Status status;std::array<unsigned,9>emitters{};float radius=0;cXyz position,velocity;};
 std::array<Attack,projectile_capacity>s_attacks;
 Run s_run;unsigned s_player=1,s_meleeSerial=1;
@@ -103,10 +103,22 @@ int main(){
  update_parallel_skills(&player);assert(waves==1);
  for(unsigned reach:{0u,5u,30u})for(unsigned master:{0u,5u}){
   s_run.ranks[5]=reach;s_run.master_sword=master;assert(launch_parallel_pulse(&player,Upgrade::Spin));
-  auto&a=s_attacks[kSpinSlot];float radius=s_run.radius(master?400:260);
+  auto&a=s_attacks[kSpinSlot];float radius=s_run.area_radius(master?400:260);
   assert(a.radius==radius);for(auto k:a.emitters)if(k)assert(std::abs(emitters[k].scale.x*260-radius)<.01);
   player.current.pos={20,30,40};update_parallel_pulse(a,&player);assert(a.position.y==95);
  }
+ // Same-volley extra hits are quarter damage; separate/overlapping volleys
+ // and different targets retain full first-hit damage, even on one frame.
+ effects={};s_attacks={};target.owner=&actors[0];s_run.ranks[unsigned(Upgrade::CritChance)]=0;
+ for(unsigned i=0;i<4;++i){auto&a=s_attacks[i];a.active=true;a.weapon=unsigned(Upgrade::Bow);a.collider.power=20;
+  a.bowVolleySlot=i==2?1:0;a.bowVolley=i==2?101:100;}
+ hit(&s_attacks[0].collider,&target);hit(&s_attacks[1].collider,&target);
+ hit(&s_attacks[2].collider,&target);hit(&s_attacks[3].collider,&target);
+ assert(effects[0].pending==50);hit(&s_attacks[3].collider,&target);assert(effects[0].pending==50);
+ s_attacks[4]=s_attacks[0];s_attacks[4].ballVictimCount=0;target.owner=&actors[1];
+ hit(&s_attacks[4].collider,&target);assert(effects[1].pending==20);
+ s_attacks[5]=s_attacks[0];s_attacks[5].ballVictimCount=0;s_attacks[5].bowVolley=102;
+ target.owner=&actors[0];hit(&s_attacks[5].collider,&target);assert(effects[0].pending==70);
  distance=1e6;assert(!launch_parallel_pulse(&player,Upgrade::Spin));
 }
 '''

@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cmath>
 #include <span>
 #include "survivors_progression.hpp"
 
@@ -59,17 +60,17 @@ inline constexpr std::array descriptions{
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
     "Increase melee reach, Dual Wield target range, Spin and Jump Strike radii, bow range and Boomerang flight/hop range.", "Attract experience, rupees, hearts and heart pieces from farther away.",
     "Gain one maximum heart (does not heal).",
-    "Faster, stronger arrows. Every three upgrades adds an arrow, up to ten.",
+    "Faster, stronger arrows. Up to ten arrows across 45 degrees; each extra arrow widens the fan by 5 degrees. Extra hits on one enemy per volley deal 25% damage.",
     "A damaging returning boomerang. Upgrades increase damage, hops and firing rate; hit size stays fixed.",
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
     "Ignite enemies for periodic damage. Hits refresh the burn; upgrades improve damage and duration.",
-    "Improve reward rarities and critical chance. +10% Luck per level, max +200%. Heart and rupee bonuses stop at +50%.",
+    "Improve rarity weights by +5% and critical chance by +2.5% per level. Heart and rupee bonuses gain +10% per level, capped at +50%.",
     "Red potions restore an extra quarter heart per level.",
-    "Direct hits gain +1% base critical chance per level. Luck multiplies this chance.",
+    "Direct hits gain +0.75% base critical chance per level. Luck multiplies this chance.",
     "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
     "Master Sword: occasionally perform a quick Jump Strike. Landing splash starts at 30% melee damage; +5 percentage points per rank.",
-    "Improve equipped Dual Wield: +5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
+    "Improve equipped Dual Wield: +2.5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
     "Receive 20 rupees."};
 
 struct RunOptions {
@@ -128,7 +129,7 @@ struct Run {
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return u == Upgrade::DualWield ? dual_wield : i < ranks.size() ? ranks[i] : 0; }
     unsigned potion_heal_quarters() const { return 4 + rank(Upgrade::PotionHealing); }
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
-    unsigned crit_chance_basis_points() const { return std::min(10000u, (std::min(30u,rank(Upgrade::CritChance))+talents.rank(Talent::CritChance))*luck_percent()); }
+    unsigned crit_chance_basis_points() const { return std::min(10000u, (std::min(30u,rank(Upgrade::CritChance))*75+talents.rank(Talent::CritChance)*100)*(100+5*std::min(20u,rank(Upgrade::Luck))/2)/100); }
     unsigned crit_damage_percent() const { return 200 + 5*std::min(30u,rank(Upgrade::CritDamage)) + 10*talents.rank(Talent::CritDamage); }
     bool roll_chance(unsigned chance) {
         if (!chance) return false;
@@ -147,9 +148,9 @@ struct Run {
     // Drop frequency/quality retain their old +50% cap independently of rarities.
     unsigned lucky_chance(unsigned basis_points) const { return basis_points * std::min(150u, luck_percent()) / 100; }
     std::array<uint32_t, 5> rarity_weights() const {
-        // 60 / 25k / 10k^2 / 4k^3 / k^4, scaled by 10,000 for exact integers.
-        const uint32_t t = luck_percent() / 10; // k = t / 10; t is in [10, 30].
-        return {600000, 25000*t, 1000*t*t, 40*t*t*t, t*t*t*t};
+        // 60 / 25k / 10k^2 / 4k^3 / k^4. Integer weights retain half-step Luck ranks.
+        const uint32_t t = 100 + 5*std::min(20u,rank(Upgrade::Luck)); // k = t / 100; t is in [100, 200].
+        return {600000000, 2500000*t, 10000*t*t, 40*t*t*t, t*t*t*t/10};
     }
     Rarity roll_rarity() {
         const auto weights = rarity_weights();
@@ -221,7 +222,7 @@ struct Run {
     unsigned burn_duration() const { return (3 + (std::max(1u, rank(Upgrade::FireArrows)) - 1) / 3) * ticks_per_second; }
     unsigned bonus_damage() const { return talents.rank(Talent::BonusDamage); }
     unsigned melee_power() const { return 3 + rank(Upgrade::Power) + sword_bonus() + bonus_damage(); }
-    unsigned melee_speed_percent() const { return 100 + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield) + 5*talents.rank(Talent::MeleeHaste); }
+    unsigned melee_speed_percent() const { return 100 + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield)/2 + 5*talents.rank(Talent::MeleeHaste); }
     float melee_speed() const { return melee_speed_percent()/100.f; }
     unsigned melee_cooldown() const { return std::max(6u, 30*cooldown_percent()/melee_speed_percent()); }
     unsigned auto_rupees() const { return ticks && ticks%(5*ticks_per_second)==0 ? talents.rank(Talent::AutoRupees) : 0; }
@@ -236,6 +237,14 @@ struct Run {
     bool roll_jump_strike() { return master_sword && rank(Upgrade::JumpStrike) && next_random() % 100 < 20; }
     unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 10) : 1; }
     unsigned bow_shots() const { return rank(Upgrade::Bow) ? std::min(10u,1+(rank(Upgrade::Bow)-1)/3) : 0; }
+    // Center-out emission preserves a balanced, evenly spaced fan, including
+    // even counts. N arrows cover (N-1)*5 degrees; ten cover -22.5..+22.5.
+    static float bow_spread(unsigned index, unsigned count) {
+        count=std::clamp(count,1u,10u);if(index>=count)return 0;
+        const int halfSteps=count%2 ? (index%2 ? int(index+1) : -int(index)) :
+            (index%2 ? -int(index) : int(index+1));
+        return float(halfSteps)*(2.5f*3.14159265358979323846f/180.f);
+    }
     unsigned boomerang_hops() const { return rank(Upgrade::Boomerang) ? std::min(10u,1+(rank(Upgrade::Boomerang)-1)/3) : 0; }
     bool owns(ChestReward reward) const {
         if (reward<=ChestReward::Ball) return rank(chest_weapon(reward))!=0;
@@ -339,9 +348,9 @@ struct Run {
         return true;
     }
     unsigned item_cooldown(Upgrade weapon) const {
-        const unsigned base = weapon == Upgrade::Bow ? 50 : weapon == Upgrade::Boomerang ? 85 :
-            weapon == Upgrade::Bombs ? 110 : 100;
-        return cooldown(base - std::min(base - 6, 5 * (std::max(1u, rank(weapon)) - 1)));
+        const unsigned base = weapon==Upgrade::Bow?75:weapon==Upgrade::Boomerang?85:weapon==Upgrade::Bombs?110:100;
+        const unsigned floor=weapon==Upgrade::Bow?20:weapon==Upgrade::Boomerang?30:weapon==Upgrade::Bombs?45:40;
+        return std::max(floor,cooldown(base*100/(100+5*(std::max(1u,rank(weapon))-1)/2)));
     }
     bool tick(bool playable) {
         if (phase != Phase::Running || !playable) return false;
@@ -359,24 +368,36 @@ struct Run {
         }
         return true;
     }
-    // Sample on enemy initialization: +25% base HP/minute, +50% for elites.
-    // Difficulty multiplies the result; round once and respect native signed HP.
-    unsigned enemy_health(unsigned base, bool elite) const {
-        const uint64_t denominator = 100 * 60 * ticks_per_second;
-        const uint64_t growth = denominator + uint64_t(ticks) * (elite ? 50 : 25);
-        const unsigned baseline = std::clamp(elite ? std::max(120u, base) : base, 1u, 32767u);
-        const uint64_t hp = uint64_t(baseline) * std::clamp(options.enemy_hp, 1u, 10u) * growth;
-        return unsigned(std::min<uint64_t>(32767, (hp + denominator / 2) / denominator));
+    // Fixed map/time curves: never scale from the player's actual gear or luck.
+    // Sample on spawn (untouched dormant guards may refresh); stop growth at 20m.
+    unsigned enemy_health(unsigned base, bool elite, unsigned map=0, bool finalBoss=false) const {
+        constexpr uint64_t scale=1000000;
+        constexpr unsigned times[]{0,60,300,600,900,1200};
+        constexpr uint64_t curves[5][6]{
+            {1000000,1000000,4092209,10758235,19215847,28296574},
+            {1000000,1082457,8761003,25392559,49660833,67439452},
+            {1000000,1042207,8387484,23263089,44298512,59427164},
+            {1000000,1000000,5696760,14616823,24382634,34535097},
+            {1000000,1097053,4979767,12787987,22408492,32725714}};
+        constexpr unsigned finalHp[]{2300,5400,4800,2800,2600};
+        map=map<5?map:0;
+        const unsigned time=std::min(ticks,duration);
+        unsigned i=1;while(i<5 && time>times[i]*ticks_per_second)++i;
+        const uint64_t factor=curves[map][i-1]+(curves[map][i]-curves[map][i-1])*
+            (time-times[i-1]*ticks_per_second)/((times[i]-times[i-1])*ticks_per_second);
+        const uint64_t hp=finalBoss ? uint64_t(finalHp[map])*scale : elite ?
+            std::max(120*scale,32*factor) : std::clamp(base,1u,32767u)*factor;
+        return unsigned(std::min<uint64_t>(32767,(hp*std::clamp(options.enemy_hp,1u,10u)+scale/2)/scale));
     }
     unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u) * 3 * options.horde; }
     unsigned spawn_batch() const { return options.horde * (horde_remaining ? 3 : 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
     unsigned cooldown_percent() const {
         const auto rank = std::min(30u, this->rank(Upgrade::Haste));
-        return rank <= 5 ? 100 - rank * 10 : 1250 / (25 + 3 * (rank - 5));
+        return 10000/(100+5*rank/2);
     }
     unsigned cooldown(unsigned base) const { return std::max(6u, base * cooldown_percent() / 100); }
-    unsigned shield_cooldown() const { return cooldown(100 - std::min(90u, 10 * rank(Upgrade::ShieldAttack))); }
+    unsigned shield_cooldown() const {return std::max(30u,cooldown(9000/(100+3*rank(Upgrade::ShieldAttack))));}
     bool normal_kill_drops() { if (++drop_progress < options.horde) return false; drop_progress=0; return true; }
     // At base Luck: 2.5% heart, 45% rupee, 52.5% nothing. A second lucky
     // roll chooses rupee value, so Luck improves both frequency and quality.
@@ -411,9 +432,12 @@ struct Run {
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }
     unsigned sword_bonus() const { return master_sword ? 2 + master_sword : 0; }
     unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0) + bonus_damage(); }
+    float area_radius(float base) const { return base*std::sqrt(radius(1.f)); }
+    float bomb_radius() const { return area_radius(170+12*rank(Upgrade::Bombs)); }
+    float shield_radius() const { return area_radius(60+3*rank(Upgrade::ShieldAttack)); }
     float item_range(Upgrade weapon) const { return (weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range; }
     float boomerang_hop_range() const { return radius(800.f); }
-    float radius(float base) const { return base * (1.0f + 0.15f * rank(Upgrade::Reach)); }
+    float radius(float base) const { return base * (1.0f + 0.075f * rank(Upgrade::Reach)); }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };
 

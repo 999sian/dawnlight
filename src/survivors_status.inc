@@ -4,6 +4,7 @@ struct EnemyEffect {
     ActorId id = kNone;
     unsigned burn = 0, pulse = ticks_per_second, pending = 0, meleeSerial = 0;
     unsigned damage = 0, jumpSerial = 0;
+    std::array<uint64_t,20> bowVolleys{};
     bool pendingStagger = false, stagger = false;
     bool injected = false, pendingCritical = false, critical = false;
     cXyz velocity{};
@@ -27,7 +28,7 @@ void clear_enemy_effects() {
     for (auto& effect : s_effects) {
         stop_burn(effect); effect.id = kNone; effect.pending = effect.damage = effect.meleeSerial = 0;
         effect.injected = false; effect.pendingCritical = effect.critical = false;
-        effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;
+        effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;effect.bowVolleys={};
     }
 }
 bool effect_collider(const cCcD_Obj* collider) {
@@ -43,7 +44,7 @@ EnemyEffect& effect_for(Enemy& enemy) {
     if (effect.id != enemy.id) {
         stop_burn(effect); effect.id = enemy.id;
         effect.pending = effect.damage = effect.meleeSerial = 0; effect.injected = false; effect.pendingCritical = effect.critical = false;
-        effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;
+        effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;effect.bowVolleys={};
     }
     return effect;
 }

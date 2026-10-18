@@ -4,45 +4,56 @@
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
-    // Time scaling uses active run ticks, stacks difficulty once, and keeps
-    // elite/boss baselines distinct. Intermediate seconds do not step by minute.
+    // Fixed map/time curves, rounded once with difficulty. Final boss budgets
+    // are absolute, separate from normal/elite HP, and do not grow after 20m.
     Run hp;hp.start(1);
-    for(unsigned minute:{0u,5u,10u,20u,30u}) {
-        hp.ticks=minute*60*ticks_per_second;
-        assert(hp.enemy_health(8,false)==8+2*minute);
-        assert(hp.enemy_health(4,false)==4+minute);
-        assert(hp.enemy_health(8,true)==120+60*minute);
-        assert(hp.enemy_health(1200,true)==1200+600*minute);
+    constexpr unsigned normalEnd[]{226,540,475,276,262};
+    constexpr unsigned eliteEnd[]{905,2158,1902,1105,1047};
+    constexpr unsigned bosses[]{2300,5400,4800,2800,2600};
+    for(unsigned map=0;map<5;++map) {
+        hp.ticks=0;assert(hp.enemy_health(8,false,map)==8&&hp.enemy_health(8,true,map)==120);
+        unsigned previous=0;
+        for(unsigned tick=0;tick<=duration;tick+=30){hp.ticks=tick;
+            unsigned now=hp.enemy_health(8,false,map);assert(now>=previous);previous=now;}
+        assert(hp.enemy_health(8,false,map)==normalEnd[map]);
+        assert(hp.enemy_health(8,true,map)==eliteEnd[map]);
+        for(unsigned multiplier:{1u,3u,10u}) {
+            hp.options.enemy_hp=multiplier;
+            assert(hp.enemy_health(1200,true,map,true)==std::min(32767u,bosses[map]*multiplier));
+        }
+        hp.options.enemy_hp=1;hp.ticks=~0u;
+        assert(hp.enemy_health(8,false,map)==normalEnd[map]);
     }
-    hp.ticks=30*ticks_per_second;
-    assert(hp.enemy_health(8,false)==9&&hp.enemy_health(8,true)==150);
-    hp.options.enemy_hp=3;
-    assert(hp.enemy_health(8,false)==27&&hp.enemy_health(8,true)==450);
-    hp.ticks=duration;hp.options.enemy_hp=10;
-    assert(hp.enemy_health(1200,true)==32767);
-    hp.ticks=~0u;assert(hp.enemy_health(~0u,true)==32767);
-    hp.start(1);assert(hp.enemy_health(8,false)==8&&hp.enemy_health(1200,true)==1200);
-    for(auto phase:{Phase::Upgrade,Phase::TreasureChoice,Phase::Treasure}){
-        hp.phase=phase;for(unsigned i=0;i<1800;++i)hp.tick(true);
-        assert(hp.enemy_health(8,false)==8&&hp.enemy_health(8,true)==120);
-    }
-    hp.phase=Phase::Running;for(unsigned i=0;i<1800;++i)hp.tick(false);
+    hp.ticks=1800;hp.options.enemy_hp=3;assert(hp.enemy_health(8,false,1)==26);
+    hp.ticks=duration;hp.options.enemy_hp=10;assert(hp.enemy_health(~0u,false)==32767);
+    hp.start(1);hp.phase=Phase::Upgrade;for(unsigned i=0;i<1800;++i)hp.tick(true);
+    assert(hp.enemy_health(8,false)==8);hp.phase=Phase::Running;
+    for(unsigned i=0;i<1800;++i)hp.tick(false);
     assert(hp.enemy_health(8,false)==8);
+    // One added arrow adds exactly five degrees of total fan, centered at aim.
+    for(unsigned count=1;count<=10;++count){std::array<float,10> fan{};
+        for(unsigned i=0;i<count;++i)fan[i]=Run::bow_spread(i,count);
+        std::sort(fan.begin(),fan.begin()+count);
+        constexpr float step=5.f*3.14159265358979323846f/180.f;
+        assert(std::abs(fan[0]+fan[count-1])<1.e-6f);
+        assert(std::abs(fan[count-1]-fan[0]-(count-1)*step)<1.e-6f);
+        for(unsigned i=1;i<count;++i)assert(std::abs(fan[i]-fan[i-1]-step)<1.e-6f);
+    }
     // Dual Wield uses one rank for chest and level-up upgrades, including rarity
     // caps/excess refunds, shield coexistence and cross-source banishment.
     Run dual;dual.start(1);assert(!dual.eligible(Upgrade::DualWield));
     unsigned dualMoney=1000;dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::OrdonSword,true));
-    assert(dual.dual_wield==1&&dual.rank(Upgrade::DualWield)==1&&dual.melee_speed_percent()==105);
+    assert(dual.dual_wield==1&&dual.rank(Upgrade::DualWield)==1&&dual.melee_speed_percent()==102);
     assert(dual.eligible(Upgrade::DualWield));
     dual.phase=Phase::Upgrade;dual.offers[0]=Upgrade::DualWield;dual.offer_rarities[0]=Rarity::Legendary;
-    assert(dual.choose(0)&&dual.dual_wield==6&&dual.melee_targets()==2&&dual.melee_speed_percent()==130);
+    assert(dual.choose(0)&&dual.dual_wield==6&&dual.melee_targets()==2&&dual.melee_speed_percent()==115);
     dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::OrdonSword,true)&&dual.rank(Upgrade::DualWield)==7);
     dual.dual_wield=27;dual.phase=Phase::Upgrade;assert(dual.upgrade_gain(Upgrade::DualWield,Rarity::Legendary)==3);
     assert(dual.upgrade_rupees(Upgrade::DualWield,Rarity::Legendary)==40);
     assert(dual.choose(0)&&dual.dual_wield==30&&!dual.eligible(Upgrade::DualWield));
-    assert(dual.melee_targets()==5&&dual.melee_speed_percent()==250);
+    assert(dual.melee_targets()==5&&dual.melee_speed_percent()==175);
     dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::Shield,true)&&dual.dual_wield==30&&dual.shield==1&&!dual.eligible(Upgrade::DualWield));
-    assert(dual.melee_speed_percent()==250);
+    assert(dual.melee_speed_percent()==175);
     for(bool chest:{false,true}) {
         dual.start(1);dual.dual_wield=1;dual.phase=chest?Phase::TreasureChoice:Phase::Upgrade;
         assert(chest?dual.banish(ChestReward::OrdonSword,false):dual.banish(Upgrade::DualWield));
@@ -52,7 +63,7 @@ int main() {
     dual.start(1);dual.dual_wield=1;dual.shield=1;
     assert(dual.eligible(Upgrade::DualWield)&&dual.eligible(Upgrade::ShieldAttack));
     dual.talents.ranks[unsigned(Talent::MeleeHaste)]=5;dual.ranks[unsigned(Upgrade::Haste)]=5;
-    assert(dual.melee_speed_percent()==130&&dual.melee_cooldown()==11&&dual.cooldown(30)==15);
+    assert(dual.melee_speed_percent()==127&&dual.melee_cooldown()==21&&dual.cooldown(30)==26);
 
     Run jump; jump.start(12);
     assert(!jump.eligible(Upgrade::JumpStrike));
@@ -81,7 +92,7 @@ int main() {
         crit.start(98765);crit.ranks[unsigned(Upgrade::CritChance)]=chanceRank;
         crit.ranks[unsigned(Upgrade::Luck)]=luckRank;
         crit.ranks[unsigned(Upgrade::CritDamage)]=30;
-        const unsigned expected=chanceRank*(100+10*luckRank);
+        const unsigned expected=chanceRank*75*(100+5*luckRank/2)/100;
         assert(crit.crit_chance_basis_points()==expected&&crit.crit_damage_percent()==350);
         const auto before=crit.random;assert(crit.critical_power(0)==0&&crit.random==before);
         unsigned criticalHits=0;
@@ -108,11 +119,7 @@ int main() {
     crit.ranks[unsigned(Upgrade::CritChance)]=30;crit.random=1;
     assert(crit.critical_power(3)==11); // x3.5 rounds once to native integer health.
     // Published chart checkpoints (basis points), sampled from actual rarity rolls.
-    constexpr std::array<std::array<unsigned,5>,7> chart{{
-        {6000,2500,1000,400,100}, {5640,2585,1137,500,138},
-        {4957,2685,1396,726,236}, {4330,2706,1624,974,365},
-        {3030,2525,2020,1616,808}, {2094,2181,2181,2181,1363},
-        {1449,1812,2174,2609,1957}}};
+    constexpr std::array<std::array<unsigned,5>,7> chart{{{6000,2500,1000,400,100},{5818,2546,1069,449,118},{5464,2618,1204,554,159},{5123,2668,1334,667,208},{4330,2706,1624,974,365},{3632,2648,1854,1298,568},{3030,2525,2020,1616,808}}};
     unsigned row=0;
     for(unsigned luck:{0u,1u,3u,5u,10u,15u,20u}) {
         Run sample;sample.start(98765);sample.ranks[unsigned(Upgrade::Luck)]=luck;
@@ -221,7 +228,7 @@ int main() {
         assert(run.level_up());
         for (const auto offer : run.offers) assert(offer == Upgrade::Rupees);
         assert(run.choose(2));
-        assert(run.cooldown(40) == 6);
+        assert(run.cooldown(40) == 22);
     }
     run.start(1);
     run.ranks[3] = run.ranks[4] = run.ranks[5] = run.ranks[6] = 1;
@@ -360,8 +367,8 @@ int main() {
             if (rank) assert(high.eligible(Upgrade(u))==(rank<30));
         }
         const auto interval=high.item_cooldown(Upgrade::Bow);
-        assert(interval>=6 && interval<=50);
-        assert(high.shield_cooldown()>=6 && high.shield_cooldown()<=100);
+        assert(interval>=20 && interval<=75);
+        assert(high.shield_cooldown()>=30 && high.shield_cooldown()<=90);
         if(rank){Run previous=high;previous.ranks.fill(rank-1);
             assert(high.cooldown(100)<=previous.cooldown(100));
             assert(interval<=previous.item_cooldown(Upgrade::Bow));}
@@ -436,7 +443,7 @@ int main() {
     }
     for(unsigned rank=1;rank<=30;++rank){slots.dual_wield=rank;
         assert(slots.melee_targets()==(rank<10?2u:rank<20?3u:rank<30?4u:5u));
-        assert(slots.melee_speed_percent()==100+5*rank);}
+        assert(slots.melee_speed_percent()==100+5*rank/2);}
     // Both equipment paths clamp every rarity and compensate only excess levels.
     for(auto reward:{ChestReward::OrdonSword,ChestReward::DarkLink})
     for(unsigned rank=0;rank<=30;++rank)for(unsigned tier=0;tier<5;++tier){

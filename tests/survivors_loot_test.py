@@ -80,7 +80,7 @@ struct Collider {
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
 struct Attack {
-    ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
+    unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
     bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
@@ -175,11 +175,11 @@ int main(){
     for(unsigned i=0;i<29;++i){update_item_attack(bomb,&player);assert(!bomb.exploding && server.registrations==0);}
     update_item_attack(bomb,&player);
     assert(bomb.exploding && std::abs(bomb.position.z-600)<0.01f && std::abs(bomb.position.y-70)<0.01f);
-    assert(bomb.collider.radius==200 && server.registrations==1 && particles==9);
+    assert(bomb.collider.radius==182 && server.registrations==1 && particles==9);
     for(unsigned i=0;i<61;++i)update_item_attack(bomb,&player);
     assert(!bomb.active);
     reset();s_run.ranks[10]=5;assert(launch_item(&player,Upgrade::Bombs,{0,70,600}));blocked=true;
-    update_item_attack(s_attacks[32],&player);assert(s_attacks[32].exploding && s_attacks[32].radius==320);
+    update_item_attack(s_attacks[32],&player);assert(s_attacks[32].exploding && s_attacks[32].radius==230);
     for(auto weapon:{Upgrade::Boomerang,Upgrade::Ball}){
         reset();s_run.ranks[unsigned(weapon)]=1;assert(launch_item(&player,weapon,{0,70,400}));
         auto& a=s_attacks[item_projectile_begin(unsigned(weapon)-unsigned(Upgrade::Bow))];
@@ -189,6 +189,12 @@ int main(){
         for(unsigned i=0;i<80 && a.active;++i)update_item_attack(a,&player);
         assert(!a.active);
     }
+    // Maximum Reach still completes both legs before expiry.
+    reset();s_run.ranks[11]=1;s_run.ranks[unsigned(Upgrade::Reach)]=30;
+    assert(launch_item(&player,Upgrade::Ball,{0,70,400}));
+    auto& longBall=s_attacks[36];assert(longBall.life>100);
+    bool returned=false;for(unsigned i=0;i<200&&longBall.active;++i){update_item_attack(longBall,&player);returned|=longBall.returning;}
+    assert(returned&&!longBall.active&&longBall.position.absXZ(player.current.pos)<100);
     // High, low and vertically aligned targets never tilt or slow the ball.
     for(cXyz target : {cXyz(0,700,400),cXyz(0,-300,400),cXyz(0,900,0)}) {
         reset();s_run.ranks[11]=1;assert(launch_item(&player,Upgrade::Ball,target));
@@ -230,7 +236,7 @@ int main(){
         auto& arrow=s_attacks[8];
         while(arrow.active&&arrow.position.z<near.eyePos.z)update_item_attack(arrow,&player);
         assert(arrow.active&&arrow.collider.radius==35);
-        if(reach==30)assert(arrow.age>100);
+        if(reach==30)assert(arrow.age>50);
         arrow.collider.hit=true;update_item_attack(arrow,&player);assert(!arrow.active);
         blocked=true;update_item_attack(s_attacks[9],&player);assert(!s_attacks[9].active);
         blocked=false;s_attacks[10].collider.shield=true;
@@ -249,12 +255,12 @@ int main(){
     // An extended first target is acquired, every hop uses Reach, and the
     // projectile lives long enough to complete the maximum-length chain/return.
     reset();actors.clear();s_enemies={};s_run.ranks[9]=30;
-    for(unsigned i=0;i<11;++i){chain[i].id=10+i;chain[i].health=10;chain[i].eyePos={0,70,7000.f+4000*i};
+    for(unsigned i=0;i<11;++i){chain[i].id=10+i;chain[i].health=10;chain[i].eyePos={0,70,4200.f+2300*i};
         actors[10+i]=&chain[i];s_enemies[i]={10+i,true,false,false};}
     assert(!nearest_item_target(&player,target));
     assert(!launch_item(&player,Upgrade::Boomerang,chain[0].eyePos));
     s_run.ranks[unsigned(Upgrade::Reach)]=30;
-    assert(nearest_item_target(&player,target,s_run.item_range(Upgrade::Boomerang))&&target.z==7000);
+    assert(nearest_item_target(&player,target,s_run.item_range(Upgrade::Boomerang))&&target.z==4200);
     assert(!nearest_item_target(&player,target,s_run.item_range(Upgrade::Bombs)));
     assert(launch_item(&player,Upgrade::Boomerang,chain[0].eyePos));
     auto& longBoom=s_attacks[28];

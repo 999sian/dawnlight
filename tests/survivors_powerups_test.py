@@ -138,7 +138,7 @@ int main(){
  s_run.offers={Upgrade::DualWield,Upgrade::Count,Upgrade::Count};
  assert(build_upgrade_choices(1,2)==MOD_OK);bool dualSpeed=false,dualTargets=false;Element* dualButton=nullptr;
  for(auto& [id,e]:elements){
-  dualSpeed|=e.text.find("145% -&gt; 150%")!=std::string::npos;
+  dualSpeed|=e.text.find("122% -&gt; 125%")!=std::string::npos;
   dualTargets|=e.text.find("2 -&gt; 3")!=std::string::npos;
   if(e.kind=="button"&&e.text=="Dual Wield")dualButton=&e;
  }
@@ -160,7 +160,7 @@ int main(){
    bool delta=false;
    for(const auto& [id,e]:elements)if(e.kind=="rml"){
      const auto expected=power==Upgrade::CritChance?
-       "0% base; 0.00% with Luck -&gt; 1% base; 3.00% with Luck":
+       "0.00% base; 0.00% with Luck -&gt; 0.75% base; 1.12% with Luck":
        "x2.00 critical damage -&gt; x2.05 critical damage";
      delta|=e.text.find(expected)!=std::string::npos;
    }
@@ -191,7 +191,7 @@ int main(){
  s_run.ranks[unsigned(Upgrade::Luck)]=18;s_run.offer_rarities.fill(Rarity::Legendary);
  assert(build_upgrade_choices(1,2)==MOD_OK);
  bool beforeLuck=false,afterLuck=false;
- for(auto& [id,e]:elements){beforeLuck|=e.text.find("+180% Luck")!=std::string::npos;afterLuck|=e.text.find("+200% Luck")!=std::string::npos;}
+ for(auto& [id,e]:elements){beforeLuck|=e.text.find("+90% rarity weight")!=std::string::npos;afterLuck|=e.text.find("+100% rarity weight")!=std::string::npos;}
  assert(beforeLuck&&afterLuck);
  select_upgrade(nullptr,&s_choices[0]);
  assert(s_run.luck_percent()==300&&!s_run.eligible(Upgrade::Luck)&&money==160);
@@ -217,9 +217,9 @@ int main(){
    ++count;assert(e.pressed&&!e.help.empty());
    assert(e.help.find("</span><br/>")!=std::string::npos);
    e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);
-   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("2 arrows/shot")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
+   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("2 arrows, 5 degrees; extra hits 25%")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
    if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);
-   if(e.text.find("Crit Chance")!=std::string::npos)assert(e.help.find("30.00% with Luck")!=std::string::npos);
+   if(e.text.find("Crit Chance")!=std::string::npos)assert(e.help.find("22.50% with Luck")!=std::string::npos);
    if(e.text.find("Crit Damage")!=std::string::npos)assert(e.help.find("x3.50 critical damage")!=std::string::npos);
  }
  assert(count==5&&s_run.ranks==ranks&&s_run.random==overviewRng);

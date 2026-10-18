@@ -70,7 +70,8 @@ using e_mm_class=NativeActor;using e_mm_mt_class=NativeActor;using e_cr_class=Na
 using daE_GI_c=NativeActor;using e_sf_class=NativeActor;using e_fs_class=NativeActor;using e_bu_class=NativeActor;
 using e_sm2_class=NativeActor;using e_mf_class=NativeActor;using daB_GG_c=NativeActor;using daB_TN_c=NativeActor;
 constexpr int ACTION_COMBINE=2,ACTION_ATTACK=1;
-struct Enemy {ActorId id=kNone;ProfileName profile=0;unsigned species=0,stagger=0,hitCooldown=0,age=1;
+unsigned s_map=0;
+struct Enemy {int eliteSlot=-1;ActorId id=kNone;ProfileName profile=0;unsigned species=0,stagger=0,hitCooldown=0,age=1;
  cCcD_Obj* childHit=nullptr;bool elite=false,credited=false,retiring=false,initialized=true,dormant=false;};
 std::array<Enemy,enemy_capacity> s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id!=kNone&&e.id==id)return &e;return nullptr;}
@@ -116,12 +117,12 @@ int main(){
   auto body=extended_body(&actor,actor.profile);assert(body.targets[0]&&body.info&&body.status&&body.morph);
   initialize_extended_enemy(enemy,&actor);assert(actor.health==int(native_roster[kind].hp));
   s_run.ticks=duration;initialize_extended_enemy(enemy,&actor);
-  assert(actor.health==int(native_roster[kind].hp*6)&&actor.field_0x560==actor.health);
+  assert(actor.health==int(s_run.enemy_health(native_roster[kind].hp,false,s_map))&&actor.field_0x560==actor.health);
   enemy.elite=true;initialize_extended_enemy(enemy,&actor);
-  assert(actor.health==int(11*std::max(120u,native_roster[kind].hp)));
+  assert(actor.health==int(s_run.enemy_health(native_roster[kind].hp,true,s_map)));
   s_run.ticks=0;
   s_run.options.enemy_hp=3;enemy.elite=true;actor.scale={elite_scale(Species(kind)),elite_scale(Species(kind)),elite_scale(Species(kind))};
-  initialize_extended_enemy(enemy,&actor);assert(actor.health==int(3*std::max(120u,native_roster[kind].hp)));s_run.options.enemy_hp=1;
+  initialize_extended_enemy(enemy,&actor);assert(actor.health==360);s_run.options.enemy_hp=1;
   actor.health=100;
   for(auto* target:body.targets)if(target){target->owner=&actor;target->hit=&sword;}
   const auto beforeCalls=calls;
@@ -158,30 +159,30 @@ int main(){
  // Every map's final boss uses the full boss pool and selected HP multiplier.
  for(unsigned map=0;map<map_rosters.size();++map) {
   NativeActor finalBoss;Enemy finalEnemy;
-  finalEnemy.species=unsigned(map_roster(map).elites.back());finalEnemy.elite=true;
+  finalEnemy.species=unsigned(map_roster(map).elites.back());finalEnemy.elite=true;finalEnemy.eliteSlot=3;s_map=map;
   finalEnemy.profile=native_roster[finalEnemy.species].profile;
   for(unsigned minute:{0u,10u,20u})for(unsigned multiplier:{1u,3u,10u}) {
    s_run.ticks=minute*60*ticks_per_second;s_run.options.enemy_hp=multiplier;initialize_extended_enemy(finalEnemy,&finalBoss);
-   assert(finalBoss.health==int(std::min(32767u,(1200+600*minute)*multiplier))&&finalBoss.field_0x560==finalBoss.health);
+   assert(finalBoss.health==int(s_run.enemy_health(1200,true,map,true))&&finalBoss.field_0x560==finalBoss.health);
   }
  }
  s_run.options.enemy_hp=1;
  // Endgame criticals must not erase Stallord's entire boss health pool.
  NativeActor head;head.profile=fpcNm_B_DS_e;s_enemies={};effects={};
  auto& boss=s_enemies[0];boss.id=head.id;boss.profile=head.profile;
- boss.species=unsigned(Species::StallordHead);boss.elite=true;
+ boss.species=unsigned(Species::StallordHead);boss.elite=true;boss.eliteSlot=3;s_map=2;
  s_run.start(7);s_run.ticks=duration;s_run.ranks.fill(30);s_run.master_sword=10;
  s_run.dark_link=29;s_run.dark_remaining=100; // maximal direct-hit upgrade damage
- initialize_extended_enemy(boss,&head);assert(head.health==13200&&head.field_0x560==13200);
+ initialize_extended_enemy(boss,&head);assert(head.health==4800&&head.field_0x560==4800);
  power=s_run.attack_power(unsigned(Upgrade::Spin))*s_run.crit_damage_percent()/100*2;
  assert(power>120&&power<1200);
  auto targets=extended_body(&head,boss.profile);
  for(auto* target:targets.targets)if(target)target->hit=&sword;
  const unsigned beforeHeadHits=calls;
  assert(update_extended_enemy(&head,boss));
- assert(head.health==13200-int(power)&&calls==beforeHeadHits+1&&!boss.credited);
+ assert(head.health==4800-int(power)&&calls==beforeHeadHits+1&&!boss.credited);
  for(auto* target:targets.targets)if(target)target->hit=&sword;
- update_extended_enemy(&head,boss);assert(head.health==13200-2*int(power)); // Fresh next-frame contact; no shared lockout.
+ update_extended_enemy(&head,boss);assert(head.health==4800-2*int(power)); // Fresh next-frame contact; no shared lockout.
  s_run.options.enemy_hp=10;initialize_extended_enemy(boss,&head);assert(head.health==32767);
  s_run.start(5);power=7;
  // Owned screams have a short native stun and a shared cooldown across Gibdos.

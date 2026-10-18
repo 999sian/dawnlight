@@ -174,10 +174,10 @@ int main(){
  s_run.ticks=deadline;s_run.phase=Phase::Upgrade;update_elite_spawns(&player);assert(guards()==0);
  s_run.phase=Phase::Running;s_spawnCooldown=30;update_spawns(&player);assert(guards()==1);
  assert(s_enemies[0].lootPosition.absXZ(home)==0&&!s_eliteEncounters[guardSlot].defeated);
- // A second life earns its own chest, without overwriting the first unopened one.
+ // A second life respawns but never repeats the first free chest.
  const auto previousChest=s_chests[2].position;player.current.pos={900,0,100};
- drop_elite_chest(s_enemies[0],&player);assert(s_chests[2].active&&s_chests[3].active);
- assert(s_chests[2].position.absXZ(previousChest)==0&&s_chests[3].position.x==900);
+ drop_elite_chest(s_enemies[0],&player);assert(s_chests[2].active&&!s_chests[3].active);
+ assert(s_chests[2].position.absXZ(previousChest)==0);
  drop_elite_chest(s_enemies[0],&player);assert(!s_chests[4].active);
  s_run.ticks+=guard_respawn_interval;update_elite_spawns(&player);
  assert(s_eliteEncounters[guardSlot].defeated); // Do not duplicate a still-tracked corpse.
@@ -202,10 +202,11 @@ int main(){
   for(auto& e:s_enemies)if(e.id!=kNone){drop_elite_chest(e,&player);++drops;e={};}
  }
  assert(drops==elite_reward_capacity-1);
- for(unsigned i=kPaidChestCount;i<kChestCount-1;++i)assert(s_chests[i].active&&s_chests[i].free);
+ for(unsigned i=kPaidChestCount;i<kPaidChestCount+guard_capacity+3;++i)assert(s_chests[i].active&&s_chests[i].free);
+ assert(!s_chests[kPaidChestCount+guard_capacity+3].active);
  s_run.ticks=duration;update_elite_spawns(&player);assert(guards()==0&&waves()==1);
  for(auto& e:s_enemies)if(e.id!=kNone){drop_elite_chest(e,&player);e={};}
- assert(s_chests.back().active&&s_chests.back().free);
+ assert(s_chests[kPaidChestCount+guard_capacity+3].active&&s_chests[kPaidChestCount+guard_capacity+3].free);
  // Dormant AI suppresses only idle action. Collision/damage Execute stays native.
  fresh(3);add_floor(10000);door(2000,0);update_elite_spawns(&player);
  daE_OC_c actor;actor.id=s_enemies[0].id;actor.speedF=10;actor.speed={2,3,4};std::any args[]={&actor};
