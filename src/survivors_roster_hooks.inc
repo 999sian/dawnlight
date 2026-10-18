@@ -8,7 +8,7 @@
     PRE(RosterSF,before_roster_native_damage); PRE(RosterFS,before_roster_native_damage);
     PRE(RosterBU,before_roster_native_damage); PRE(RosterSM,before_roster_native_damage);
     PRE(RosterMF,before_roster_native_damage); PRE(RosterGG,before_roster_native_damage);
-    PRE(RosterTN,before_roster_native_damage);
+    PRE(RosterTN,before_boss_tn_damage);
     PRE(RosterShell,before_roster_shell);
     PRE(RosterTTSearch,before_roster_search);
     PRE(RosterBubbleSearch,before_roster_bubble_search);
@@ -24,3 +24,26 @@
     PRE(RosterHeadCreate,before_roster_head_create); POST(RosterHeadCreate,after_roster_head_create);
     PRE(RosterHeadCleared,before_roster_head_cleared); PRE(RosterHeadZone,before_roster_head_zone);
     PRE(SurvivorsProcess,before_roster_time); POST(SurvivorsProcess,after_roster_time);
+
+    PRE(SurvivorsProcess,before_boss_scope); POST(SurvivorsProcess,after_boss_scope);
+    PRE(RosterRDB,before_roster_native_damage); PRE(RosterVA,before_roster_native_damage);
+    PRE(RosterYMB,before_roster_native_damage); PRE(RosterPZ,before_roster_native_damage);
+    PRE(RosterTH,before_roster_native_damage); PRE(RosterGND,before_roster_native_damage);
+    PRE(RosterYC,before_roster_native_damage); PRE(RosterHeadDamage,before_roster_native_damage);
+    PRE(BossRDBAction,before_boss_rdb); PRE(BossTHAction,before_boss_th);
+    PRE(BossGNDExecute,before_boss_gnd_execute); PRE(BossVAAction,before_boss_va);
+    PRE(BossYMBAction,before_boss_ymb); PRE(BossZeldaAction,before_boss_hzelda);
+    POST(BossZeldaTriangle,after_boss_hzelda_triangle);
+    PRE(BossPZAction,before_boss_pz); POST(BossPZAttack,after_boss_pz_attack);
+    PRE(BossYMBWater,before_boss_camera); PRE(BossYMBGround,before_boss_camera); PRE(BossYMBCamera,before_boss_camera);
+    PRE(BossRDBCamera,before_boss_camera); PRE(BossTHCamera,before_boss_camera);
+    PRE(BossZeldaCamera,before_boss_camera); PRE(BossGNDCamera,before_boss_camera);
+    PRE(BossSwitchOn,before_boss_story_write); PRE(BossSwitchOff,before_boss_story_write);
+    PRE(BossZoneOn,before_boss_story_write); PRE(BossZoneOff,before_boss_story_write);
+    PRE(BossSaveSwitch,before_boss_story_write); PRE(BossLighting,before_boss_story_write);
+    PRE(SurvivorsEnemyArrow,before_boss_summon);
+    PRE(BossPZBulletCreate,before_boss_pz_bullet);
+    PRE(RosterHeadMove,before_roster_head_move); PRE(RosterHeadHover,before_roster_head_hover);
+    PRE(RosterHeadTrap,before_boss_camera);
+    PRE(BossTNChange,before_boss_tn_change); PRE(BossTNArea,before_boss_tn_area);
+    PRE(BossTHSpin,before_boss_th_spin); POST(BossTHSpin,after_boss_th_spin);

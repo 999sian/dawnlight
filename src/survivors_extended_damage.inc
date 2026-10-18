@@ -55,6 +55,18 @@ HookAction before_roster_targets(ModContext*,void* args,void*,void*) {
     for(auto* target:body.targets) if(target==object) {
         if(enemy->credited||enemy->retiring||actor->health<=0) {target->OffTgSetBit();target->OffAtSetBit();break;}
         allow_roster_target(target);
+        // Some native bosses hide body spheres far outside the map during
+        // puzzle invulnerability. Keep their real animated body as the target.
+        if(enemy->profile==fpcNm_E_TH_e||enemy->profile==fpcNm_B_GND_e||enemy->profile==fpcNm_E_HZELDA_e) {
+            const unsigned index=unsigned(std::find(body.targets.begin(),body.targets.end(),target)-body.targets.begin());
+            constexpr unsigned ordinaryJoints[]{4,2,1};
+            constexpr unsigned hammerJoints[]{4,1,2};
+            constexpr unsigned zeldaJoints[]{4,32,37};
+            const auto joint=enemy->profile==fpcNm_E_TH_e?hammerJoints[index]:
+                enemy->profile==fpcNm_E_HZELDA_e?zeldaJoints[index]:ordinaryJoints[index];
+            const auto matrix=body.morph->getModel()->getAnmMtx(joint);
+            static_cast<dCcD_Sph*>(target)->SetC(cXyz(matrix[0][3],matrix[1][3],matrix[2][3]));
+        }
         // Absolute radii: these native paths omit actor scale, some only set R
         // at creation. Never multiply the previous frame's radius.
         const float scale=enemy->elite?elite_scale(Species(enemy->species)):1.f;

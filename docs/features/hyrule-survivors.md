@@ -217,29 +217,33 @@ retained, and the attached state is maintained for live run-owned Helmasaurs.
 The body remains a damage target while armor loads; death/teardown still retires
 its shell with the parent.
 
-Gerudo replaces Lizalfos with Dodongo and adds Stalhounds; its second/final elites
-are a giant Stalhound and Stallord’s flying head. Palace enemies are entirely
-Shadow club/bow Bulblins, Shadow Keese, specialist Shadow Beasts/Kargaroks and
-Zant’s Hand. Palace doorway guards are giant Shadow club Bulblins and remain
-dormant until damaged. Shadow Bulblin X-angle uses the native no-path sentinel;
-Shadow Beasts use the ungrouped sentinel to avoid resurrection/shout orchestration.
-Stalhound Execute temporarily sees midnight, with nested-process restoration;
-no persistent time/weather change is made.
+Gerudo's basic/specialist roster still includes Stalhounds and Dodongos. The four
+bosses on each map are listed in the player guide; ordinary pools are unchanged.
+Native-size bosses include King Bulblin, Death Sword, Twilit Bloat, Phantom Zant,
+Darkhammer, Puppet Zelda and Ganondorf. Shadow guards retain their dormant behavior.
+Stalhound Execute temporarily sees midnight, with nested-process restoration.
 
-`survivors_encounters.inc` replaces owned action dispatch for three actors with
-hard dungeon dependencies. Shadow Kargarok uses its real model/animation/CC with
-a riderless chase and dive, avoiding native unguarded rider accesses. Stallord
-uses `TYPE_BATTLE_2`, restores the requested spawn after native Create's hardcoded
-arena relocation, flies and fires bounded owned `TYPE_BULLET_B` fireballs, then
-lowers for melee recovery. Native phase-two cutscenes, rail/trap spawning and
-Staltroop orchestration never run. Its creation-time boss-clear query and zone
-writes are scoped out; unrelated processes retain real room state. The Hand
-uses no Sol switches (`0xff`), bypasses orb search/return/gate action logic and
-executes pursuit, telegraphed locked-target slam and recovery, using its native
-attack cylinder. Animation/resources, matrices and drawing remain native.
-Encounter counters live in the owned enemy slot and obey pause, stagger,
-deferred deletion and restart. Arrows/fireballs survive their owner but remain
-owned through teardown. Head/Hand have 120 base HP like the other timed elites.
+`survivors_bosses.inc` adapts native boss entry states and arena anchors. Native
+attack dispatch stays active for King Bulblin, Death Sword, Twilit Bloat, Phantom
+Zant, Darkhammer, Puppet Zelda and Ganondorf. Death Sword's opaque chase/strike
+and two-shot attack avoid world-origin orbit states. Bloat's electric charge uses
+Link's local floor instead of lake elevation and stays visible without wolf senses.
+Phantom receives reachable teleport points and retains native volleys and portals,
+using the map's Shadow Keese/Beast minions as owned ordinary enemies. Its projectiles
+and portals retire with the boss. Darkhammer's ball and Ganondorf's cloak are
+structural children, with pending-create guards/retries before native dereferences.
+Native puzzle damage and off-map body spheres cannot reintroduce per-enemy i-frames.
+Darknut's armor loss follows run HP, then uses the native non-cinematic sword throw
+and light-armor combat phase. Boss intros, camera/QTE transitions, dungeon switch
+writes and arena-specific weather changes are isolated to owned actor scopes.
+
+`survivors_encounters.inc` keeps Stallord's native phase-two action/shot/recovery,
+replacing tower movement and hover anchors and excluding rail/trap spawning. The
+Carrier's native rider-dependent catch sequence retains approach, braking,
+telegraph and catch poses, using a talon collider in place of the capture cinematic.
+The unused Zant Hand adapter remains available but is no longer a scheduled boss.
+Run pause, teardown, HP scaling and final HP budgets apply to all new bosses.
+Desktop/Android in-game validation of the new encounters remains required.
 
 Dodongo armor flags are also normalized after Execute, because its native code
 sets them after collision registration. Only owned target objects are changed;
@@ -794,7 +798,9 @@ flag for their collision correction and generic navigation probes. Solid walls
 remain solid. The probe hook is restricted to their tracked Execute scope in
 this arena; story actors and camera/projectile-specific probes are unchanged.
 
-Moving auto-attacks use directional leg animation. Native forward, left, back
+Moving auto-attacks use directional leg animation. Straight forward movement and
+a 22.5-degree steering cone retain the original native calculator and gait exactly;
+the directional overlay blends in smoothly toward side/back movement. Native forward, left, back
 and right attention walk/run clips blend by movement relative to Link's final
 facing, including diagonal travel. The gait advances with horizontal travel and
 uses the normal movement HIO speeds, so Sprint increases cadence. Native foot

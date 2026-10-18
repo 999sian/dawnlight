@@ -23,7 +23,8 @@ using ActorId=unsigned;using ProfileName=int;using u32=unsigned;using s16=short;
 unsigned s_map=0;constexpr ActorId kNone=~0u;constexpr int fpcNm_E_OC_e=1,fpcNm_E_BA_e=2,fpcNm_E_MS_e=3,fpcNm_E_RD_e=4,fpcNm_E_ARROW_e=5;
 constexpr int fpcNm_E_TT_e=6,fpcNm_E_DN_e=7,fpcNm_E_MM_e=8,fpcNm_E_GE_e=9,fpcNm_E_KR_e=10,fpcNm_E_CR_e=11,fpcNm_E_BS_e=12,fpcNm_E_GI_e=13,fpcNm_E_SF_e=14,fpcNm_E_FS_e=15,fpcNm_E_BU_e=16,fpcNm_E_SM2_e=17,fpcNm_E_MF_e=18,fpcNm_E_CR_EGG_e=19,fpcNm_E_MM_MT_e=20,fpcNm_B_GG_e=21,fpcNm_B_TN_e=22;
 constexpr int fpcNm_E_DD_e=23,fpcNm_E_SH_e=24,fpcNm_E_RDY_e=25,fpcNm_E_S1_e=26,fpcNm_E_YK_e=27,fpcNm_E_YC_e=28,fpcNm_B_DS_e=29,fpcNm_E_ZH_e=30;
-struct daB_DS_c{enum {TYPE_BULLET_B=3};};
+constexpr int fpcNm_E_RDB_e=31,fpcNm_E_VT_e=32,fpcNm_E_YMB_e=33,fpcNm_E_PZ_e=34,fpcNm_E_TH_e=35,fpcNm_E_HZELDA_e=36,fpcNm_B_GND_e=37,fpcNm_E_TH_BALL_e=38,fpcNm_MANT_e=39;
+struct daB_DS_c{enum {TYPE_BULLET_B=3,TYPE_BULLET_C=4};};
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 ModContext* mod_ctx=nullptr;
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
@@ -165,6 +166,25 @@ int main(){
   creating.clear();actors[child]=&player;cleanup_enemy_arrows();assert(deleted.contains(child));
   actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(child));
  }
+ // Boss weapons/cloaks finish creating through pauses; portal attacks do not.
+ for(auto spec:{std::pair{fpcNm_E_TH_e,fpcNm_E_TH_BALL_e},std::pair{fpcNm_B_GND_e,fpcNm_MANT_e},std::pair{fpcNm_E_PZ_e,fpcNm_E_PZ_e}}){
+  s_enemyArrows={};s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=spec.first;
+  std::any childArgs[]={s16(spec.second),ActorId(42)};ActorId child=401;
+  s_run.phase=Phase::Upgrade;
+  assert(before_enemy_arrow(nullptr,childArgs,&child,nullptr)==(spec.first==fpcNm_E_PZ_e?HOOK_SKIP_ORIGINAL:HOOK_CONTINUE));
+  s_run.phase=Phase::Running;child=401;
+  assert(before_enemy_arrow(nullptr,childArgs,&child,nullptr)==HOOK_CONTINUE);
+  after_enemy_arrow(nullptr,childArgs,&child,nullptr);assert(active_enemy_arrow(child));
+  s_enemies[0].credited=true;assert(!active_enemy_arrow(child));
+  actors[child]=&player;cleanup_enemy_arrows();assert(deleted.contains(child));
+  actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(child));
+ }
+ // Native phase-two breath survives its head, then retires on run cleanup.
+ s_enemyArrows={};s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=fpcNm_B_DS_e;
+ std::any breathArgs[]={s16(fpcNm_B_DS_e),ActorId(42),u32(daB_DS_c::TYPE_BULLET_C)};ActorId breath=402;
+ assert(before_enemy_arrow(nullptr,breathArgs,&breath,nullptr)==HOOK_CONTINUE);
+ after_enemy_arrow(nullptr,breathArgs,&breath,nullptr);s_enemies={};assert(active_enemy_arrow(breath));
+ retire_enemy_arrows();assert(!active_enemy_arrow(breath));s_enemyArrows={};
  // Foreign children and failed creates are ignored; capacity/pause reject new owned arrows.
  arrowId=101;after_enemy_arrow(nullptr,args,&arrowId,nullptr);assert(!tracked_enemy_arrow(101));
  s_enemies[0].id=42;s_enemies[0].profile=fpcNm_E_RD_e;

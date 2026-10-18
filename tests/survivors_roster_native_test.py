@@ -38,7 +38,7 @@ struct dCcD_GObjInf:cCcD_Obj {cCcD_Obj* hit=nullptr;bool shield=true;unsigned ty
  void SetAtMtrl(int){} };
 using dCcD_Sph=dCcD_GObjInf;using dCcD_Cyl=dCcD_GObjInf;
 struct dCcU_AtInfo {cCcD_Obj* mpCollider=nullptr;int mPowerType=1;};
-struct Model {cXyz scale;void setBaseScale(cXyz s){scale=s;}};
+struct Model {float matrix[3][4]{};auto getAnmMtx(unsigned){return matrix;}cXyz scale;void setBaseScale(cXyz s){scale=s;}};
 struct mDoExt_McaMorfSO {Model model;Model* getModel(){return &model;}};
 // Some SDK actors use a scalar sphere, others an array; both share the same mock interface.
 struct TargetSet:dCcD_GObjInf {dCcD_GObjInf extra[3];
@@ -54,6 +54,8 @@ struct NativeActor:fopAc_ac_c {
  dCcD_Sph mSphere,mSphere2,mSphere3,cc_sph[3],tate_sph,mCcSphs[3],mTateSph;
  dCcD_Sph field_0xa7c[3],field_0xf5c,mCcHookCyl,mCcShieldSph,mSphA[3],mSphB[3],mSphC,m_sphere,m_sph;
  TargetSet ccSph,mCcSph;
+ dCcD_Sph field_0x944[3],mBodyCyls[3],mNeckSph,field_0x82c[2],field_0xa9c,mCylCollider,mSphCc[3],mGndSph[3];
+ dCcD_Stts mBodyCcStts,mColliderStts,field_0x958,mGndCcStts;
  dCcD_Sph field_0xa74[3],mSphArr[2],mSph2,mCcAtSph,mAtSph,mCollisionSphere,mHeadSph[5],field_0xa08;dCcD_Cyl field_0xb40;
  dCcU_AtInfo mAtColliderInfo;dCcD_Stts mCollisionStatus;
  mDoExt_McaMorfSO* mAnm_p=&morph;
@@ -64,6 +66,8 @@ struct NativeActor:fopAc_ac_c {
  void setActionMode(int a,int m=0){mAction=mActionMode=mActionMode1=a;mMode=mMoveMode=m;}
  void setBck(int a,int,float,float){animation=a;}
 };
+using e_rdb_class=NativeActor;using daE_VA_c=NativeActor;using daE_YMB_c=NativeActor;using daE_PZ_c=NativeActor;
+using e_th_class=NativeActor;using e_hzelda_class=NativeActor;using b_gnd_class=NativeActor;
 using e_dd_class=NativeActor;using e_sh_class=NativeActor;using e_rdy_class=NativeActor;using e_s1_class=NativeActor;using e_yk_class=NativeActor;using e_yc_class=NativeActor;using daB_DS_c=NativeActor;using daE_ZH_c=NativeActor;
 using daE_TT_c=NativeActor;using daE_GE_c=NativeActor;using e_kr_class=NativeActor;using e_dn_class=NativeActor;
 using e_mm_class=NativeActor;using e_mm_mt_class=NativeActor;using e_cr_class=NativeActor;using e_bs_class=NativeActor;

@@ -146,11 +146,11 @@ Each map spawns four timed elites:
 
 | Map | 5:00 | 10:00 | 15:00 | 20:00 |
 | --- | --- | --- | --- | --- |
-| Darknut Arena | Giant Bokoblin | Helmasaurus | Dynalfos | Darknut |
-| Hyrule Field | Giant Tektite | Giant club Bulblin | Giant Kargarok | Aeralfos |
-| Gerudo Desert | Giant Dodongo | Giant Stalhound | Stalfos | Stallord’s flying head |
-| Palace of Twilight | Giant Shadow bow Bulblin | Giant Shadow Beast | Giant Shadow Kargarok | Zant’s Hand |
-| Hyrule Castle Throne Room | Giant club Bulblin | Helmasaurus | Dynalfos | Darknut |
+| Darknut Arena | Giant Lizalfos | Giant Helmasaur | Dynalfos | Darknut |
+| Hyrule Field | Giant bow Bulblin | Giant Bokoblin | Giant Kargarok | King Bulblin |
+| Gerudo Desert | Giant Stalhound | Stalfos | Death Sword | Stallord’s flying head |
+| Palace of Twilight | Giant Shadow Beast | Twilit Bloat | Giant Twilit Carrier Kargarok | Phantom Zant |
+| Hyrule Castle Throne Room | Darknut | Darkhammer | Puppet Zelda | Ganondorf |
 
 At 20:00, new horde spawns and guard respawns stop; the fight continues until all
 four timed elites are defeated. Giant variants are twice normal size; naturally
@@ -161,12 +161,19 @@ elites wake only after taking damage; after a kill they respawn in three minutes
 with new positions in Field/Desert. Timed elites do not respawn.
 
 Stalhounds emerge and fight in daylight as well as at night. Shadow Beasts do
-not require simultaneous group kills. Shadow Kargaroks use independent dive
-attacks without a rider or capture cutscene. Stallord’s flying head fires native
-fireballs, then descends for a melee recovery window; no Spinner, rails, traps
-or Staltroops are required. Zant’s Hand pursues Link, telegraphs a fixed landing
-point, then slams down and briefly rests. It requires no Sol orb. Both final
-bosses use regular Survivors damage, rewards and victory accounting.
+not require simultaneous group kills. Shadow Kargaroks use independent dive attacks with their native approach, brake
+and catch animations, with the scripted
+rider/capture sequence replaced by a talon hit. Stallord uses his native phase-two
+fire breath and recovery, adapted to ground combat without tower rails or traps.
+Death Sword uses native sword strikes and both magic shots and is visible to human
+Link. Twilit Bloat retains its electric charge, flight and retreat. Phantom Zant
+teleports between safe map positions and uses native projectile volleys and portals
+summoning Shadow Keese/Shadow Beasts. Darkhammer spins, throws and retrieves his
+ball and chain. Puppet Zelda retains her sword charge, triangle and energy-ball
+attacks. King Bulblin fights on foot with his axe; Ganondorf uses his native sword
+duel. Darknut sheds armor as his run HP falls and uses the native sword throw and
+unarmored fighting phase. Dungeon intros, story flags and camera/QTE sequences
+are excluded; attacks, effects and attack timing remain native where portable.
 
 Each timed elite and the first kill of each guard slot drops a **free large chest**. Guard respawns still give XP but no repeated chest, including after relocation. The four timed elites also drop an
 **large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals

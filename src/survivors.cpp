@@ -1,4 +1,5 @@
 #include "survivors.hpp"
+#include "c/c_damagereaction.h"
 #include "process_actor.hpp"
 #include "survivors_rules.hpp"
 #include "survivors_projectiles.hpp"
@@ -48,6 +49,15 @@
 #include "d/actor/d_a_e_yc.h"
 #include "d/actor/d_a_b_ds.h"
 #include "d/actor/d_a_e_zh.h"
+#include "d/actor/d_a_e_rdb.h"
+#include "d/actor/d_a_e_vt.h"
+#include "d/actor/d_a_e_ymb.h"
+#include "d/actor/d_a_e_pz.h"
+#include "d/actor/d_a_e_th.h"
+#include "d/actor/d_a_e_hzelda.h"
+#include "d/actor/d_a_b_gnd.h"
+#include "d/actor/d_a_mant.h"
+
 #include "d/actor/d_a_e_tt.h"
 #include "d/actor/d_a_e_dn.h"
 #include "d/actor/d_a_e_mm.h"
@@ -962,6 +972,7 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
 }
 #include "survivors_extended_damage.inc"
 #include "survivors_encounters.inc"
+#include "survivors_bosses.inc"
 bool pause_run_actor(bool enemy) {
     if (!in_arena() || s_run.phase == Phase::Loading) return false;
     if (enemy && (midna_dialog_busy() || dComIfGp_event_runCheck())) return true;

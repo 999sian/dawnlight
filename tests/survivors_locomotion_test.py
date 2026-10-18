@@ -82,7 +82,16 @@ int main(){
  auto sample=[&](float x,float z){link.current.pos={x,0,z};after_locomotion_position(nullptr,args,nullptr,nullptr);};
  auto begin=[&](){before_locomotion_model(nullptr,args,nullptr,nullptr);};
  auto end=[&](){after_locomotion_model(nullptr,args,nullptr,nullptr);};
- // Cold-load once; preserve root/upper calculators and restore the pelvis.
+ // Forward is exactly native, including small steering deviations: no clip
+ // loads, frame rewrite or pelvis calculator substitution, even during attacks.
+ for(int angle=-4096;angle<=4096;angle+=256){link.shape_angle.y=s16(angle);sample(0,20);begin();
+  assert(!s_locomotion.joint&&loads==0&&link.model.data.joints[16].calc==&link.nativeCalc);end();}
+ link.cut=true;s_swordAction=SwordAction::Normal;link.shape_angle.y=0;sample(0,20);begin();
+ assert(!s_locomotion.joint&&loads==0);end();link.cut=false;s_swordAction=SwordAction::None;
+ float previous=0;for(int angle=0;angle<=32768;++angle){float w=locomotion_overlay_weight(s16(angle));
+  assert(w>=previous&&w<=1);assert(w==locomotion_overlay_weight(s16(-angle)));previous=w;}
+ // Cold-load once for a side step; preserve root/upper calculators.
+ link.shape_angle.y=16384;
  sample(0,20);begin();assert(loads==8&&allocations==1&&heap==nullptr);
  assert(link.model.data.joints[16].calc!=&link.nativeCalc);
  assert(link.model.data.joints[0].calc==&link.nativeCalc&&link.model.data.joints[1].calc==&link.nativeCalc);
@@ -91,7 +100,7 @@ int main(){
  before_locomotion_model(nullptr,nested,nullptr,nullptr);after_locomotion_model(nullptr,nested,nullptr,nullptr);
  assert(link.model.data.joints[16].calc==borrowed);end();assert(link.model.data.joints[16].calc==&link.nativeCalc);
  begin();assert(s_locomotion.phase==phase&&loads==8);end(); // repeated calc is not an extra step
- for(unsigned angle=0;angle<65536;angle+=8192){++s_run.ticks;link.shape_angle.y=s16(-int(angle));sample(0,20);begin();
+ for(unsigned angle=8192;angle<65536;angle+=8192){++s_run.ticks;link.shape_angle.y=s16(-int(angle));sample(0,20);begin();
   auto w=locomotion_weights(s16(angle));float expected=0;for(unsigned d=0;d<4;++d)expected+=w[d]*(d+5);
   assert(std::abs(s_locomotion.pose.joints[17].mTranslate.x-expected)<.001f);end();}
  // Sword root twists are cancelled at the pelvis; native clocks/packs remain.
@@ -112,7 +121,7 @@ int main(){
   link.mMoveValue=reason==5?.01f:1;link.cache.valid=reason!=8;
   ++s_run.ticks;sample(0,reason==6?0:reason==7?1000:20);begin();assert(!s_locomotion.joint);end();
  }
- link.allowed=true;link.wolf=link.horse=false;link.cut=false;link.locomotion=true;link.cache.valid=true;
+ link.allowed=true;link.shape_angle.y=16384;link.wolf=link.horse=false;link.cut=false;link.locomotion=true;link.cache.valid=true;
  ++s_run.ticks;sample(0,20);begin();clear_locomotion();assert(link.model.data.joints[16].calc==&link.nativeCalc);
  assert(allocations==destroys&&loaded.empty());clear_locomotion();assert(allocations==destroys);
  failHeap=true;sample(0,20);begin();assert(!s_locomotion.joint);end();clear_locomotion();failHeap=false;

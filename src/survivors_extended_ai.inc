@@ -40,6 +40,13 @@ ExtendedBody extended_body(fopAc_ac_c* actor,ProfileName profile) {
     BODY(fpcNm_E_YC_e,e_yc_class,(std::array<dCcD_GObjInf*,8>{&e->mCcSph}),&e->mAtInfo,&e->mCcStts,e->mpMorf)
     BODY(fpcNm_B_DS_e,daB_DS_c,(std::array<dCcD_GObjInf*,8>{&e->mHeadSph[0],&e->mHeadSph[1],&e->mHeadSph[2],&e->mHeadSph[3],&e->mHeadSph[4]}),&e->mAtInfo,&e->mCcStts,e->mpMorf)
     BODY(fpcNm_E_ZH_e,daE_ZH_c,(std::array<dCcD_GObjInf*,8>{&e->field_0xa08,&e->field_0xb40}),&e->mAtInfo,&e->mStts,e->mpModelMorf)
+    BODY(fpcNm_E_RDB_e,e_rdb_class,(std::array<dCcD_GObjInf*,8>{&e->field_0x944[0],&e->field_0x944[1],&e->field_0x944[2]}),&e->mAtInfo,&e->mStts,e->mpModelMorf)
+    BODY(fpcNm_E_VT_e,daE_VA_c,(std::array<dCcD_GObjInf*,8>{&e->mBodyCyls[0],&e->mBodyCyls[1],&e->mBodyCyls[2],&e->mNeckSph}),&e->mAtInfo,&e->mBodyCcStts,e->mpMorf)
+    BODY(fpcNm_E_YMB_e,daE_YMB_c,(std::array<dCcD_GObjInf*,8>{&e->field_0x82c[0],&e->field_0x82c[1],&e->field_0xa9c}),&e->mAtInfo,&e->mStts,e->mpModelMorf)
+    BODY(fpcNm_E_PZ_e,daE_PZ_c,(std::array<dCcD_GObjInf*,8>{&e->mCylCollider}),&e->mAtInfo,&e->mColliderStts,e->mpModelMorf)
+    BODY(fpcNm_E_TH_e,e_th_class,(std::array<dCcD_GObjInf*,8>{&e->mCcSph[0],&e->mCcSph[1],&e->mCcSph[2]}),&e->mAtInfo,&e->mCcStts,e->mpModelMorf)
+    BODY(fpcNm_E_HZELDA_e,e_hzelda_class,(std::array<dCcD_GObjInf*,8>{&e->mSphCc[0],&e->mSphCc[1],&e->mSphCc[2]}),&e->mAtInfo,&e->field_0x958,e->mpModelMorf)
+    BODY(fpcNm_B_GND_e,b_gnd_class,(std::array<dCcD_GObjInf*,8>{&e->mGndSph[0],&e->mGndSph[1],&e->mGndSph[2]}),&e->mAtInfo,&e->mGndCcStts,e->mpModelMorf)
     default:return {};
     }
 #undef BODY
@@ -58,6 +65,9 @@ void maintain_helmasaur_armor(Enemy& enemy,fopAc_ac_c* actor) {
 }
 void initialize_extended_enemy(Enemy& enemy,fopAc_ac_c* actor) {
     const auto& native=native_roster[enemy.species];
+    if(enemy.elite&&elite_scale(Species(enemy.species))>1.f) {
+        const float size=elite_scale(Species(enemy.species));actor->scale=cXyz(size,size,size);
+    }
     // Dedicated bosses may exceed the ordinary elite baseline (Stallord's head
     // arrives at 20 minutes, when a single upgraded critical can exceed 120 HP).
     actor->health=actor->field_0x560=s16(s_run.enemy_health(native.hp,enemy.elite,s_map,enemy.eliteSlot==int(timed_elite_count-1)));
@@ -117,7 +127,8 @@ bool extended_locomotion(fopAc_ac_c* actor,ProfileName p) {
 }
 void face_extended_enemy(fopAc_ac_c* actor,const Enemy& enemy) {
     if(!extended_enemy(enemy.profile)||enemy.stagger || enemy.profile==fpcNm_B_DS_e ||
-       enemy.profile==fpcNm_E_ZH_e || enemy.profile==fpcNm_E_YC_e)return;
+       enemy.profile==fpcNm_E_ZH_e || enemy.profile==fpcNm_E_YC_e ||
+       enemy.species>=unsigned(Species::KingBulblin))return;
     auto* link=daAlink_getAlinkActorClass();if(!link)return;
     const cXyz delta=link->current.pos-actor->current.pos;
     if(delta.absXZ()<1||delta.absXZ()>400*std::max(1.f,actor->scale.x)||std::abs(delta.y)>250*std::max(1.f,actor->scale.y))return;

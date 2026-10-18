@@ -19,72 +19,92 @@ bool encounter_running(Enemy& enemy) {
     return enemy.initialized && !enemy.retiring && !enemy.credited &&
         s_run.phase==Phase::Running && !transitioning();
 }
+// Carrier Kargarok's native catch attack dereferences its scripted Bulblin
+// rider. Keep its approach/brake/15-frame telegraph/catch animation sequence,
+// replacing only the rider cinematic with a talon hit against Link.
 HookAction before_roster_yc_action(ModContext*,void* args,void*,void*) {
     auto* actor=mods::arg<e_yc_class*>(args,0);auto* enemy=encounter_owner(actor);
     if(!enemy)return HOOK_CONTINUE;
     if(!enemy->encounterReady) {
-        actor->mRiderID=kNone;actor->mAction=e_yc_class::ACT_F_FLY;actor->mMode=1;
-        actor->mAnm=e_yc_class::ANM_FLY;
-        encounter_animation(actor->mpMorf,"E_yc",actor->mAnm);
-        enemy->encounterReady=true;
+        actor->mRiderID=kNone;actor->mAction=e_yc_class::ACT_F_FLY;actor->mMode=0;
+        actor->mAnm=e_yc_class::ANM_FLY;actor->mTimer[2]=150;
+        encounter_animation(actor->mpMorf,"E_yc",actor->mAnm);enemy->encounterReady=true;
     }
     if(!encounter_running(*enemy))return HOOK_SKIP_ORIGINAL;
     auto* link=daAlink_getAlinkActorClass();if(!link)return HOOK_SKIP_ORIGINAL;
-    const unsigned phase=enemy->encounterTick++%180;
-    if(phase==90)enemy->encounterTarget=link->current.pos+cXyz(0,60,0);
-    if(phase==0||phase==90||phase==120) {
-        actor->mAnm=phase!=90?e_yc_class::ANM_FLY:e_yc_class::ANM_CATCH_START;
-        encounter_animation(actor->mpMorf,"E_yc",actor->mAnm,phase!=90?2:0);
-    }
-    const bool diving=phase>=90&&phase<120;
-    const auto target=diving?enemy->encounterTarget:link->current.pos+cXyz(0,280,0);
-    encounter_move(actor,target,diving?24.f:6.f,diving?24.f:8.f);
-    actor->mAcch.CrrPos(dComIfG_Bgsp());
+    const auto animate=[&](int anm,int loop) {
+        actor->mAnm=anm;encounter_animation(actor->mpMorf,"E_yc",anm,loop);
+    };
     actor->mAtSph.OffAtSetBit();
-    if(diving) {
-        actor->mAtSph.OnAtSetBit();actor->mAtSph.SetC(actor->current.pos);
-        actor->mAtSph.SetR(65.f*actor->scale.x);dComIfG_Ccsp()->Set(&actor->mAtSph);
+    if(actor->mAction==e_yc_class::ACT_F_FLY) {
+        encounter_move(actor,link->current.pos+cXyz(0,500,700),10,10);
+        if(!actor->mTimer[2]){actor->mAction=e_yc_class::ACT_ATTACK;actor->mMode=0;}
+    } else {
+        if(actor->mMode<4)enemy->encounterTarget=link->current.pos+cXyz(0,50,0);
+        const auto delta=enemy->encounterTarget-actor->current.pos;
+        switch(actor->mMode) {
+        case 0:actor->mMode=1;break;
+        case 1:
+            encounter_move(actor,enemy->encounterTarget,30,30);
+            if(delta.abs()<1000){actor->mMode=2;actor->speedF=30;animate(e_yc_class::ANM_FLY_BRAKE,2);}
+            break;
+        case 2: {
+            const float step=std::max(0.f,actor->speedF-.75f);
+            encounter_move(actor,enemy->encounterTarget,step,step);actor->speedF=step;
+            if(step<10){actor->mMode=3;actor->mTimer[0]=15;}break;
+        }
+        case 3:
+            if(!actor->mTimer[0]){animate(e_yc_class::ANM_CATCH_START,0);actor->mMode=4;}
+            break;
+        case 4:
+            encounter_move(actor,enemy->encounterTarget+cXyz(0,350,0),30,30);
+            if(actor->mpMorf->checkFrame(11)) {
+                actor->mAtSph.OnAtSetBit();actor->mAtSph.SetC(enemy->encounterTarget);
+                actor->mAtSph.SetR(65.f*actor->scale.x);dComIfG_Ccsp()->Set(&actor->mAtSph);
+            }
+            if(actor->mpMorf->isStop()) {
+                actor->mAction=e_yc_class::ACT_F_FLY;actor->mMode=0;actor->mTimer[2]=150;
+                animate(e_yc_class::ANM_FLY,2);
+            }
+            break;
+        }
     }
+    actor->mAcch.CrrPos(dComIfG_Bgsp());
     return HOOK_SKIP_ORIGINAL;
 }
 HookAction before_roster_head_action(ModContext*,void* args,void*,void*) {
     auto* actor=mods::arg<daB_DS_c*>(args,0);auto* enemy=encounter_owner(actor);
     if(!enemy)return HOOK_CONTINUE;
     if(!enemy->encounterReady) {
-        // Native Create relocates the head into Arbiter's Grounds before Execute.
         actor->current.pos=actor->old.pos=enemy->lootPosition;
         actor->shape_angle.x=actor->shape_angle.z=0;
         actor->mBossPhase=1;actor->mIsOpeningDemo=false;actor->mEyeColorAlpha=255;
-        actor->mAction=daB_DS_c::ACT_B2_WAIT;actor->mMode=1;actor->mCreateFireBreath=false;
-        actor->mDrawZant=false;actor->mNoDrawSword=false;actor->mWallR=200;
-        actor->setBck(daB_DS_c::ANM_HEAD_FWAIT,2,3.f,1.f);
-        enemy->encounterReady=true;
+        actor->mAction=daB_DS_c::ACT_B2_WAIT;actor->mMode=0;actor->mCreateFireBreath=false;
+        actor->mDrawZant=false;actor->mNoDrawSword=false;actor->mWallR=200;actor->mGroundUpY=0;
+        actor->home.pos=actor->current.pos;enemy->encounterReady=true;
     }
-    if(!encounter_running(*enemy))return HOOK_SKIP_ORIGINAL;
-    auto* link=daAlink_getAlinkActorClass();if(!link)return HOOK_SKIP_ORIGINAL;
-    const unsigned phase=enemy->encounterTick++%240;
-    const auto delta=link->current.pos-actor->current.pos;
-    const float distance=delta.absXZ();
-    cXyz target=actor->current.pos;
-    if(distance>700) {target.x=link->current.pos.x;target.z=link->current.pos.z;}
-    // Low recovery windows keep the boss beatable with the starting sword.
-    target.y=link->current.pos.y+(phase>=135&&phase<210?80.f:320.f);
-    encounter_move(actor,target,6.f,8.f);
-    actor->shape_angle.y=actor->current.angle.y=cM_atan2s(delta.x,delta.z);
-    actor->mAcchCir.SetWall(100.f,200.f);actor->mAcch.CrrPos(dComIfG_Bgsp());
-    if(phase==60)actor->setBck(daB_DS_c::ANM_HEAD_FATTACK_A,0,3.f,1.f);
-    if(phase==90)actor->setBck(daB_DS_c::ANM_HEAD_FATTACK_B,2,3.f,1.f);
-    if(phase==135||phase==0)actor->setBck(daB_DS_c::ANM_HEAD_FWAIT,2,3.f,1.f);
-    if(phase>=90&&phase<135&&phase%15==0) {
-        const auto aim=link->current.pos+cXyz(0,60,0)-actor->mMouthPos;
-        csXyz angle(-cM_atan2s(aim.y,aim.absXZ()),cM_atan2s(aim.x,aim.z),0);
-        fopAcM_createChild(fpcNm_B_DS_e,enemy->id,daB_DS_c::TYPE_BULLET_B,&actor->mMouthPos,
-            fopAcM_GetRoomNo(actor),&angle,nullptr,-1,nullptr);
+    return HOOK_CONTINUE; // native breath telegraph, release, fireball and recovery
+}
+HookAction before_roster_head_move(ModContext*,void* args,void* result,void*) {
+    auto* actor=mods::arg<daB_DS_c*>(args,0);if(!encounter_owner(actor))return HOOK_CONTINUE;
+    auto* link=daAlink_getAlinkActorClass();
+    if(link) {
+        const auto delta=link->current.pos-actor->current.pos;
+        cXyz target=actor->current.pos;
+        if(delta.absXZ()>700){target.x=link->current.pos.x;target.z=link->current.pos.z;}
+        encounter_move(actor,target,6,0);actor->home.pos=link->current.pos;
+        actor->mBh2AttackAngleF=0x2000;actor->mWallR=200;
     }
-    actor->mSoundPos=actor->current.pos;
-    actor->mpMorf->play(0,dComIfGp_getReverb(fopAcM_GetRoomNo(actor)));
-    actor->mpSwordMorf->play(0,dComIfGp_getReverb(fopAcM_GetRoomNo(actor)));
-    actor->mpSwordBrkAnm->play();
+    *static_cast<bool*>(result)=true;return HOOK_SKIP_ORIGINAL;
+}
+HookAction before_roster_head_hover(ModContext*,void* args,void*,void*) {
+    auto* actor=mods::arg<daB_DS_c*>(args,0);if(!encounter_owner(actor))return HOOK_CONTINUE;
+    if(auto* link=daAlink_getAlinkActorClass()) {
+        // Recovery after the native shot remains reachable with the basic sword.
+        const float height=actor->mMode==100?80.f:320.f;
+        actor->current.pos.y+=std::clamp(link->current.pos.y+height-actor->current.pos.y,-8.f,8.f);
+        actor->speed.y=0;actor->gravity=0;actor->mSoundPos=actor->current.pos;
+    }
     return HOOK_SKIP_ORIGINAL;
 }
 HookAction before_roster_hand_action(ModContext*,void* args,void*,void*) {

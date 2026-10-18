@@ -5,11 +5,11 @@
 using namespace dawnlight::survivors;
 int main() {
     const std::array<std::array<Species,4>,5> expected{{
-        {Species::Bokoblin,Species::Helmasaurus,Species::Dynalfos,Species::Darknut},
-        {Species::Tektite,Species::Club,Species::Kargarok,Species::Aeralfos},
-        {Species::Dodongo,Species::Stalhound,Species::Stalfos,Species::StallordHead},
-        {Species::ShadowBow,Species::ShadowBeast,Species::ShadowKargarok,Species::ZantHand},
-        {Species::Club,Species::Helmasaurus,Species::Dynalfos,Species::Darknut}
+        {Species::Lizalfos,Species::Helmasaur,Species::Dynalfos,Species::Darknut},
+        {Species::Bow,Species::Bokoblin,Species::Kargarok,Species::KingBulblin},
+        {Species::Stalhound,Species::Stalfos,Species::DeathSword,Species::StallordHead},
+        {Species::ShadowBeast,Species::TwilitBloat,Species::ShadowKargarok,Species::PhantomZant},
+        {Species::Darknut,Species::Darkhammer,Species::PuppetZelda,Species::Ganondorf}
     }};
     for(unsigned map=0;map<5;++map) {
         const auto& roster=map_roster(map);assert(roster.elites==expected[map]);

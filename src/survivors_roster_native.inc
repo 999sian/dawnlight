@@ -16,7 +16,11 @@ constexpr std::array<NativeSpecies,species_count> native_roster{{
     {fpcNm_E_RDY_e,0xff000107,-1,0,8}, {fpcNm_E_RDY_e,0xff000207,-1,0,8},
     {fpcNm_E_S1_e,0xffffffF0,-1,0,20}, {fpcNm_E_YK_e,0xffff0f01,-1,180,4},
     {fpcNm_E_YC_e,0,-1,260,12}, {fpcNm_B_DS_e,0xffffff02,-1,300,1200},
-    {fpcNm_E_ZH_e,0xffffff00,-1,240,1200}
+    {fpcNm_E_ZH_e,0xffffff00,-1,240,1200},
+    {fpcNm_E_RDB_e,0xffffff00,-1,0,1200}, {fpcNm_E_VT_e,0xffffffff,-1,0,24},
+    {fpcNm_E_YMB_e,0xffffffff,-1,300,24}, {fpcNm_E_PZ_e,0xffffff01,-1,0,1200},
+    {fpcNm_E_TH_e,0xffffff00,-1,0,24}, {fpcNm_E_HZELDA_e,0xffffff00,-1,300,24},
+    {fpcNm_B_GND_e,0xffffff00,-1,0,1200}
 }};
 bool extended_enemy(ProfileName profile) {
     return std::any_of(native_roster.begin()+5,native_roster.end(),
@@ -45,6 +49,14 @@ ROSTER_HIT(RosterSH,"src/d/actor/d_a_e_sh.cpp#damage_check",e_sh_class);
 ROSTER_HIT(RosterRDY,"src/d/actor/d_a_e_rdy.cpp#damage_check",e_rdy_class);
 ROSTER_HIT(RosterS1,"src/d/actor/d_a_e_s1.cpp#damage_check",e_s1_class);
 ROSTER_HIT(RosterYK,"src/d/actor/d_a_e_yk.cpp#damage_check",e_yk_class);
+ROSTER_HIT(RosterRDB,"src/d/actor/d_a_e_rdb.cpp#damage_check",e_rdb_class);
+ROSTER_HIT(RosterVA,"daE_VA_c::damage_check",daE_VA_c);
+ROSTER_HIT(RosterYMB,"daE_YMB_c::damage_check",daE_YMB_c);
+ROSTER_HIT(RosterPZ,"daE_PZ_c::damage_check",daE_PZ_c);
+ROSTER_HIT(RosterTH,"src/d/actor/d_a_e_th.cpp#damage_check",e_th_class);
+ROSTER_HIT(RosterGND,"src/d/actor/d_a_b_gnd.cpp#damage_check",b_gnd_class);
+ROSTER_HIT(RosterYC,"src/d/actor/d_a_e_yc.cpp#damage_check",e_yc_class);
+ROSTER_HIT(RosterHeadDamage,"daB_DS_c::mBattle2_spinner_damage_check",daB_DS_c);
 #undef ROSTER_HIT
 DEFINE_HOOK_SYMBOL("cCcS::Set",void(cCcS*,cCcD_Obj*),RosterTargets);
 DEFINE_HOOK_SYMBOL("daE_GI_c::setCryStop",bool(daE_GI_c*),RosterGibdoCry);
@@ -63,3 +75,33 @@ DEFINE_HOOK(static_cast<s32 (*)()>(&dComIfGs_isStageBossEnemy),RosterHeadCleared
 DEFINE_HOOK_SYMBOL("dComIfGs_onZoneSwitch",void(int,int),RosterHeadZone);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_yk.cpp#pl_check",int(e_yk_class*,float,s16),RosterYKSearch);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_s1.cpp#pl_check",int(e_s1_class*,float),RosterS1Search);
+
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rdb.cpp#action",void(e_rdb_class*),BossRDBAction);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_th.cpp#action",void(e_th_class*),BossTHAction);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_b_gnd.cpp#daB_GND_Execute",int(b_gnd_class*),BossGNDExecute);
+DEFINE_HOOK_SYMBOL("daE_VA_c::action",void(daE_VA_c*),BossVAAction);
+DEFINE_HOOK_SYMBOL("daE_YMB_c::action",void(daE_YMB_c*),BossYMBAction);
+DEFINE_HOOK_SYMBOL("daE_YMB_c::checkWaterPos",void(daE_YMB_c*),BossYMBWater);
+DEFINE_HOOK_SYMBOL("daE_YMB_c::checkGroundPos",void(daE_YMB_c*),BossYMBGround);
+DEFINE_HOOK_SYMBOL("daE_YMB_c::setCameraSwitch",void(daE_YMB_c*),BossYMBCamera);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_hzelda.cpp#action",void(e_hzelda_class*),BossZeldaAction);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_hzelda.cpp#e_hzelda_attack_b",void(e_hzelda_class*),BossZeldaTriangle);
+DEFINE_HOOK_SYMBOL("daE_PZ_c::action",void(daE_PZ_c*),BossPZAction);
+DEFINE_HOOK_SYMBOL("daE_PZ_c::executeAttack",void(daE_PZ_c*),BossPZAttack);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rdb.cpp#demo_camera",void(e_rdb_class*),BossRDBCamera);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_th.cpp#demo_camera",void(e_th_class*),BossTHCamera);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_hzelda.cpp#demo_camera",void(e_hzelda_class*),BossZeldaCamera);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_b_gnd.cpp#demo_camera",void(b_gnd_class*),BossGNDCamera);
+DEFINE_HOOK_SYMBOL("dComIfGs_onSwitch",void(int,int),BossSwitchOn);
+DEFINE_HOOK_SYMBOL("dComIfGs_offSwitch",void(int,int),BossSwitchOff);
+DEFINE_HOOK_SYMBOL("dComIfGs_onOneZoneSwitch",void(int,int),BossZoneOn);
+DEFINE_HOOK_SYMBOL("dComIfGs_offOneZoneSwitch",void(int,int),BossZoneOff);
+DEFINE_HOOK_SYMBOL("dComIfGs_onSaveDunSwitch",void(int),BossSaveSwitch);
+DEFINE_HOOK_SYMBOL("dKy_custom_colset",void(u8,u8,float),BossLighting);
+DEFINE_HOOK(static_cast<fpc_ProcID (*)(s16,u32,const cXyz*,int,const csXyz*,const cXyz*,s8,u32,u8)>(&fopAcM_create),BossPZBulletCreate);
+DEFINE_HOOK_SYMBOL("daB_DS_c::mBattle2MoveFSet",bool(daB_DS_c*),RosterHeadMove);
+DEFINE_HOOK_SYMBOL("daB_DS_c::mFuwafuwaSet",void(daB_DS_c*,bool),RosterHeadHover);
+DEFINE_HOOK_SYMBOL("daB_DS_c::mCreateTrap",void(daB_DS_c*,bool),RosterHeadTrap);
+DEFINE_HOOK_SYMBOL("daB_TN_c::executeChangeDemo",void(daB_TN_c*),BossTNChange);
+DEFINE_HOOK_SYMBOL("daB_TN_c::checkMoveArea",int(daB_TN_c*),BossTNArea);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_th.cpp#e_th_spin_B",void(e_th_class*),BossTHSpin);

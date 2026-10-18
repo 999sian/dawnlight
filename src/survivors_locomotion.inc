@@ -109,6 +109,9 @@ HookAction before_locomotion_model(ModContext*,void* args,void*,void*) {
     auto* link=mods::arg<daAlink_c*>(args,0);
     auto* model=mods::arg<J3DModel*>(args,1);
     auto& s=s_locomotion;
+    if(s.joint||!link||fopAcM_GetID(link)!=s_player)return HOOK_CONTINUE;
+    const float directional=locomotion_overlay_weight(s16(s.angle-link->shape_angle.y));
+    if(directional==0) {s.weight=0;return HOOK_CONTINUE;}
     if(s.joint || !locomotion_allowed(link) || !s.moving || s.owner!=s_player ||
        !model || model!=link->mpLinkModel || model->getModelData()->getJointNum()!=35 ||
        !link->field_0x2060->getOldFrameFlg() || !prepare_locomotion(link)) return HOOK_CONTINUE;
@@ -139,7 +142,7 @@ HookAction before_locomotion_model(ModContext*,void* args,void*,void*) {
         }
         s.weight=std::min(1.f,s.weight+.25f);s.poseTick=s_run.ticks;
     }
-    s.pose.link=link;s.pose.weight=s.weight;
+    s.pose.link=link;s.pose.weight=s.weight*directional;
     s.pack.setAnmTransform(&s.pose);s.pack.setRatio(1);
     s.calculator.emplace(link->field_0x2060,1,&s.pack);
     s.joint=model->getModelData()->getJointNodePointer(16);
