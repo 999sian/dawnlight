@@ -227,7 +227,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     if (weapon == Upgrade::Bow) {
         // Reach extends acquisition and flight, never the arrow's hit radius.
         // Retain the original lifetime unless a longer shot needs more ticks.
-        a.life = std::max(a.life, unsigned(std::ceil(s_run.item_range(weapon) / 70.0f)) + 1);
+        a.life = std::max(a.life, unsigned(std::ceil(distance / 70.0f)) + 1);
     }
     a.radius = weapon == Upgrade::Bow ? 35.0f : s_run.radius(weapon == Upgrade::Boomerang ? 63 : 55 + 8 * rank);
     if (weapon == Upgrade::Bombs) {

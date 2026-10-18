@@ -222,6 +222,7 @@ int main(){
         assert(nearest_item_target(&player,target,range));
         near.eyePos.z=range+1;assert(!nearest_item_target(&player,target,range));
         near.eyePos.z=range-1;
+        player.hand={-30,150,-100}; // Flight starts at the hand, acquisition at Link.
         for(float spread:{0.f,0.14f,-0.14f}) {
             assert(launch_item(&player,Upgrade::Bow,near.eyePos,spread));
         }
