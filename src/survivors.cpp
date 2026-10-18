@@ -80,7 +80,8 @@ const Arena& arena() { return arenas[s_map]; }
 constexpr char kBlob[] = "hyrule-survivors-records-v1";
 constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
-DEFINE_HOOK(&dBgS_Acch::CrrPos, SurvivorsEnemySpeed);
+// Symbol form avoids MSVC constinit failure for this multiply-inherited class.
+DEFINE_HOOK_SYMBOL("dBgS_Acch::CrrPos", void(dBgS_Acch*, dBgS&), SurvivorsEnemySpeed);
 DEFINE_HOOK(&daAlink_c::setDamagePoint, SurvivorsEnemyDamage);
 DEFINE_HOOK(&dCamera_c::Run, SurvivorsCamera);
 DEFINE_HOOK(&daAlink_c::orderZTalk, SurvivorsMidnaOrder);
