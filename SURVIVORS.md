@@ -87,6 +87,17 @@ writes the native save in the background and keeps the menu open; wait for
 | Gale Charges | 2 | Requires Gale; +1 charge/rank, up to three. Refilled each run. |
 | Rerolls | 2 | +1 free reroll/rank/run, up to three; shared by both choice menus. |
 | Banishes | 2 | +1 banishment/rank/run, up to three; shared by both choice menus. |
+| Dodge | 5 | 5%, 6.25%, 7.5%, 8.75%, then 10% chance to dodge an enemy hit. Independent of Luck; no shield required. |
+
+Dodge is checked before shield block. Successful dodges and blocks display a
+small rising, fading **Dodge** or **Block** above Link; damaging critical hits
+display **Crit** above their target. Enemy hits still reduce health, but no longer
+make Link flinch. **No Normal-Hit Invulnerability** is always enabled during
+Survivors; your saved setting outside this mode remains unchanged.
+
+Automatic sword attacks recover after an interrupted sword draw. Once the sword
+is drawn, a ready melee attack, Sword Wave or Spin Attack gets an opportunity
+before another item attack puts it away again.
 
 ## Maps, elites and pots
 
@@ -102,6 +113,11 @@ Normal enemies include Bokoblins, Keese, Rats, club Bulblins and bow Bulblins.
 Bulblins take regular damage from arrows, without the native instant-kill rule.
 Random enemies require dry ground and a walkable approach to Link, avoiding
 water, isolated ledges and gaps.
+**Waiting for a clear enemy spawn position** means the game is retrying because
+it could not find a valid position. The warning clears after a successful spawn,
+when the population is full, or when the final elite fight starts.
+Nearby enemies continue turning toward Link during melee attacks, including
+their windup and attack movement. Hurt, death and dormant states are unaffected.
 
 Every map spawns these timed elites:
 

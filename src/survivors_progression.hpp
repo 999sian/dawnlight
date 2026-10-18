@@ -1,11 +1,12 @@
 #pragma once
 #include "general_modes.hpp"
 #include <array>
+#include <algorithm>
 
 namespace dawnlight::survivors {
-enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Count };
-inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes"};
-inline constexpr std::array<unsigned,11> talent_caps{5,5,1,2,5,1,1,1,2,2,2};
+enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, Count };
+inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge"};
+inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{5,5,1,2,5,1,1,1,2,2,2,5};
 inline constexpr std::array talent_help{
     "+1 starting heart per rank (up to 8). Run Heart Containers remain separate.",
     "+1 percentage point base critical chance per rank. Luck multiplies it; final chance caps at 100%.",
@@ -17,7 +18,8 @@ inline constexpr std::array talent_help{
     "Requires Glider. Hold Jump through landing to charge Revali's Gale. One charge; 120-second recovery.",
     "Requires Revali's Gale. +1 charge per rank, up to three. Charges refill for each new run.",
     "+1 free reroll per rank each run, up to three. Shared by level-ups and chests.",
-    "+1 banishment per rank each run, up to three. Shared by level-ups and chests."};
+    "+1 banishment per rank each run, up to three. Shared by level-ups and chests.",
+    "Avoid enemy hits: 5% / 6.25% / 7.5% / 8.75% / 10%. Independent of Luck and shield blocks."};
 inline constexpr Talent talent_parent(Talent t) {
     switch(t) {
     case Talent::SprintSpeed: return Talent::Sprint;
@@ -52,6 +54,7 @@ struct Talents {
         } while(changed);
         return true;
     }
+    unsigned dodge_basis_points() const { const auto r=rank(Talent::Dodge); return r ? 500+125*(std::min(5u,r)-1) : 0; }
     unsigned starting_hearts() const { return 3+rank(Talent::MaxHealth); }
     float sprint_multiplier() const { return rank(Talent::Sprint) ? 1.25f+0.125f*rank(Talent::SprintSpeed) : 1.f; }
 };

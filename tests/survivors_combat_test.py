@@ -92,7 +92,8 @@ struct daAlink_c : fopAc_ac_c {
     bool checkNoResetFlg0(int flag){return flag==FLG0_UNK_8000 && hit;}
     bool checkInputOnR(){return false;}bool checkAttentionLock(){return locked;}
     bool checkWolf(){return wolf;} bool checkItemSwordEquip(){return mEquipItem==0x103;}
-    void swordEquip(int){++equips;field_0x2fde=0x103;}
+    bool equipping=false;bool checkEquipAnime(){return equipping;}
+    void swordEquip(int){++equips;field_0x2fde=0x103;equipping=true;}
     int procCutNormalInit(int type){normalTypes.push_back(type);comboCounts.push_back(mComboCutCount);
         ++normals;mProcID=PROC_CUT_NORMAL;mProcVar1.field_0x300a=4;
         field_0x3478=5;mUnderFrameCtrl[0].frame=0;return 1;}
@@ -148,7 +149,7 @@ u32 dComIfGp_particle_set(u32 id,u16 effect,cXyz*,int*,const csXyz*,const cXyz* 
 void dComIfGp_particle_levelEmitterOnEventMove(u32){}
 struct Attack {bool active=true;unsigned life=10;cXyz position,velocity;cCcD_Obj collider;std::array<u32,2>emitters{};};
 std::array<Attack,projectile_capacity>s_attacks;
-struct Effect{cCcD_Obj collider;unsigned damage=0;};std::array<Effect,24>s_effects;
+struct Effect{cCcD_Obj collider;unsigned damage=0;bool critical=false;};std::array<Effect,24>s_effects;
 void new_melee_swing(){}
 constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
 struct dCcU_AtInfo {cCcD_Obj* mpCollider;unsigned mAttackPower=200;int mHitType=0;};
@@ -170,7 +171,9 @@ fpc_ProcID create_run_pickup(cXyz pos,int item){
 
 '''
 stubs += r'''
+struct BulblinHit{bool critical=false;};BulblinHit* bulblin_power_hit(dCcU_AtInfo*){return nullptr;}
 bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
+void mark_damage_critical(dCcU_AtInfo*,bool){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
 main = r'''
@@ -259,6 +262,12 @@ int main(){
         update_sword(&player);assert(player.normals==0);
     }
     reset();enemy.current.pos.z=900;update_sword(&player);assert(player.normals==0);
+    // A stale pending item marker without its upper animation must recover.
+    reset();player.mEquipItem=dItemNo_NONE_e;player.field_0x2fde=0x103;
+    update_sword(&player);assert(player.equips==1 && player.equipping);
+    update_sword(&player);assert(player.equips==1);
+    player.equipping=false;player.mEquipItem=0x103;
+    update_sword(&player);assert(player.normals==1);
     // Drawing a sheathed sword is requested once and the native equip must finish.
     reset();player.mEquipItem=dItemNo_NONE_e;player.field_0x2fde=0;
     update_sword(&player);update_sword(&player);assert(player.equips==1 && player.normals==0);

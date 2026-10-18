@@ -18,6 +18,7 @@ struct daAlink_c {
  static constexpr unsigned MODE_PLAYER_FLY=0x70C52;
  struct{bool ground=true;bool ChkGroundHit(){return ground;}}mLinkAcch;
  enum {PROC_WAIT,PROC_CUT_LARGE_JUMP,PROC_CUT_LARGE_JUMP_LAND};int mProcID=PROC_WAIT;
+ bool equipped=true;bool checkItemSwordEquip(){return equipped;}
  unsigned flags=0;bool checkModeFlg(unsigned n){return flags&n;}
  std::array<Collider,3> mAtCps;Collider mAtSph;
 };
@@ -32,7 +33,9 @@ struct{bool active=false;}s_ranged;
 unsigned cancels=0,shots=0,swords=0,shields=0,projectileTicks=0;
 void cancel_ranged(){++cancels;s_ranged.active=false;}
 void update_ranged(daAlink_c*){++shots;}bool update_shield_attack(daAlink_c*){++shields;return false;}
-void fire_items(daAlink_c*){++shots;}void update_sword(daAlink_c*){++swords;}
+bool readySword=false,readyRanged=false;
+void fire_items(daAlink_c*){++shots;if(readyRanged && s_swordAction==SwordAction::None)s_ranged.active=true;}
+void update_sword(daAlink_c*){++swords;if(readySword)s_swordAction=SwordAction::Normal;}
 struct Attack{bool active=false;unsigned weapon=unsigned(Upgrade::Bow),life=100;float radius=1;cXyz position,velocity;Collider collider;
  struct{void Move(){}}status;};std::array<Attack,1>s_attacks;
 void update_item_attack(Attack&,daAlink_c*){++projectileTicks;}void stop_attack(Attack& a){a.active=false;}
@@ -43,6 +46,12 @@ struct CC{void Set(Collider*){}}cc;CC* dComIfG_Ccsp(){return &cc;}
 '''
 main=r'''
 int main(){
+ // The first frame after drawing must not be stolen by another due item shot.
+ {daAlink_c link;readySword=readyRanged=true;s_ranged.active=false;
+  update_weapons(&link);assert(swords==1&&s_swordAction==SwordAction::Normal&&!s_ranged.active);
+  readySword=false;s_swordAction=SwordAction::None;update_weapons(&link);assert(s_ranged.active);
+  readyRanged=false;s_ranged.active=false;s_swordAction=SwordAction::None;}
+
  for(auto proc:{daAlink_c::PROC_CUT_LARGE_JUMP,daAlink_c::PROC_CUT_LARGE_JUMP_LAND}){
   daAlink_c link;link.mProcID=proc;link.mLinkAcch.ground=proc==daAlink_c::PROC_CUT_LARGE_JUMP_LAND;
   s_swordAction=SwordAction::Jump;s_cooldowns.fill(5);shots=swords=shields=0;

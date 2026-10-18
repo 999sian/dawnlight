@@ -130,13 +130,17 @@ struct Run {
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
     unsigned crit_chance_basis_points() const { return std::min(10000u, (std::min(30u,rank(Upgrade::CritChance))+talents.rank(Talent::CritChance))*luck_percent()); }
     unsigned crit_damage_percent() const { return 200 + 5*std::min(30u,rank(Upgrade::CritDamage)); }
-    unsigned critical_power(unsigned base) {
-        const auto chance=crit_chance_basis_points();
-        if (!base || !chance) return base;
+    bool roll_chance(unsigned chance) {
+        if (!chance) return false;
         // Rejection sampling avoids modulo bias. Zero chance consumes no RNG.
         constexpr uint32_t limit=UINT32_MAX-UINT32_MAX%10000;
         uint32_t roll;do {roll=next_random()-1;} while(roll>=limit);
-        if (roll%10000>=chance) return base;
+        return roll%10000<std::min(10000u,chance);
+    }
+    unsigned critical_power(unsigned base, bool* critical=nullptr) {
+        const bool hit=base && roll_chance(crit_chance_basis_points());
+        if (critical) *critical=hit;
+        if (!hit) return base;
         // Native health/damage are integral; round once, before Dark Link.
         return unsigned(std::min<uint64_t>(65535,(uint64_t(base)*crit_damage_percent()+50)/100));
     }
@@ -415,24 +419,24 @@ struct Records {
         best_kills = std::max(best_kills, run.kills);
         best_level = std::max(best_level, run.level);
     }
-    std::array<uint8_t,100> encode() const {
-        std::array<uint32_t,25> words{0x56525348,2,runs,wins,best_ticks,best_kills,best_level};
+    std::array<uint8_t,104> encode() const {
+        std::array<uint32_t,26> words{0x56525348,3,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
-        std::array<uint8_t,100> bytes{};
+        std::array<uint8_t,104> bytes{};
         for(unsigned i=0;i<words.size();++i)for(unsigned b=0;b<4;++b)bytes[i*4+b]=uint8_t(words[i]>>(8*b));
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100)return false;
-        std::array<uint32_t,25> words{};
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104)return false;
+        std::array<uint32_t,26> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)))return false;
         Records next;
         next.runs=words[2];next.wins=words[3];next.best_ticks=words[4];next.best_kills=words[5];next.best_level=words[6];
-        if(words[1]==2){
+        if(words[1]>=2){
             for(unsigned i=0;i<5;++i)next.high_scores[i]=words[7+i];
             next.total_xp=uint64_t(words[12])|(uint64_t(words[13])<<32);
             for(unsigned i=0;i<next.talents.ranks.size();++i)next.talents.ranks[i]=words[14+i];

@@ -16,13 +16,13 @@ int main(){
     Records untouched=records;r.start(1);records.finish(r,0);assert(records.encode()==untouched.encode());
     r.end(false);records.finish(r,5);assert(records.encode()==untouched.encode());
     records.finish(r,2);assert(records.high_scores[2]==22078); // Never replace a higher score.
-    records.total_xp=meta_threshold(27);assert(records.available_points()==27);
+    records.total_xp=meta_threshold(32);assert(records.available_points()==32);
     assert(!records.buy(Talent::SprintSpeed)&&!records.buy(Talent::Glider)&&!records.buy(Talent::Gale)&&!records.buy(Talent::GaleCharges));
     for(unsigned i=0;i<unsigned(Talent::Count);++i){
         for(unsigned n=0;n<talent_caps[i];++n)assert(records.buy(Talent(i)));
         assert(!records.buy(Talent(i)));
     }
-    assert(records.available_points()==0&&records.talents.spent()==27&&records.talents.valid());
+    assert(records.available_points()==0&&records.talents.spent()==32&&records.talents.valid());
     auto refunded=records;
     assert(!refunded.talents.refund(Talent::Count));
     assert(refunded.talents.refund(Talent::ManualJump));
@@ -54,12 +54,20 @@ int main(){
     assert(talent_mode_override(records.talents,ModeSetting::GaleCharges,value)&&value==3);
     assert(talent_mode_override({},ModeSetting::GaleCharges,value)&&value==1);
     assert(records.talents.sprint_multiplier()==1.5f);
+    for(unsigned rank=0;rank<=5;++rank){Talents t;t.ranks[unsigned(Talent::Dodge)]=rank;
+        assert(t.dodge_basis_points()==(rank ? 500+125*(rank-1) : 0));}
     Records loaded;const auto bytes=records.encode();assert(loaded.decode(bytes)&&loaded.encode()==bytes);
     auto corrupt=bytes;corrupt[4]=99;assert(!loaded.decode(corrupt)&&loaded.encode()==bytes);
     corrupt=bytes;corrupt[56]=6;assert(!loaded.decode(corrupt)); // Max Health exceeds cap.
     corrupt=bytes;corrupt[76]=0;assert(!loaded.decode(corrupt)); // Glider without Manual Jump.
     corrupt=bytes;for(unsigned i=48;i<56;++i)corrupt[i]=0;assert(!loaded.decode(corrupt)); // Unfunded ranks.
     assert(!loaded.decode(std::span(bytes.data(),bytes.size()-1)));
+    auto v2=bytes;v2[4]=2;
+    assert(loaded.decode(std::span(v2.data(),100)) && loaded.talents.rank(Talent::Dodge)==0);
+    assert(loaded.total_xp==records.total_xp && loaded.high_scores==records.high_scores);
+    for(unsigned i=0;i<11;++i)assert(loaded.talents.ranks[i]==records.talents.ranks[i]);
+    assert(loaded.available_points()==5); // New perk never spends legacy points.
+    auto badDodge=bytes;badDodge[100]=6;assert(!loaded.decode(badDodge));
     std::array<uint8_t,28> legacy{};const std::array<uint32_t,7> words{0x56525348,1,5,2,36000,400,18};
     for(unsigned i=0;i<7;++i)for(unsigned b=0;b<4;++b)legacy[i*4+b]=uint8_t(words[i]>>(8*b));
     assert(loaded.decode(legacy)&&loaded.runs==5&&loaded.wins==2&&loaded.best_level==18);

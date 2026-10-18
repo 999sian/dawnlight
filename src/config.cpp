@@ -1210,6 +1210,7 @@ bool mode_config_override(ConfigVarHandle var, int64_t& value) {
     const auto setting = mode_setting_for_config(var);
     if (setting == ModeSetting::None) return false;
     if (survivors_active()) {
+        if (setting==ModeSetting::NoNormalHitInvulnerability) { value=1; return true; }
         if(survivors_mobility_override(setting,value))return true;
         switch (setting) {
         case ModeSetting::JumpHeight:
@@ -1219,7 +1220,7 @@ bool mode_config_override(ConfigVarHandle var, int64_t& value) {
         case ModeSetting::Progression: case ModeSetting::WolfSprint:
         case ModeSetting::FlurryRush: case ModeSetting::BulletTime: case ModeSetting::EnemyHardMode:
         case ModeSetting::BossHardMode: case ModeSetting::ManualShielding: case ModeSetting::ArrowModes:
-        case ModeSetting::GreatSpin: case ModeSetting::NoNormalHitInvulnerability:
+        case ModeSetting::GreatSpin:
         case ModeSetting::FierceDeity:
         case ModeSetting::Stamina: case ModeSetting::DisableAutoJump:
             value = 0; return true;

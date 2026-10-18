@@ -46,8 +46,8 @@ engine=r'''
 unsigned powerCalls=0,hitEffects=0;
 void at_power_check(dCcU_AtInfo* info){++powerCalls;info->mAttackPower=3;info->mHitType=HIT_TYPE_ARROW;
  Args args{info,nullptr};after_power(nullptr,&args,nullptr,nullptr);}
-void cc_at_check(fopAc_ac_c* enemy,dCcU_AtInfo* info){at_power_check(info);enemy->health=std::max(0,enemy->health-int(info->mAttackPower));
- ++hitEffects;record_status_hit(enemy,info);}
+void cc_at_check(fopAc_ac_c* enemy,dCcU_AtInfo* info){Args feedbackArgs{enemy,info};begin_damage_feedback(&feedbackArgs,enemy,info);at_power_check(info);enemy->health=std::max(0,enemy->health-int(info->mAttackPower));
+ end_damage_feedback(&feedbackArgs);++hitEffects;record_status_hit(enemy,info);}
 void native_hit(e_rd_class* i_this){auto* enemy=&i_this->enemy;
  if(i_this->damage_timer)return;
  for(auto& sphere:i_this->cc_sph)if(sphere.ChkTgHit()){
@@ -78,11 +78,14 @@ int main(){
  enemy.cc_sph[2].ResetTgHit();enemy.cc_sph[0].SetTgHit(&bow.collider);enemy.damage_timer=0;
  s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::Luck)]=20;
  Run expected=s_run;const auto damage=expected.critical_power(3);
- hit(enemy);assert(enemy.enemy.health==37-int(damage)&&s_run.random==expected.random);
+ clear_combat_feedback();hit(enemy);assert(enemy.enemy.health==37-int(damage)&&s_run.random==expected.random);
+ assert(std::count_if(s_combatTexts.begin(),s_combatTexts.end(),[](auto& t){return t.remaining>0;})==(damage>3?1:0));
  // Burn injection reaches every Bulblin sphere, clears its retained collider and never one-shots.
  s_run.ranks.fill(0);for(auto& sphere:enemy.cc_sph)sphere.ResetTgHit();
  auto& effect=effect_for(s_enemies[0]);effect.pending=1;const auto hp=enemy.enemy.health;
  hit(enemy);assert(enemy.enemy.health==hp-1&&!effect.injected&&!enemy.at_info.mpCollider);
+ clear_combat_feedback();effect.pending=2;effect.pendingCritical=true;
+ hit(enemy);assert(s_combatTexts[0].remaining==30&&!effect.critical&&!effect.pendingCritical);
  // Ball hits retain stagger, with one outbound and one fresh returning hit.
  auto& ball=s_attacks[1];ball.weapon=unsigned(Upgrade::Ball);ball.collider.power=2;
  enemy.cc_sph[1].SetTgHit(&ball.collider);enemy.damage_timer=10;hit(enemy);

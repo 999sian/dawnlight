@@ -283,8 +283,11 @@ Enemy* tracked(ActorId id) {
 #include "survivors_elite_positions.inc"
 #include "survivors_maps.inc"
 #include "survivors_aggro.inc"
+#include "survivors_enemy_facing.inc"
+#include "survivors_feedback.inc"
 #include "survivors_ground.inc"
 #include "survivors_pickups.inc"
+#include "survivors_player_damage.inc"
 #include "survivors_options.inc"
 #include "survivors_potions.inc"
 void stop_attack(Attack& a) {
@@ -386,6 +389,7 @@ void reset_runtime() {
         d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone;
         dComIfGp_setGameoverStatus(0);
     }
+    clear_combat_feedback();
     s_run = {}; s_orbs = {}; s_cooldowns = {};
     s_player = kNone; s_loaded = false; s_resultsStored = false;
     s_storeFailed = false; s_restart = false; s_saveRequested = false;
@@ -573,9 +577,9 @@ void update_spawns(daAlink_c* link) {
     if (s_spawnCooldown) { --s_spawnCooldown; return; }
     s_spawnCooldown = s_run.spawn_interval();
     update_elite_spawns(link);
-    if (s_run.ticks >= duration) return; // Final elite fight: no new horde or guard respawns.
+    if (s_run.ticks >= duration || population>=s_run.target_population()) { s_spawnFailures=0; return; }
     for (unsigned i=0; i<s_run.spawn_batch() && population<s_run.target_population(); ++i) {
-        if (spawn_enemy(link,false)) ++population;
+        if (spawn_enemy(link,false)) { ++population; s_spawnFailures=0; }
         else { ++s_spawnFailures; break; }
     }
 }
@@ -714,7 +718,9 @@ void update_sword(daAlink_c* link) {
     if (!spin && !wave && (s_meleeCooldown || !melee_target(link))) return;
     if (!link->checkItemSwordEquip()) {
         if (link->mEquipItem != dItemNo_NONE_e) return;
-        if (link->field_0x2fde != 0x103) link->swordEquip(0);
+        // The pending item ID can survive an interrupted upper animation.
+        // Only an actually running equip animation means the draw is pending.
+        if (!link->checkEquipAnime()) link->swordEquip(0);
         return; // Let native equip animation finish before replacing the body action.
     }
     // Roll only at a real melee opportunity, never once per idle frame.
@@ -793,8 +799,13 @@ void update_weapons(daAlink_c* link) {
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
     update_ranged(link);
     const bool shieldAttack = update_shield_attack(link);
+    // A finished sword draw gets one melee opportunity before another due
+    // item animation sheathes it again. Active combos keep the ranged handoff.
+    const bool resumeSword=!s_ranged.active && !shieldAttack &&
+        s_swordAction==SwordAction::None && link->checkItemSwordEquip();
+    if (resumeSword) update_sword(link);
     if (!shieldAttack) fire_items(link);
-    if (!s_ranged.active && !shieldAttack) update_sword(link);
+    if (!s_ranged.active && !shieldAttack && !resumeSword) update_sword(link);
 
 }
 bool native_sword_collider(const cCcD_Obj* collider) {
@@ -810,22 +821,30 @@ void after_power(ModContext*, void* args, void*, void*) {
     if (!s_active) return;
     auto* info = mods::arg<dCcU_AtInfo*>(args, 0);
     if (!info || !info->mpCollider) return;
-    if (reuse_bulblin_power(info)) return;
+    if (reuse_bulblin_power(info)) { mark_damage_critical(info,bulblin_power_hit(info)->critical); return; }
+    const auto critical_power = [&](unsigned base) {
+        bool critical=false; const auto power=s_run.critical_power(base,&critical);
+        if (auto* hit=bulblin_power_hit(info)) hit->critical=critical;
+        mark_damage_critical(info,critical);
+        return power;
+    };
     const BulblinPowerCache cache{info};
     for (const auto& effect : s_effects) if (info->mpCollider == &effect.collider) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
+        if (auto* hit=bulblin_power_hit(info)) hit->critical=effect.critical;
+        mark_damage_critical(info,effect.critical);
         info->mAttackPower = effect.damage * s_run.damage_multiplier(); return;
     }
     auto* link = daAlink_getAlinkActorClass();
     if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Rat stun must not reset elite HP to one.
-        info->mAttackPower = s_run.critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack))) * s_run.damage_multiplier(); return;
+        info->mAttackPower = critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack))) * s_run.damage_multiplier(); return;
     }
     if (native_sword_collider(info->mpCollider)) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Keep cc_at_check from doubling the linear value for Master Sword.
         const auto base = s_swordAction == SwordAction::Jump && info->mpCollider == &link->mAtSph ?
             s_run.jump_splash_power() : s_swordAction == SwordAction::Spin ? s_run.attack_power(1) : s_run.melee_power();
-        info->mAttackPower = s_run.critical_power(base) * s_run.damage_multiplier();
+        info->mAttackPower = critical_power(base) * s_run.damage_multiplier();
         return;
     }
     for (const auto& attack : s_attacks) {
@@ -834,7 +853,7 @@ void after_power(ModContext*, void* args, void*, void*) {
             // Keep native collision, defense, damage reactions and death handling,
             // but use a linear power value for our own weapons only.
             info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
-            info->mAttackPower = s_run.critical_power(info->mpCollider->GetAtAtp()) * s_run.damage_multiplier();
+            info->mAttackPower = critical_power(info->mpCollider->GetAtAtp()) * s_run.damage_multiplier();
             return;
         }
     }
@@ -844,6 +863,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!link || fopAcM_GetID(link) != s_player) return;
     if (dComIfGs_getLife() == 0) { finish(false); return; }
+    update_combat_feedback();
     s_run.tick(true);
     if (s_run.ticks >= duration && s_run.timed_elites == timed_elite_count) { finish(true); return; }
     update_enemy_effects();
@@ -925,7 +945,7 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
         guard->mMoveRange = 0; guard->field_0x6e3 = 1; // No social alert/idle search.
         if (guard->getActionMode() <= 3) guard->setActionMode(0, 0);
     }
-    if (enemy) engage_enemy(actor, *enemy);
+    if (enemy) { engage_enemy(actor, *enemy); track_enemy_facing(actor); }
     if ((enemy && enemy->retiring) || (pot && pot->retiring) || pause_run_actor(enemy != nullptr || pot != nullptr)) {
         *static_cast<int*>(result) = 1;
         return HOOK_SKIP_ORIGINAL;
@@ -1004,11 +1024,13 @@ void label(const char* text, float x, float y, float size) {
     print.printReturn(text, 550, size + 8, HBIND_CENTER, VBIND_TOP, x - 275, y, 255);
 }
 #include "survivors_prices.inc"
+#include "survivors_feedback_draw.inc"
 void draw_hud(ModContext*, void*, void*, void*) {
     if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
     graf->setup2D();
     draw_chest_prices();
+    draw_combat_feedback();
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
     char text[180];
     std::snprintf(text, sizeof(text), "%02u:%02u / 20:00   Level %u   Score %u",
@@ -1060,6 +1082,7 @@ void start_run(ModContext*, void*) {
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
     reset_elite_encounters();
+    clear_combat_feedback();
     s_run.start(seed, s_options, s_records.talents); reset_gale_charges();
     dComIfGs_setMaxLife(s_run.maximum_hearts*5); dComIfGs_setLife(s_run.maximum_hearts*4);
     s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
@@ -1237,7 +1260,7 @@ ModResult initialize_survivors(ModError* error) {
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
-    PRE(SurvivorsEnemySpeed, before_enemy_speed);
+    PRE(SurvivorsEnemySpeed, before_enemy_speed); POST(SurvivorsEnemySpeed, after_enemy_facing);
     PRE(SurvivorsEnemyDamage, before_enemy_damage);
     PRE(SurvivorsPotionDrink, before_potion_drink); POST(SurvivorsPotionDrink, after_potion_drink);
     PRE(SurvivorsPotionHeal, before_potion_heal);
@@ -1249,7 +1272,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsPlayer, before_midna_call);
     PRE(SurvivorsMidnaOrder, before_midna_order);
     PRE(SurvivorsMidnaFlow, before_midna_flow);
-    PRE(SurvivorsBlock, before_shield_block); PRE(SurvivorsGuard, before_survivors_guard);
+    PRE(SurvivorsBlock, before_shield_block); POST(SurvivorsBlock, after_player_damage); PRE(SurvivorsGuard, before_survivors_guard);
     PRE(SurvivorsBulblinHit, before_bulblin_hit); POST(SurvivorsBulblinHit, after_bulblin_hit);
     PRE(SurvivorsBulblinAggro, before_bulblin_aggro);
     PRE(SurvivorsEnemyArrow, before_enemy_arrow); POST(SurvivorsEnemyArrow, after_enemy_arrow);

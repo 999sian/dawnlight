@@ -11,20 +11,29 @@ void interrupt_auto_actions(daAlink_c* link) {
 }
 HookAction before_shield_block(ModContext*, void* args, void* result, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
+    begin_player_damage(args,link);
     if (!link || fopAcM_GetID(link) != s_player || !playable() || s_run.phase != Phase::Running ||
-        !s_run.owns(ChestReward::Shield) || link->checkWolf() || link->mDamageTimer || auto_attacks_suspended(link)) return HOOK_CONTINUE;
+        link->checkWolf() || link->mDamageTimer) return HOOK_CONTINUE;
     for (auto& target : link->mTgCyls) {
         if (!target.ChkTgHit()) continue;
         auto* attacker = target.GetTgHitAc();
         auto* attack = target.GetTgHitGObj();
         if (!attacker || (!tracked(fopAcM_GetID(attacker)) && !active_enemy_arrow(fopAcM_GetID(attacker))) || !attack) continue;
-        if (s_run.next_random() % 100 >= s_run.block_chance()) return HOOK_CONTINUE;
+        if (s_run.roll_chance(s_run.talents.dodge_basis_points())) {
+            for (auto& collider : link->mTgCyls) collider.ResetTgHit();
+            combat_feedback(link,CombatText::Dodge);
+            *static_cast<int*>(result)=1;
+            return HOOK_SKIP_ORIGINAL;
+        }
+        if (!s_run.owns(ChestReward::Shield) || auto_attacks_suspended(link) ||
+            s_run.next_random() % 100 >= s_run.block_chance()) return HOOK_CONTINUE;
         interrupt_auto_actions(link);
         const cXyz direction = attacker->current.pos - link->current.pos;
         link->shape_angle.y = cM_atan2s(direction.x, direction.z);
         link->field_0x2fd5 = 0; // Chance-based blocks do not use vanilla's fourth-hit guard break.
         link->setGuardSe(&target);
         link->procGuardSlipInit(attack->GetAtSpl(), &target);
+        combat_feedback(link,CombatText::Block);
         for (auto& collider : link->mTgCyls) collider.ResetTgHit();
         *static_cast<int*>(result) = 1;
         return HOOK_SKIP_ORIGINAL;
@@ -196,6 +205,7 @@ HookAction before_hit_material(ModContext*, void* args, void*, void*) {
     auto* actor = mods::arg<fopAc_ac_c*>(args, 0);
     auto* info = mods::arg<dCcU_AtInfo*>(args, 1);
     if (!in_arena() || !actor || !tracked(fopAcM_GetID(actor)) || !info || !info->mpCollider) return HOOK_CONTINUE;
+    begin_damage_feedback(args,actor,info);
     auto* collider = static_cast<dCcD_GObjInf*>(info->mpCollider);
     auto* link = daAlink_getAlinkActorClass();
     bool owned = link && collider == &link->mAtSph;
@@ -206,6 +216,7 @@ HookAction before_hit_material(ModContext*, void* args, void*, void*) {
     return HOOK_CONTINUE;
 }
 void after_hit_material(ModContext*, void* args, void*, void*) {
+    end_damage_feedback(args);
     record_status_hit(mods::arg<fopAc_ac_c*>(args, 0), mods::arg<dCcU_AtInfo*>(args, 1));
     if (s_hitMaterials.empty() || s_hitMaterials.back().args != args) return;
     s_hitMaterials.back().collider->SetAtMtrl(dCcD_MTRL_LIGHT);

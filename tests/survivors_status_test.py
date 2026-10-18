@@ -55,6 +55,9 @@ fixture += r'''
 constexpr int fpcNm_E_RD_e=4;
 struct e_rd_class{fopAc_ac_c enemy;Collider cc_sph[3];dCcU_AtInfo at_info;s16 damage_timer=0;};
 '''
+# Exercise actual critical feedback at the native damage boundary.
+fixture=re.sub(r'enum class CombatText[^\n]+\n|void (?:combat_feedback|begin_damage_feedback|end_damage_feedback|mark_damage_critical)\([^\n]+\n', '', fixture)
+fixture+=(root/'src/survivors_feedback.inc').read_text()
 source = (root/'src/survivors.cpp').read_text()
 def function(name):
     match = re.search(r'^(?:bool|void) '+name+r'\([^;{}]*\)\s*\{', source, re.M)
@@ -63,6 +66,7 @@ def function(name):
         depth += (source[i]=='{')-(source[i]=='}')
         if not depth:return source[match.start():i+1]
 fixture += r'''
+struct BulblinHit{bool critical=false;};BulblinHit* bulblin_power_hit(dCcU_AtInfo*){return nullptr;}
 bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
@@ -71,9 +75,10 @@ void hit(e_ms_class& rat){
  Args args{&rat,nullptr};before_enemy_hit(nullptr,&args,nullptr,nullptr);
  if(rat.mSph1.ChkTgHit()){
   rat.mAtInfo.mpCollider=rat.mSph1.GetTgHitObj();rat.mAtInfo.mAttackPower=200;
+  Args feedbackArgs{&rat,&rat.mAtInfo};begin_damage_feedback(&feedbackArgs,&rat,&rat.mAtInfo);
   Args power{&rat.mAtInfo,nullptr};after_power(nullptr,&power,nullptr,nullptr);
   rat.health=std::max(0,rat.health-int(rat.mAtInfo.mAttackPower));rat.mAction=rat.health?4:9;
-  record_status_hit(&rat,&rat.mAtInfo);
+  end_damage_feedback(&feedbackArgs);record_status_hit(&rat,&rat.mAtInfo);
  }
  after_enemy_hit(nullptr,&args,nullptr,nullptr);
 }
@@ -127,12 +132,14 @@ int main(){
  s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::CritDamage)]=30;
  s_run.ranks[unsigned(Upgrade::Luck)]=20;s_run.dark_remaining=150;s_run.dual_wield=1;
  ++s_meleeSerial;s_run.random=1;record_status_hit(&group[0],&sword);
- assert(s_effects[1].pending==11&&s_run.random==270369);
- group[1].health=50;group[1].mSph1.ResetTgHit();hit(group[1]);
+ assert(s_effects[1].pending==11&&s_run.random==270369&&s_effects[1].pendingCritical);
+ clear_combat_feedback();group[1].health=50;group[1].mSph1.ResetTgHit();hit(group[1]);
+ assert(s_combatTexts[0].remaining==30);
  assert(group[1].health==28&&s_run.random==270369); // x3.5 then Dark x2, exactly once
- clear_enemy_effects();record_status_hit(&group[1],&arrow);
+ clear_enemy_effects();clear_combat_feedback();record_status_hit(&group[1],&arrow);
  const auto burnRandom=s_run.random;
  for(int t=0;t<30;++t){update_enemy_effects();hit(group[1]);}
+ assert(!s_combatTexts[0].remaining);
  assert(group[1].health==20&&s_run.random==burnRandom); // 4 damage/s, only Dark x2
  clear_enemy_effects();record_status_hit(&group[1],&arrow);
  for(int t=0;t<30;++t)update_enemy_effects();

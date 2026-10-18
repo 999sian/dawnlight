@@ -3,7 +3,7 @@ UiElementHandle s_talentSummary=0;
 std::array<UiElementHandle,unsigned(Talent::Count)> s_talentRows{};
 std::array<Talent,unsigned(Talent::Count)> s_talentChoices{
     Talent::MaxHealth,Talent::CritChance,Talent::Sprint,Talent::SprintSpeed,Talent::Magnet,
-    Talent::ManualJump,Talent::Glider,Talent::Gale,Talent::GaleCharges,Talent::Rerolls,Talent::Banishes};
+    Talent::ManualJump,Talent::Glider,Talent::Gale,Talent::GaleCharges,Talent::Rerolls,Talent::Banishes,Talent::Dodge};
 bool talent_editable() { return s_run.phase==Phase::Ready && !s_restart && !s_progressSaving; }
 std::string talent_summary() {
     const char* status=s_progressSaving ? "Saving..." : s_storeFailed ? "Save failed. Please retry Save progress." :

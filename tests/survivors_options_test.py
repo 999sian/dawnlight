@@ -34,6 +34,7 @@ bool arrowActive=false;bool active_enemy_arrow(int id){return arrowActive&&id==7
 struct Enemy{bool initialized=true,retiring=false,credited=false,dormant=false;int profile=1;}enemy;
 bool owned=true,active=true,paused=false,transition=false,event=false,aim=false,blocked=false;
 Enemy* tracked(int id){return owned&&id==2?&enemy:nullptr;}
+void suppress_player_reaction(daAlink_c*){}
 bool in_arena(){return active;}bool playable(){return active&&!paused;}bool transitioning(){return transition;}
 bool dComIfGp_event_runCheck(){return event;}
 void* s_menuDocument=nullptr;void remember_menu_document(bool){}

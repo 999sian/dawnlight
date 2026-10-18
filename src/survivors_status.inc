@@ -4,7 +4,7 @@ struct EnemyEffect {
     ActorId id = kNone;
     unsigned burn = 0, pulse = ticks_per_second, pending = 0, meleeSerial = 0;
     unsigned damage = 0;
-    bool injected = false;
+    bool injected = false, pendingCritical = false, critical = false;
     cXyz velocity{};
     std::array<u32, 2> emitters{};
     dCcD_Stts status;
@@ -25,7 +25,7 @@ void stop_burn(EnemyEffect& effect) {
 void clear_enemy_effects() {
     for (auto& effect : s_effects) {
         stop_burn(effect); effect.id = kNone; effect.pending = effect.damage = effect.meleeSerial = 0;
-        effect.injected = false;
+        effect.injected = false; effect.pendingCritical = effect.critical = false;
     }
 }
 bool effect_collider(const cCcD_Obj* collider) {
@@ -36,7 +36,7 @@ EnemyEffect& effect_for(Enemy& enemy) {
     auto& effect = s_effects[unsigned(&enemy - s_enemies.data())];
     if (effect.id != enemy.id) {
         stop_burn(effect); effect.id = enemy.id;
-        effect.pending = effect.damage = effect.meleeSerial = 0; effect.injected = false;
+        effect.pending = effect.damage = effect.meleeSerial = 0; effect.injected = false; effect.pendingCritical = effect.critical = false;
     }
     return effect;
 }
@@ -66,6 +66,7 @@ void prepare_effect_hit(fopAc_ac_c* actor, Enemy& enemy) {
     auto* link = daAlink_getAlinkActorClass();
     if (!link || fopAcM_GetID(link) != s_player) return;
     effect.damage = effect.pending; effect.pending = 0; effect.injected = true;
+    effect.critical=effect.pendingCritical; effect.pendingCritical=false;
     effect.status.Init(120, 0xff, link);
     effect.collider.Set(kAttackSource); effect.collider.SetStts(&effect.status);
     effect.collider.SetAtType(AT_TYPE_ARROW); // No native sword/ball/bomb special-case damage.
@@ -86,7 +87,7 @@ void finish_effect_hit(fopAc_ac_c* actor, ProfileName profile) {
         profile == fpcNm_E_BA_e ? &reinterpret_cast<e_ba_class*>(actor)->mAtInfo :
         profile == fpcNm_E_RD_e ? &reinterpret_cast<e_rd_class*>(actor)->at_info : &static_cast<e_ms_class*>(actor)->mAtInfo;
     if (info->mpCollider == &effect.collider) info->mpCollider = nullptr;
-    effect.injected = false; effect.damage = 0;
+    effect.injected = false; effect.critical = false; effect.damage = 0;
 }
 void spread_melee_hit(fopAc_ac_c* primary) {
     if (!s_run.dual_wield || s_spreadSerial == s_meleeSerial) return;
@@ -109,7 +110,9 @@ void spread_melee_hit(fopAc_ac_c* primary) {
         if (!best) break;
         auto& effect = effect_for(*best); effect.meleeSerial = s_meleeSerial;
         // Roll once per secondary target before combining with non-critical burn ticks.
-        effect.pending += s_run.critical_power(s_run.melee_power());
+        bool critical=false;
+        effect.pending += s_run.critical_power(s_run.melee_power(),&critical);
+        effect.pendingCritical = effect.pendingCritical || critical;
     }
 }
 void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
@@ -135,7 +138,7 @@ void update_enemy_effects() {
         auto* actor = actor_by_id(enemy.id);
         if (!in_arena() || !enemy.initialized || enemy.retiring || enemy.credited || !actor ||
             actor->health <= 0 || effect.id != enemy.id) {
-            stop_burn(effect); effect.pending = 0; continue;
+            stop_burn(effect); effect.pending = 0; effect.pendingCritical=effect.critical=false; continue;
         }
         if (!effect.burn) continue;
         if (!--effect.pulse) { effect.pending += s_run.burn_damage(); effect.pulse = ticks_per_second; }

@@ -77,7 +77,7 @@ void retire_enemy_arrows(){} void cleanup_enemy_arrows(){}
 void retire_pots(){} void retire_pickups(){}
 void queue_exp_magnet(const Enemy&,fopAc_ac_c*){}
 void clear_enemy_effects(){}
-void close_powerup_window() {} void close_window() {} void clear_attacks() {} void clear_loot() {} void detach_attack_references() {}
+void close_powerup_window() {} void close_window() {} void clear_attacks() {} void clear_loot() {} void clear_combat_feedback() {} void detach_attack_references() {}
 void d_GameOver_Delete(ActorId) {} void dComIfGp_setGameoverStatus(int) {}
 constexpr int MAX_SELECT_ITEM=4, MAX_ITEM_SLOTS=24, dItemNo_NONE_e=255;
 constexpr int TF_STATUS_HUMAN=0, dItemNo_WEAR_KOKIRI_e=47, KOKIRI_CLOTHES_FLAG=1;
@@ -142,7 +142,7 @@ daAlink_c* daAlink_getAlinkActorClass(){return nullptr;}
 bool native_sword_collider(const Collider*){return false;}
 struct Attack { Collider collider; };
 std::array<Attack,16> s_attacks;
-struct Effect{Collider collider;unsigned damage=0;};std::array<Effect,24>s_effects;
+struct Effect{Collider collider;unsigned damage=0;bool critical=false;};std::array<Effect,24>s_effects;
 constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
 struct dCcU_AtInfo { Collider* mpCollider; unsigned mAttackPower; int mHitType=0; };
 unsigned xp=0;
@@ -163,7 +163,9 @@ Service* svc_save=&service;
 Service* svc_actor=&service; ModContext* mod_ctx=nullptr;
 '''
 stubs += r'''
+struct BulblinHit{bool critical=false;};BulblinHit* bulblin_power_hit(dCcU_AtInfo*){return nullptr;}
 bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
+void mark_damage_critical(dCcU_AtInfo*,bool){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
 main = r'''

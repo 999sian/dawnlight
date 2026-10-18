@@ -44,6 +44,7 @@ HookAction before_enemy_damage(ModContext*, void* args, void*, void*) {
     auto* link=mods::arg<daAlink_c*>(args,0);
     if (!link || fopAcM_GetID(link)!=s_player || !playable() || s_run.phase!=Phase::Running ||
         mods::arg<int>(args,1)<=0 || mods::arg<int>(args,4)!=0) return HOOK_CONTINUE;
+    suppress_player_reaction(link);
     for (auto& target:link->mTgCyls) {
         auto* attacker=target.ChkTgHit() ? target.GetTgHitAc() : nullptr;
         const auto* enemy=attacker ? tracked(fopAcM_GetID(attacker)) : nullptr;

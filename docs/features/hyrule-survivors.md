@@ -604,6 +604,37 @@ The automated checks exercise stage-routing gates, map-selection/start callbacks
 room-aware chest placement, mesh seam welding, exits, continuous barrier collision,
 sliding, corners and fast movement; they do not render the actual room archives.
 
+## Combat follow-up
+
+Close-range enemy facing is corrected before native execution and after ground
+correction, before models and attack colliders are built. This also refreshes
+the rat leap heading and Keese attack target without changing dormant, hurt or
+death states. Successful ordinary spawns, a full population, and the final elite
+fight reset the consecutive placement-failure warning.
+
+The appended Dodge talent uses basis-point chances 500/625/750/875/1000 and the
+same unbiased chance helper as critical hits. It precedes shield block, works
+without a shield, and adds no invulnerability timer or attack interruption.
+Records v3 append its rank; v1/v2 saves retain existing progress and start Dodge
+at zero. Block/Dodge/Crit use a bounded pool of 64 rising, fading labels. Crit
+requires actual health loss and carries the original roll through Bulblin's
+power cache and queued Dual Wield hits; burn ticks cannot generate it alone.
+
+During native player-hit processing, positive damage temporarily enables the
+native no-reaction branch. Health damage still runs, the temporary mode bit is
+restored afterward, and new normal-hit immunity is cleared independently of
+hook order. Survivors forces No Normal-Hit Invulnerability without changing the
+saved setting. Interrupted sword draws retry using the actual equip animation;
+a newly drawn sword gets a ready melee opportunity before the next item handoff.
+
+Regression coverage includes enemy facing, text lifecycle/projection, applied
+crit feedback, Dodge probabilities, v2 migration, scoped hit reactions, setting
+restoration and interrupted equip/item scheduling. In-game checks remain needed:
+circle every enemy type during its attack; interrupt sword draws with hits and
+item actions; verify melee/waves/spins resume with all ranged weapons unlocked;
+check Block/Dodge/Crit positioning and fading; and compare health loss, flinch
+and repeat contacts with Survivors enabled and after returning to story mode.
+
 ## Run options
 
 The preparation window has Maps, Difficulty and Settings tabs. Session-local

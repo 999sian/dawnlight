@@ -68,6 +68,12 @@ struct dCcU_AtInfo{Collider* mpCollider;};
 void prepare_effect_hit(fopAc_ac_c*,Enemy&){}
 void finish_effect_hit(fopAc_ac_c*,ProfileName){}
 void record_status_hit(fopAc_ac_c*,dCcU_AtInfo*){}
+void begin_player_damage(void*,daAlink_c*){}
+enum class CombatText{Block,Dodge,Crit};std::array<unsigned,3>feedback{};
+void combat_feedback(fopAc_ac_c*,CombatText t){++feedback[unsigned(t)];}
+void begin_damage_feedback(void*,fopAc_ac_c*,dCcU_AtInfo*){}
+void end_damage_feedback(void*){}
+void mark_damage_critical(dCcU_AtInfo*,bool){}
 struct Args{void* first;void* second;};
 namespace mods{template<class T>T arg(void* a,int i){return static_cast<T>(i?static_cast<Args*>(a)->second:static_cast<Args*>(a)->first);}}
 '''
@@ -88,6 +94,22 @@ int main(){
   }
   const int expected=int(rank*500);assert(std::abs(int(blocks)-expected)<180);
  }
+ // Dodge does not require a shield and must preserve current attacks/movement.
+ s_run.shield=0;
+ for(unsigned rank=0;rank<=5;++rank){
+  s_run.talents.ranks[unsigned(Talent::Dodge)]=rank;unsigned dodges=0;
+  for(unsigned i=0;i<20000;++i){player.mProcID=daAlink_c::PROC_CUT;
+   player.mTgCyls[0].hit=true;player.mTgCyls[0].actor=&attacker;player.mTgCyls[0].attack=&hit;
+   s_ranged.active=true;s_comboStep=3;
+   if(before_shield_block(nullptr,&args,&result,nullptr)==HOOK_SKIP_ORIGINAL){++dodges;
+    assert(result==1 && !player.mTgCyls[0].hit && player.mProcID==daAlink_c::PROC_CUT);
+    assert(s_ranged.active&&s_comboStep==3&&player.mDamageTimer==0);
+   }
+  }
+  assert(std::abs(int(dodges)-int(2*s_run.talents.dodge_basis_points()))<150);
+ }
+ assert(feedback[unsigned(CombatText::Dodge)]>0&&feedback[unsigned(CombatText::Block)]>0);
+ s_run.talents={};s_run.shield=10;
  player.mProcID=daAlink_c::PROC_WAIT;
  assert(before_survivors_guard(nullptr,&args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL&&!player.guard);
  s_run.ranks[2]=1;s_ranged.active=false;
