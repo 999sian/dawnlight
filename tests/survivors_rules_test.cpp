@@ -4,6 +4,33 @@
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
+    // Dual Wield uses one rank for chest and level-up upgrades, including rarity
+    // caps/excess refunds, shield replacement and cross-source banishment.
+    Run dual;dual.start(1);assert(!dual.eligible(Upgrade::DualWield));
+    unsigned dualMoney=1000;dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::OrdonSword,true));
+    assert(dual.dual_wield==1&&dual.rank(Upgrade::DualWield)==1&&dual.melee_speed_percent()==105);
+    assert(dual.eligible(Upgrade::DualWield));
+    dual.phase=Phase::Upgrade;dual.offers[0]=Upgrade::DualWield;dual.offer_rarities[0]=Rarity::Legendary;
+    assert(dual.choose(0)&&dual.dual_wield==6&&dual.melee_targets()==4&&dual.melee_speed_percent()==130);
+    dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::OrdonSword,true)&&dual.rank(Upgrade::DualWield)==7);
+    dual.phase=Phase::Upgrade;assert(dual.upgrade_gain(Upgrade::DualWield,Rarity::Legendary)==3);
+    assert(dual.upgrade_rupees(Upgrade::DualWield,Rarity::Legendary)==40);
+    assert(dual.choose(0)&&dual.dual_wield==10&&!dual.eligible(Upgrade::DualWield));
+    assert(dual.melee_targets()==5&&dual.melee_speed_percent()==150);
+    dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::Shield,true)&&!dual.dual_wield&&!dual.eligible(Upgrade::DualWield));
+    assert(dual.melee_speed_percent()==100);
+    for(bool chest:{false,true}) {
+        dual.start(1);dual.dual_wield=1;dual.phase=chest?Phase::TreasureChoice:Phase::Upgrade;
+        assert(chest?dual.banish(ChestReward::OrdonSword,false):dual.banish(Upgrade::DualWield));
+        assert(!dual.eligible(Upgrade::DualWield)&&!dual.chest_eligible(ChestReward::OrdonSword));
+    }
+
+    dual.start(1);dual.offhand=ChestReward::OrdonSword; // Replacing a shield starts at rank zero.
+    assert(dual.eligible(Upgrade::DualWield));dual.phase=Phase::Upgrade;dual.offers[0]=Upgrade::DualWield;
+    assert(dual.choose(0)&&dual.dual_wield==1);
+    dual.talents.ranks[unsigned(Talent::MeleeHaste)]=5;dual.ranks[unsigned(Upgrade::Haste)]=5;
+    assert(dual.melee_speed_percent()==130&&dual.melee_cooldown()==11&&dual.cooldown(30)==15);
+
     Run jump; jump.start(12);
     assert(!jump.eligible(Upgrade::JumpStrike));
     jump.master_sword=1;assert(jump.eligible(Upgrade::JumpStrike));
@@ -100,6 +127,7 @@ int main() {
     for(unsigned rarity=0;rarity<5;++rarity) {
         for(unsigned u=0;u<unsigned(Upgrade::Rupees);++u)for(unsigned initial:{0u,4u}) {
             Run r;r.start(13);r.shield=1;r.red_potion=true;r.master_sword=1;r.ranks[8]=1;r.ranks[u]=initial;
+            if(Upgrade(u)==Upgrade::DualWield){r.shield=0;r.offhand=ChestReward::OrdonSword;r.dual_wield=initial;}
             // Weapons must be chest-unlocked first.
             if(u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)&&!initial)continue;
             r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);
@@ -276,7 +304,7 @@ int main() {
     for (unsigned rank=0;rank<=30;++rank) {
         Run high;high.start(1);high.shield=1;high.red_potion=true;high.master_sword=1;high.ranks.fill(rank);
         for (unsigned u=0;u<unsigned(Upgrade::Rupees);++u) {
-            if (Upgrade(u)==Upgrade::Luck) continue;
+            if (Upgrade(u)==Upgrade::Luck || Upgrade(u)==Upgrade::DualWield) continue;
             assert(upgrade_cap(Upgrade(u))==30);
             if (rank) assert(high.eligible(Upgrade(u))==(rank<30));
         }

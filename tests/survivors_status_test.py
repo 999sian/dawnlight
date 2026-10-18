@@ -122,6 +122,13 @@ int main(){
  record_status_hit(&group[0],&sword);
  for(unsigned i=1;i<4;++i){assert(s_effects[i].pending==3);hit(group[i]);}
  for(unsigned i=4;i<7;++i)assert(!s_effects[i].pending);
+ // Reach admits farther additional targets while retaining LOS/height gates
+ // and the same per-swing target budget, with no duplicate queued damage.
+ clear_enemy_effects();++s_meleeSerial;s_run.ranks[unsigned(Upgrade::Reach)]=10;
+ record_status_hit(&group[0],&sword);assert(s_effects[6].pending==3);
+ assert(!s_effects[4].pending&&!s_effects[5].pending);
+ record_status_hit(&group[0],&sword);assert(s_effects[6].pending==3);
+ s_run.ranks[unsigned(Upgrade::Reach)]=0;clear_enemy_effects();
  // Natural projectile collisions are preserved until they have been processed.
  ++s_meleeSerial;record_status_hit(&group[0],&sword);auto& target=group[2];
  target.mSph1.hit=true;target.mSph1.attack=&s_attacks[0].collider;prepare_effect_hit(&target,s_enemies[2]);

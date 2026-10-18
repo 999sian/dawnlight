@@ -166,6 +166,7 @@ DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
 DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
+DEFINE_HOOK(&daAlink_c::setSwordAtCollision, SurvivorsSwordCollision);
 DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
 DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
 DEFINE_HOOK(&daAlink_c::checkAutoJumpAction, SurvivorsLedgeJump);
@@ -719,6 +720,7 @@ bool normal_sword_proc(daAlink_c* link) {
     return link->mProcID == daAlink_c::PROC_CUT_NORMAL || link->mProcID == daAlink_c::PROC_CUT_FINISH;
 }
 #include "survivors_targeting.inc"
+#include "survivors_melee.inc"
 bool begin_sword_combo(daAlink_c* link) {
     // Native recovery can clear its counter before our cooldown expires. Keep
     // the automatic sequence across that gap, but let native code pick each
@@ -789,7 +791,10 @@ void update_sword(daAlink_c* link) {
         s_swordAction = SwordAction::Normal; s_wavePending = wave; s_trackMelee = !wave;
         new_melee_swing();
         if (wave) { s_comboStep = s_comboTimeout = 0; link->mComboCutCount = 0; }
-        s_meleeCooldown = s_run.cooldown(30);
+        // Apply once after native animation setup; preserve its per-swing rate.
+        link->mUnderFrameCtrl[0].setRate(link->mUnderFrameCtrl[0].getRate()*s_run.melee_speed());
+        link->mUpperFrameCtrl[0].setRate(link->mUpperFrameCtrl[0].getRate()*s_run.melee_speed());
+        s_meleeCooldown = s_run.melee_cooldown();
         if (wave) s_cooldowns[0] = s_run.cooldown(40);
     }
 }
@@ -910,6 +915,8 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (dComIfGs_getLife() == 0) { finish(false); return; }
     update_combat_feedback();
     s_run.tick(true);
+    if (const unsigned rupees=s_run.auto_rupees())
+        dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(),dComIfGs_getRupee()+rupees));
     if (s_run.ticks >= duration && s_run.timed_elites == timed_elite_count) { finish(true); return; }
     update_enemy_effects();
     update_spawns(link); update_pots(link); update_exp_magnets(link); update_weapons(link); update_orbs(link);
@@ -1371,6 +1378,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
     PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_cut);
     POST(SurvivorsPower, after_power);
+    POST(SurvivorsSwordCollision, after_sword_collision);
     PRE(SurvivorsHitMaterial, before_hit_material); POST(SurvivorsHitMaterial, after_hit_material);
     POST(SurvivorsLightSword, after_light_sword);
     POST(SurvivorsJumpStrike, after_jump_strike); POST(SurvivorsJumpStrikeLand, after_jump_strike);

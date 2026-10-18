@@ -94,6 +94,9 @@ std::array<Chest,kChestCount>s_chests;
 bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes=0;
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
 void finish(bool victory){++finishes;s_run.end(victory);}
+unsigned rupees=0,rupeeWrites=0;
+unsigned dComIfGs_getRupee(){return rupees;}unsigned dComIfGs_getRupeeMax(){return 300;}
+void dComIfGs_setRupee(unsigned value){rupees=value;++rupeeWrites;}
 void update_combat_feedback(){}
 void update_enemy_effects(){}void update_weapons(daAlink_c*){}void update_orbs(daAlink_c*){} void update_exp_magnets(daAlink_c*){}
 void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c*){}
@@ -210,6 +213,19 @@ int main(){
  assert(actor.speedF==0&&actor.speed.x==0&&actor.speed.y==3&&actor.animations==1);
  before_bokoblin_wait(nullptr,args,nullptr,nullptr);assert(actor.animations==1);
  s_enemies[0].dormant=false;assert(before_bokoblin_wait(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+ // Every five active seconds: no payouts during menus, pause, death or results.
+ for(unsigned rank=0;rank<=5;++rank) {
+  fresh(0);life=12;rupees=rupeeWrites=0;s_run.talents.ranks[unsigned(Talent::AutoRupees)]=rank;
+  std::any incomeArgs[]={&player};s_run.ticks=149;
+  for(auto phase:{Phase::Ready,Phase::Upgrade,Phase::TreasureChoice,Phase::Treasure,Phase::Victory,Phase::Defeat}) {
+   s_run.phase=phase;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(s_run.ticks==149&&!rupeeWrites);
+  }
+  s_run.phase=Phase::Running;paused=true;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(!rupeeWrites&&s_run.ticks==149);
+  paused=false;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(rupees==rank&&rupeeWrites==unsigned(rank!=0));
+  after_player(nullptr,incomeArgs,nullptr,nullptr);assert(rupees==rank);
+  s_run.ticks=299;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(rupees==2*rank);
+  rupees=299;s_run.ticks=449;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(rupees==(rank?300:299));
+ }
  // Production timer completion: pause and UI phases never consume run time.
  fresh(0);s_run.ticks=duration-1;std::any playerArgs[]={&player};paused=true;
  after_player(nullptr,playerArgs,nullptr,nullptr);assert(s_run.ticks==duration-1&&finishes==0);

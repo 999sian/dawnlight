@@ -46,6 +46,7 @@ template<class T> T arg(void* args,int n){return std::any_cast<T>(static_cast<st
 struct cXyz {
     float x=0,y=0,z=0;
     float abs(const cXyz& p)const{return std::sqrt((x-p.x)*(x-p.x)+(y-p.y)*(y-p.y)+(z-p.z)*(z-p.z));}
+    cXyz operator*(float f)const{return {x*f,y*f,z*f};}
     cXyz operator+(cXyz p)const{return {x+p.x,y+p.y,z+p.z};}
     cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-p.z};}
     float absXZ()const{return std::sqrt(x*x+z*z);}
@@ -53,6 +54,7 @@ struct cXyz {
 struct csXyz {short x=0,y=0,z=0; csXyz(short a=0,short b=0,short c=0):x(a),y(b),z(c){}};
 short cM_atan2s(float a,float b){return short(std::atan2(a,b)*32768/3.14159265);}
 struct cCcD_Obj {
+    cXyz start,end;void SetStartEnd(cXyz a,cXyz b){start=a;end=b;}
     float radius=0;void SetR(float r){radius=r;}
     unsigned power=1; bool active=true,hit=true;
     unsigned GetAtAtp()const{return power;}
@@ -67,7 +69,8 @@ struct daAlink_c : fopAc_ac_c {
     int mProcID=PROC_WAIT,mEquipItem=0x103,field_0x2fde=0;
     bool wolf=false,model=true; void* mSwordModel=&model;
     struct {bool ground=true;bool ChkGroundHit(){return ground;}}mLinkAcch;
-    struct Frame {float frame=0,rate=1;float getFrame(){return frame;}void setRate(float r){rate=r;}}mUnderFrameCtrl[1],mUpperFrameCtrl[1];
+    struct Frame {float frame=0,rate=1;float getFrame(){return frame;}float getRate(){return rate;}void setRate(float r){rate=r;}}mUnderFrameCtrl[1],mUpperFrameCtrl[1];
+    cXyz field_0x3498{},field_0x34bc{},mSwordTopPos{0,70,200},field_0x34b0{0,70,190};float field_0x33d0=1;
     int field_0x3198=2;
     int procCutLargeJumpInit(){mProcID=PROC_CUT_LARGE_JUMP;return 1;}
     float field_0x3478=0,field_0x347c=10,field_0x3484=15,mNormalSpeed=0,mStickValue=0;short mMoveAngle=0;csXyz shape_angle;
@@ -96,9 +99,9 @@ struct daAlink_c : fopAc_ac_c {
     void swordEquip(int){++equips;field_0x2fde=0x103;equipping=true;}
     int procCutNormalInit(int type){normalTypes.push_back(type);comboCounts.push_back(mComboCutCount);
         ++normals;mProcID=PROC_CUT_NORMAL;mProcVar1.field_0x300a=4;
-        field_0x3478=5;mUnderFrameCtrl[0].frame=0;return 1;}
+        field_0x3478=5;mUnderFrameCtrl[0]={};mUpperFrameCtrl[0]={};return 1;}
     int procCutFinishInit(int type){finishTypes.push_back(type);comboCounts.push_back(mComboCutCount);
-        ++finishes;mProcID=PROC_CUT_FINISH;field_0x3478=5;mUnderFrameCtrl[0].frame=0;return 1;}
+        ++finishes;mProcID=PROC_CUT_FINISH;field_0x3478=5;mUnderFrameCtrl[0]={};mUpperFrameCtrl[0]={};return 1;}
     int procCutTurnInit(int quick,int dir){assert(quick==1 && dir==1);++spins;
         mProcID=PROC_CUT_TURN;field_0x3478=220;field_0x347c=130;return 1;}
 } player;
@@ -124,7 +127,7 @@ struct ArenaPot{unsigned id=kNone;bool initialized=false,retiring=false,broken=f
 std::array<ArenaPot,1>s_pots;
 bool fopAcM_checkCarryNow(fopAc_ac_c*){return potCarried;}bool fopAcM_checkHookCarryNow(fopAc_ac_c*){return false;}
 fopAc_ac_c* actor_by_id(unsigned id){return id==enemy.id?&enemy:id==enemy2.id?&enemy2:id==potActor.id?&potActor:nullptr;}
-struct dBgS_LinChk {unsigned unused=0;void Set(const cXyz*,const cXyz*,daAlink_c*){}};
+struct dBgS_LinChk {void Set(const cXyz*,const cXyz*,daAlink_c*){}cXyz GetCross(){return {0,70,250};}};
 bool blocked=false;
 struct World{bool LineCross(dBgS_LinChk*){return blocked;}}world;
 World& dComIfG_Bgsp(){return world;}
@@ -190,6 +193,39 @@ void reset(){player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor
     enemy.id=10;enemy.current.pos={0,0,150};s_enemies={};s_enemies[0]={10,true,false,false};
 }
 int main(){
+    // Both body tracks and the next-swing cooldown accelerate once per native
+    // combo entry. Consecutive swings never compound the speed multiplier.
+    for(unsigned dual:{0u,1u,10u})for(unsigned haste:{0u,1u,5u}) {
+        reset();s_run.dual_wield=dual;s_run.talents.ranks[unsigned(Talent::MeleeHaste)]=haste;
+        for(unsigned swing=0;swing<4;++swing) {
+            s_meleeCooldown=0;player.mUnderFrameCtrl[0].frame=16;update_sword(&player);
+            assert(std::abs(player.mUnderFrameCtrl[0].rate-(1+.05f*(dual+haste)))<.0001f);
+            assert(player.mUpperFrameCtrl[0].rate==player.mUnderFrameCtrl[0].rate);
+            assert(s_meleeCooldown==s_run.melee_cooldown());
+        }
+    }
+    // Reach extends native swept capsules each frame from fresh blade points,
+    // clips extension at walls, and does not widen capsules or invent hit flags.
+    reset();update_sword(&player);std::any swordArgs[]={&player};
+    for(unsigned reach:{1u,10u,30u}) {
+        s_run.ranks[unsigned(Upgrade::Reach)]=reach;
+        player.mAtCps[0].radius=35;player.mAtCps[1].active=false;
+        for(int frame=0;frame<3;++frame) {
+            after_sword_collision(nullptr,swordArgs,nullptr,nullptr);
+            assert(player.mAtCps[0].end.z==s_run.radius(200));
+            assert(player.mAtCps[2].end.z==s_run.radius(190));
+            assert(player.mAtCps[0].radius==35&&!player.mAtCps[1].active);
+        }
+    }
+    blocked=true;after_sword_collision(nullptr,swordArgs,nullptr,nullptr);assert(player.mAtCps[0].end.z==250);
+    blocked=false;
+    for(int gate=0;gate<5;++gate) {
+        s_run.phase=gate==0?Phase::Upgrade:Phase::Running;playing=gate!=1;
+        player.mProcID=gate==2?daAlink_c::PROC_DAMAGE:daAlink_c::PROC_CUT_NORMAL;
+        s_swordAction=gate==3?SwordAction::Spin:SwordAction::Normal;
+        player.id=gate==4?99:7;player.mAtCps[0].end.z=123;
+        after_sword_collision(nullptr,swordArgs,nullptr,nullptr);assert(player.mAtCps[0].end.z==123);
+    }
     reset();update_sword(&player);
     assert(player.normals==1 && player.spins==0 && waves==0 && !s_wavePending);
     player.mUnderFrameCtrl[0].frame=6;update_sword(&player);assert(waves==0);
@@ -454,7 +490,7 @@ int main(){
 }
 '''
 functions = ['stop_attack', 'update_wave_effects', 'sword_action_available', 'enemy_in_range',
-             'before_cut', 'before_sword_attack', 'normal_sword_proc', 'targeting', 'begin_sword_combo',
+             'before_cut', 'before_sword_attack', 'normal_sword_proc', 'melee', 'targeting', 'begin_sword_combo',
              'release_sword_wave', 'jump_strike', 'update_sword', 'after_sword_move', 'before_large_spin',
              'native_sword_collider', 'after_power', 'before_drop', 'drop_reward', 'select_upgrade']
 # Execute Dusklight's actual combo counter/selector, not a reimplementation of
@@ -465,7 +501,7 @@ native_combo_functions = extract('daAlink_c::commonCutAction', native) + '\n' + 
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join((root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else extract(name) for name in functions) + '\n' + main)
+    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join((root/'src/survivors_melee.inc').read_text() if name=='melee' else (root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else extract(name) for name in functions) + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

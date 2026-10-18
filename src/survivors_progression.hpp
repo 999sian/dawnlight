@@ -4,9 +4,9 @@
 #include <algorithm>
 
 namespace dawnlight::survivors {
-enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, StartingItem, Count };
-inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge", "Starting Item"};
-inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{5,5,1,2,5,1,1,1,2,2,2,5,1};
+enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, StartingItem, AutoRupees, BonusDamage, MeleeHaste, CritDamage, Count };
+inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge", "Starting Item", "Auto Rupees", "Bonus Damage", "Melee Haste", "Crit Damage"};
+inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{5,5,1,2,5,1,1,1,2,2,2,5,1,5,5,5,5};
 inline constexpr std::array talent_help{
     "+1 starting heart per rank (up to 8). Run Heart Containers remain separate.",
     "+1 percentage point base critical chance per rank. Luck multiplies it; final chance caps at 100%.",
@@ -20,7 +20,11 @@ inline constexpr std::array talent_help{
     "+1 free reroll per rank each run, up to three. Shared by level-ups and chests.",
     "+1 banishment per rank each run, up to three. Shared by level-ups and chests.",
     "Avoid enemy hits: 5% / 6.25% / 7.5% / 8.75% / 10%. Independent of Luck and shield blocks.",
-    "Start each run by choosing one free item from three chest rewards. Uses normal rarity and shared rerolls/banishes."};
+    "Start each run by choosing one free item from three chest rewards. Uses normal rarity and shared rerolls/banishes.",
+    "Gain 1 rupee per rank every 5 seconds of active play, up to 5. Pauses with the run; respects wallet capacity.",
+    "+1 weapon damage per rank, up to +5, before critical hits and Dark Link. Jump Strike scales from melee damage.",
+    "+5% normal sword attack speed per rank, up to +25%. Adds to Dual Wield speed; combines with Haste cooldowns.",
+    "+10 percentage points critical damage per rank, up to +50%. Base x2 becomes x2.5; stacks with run Crit Damage upgrades."};
 inline constexpr Talent talent_parent(Talent t) {
     switch(t) {
     case Talent::SprintSpeed: return Talent::Sprint;

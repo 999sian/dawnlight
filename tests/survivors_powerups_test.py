@@ -133,6 +133,17 @@ int main(){
    s_run.offers.fill(Upgrade(i));assert(build_upgrade_choices(1,2)==MOD_OK);
    assert(s_run.phase==Phase::Upgrade&&s_run.rank(Upgrade::Heart)==0&&money==100);
  }
+ // Dual Wield cards preview and commit the same rank as equipment chests.
+ fresh();s_run.dual_wield=2;s_run.offhand=ChestReward::OrdonSword;s_run.phase=Phase::Upgrade;
+ s_run.offers={Upgrade::DualWield,Upgrade::Count,Upgrade::Count};
+ assert(build_upgrade_choices(1,2)==MOD_OK);bool dualSpeed=false,dualTargets=false;Element* dualButton=nullptr;
+ for(auto& [id,e]:elements){
+  dualSpeed|=e.text.find("110% -&gt; 115%")!=std::string::npos;
+  dualTargets|=e.text.find("2 -&gt; 3")!=std::string::npos;
+  if(e.kind=="button"&&e.text=="Dual Wield")dualButton=&e;
+ }
+ assert(dualSpeed&&dualTargets&&dualButton&&s_run.dual_wield==2);
+ dualButton->pressed(nullptr,dualButton->data);assert(s_run.dual_wield==3&&s_run.rank(Upgrade::DualWield)==3);
  // Potion healing previews show the actual fractional gain and commit only the rank.
  fresh();s_run.red_potion=true;s_run.phase=Phase::Upgrade;
  s_run.offers={Upgrade::PotionHealing,Upgrade::Count,Upgrade::Count};
