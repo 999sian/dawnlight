@@ -83,6 +83,18 @@ std::vector<std::string> colored_segments(MessageId id,MessageTextColor color){
 }
 std::vector<std::string> red_segments(MessageId id){return colored_segments(id,MESSAGE_COLOR_RED);}
 int main(){
+ for(unsigned level:{9u,19u}) {
+  Run before;before.start(1);before.ranks[unsigned(Upgrade::Bow)]=level;
+  Run after=before;++after.ranks[unsigned(Upgrade::Bow)];
+  const auto changes=reward_changes(ChestReward::Bow,before,after);
+  bool arrows=false,fan=false;
+  for(const auto& c:changes) {
+   if(c.label=="Arrows")arrows=c.before==(level==9?"1":"3")&&c.after==(level==9?"3":"5");
+   if(c.label=="Fan angle")fan=c.before==(level==9?"0.0 degrees":"22.5 degrees")&&c.after==(level==9?"22.5 degrees":"45.0 degrees");
+  }
+  assert(arrows&&fan);
+ }
+
  // Displayed collider sizes must match actual arrows and boomerangs: Reach
  // cannot widen arrows, and item ranks cannot widen the boomerang.
  for(unsigned reach:{0u,10u,30u})for(unsigned rank:{1u,10u,30u}) {
@@ -107,7 +119,7 @@ int main(){
   assert(prepare_treasure_message(reward,before,after,Rarity::Common));const auto changes=reward_changes(reward,before,after);
   auto red=red_segments(treasure_message_id());assert(red.size()==changes.size());
   for(unsigned i=0;i<changes.size();++i)assert(red[i]==changes[i].before+" -> "+changes[i].after&&changes[i].before!=changes[i].after);
-  if(reward==ChestReward::Bow&&level==3){auto text=plain(treasure_message_id());assert(text.find("Arrows: 1 -> 2")!=std::string::npos);assert(text.find("Damage: 7 -> 8")!=std::string::npos);}
+  if(reward==ChestReward::Bow&&level==3){auto text=plain(treasure_message_id());assert(text.find("Arrows:")==std::string::npos);assert(text.find("Damage: 7 -> 8")!=std::string::npos);}
  }
  before=s_run;before.master_sword=4;before.ranks[0]=3;after=before;after.master_sword=5;
  assert(prepare_treasure_message(ChestReward::MasterSword,before,after,Rarity::Common));
@@ -167,7 +179,7 @@ int main(){
  const auto oldDescription=explain.field_0xc8;s_run.ranks[12]=5;s_run.ranks[8]=5;
  after_item_explain(nullptr,explainArgs,&opened,nullptr);
  assert(explain.field_0xc8==oldDescription&&explain.field_0xd0==~0u);
- assert(plain(explain.field_0xc8).find("2 arrows, 5 degrees; extra hits 25%")!=std::string::npos&&plain(explain.field_0xc8).find("Fire Lv.5 (5/s, 4.00s)")!=std::string::npos);
+ assert(plain(explain.field_0xc8).find("1 arrows, 0.0 degrees; extra hits 25%")!=std::string::npos&&plain(explain.field_0xc8).find("Fire Lv.5 (5/s, 4.00s)")!=std::string::npos);
  opened=0;const auto id=explain.field_0xc8;after_item_explain(nullptr,explainArgs,&opened,nullptr);assert(explain.field_0xc8==id);
  for(unsigned rank=0;rank<=5;++rank){
   Run run;run.ranks.fill(rank);run.master_sword=rank;run.shield=rank*2;

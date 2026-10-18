@@ -28,6 +28,7 @@ stubs = r'''
 #include <any>
 #include <cassert>
 #include <cmath>
+#include <span>
 #include <iostream>
 #include <map>
 #include <vector>
@@ -144,15 +145,18 @@ struct Emitter {
 };
 std::map<u32,Emitter>emitters;unsigned nextEmitter=1;
 constexpr u16 ID_ZI_J_KAITENGIRI_A=11,ID_ZI_J_KAITENGIRI_B=12,ID_ZI_J_BOMBex_A=0x161,ID_ZI_J_BOMBex_B=0x162;
+constexpr u16 ID_ZI_J_KAITENGIRID_A=21,ID_ZI_J_KAITENGIRID_B=22,ID_ZI_J_KAITENGIRID_C=23,ID_ZI_J_KAITENGIRID_D=24,ID_ZI_J_KAITENGIRID_E=25,ID_ZI_J_KAITENGIRID_F=26;
+#include "survivors_spin_effects.inc"
+
 std::vector<u16>particles;std::vector<float>particleScales;
 Emitter* dComIfGp_particle_getEmitter(u32 id){auto it=emitters.find(id);return it==emitters.end()?nullptr:&it->second;}
 u32 dComIfGp_particle_set(u32 id,u16 effect,cXyz*,int*,const csXyz*,const cXyz* scale,int,void*,int,void*,void*,void*){
-    assert(effect==ID_ZI_J_KAITENGIRI_A || effect==ID_ZI_J_KAITENGIRI_B || effect==0x161 || effect==0x162);
+    assert(effect==ID_ZI_J_KAITENGIRI_A || effect==ID_ZI_J_KAITENGIRI_B || (effect>=21&&effect<=26) || effect==0x161 || effect==0x162);
     particles.push_back(effect);particleScales.push_back(scale?scale->x:1);
     if(!id){id=nextEmitter++;emitters.emplace(id,Emitter{});}return id;
 }
 void dComIfGp_particle_levelEmitterOnEventMove(u32){}
-struct Attack {bool active=true;unsigned life=10;cXyz position,velocity;cCcD_Obj collider;std::array<u32,2>emitters{};};
+struct Attack {bool active=true,greatSpin=false;float radius=65,effectBaseRadius=260;unsigned life=10;cXyz position,velocity;cCcD_Obj collider;std::array<u32,9>emitters{};};
 std::array<Attack,initial_projectile_slots>s_attacks;
 struct Effect{cCcD_Obj collider;unsigned damage=0;bool critical=false;};std::array<Effect,24>s_effects;
 void new_melee_swing(){}
@@ -414,6 +418,22 @@ int main(){
     s_run.ranks[unsigned(Upgrade::CritChance)]=s_run.ranks[unsigned(Upgrade::CritDamage)]=0;
     s_run.dark_link=s_run.dark_remaining=0;
     // Expired and missing emitters restart; all surviving emitters are invalidated on cleanup.
+    for(unsigned level:{1u,3u,5u,14u,15u,20u,30u}) {
+        s_run.ranks[0]=level;waves=0;release_sword_wave(&player);assert(waves==1);
+    }
+    for(bool great:{false,true})for(unsigned reach:{0u,30u}) {
+        Attack wave;wave.greatSpin=great;wave.effectBaseRadius=great?400:260;
+        s_run.ranks[0]=great?15:14;s_run.ranks[5]=reach;wave.radius=s_run.wave_radius();
+        particles.clear();particleScales.clear();update_wave_effects(wave,&player);
+        assert(particles.size()==(great?6u:2u));
+        for(unsigned i=0;i<particles.size();++i) {
+            assert(particles[i]==survivor_spin_effects(great)[i]);
+            assert(std::abs(particleScales[i]*wave.effectBaseRadius-wave.radius)<.001f);
+        }
+        // In-flight particles retain their tier even when another upgrade arrives.
+        s_run.ranks[0]=great?14:15;particles.clear();update_wave_effects(wave,&player);
+        assert(particles.size()==(great?6u:2u));stop_attack(wave);
+    }
     Attack a;update_wave_effects(a,&player);auto first=a.emitters;
     a.position={10,20,30};update_wave_effects(a,&player);
     assert(a.emitters==first && emitters[first[0]].position.x==10);
@@ -421,7 +441,7 @@ int main(){
     assert(a.emitters[0]!=first[0] && a.emitters[1]!=first[1] && emitters[first[0]].invalid);
     auto last=a.emitters;stop_attack(a);
     assert(!a.active && !a.collider.active && !a.collider.hit && a.emitters[0]==0 && a.emitters[1]==0);
-    for(auto id:last)assert(emitters[id].stopped && emitters[id].quit && emitters[id].invalid);
+    for(auto id:last)if(id)assert(emitters[id].stopped && emitters[id].quit && emitters[id].invalid);
     stop_attack(a); // Repeated cleanup is safe.
     // Circle a target through a whole turn at full running speed. Facing is
     // recomputed from the moved position every frame; travel remains untouched.

@@ -13,7 +13,7 @@ HookAction before_powerup_icon(ModContext*, void* args, void*, void*) {
 }
 std::string powerup_description_rml(Upgrade upgrade) {
     std::string text = "<span class=\"survivors-treasure-name\">";
-    text += treasure_rml_escape(names[unsigned(upgrade)]) + " - Level " + number(s_run.rank(upgrade)) + "</span><br/>";
+    text += treasure_rml_escape(s_run.upgrade_name(upgrade)) + " - Level " + number(s_run.rank(upgrade)) + "</span><br/>";
     const auto description = upgrade_description(upgrade, s_run);
     std::string line;
     for (char c : description) {
@@ -31,7 +31,7 @@ ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
         if (!preview.choose(i)) continue;
         const auto upgrade = s_run.offers[i];
         const auto rarity = s_run.offer_rarities[i];
-        std::string rml = choice_rml_start(kPowerupScrollIcon, names[unsigned(upgrade)], rarity);
+        std::string rml = choice_rml_start(kPowerupScrollIcon, preview.upgrade_name(upgrade), rarity);
         rml += "<div class=\"survivors-treasure-effect\">" + treasure_rml_escape(descriptions[unsigned(upgrade)]) + "</div>";
         for (const auto& change : upgrade_changes(upgrade, s_run, preview, rarity))
             rml += "<div class=\"survivors-treasure-change\">" + treasure_rml_escape(change.label) +
@@ -42,7 +42,7 @@ ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
             rml += "<div class=\"survivors-treasure-change\">Excess reward: <span class=\"survivors-treasure-delta\">+" +
                 number(extra) + " rupees</span></div>";
         rml += "</div>";
-        result = add_choice_card(row, rml, names[unsigned(upgrade)], select_upgrade, &s_choices[i]);
+        result = add_choice_card(row, rml, preview.upgrade_name(upgrade), select_upgrade, &s_choices[i]);
         if (result != MOD_OK) return result;
     }
     return add_choice_actions(left,false);
@@ -58,7 +58,7 @@ ModResult build_powerup_overview(ModContext*, UiWindowHandle, UiElementHandle le
     for (unsigned i = 0; i < unsigned(Upgrade::Rupees); ++i) {
         const auto upgrade = Upgrade(i);
         if (!s_run.rank(upgrade)) continue;
-        const std::string label = std::string(names[i]) + " - Level " + number(s_run.rank(upgrade));
+        const std::string label = std::string(s_run.upgrade_name(upgrade)) + " - Level " + number(s_run.rank(upgrade));
         const auto help = powerup_description_rml(upgrade);
         UiControlDesc control = UI_CONTROL_DESC_INIT;
         control.label = label.c_str();

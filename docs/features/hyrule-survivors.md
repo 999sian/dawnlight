@@ -58,7 +58,7 @@ reject submerged or hazardous ground.
 
 Every arena hosts a twenty-minute run.
 Start with three hearts and automatic normal sword strikes. Sword Wave starts
-locked, like Whirling Blade. Move, dodge and collect blue experience
+locked, like Spin Attack. Move, dodge and collect blue experience
 crystals while weapons attack automatically. Manual Jump remains available with
 your configured binding; manual sword attacks and arena exits are disabled.
 Normal strikes aim at nearby enemies and use Link's native sword animation and
@@ -93,11 +93,11 @@ is retained and multiple earned levels are offered consecutively.
 
 | Upgrade | Effect |
 | --- | --- |
-| Sword Wave | Unlock aimed, piercing projectiles released during a normal sword swing; additional waves at levels 3 and 5 |
-| Whirling Blade | Unlock or improve a native Spin Attack with freely steerable movement |
+| Sword Wave | One aimed, piercing projectile per cast; becomes a larger Great Spin projectile at rank 15 |
+| Spin Attack | Automatic Spin Attack while moving; becomes Great Spin Attack at rank 15 with a larger radius |
 | Shield Attack | Requires a chest shield; automatic native shield bash, with damage, range and cooldown upgrades; retains stagger |
 | Fire Arrows | Requires Hero's Bow; ignite enemies for 1 damage/second over 3 seconds; +1 periodic damage per rank and +1 second after every three further upgrades (rank 4) |
-| Hero's Bow | Chest unlock; extra arrows at ranks 4/7/10… up to ten, symmetric 5° wider fan per added arrow up to 45°; same-volley extra hits per target deal 25% damage |
+| Hero's Bow | Chest unlock; one arrow at ranks 1–9, three at 10–19, five at 20–30; symmetric fan up to 45°; same-volley extra hits per target deal 25% damage |
 | Boomerang | Chest unlock; Gale wind effect and one extra target at rank 1; each upgrade adds another hop and improves damage/size/cooldown |
 | Bombs | Chest unlock; aimed ballistic throws with larger, stronger blasts and shorter cooldowns |
 | Ball and Chain | Native throw/pull/catch animation and chain links; pierces to full range, damages each enemy once per leg and retains stagger |
@@ -121,10 +121,14 @@ animations. Rats keep their real hit cooldown instead of resetting it each frame
 of the damage animation. Native brief hit cooldowns, death states and the ball's
 once-per-leg hit rule remain; ordinary hits do not restart the prone animation. The ball can hit an enemy
 once on each leg, including a return hit during recovery from its outbound hit; the mod replaces the native nonlinear damage table only
-for its own weapons and automatic sword strikes. Sword Wave always uses the first normal swing, never the combo finisher.
-Sword Wave uses the two smaller
-normal-spin particle effects, following the moving-emitter approach of Great Spin
-Projectile. It does not use the large Great Spin effect or a debug sphere.
+for its own weapons and automatic sword strikes. Sword Wave fires independently of the normal sword combo.
+It emits one piercing projectile at every rank. At rank 15, both Sword Wave and
+Spin Attack switch from the two normal-spin particles to the six Great Spin
+particles. The wave base radius increases from 65 to 100; Spin Attack uses the
+native normal radius (260) before rank 15 and Great Spin radius (400) thereafter,
+independently of Master Sword rank. Reach still scales the radii, and particle
+scale follows the actual hitbox. In-flight waves retain their launch tier.
+The ability name changes from Spin Attack to Great Spin Attack at rank 15.
 
 Each confirmed ordinary enemy kill has a base 2.5% chance to drop a native heart,
 45% to drop a rupee and 52.5% to drop nothing. Luck multiplies the heart and rupee
@@ -378,7 +382,7 @@ The four automatic item weapons unlock at rank 1; duplicates add their rarity's 
 Master Sword has five chest ranks. Rank 1 equips it and adds 3 damage;
 each later rank adds 1, and **rank 5 equips the Light Sword** with its
 native light effect (7 bonus sword damage total). Sword damage applies to melee,
-Whirling Blade and Sword Wave, without the vanilla light-material 100-damage override.
+Spin Attack and Sword Wave, without the vanilla light-material 100-damage override.
 Get Item uses a private instance of Link's sword model instead of the native rupee placeholder.
 An Ordon Sword reward enables and equips Dawnlight's existing Dual Wield with an
 Ordon offhand sword. At rank 1 each accepted normal sword strike also hits the next nearest reachable
@@ -518,7 +522,7 @@ height. Other mods can still change gameplay; cross-mod balance is not enforced.
 This is the initial arena implementation. It retains the native camera and uses
 code-drawn crystals plus native chest/item/chain models,
 sword animations and particle effects. No additional textures, models or music
-are required. Larger arenas, camera changes, weapon evolutions, persistent
+are required. Larger arenas, camera changes, further weapon evolutions, persistent
 unlock trees and mid-run suspend are not part of this version.
 
 The budgets are 372 tracked enemies (360 ordinary slots plus four scheduled
@@ -572,7 +576,7 @@ Before merging/releasing, test on Android and desktop:
    damage reaction or a gap between targets, and permits movement during finishers.
    Circle an enemy at full speed; verify facing tracks it through the hit window,
    a passing enemy does not steal the target, and walls/death release the lock.
-8. Steer in every direction during Whirling Blade, including into walls; verify
+8. Steer in every direction during Spin Attack, including into walls; verify
    native spin hits and that damage/dodges safely interrupt attacks.
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)
    does not heal and that restarting clears pickups and all weapon unlocks.
@@ -750,8 +754,9 @@ absolute final-boss budgets. Power, Master Sword damage, Dark Link's permanent
 2× at rank 30, shield block and rupee drop rates are retained. The optional rare
 Legendary global multiplier is not implemented.
 
-Bow volleys use a symmetric center-out fan with 5 degrees between arrows:
-one arrow 0°, two ±2.5°, three −5°/0°/+5°, ten −22.5°…+22.5°. Full salvos
+Bow volleys use a symmetric center-out fan with 11.25 degrees between arrows:
+one arrow at ranks 1–9, three at ranks 10–19 (−11.25°/0°/+11.25°), and five
+at ranks 20–30 (−22.5°…+22.5°). Full salvos
 are emitted regardless of occupied projectile slots. Volley groups and each
 enemy's tracking vector grow as needed; an occupied group cannot be reused. Each enemy tracks the last
 volley ID in each slot. The first arrow of a volley deals full damage to that
@@ -768,7 +773,7 @@ and outdoor relocation; every confirmed respawn kill still awards XP.
 
 Validation: native Linux build, rules/distribution tests, production ranged/hit
 collector fixtures, map/elite health and reward lifecycle, and UI regression
-fixtures. Device validation should compare full/partial 45° volleys, simultaneous
+fixtures. Device validation should compare five-arrow 45° volleys, simultaneous
 volleys at different distances, large and small targets, high-Reach ball returns,
 first versus repeated guard rewards, and every map's final boss on desktop/Android.
 The previous balancing simulation predates the requested wider fan; its DPS

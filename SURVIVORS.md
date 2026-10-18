@@ -17,7 +17,7 @@ your map, difficulty, settings and allocated talents remain unchanged.
   Collect blue XP crystals and choose one of three power-ups at each level-up. Selection supports controller,
   keyboard and touch; menus and Get Item animations pause the run.
 - Start with three hearts and normal sword attacks. Unlock Sword Wave and
-  Whirling Blade through level-ups. Passive upgrades, including Heart Container,
+  Spin Attack through level-ups. Passive upgrades, including Heart Container,
   remain available independently of other choices (maximum 20 hearts).
 - The HUD shows time, run level, score, XP and the next chest price. Inspect equipment
   in the item wheel and power-ups via the Hidden Skills scroll in Collection.
@@ -216,7 +216,7 @@ banish symbol at the top right of a card to remove that choice. Talents can add 
 
 | Chest reward | Main effect |
 | --- | --- |
-| Hero's Bow | Automatic aimed arrows; one extra arrow every three ranks (4, 7, 10…), max 10 arrows. The symmetric fan widens by 5° per added arrow, reaching 45° total (±22.5°). Additional hits on the same enemy within one volley deal 25% damage; each new volley starts at full damage. Unlocks Fire Arrows level-ups: burning damage over time, refreshed on hit. |
+| Hero's Bow | Automatic aimed arrows; one arrow at ranks 1–9, three at ranks 10–19, five at ranks 20–30. The symmetric fan spans 22.5° with three arrows and 45° with five (±22.5°). Additional hits on the same enemy within one volley deal 25% damage; each new volley starts at full damage. Unlocks Fire Arrows level-ups: burning damage over time, refreshed on hit. |
 | Boomerang | Gale throws that hop between enemies; one extra hop every three ranks (4, 7, 10…), max 10 hops / 11 targets. |
 | Bombs | Automatic throws and area explosions; upgrades improve damage, radius and frequency. |
 | Ball and Chain | Pierces outward and back, damaging and staggering enemies on both legs. |
@@ -328,3 +328,8 @@ Player projectiles have no fixed simultaneous-count cap. Full bow salvos,
 boomerangs, bombs, ball-and-chain throws and sword waves allocate additional
 reusable slots as needed. Cooldowns, lifetimes and damage rules are unchanged.
 This increases possible memory/rendering load and needs in-game stress testing.
+
+Sword Wave always fires one projectile. At rank 15 it becomes a Great Spin
+projectile (base radius 65 → 100). Spin Attack becomes **Great Spin Attack**
+at rank 15 (base radius 260 → 400), including its displayed name. Both use the
+six native Great Spin effects, scaled to the hitbox with Reach.

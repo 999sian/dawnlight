@@ -103,6 +103,7 @@
 #include <cstring>
 #include <vector>
 #include <memory>
+#include <span>
 
 namespace dawnlight {
 namespace {
@@ -275,7 +276,8 @@ std::array<Orb, orb_capacity> s_orbs;
 struct Attack {
     bool active = false;
     unsigned life = 0, weapon = 0, age = 0;
-    bool returning = false, exploding = false;
+    bool returning = false, exploding = false, greatSpin = false;
+    float effectBaseRadius = 260.f;
     ActorId target = kNone;
     unsigned hops = 0, visitedCount = 0;
     std::array<ActorId, 11> visited{};
@@ -655,12 +657,16 @@ cXyz target_direction(daAlink_c* link) {
     }
     return result;
 }
+#include "survivors_spin_effects.inc"
 void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
     auto& a = acquire_projectile(s_attacks, weapon, 0, 8);
     a.weapon = weapon; a.life = 35; a.ballVictimCount = 0;
     a.position = link->current.pos + cXyz(0, 65, 0);
     a.velocity = direction * 42.0f;
-    a.radius = s_run.radius(65.0f);
+    a.greatSpin = s_run.great_spin(Upgrade::Wave);
+    a.radius = s_run.wave_radius();
+    const auto& spin = link->mpHIO->mCut.mCutTurn.m;
+    a.effectBaseRadius = a.greatSpin ? spin.mLargeAttackRadius : spin.mAttackRadius;
     a.status.Init(120, 0xff, link);
     a.collider.Set(kAttackSource); a.collider.SetStts(&a.status);
     a.collider.SetAtType(AT_TYPE_NORMAL_SWORD);
@@ -671,9 +677,10 @@ void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
     a.active = true;
 }
 void update_wave_effects(Attack& a, daAlink_c* link) {
-    // Same moving-emitter approach as Great Spin Projectile, using only the
-    // two small normal-spin effects, never the six large-spin emitters.
-    constexpr std::array<u16, 2> effects{ID_ZI_J_KAITENGIRI_A, ID_ZI_J_KAITENGIRI_B};
+    // Snapshot the launch tier: an upgrade never changes an in-flight collider.
+    const auto effects = survivor_spin_effects(a.greatSpin);
+    const float size = a.radius / std::max(1.f, a.effectBaseRadius);
+    const cXyz scale(size, size, size);
     const csXyz rotation(-cM_atan2s(a.velocity.y, a.velocity.absXZ()),
                          cM_atan2s(a.velocity.x, a.velocity.z), 0);
     for (unsigned i = 0; i < effects.size(); ++i) {
@@ -687,7 +694,7 @@ void update_wave_effects(Attack& a, daAlink_c* link) {
             id = 0;
         }
         id = dComIfGp_particle_set(id, effects[i], &a.position, &link->tevStr,
-                                  &rotation, nullptr, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
+                                  &rotation, &scale, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
         if (id) {
             dComIfGp_particle_levelEmitterOnEventMove(id);
             if (auto* current = dComIfGp_particle_getEmitter(id)) current->setGlobalTranslation(a.position);
@@ -713,14 +720,7 @@ bool enemy_in_range(daAlink_c* link, float range) {
     return false;
 }
 void release_sword_wave(daAlink_c* link) {
-    const auto direction = target_direction(link);
-    launch(link, 0, direction);
-    if (s_run.ranks[0] >= 3) {
-        launch(link, 0, cXyz(direction.x * 0.94f + direction.z * 0.34f,
-            direction.y, direction.z * 0.94f - direction.x * 0.34f));
-        if (s_run.ranks[0] >= 5) launch(link, 0, cXyz(direction.x * 0.94f - direction.z * 0.34f,
-            direction.y, direction.z * 0.94f + direction.x * 0.34f));
-    }
+    launch(link, 0, target_direction(link));
 }
 bool normal_sword_proc(daAlink_c* link) {
     return link->mProcID == daAlink_c::PROC_CUT_NORMAL || link->mProcID == daAlink_c::PROC_CUT_FINISH;
@@ -1195,8 +1195,8 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         s_records.level(),static_cast<unsigned long long>(s_records.level_xp()),s_records.next_level_xp(),
         s_records.available_points(),meta_levels(s_records.total_xp)-meta_levels(s_records.total_xp-std::min<uint64_t>(s_records.total_xp,s_run.score())));
     svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
-    std::snprintf(text, sizeof(text), "Sword Wave %u | Whirling Blade %u | Shield Attack %u",
-        s_run.ranks[0], s_run.ranks[1], s_run.ranks[2]);
+    std::snprintf(text, sizeof(text), "Sword Wave %u | %s %u | Shield Attack %u",
+        s_run.ranks[0], s_run.upgrade_name(Upgrade::Spin), s_run.ranks[1], s_run.ranks[2]);
     svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
     std::snprintf(text, sizeof(text), "Bow %u | Boomerang %u | Bombs %u | Ball and Chain %u | Chests %u",
         s_run.rank(Upgrade::Bow), s_run.rank(Upgrade::Boomerang), s_run.rank(Upgrade::Bombs),

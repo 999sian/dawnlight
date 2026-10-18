@@ -54,7 +54,7 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
         add(weapon == Upgrade::Bombs ? "Blast radius" : "Hit radius", owned ? number(item_radius(before, weapon)) : "off", number(item_radius(after, weapon)));
         if (weapon == Upgrade::Bow) {
             add("Arrows", owned ? number(arrow_count(before)) : "0", number(arrow_count(after)));
-            add("Fan angle", number(before.bow_shots()?5*(before.bow_shots()-1):0)+" degrees", number(5*(after.bow_shots()-1))+" degrees");
+            add("Fan angle", decimal(before.bow_fan_degrees())+" degrees", decimal(after.bow_fan_degrees())+" degrees");
         }
         if (weapon == Upgrade::Boomerang) add("Extra targets", number(before.boomerang_hops()), number(after.boomerang_hops()));
     } else if (reward == ChestReward::MasterSword) {
@@ -89,7 +89,7 @@ inline std::string item_description(ChestReward reward, const Run& run) {
     if (reward <= ChestReward::Ball) {
         const auto weapon = chest_weapon(reward);
         const std::string stats = "Lv." + number(run.rank(weapon)) + " | Damage " + number(item_damage(run, weapon)) + " | Interval " + seconds(run.item_cooldown(weapon));
-        if (weapon == Upgrade::Bow) return "Auto-aim: " + number(arrow_count(run)) + " arrows, " + number(run.bow_shots()?5*(run.bow_shots()-1):0) + " degrees; extra hits 25%.\n" + stats + "\nFire Lv." + number(run.rank(Upgrade::FireArrows)) + " (" + number(run.burn_damage()) + "/s, " + seconds(run.burn_duration()) + ")" + "\n" + bonuses;
+        if (weapon == Upgrade::Bow) return "Auto-aim: " + number(arrow_count(run)) + " arrows, " + decimal(run.bow_fan_degrees()) + " degrees; extra hits 25%.\n" + stats + "\nFire Lv." + number(run.rank(Upgrade::FireArrows)) + " (" + number(run.burn_damage()) + "/s, " + seconds(run.burn_duration()) + ")" + "\n" + bonuses;
         if (weapon == Upgrade::Boomerang) return "Auto Gale throw; hits out and back.\n" + stats + "\n" + number(run.boomerang_hops()) + " extra targets; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
         if (weapon == Upgrade::Bombs) return "Auto-aim throw; area explosion, no ammo.\n" + stats + "\nBlast radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
         return "Auto throw; pierces out/back, staggers.\n" + stats + "\nRange " + number(unsigned(run.radius(900))) + "; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
@@ -103,12 +103,11 @@ inline std::string item_description(ChestReward reward, const Run& run) {
         "\nMelee damage " + number(run.melee_power()) + "; speed +" + number(run.melee_speed_percent()-100) + "%" +
         "\nTarget range " + number(unsigned(run.radius(280))) + "; interval " + seconds(run.melee_cooldown()) + "\n" + bonuses;
     if (reward == ChestReward::MasterSword) {
-        const unsigned waves = run.rank(Upgrade::Wave) >= 5 ? 3 : run.rank(Upgrade::Wave) >= 3 ? 2 : 1;
         return ("Sword Lv." + number(run.master_sword) + "; bonus +" + number(run.sword_bonus())) +
             "; melee " + number(run.melee_power()) +
             ("; Reach +" + decimal(7.5f * run.rank(Upgrade::Reach)) + "%") +
-            "\nWave Lv." + number(run.rank(Upgrade::Wave)) + ": " + (run.rank(Upgrade::Wave) ? number(waves) + " piercing, " + number(run.attack_power(0)) + " dmg/" + seconds(run.cooldown(60)) : "locked") +
-            "\nSpin Lv." + number(run.rank(Upgrade::Spin)) + ": " + (run.rank(Upgrade::Spin) ? "moving, " + number(run.attack_power(1)) + " dmg/" + seconds(run.cooldown(120)) : "locked") +
+            "\nWave Lv." + number(run.rank(Upgrade::Wave)) + ": " + (run.rank(Upgrade::Wave) ? std::string(run.great_spin(Upgrade::Wave) ? "1 Great Spin, " : "1 piercing, ") + number(run.attack_power(0)) + " dmg/" + seconds(run.cooldown(60)) : "locked") +
+            "\n" + std::string(run.upgrade_name(Upgrade::Spin)) + " Lv." + number(run.rank(Upgrade::Spin)) + ": " + (run.rank(Upgrade::Spin) ? std::string(run.great_spin(Upgrade::Spin) ? "Great Spin, " : "moving, ") + number(run.attack_power(1)) + " dmg/" + seconds(run.cooldown(120)) : "locked") +
             "\n" + ("Jump Strike Lv." + number(run.rank(Upgrade::JumpStrike)) +
                 (run.rank(Upgrade::JumpStrike) ? ": " + number(run.jump_splash_percent()) + "% splash; 20%/" + seconds(run.jump_cooldown()) : ": level-up unlock"));
     }
@@ -146,7 +145,8 @@ inline std::string upgrade_description(Upgrade upgrade, const Run& run) {
     if (upgrade == Upgrade::Wave || upgrade == Upgrade::Spin || upgrade == Upgrade::ShieldAttack) {
         text += "\nDamage " + number(run.attack_power(unsigned(upgrade)));
         text += "; interval " + seconds(upgrade == Upgrade::ShieldAttack ? run.shield_cooldown() : run.cooldown(upgrade == Upgrade::Wave ? 60 : 120));
-        if (upgrade == Upgrade::Wave) text += "; waves " + number(run.rank(upgrade) >= 5 ? 3 : run.rank(upgrade) >= 3 ? 2 : 1);
+        if (upgrade == Upgrade::Wave) text += "; 1 wave; radius " + decimal(run.wave_radius());
+        if (upgrade == Upgrade::Wave || upgrade == Upgrade::Spin) text += run.great_spin(upgrade) ? "; Great Spin" : "; normal spin";
         if (upgrade == Upgrade::ShieldAttack) text += "; radius " + number(unsigned(run.shield_radius()));
     } else text += "\n" + upgrade_value(upgrade, run);
     return text;
@@ -160,11 +160,10 @@ inline std::vector<ItemChange> upgrade_changes(Upgrade upgrade, const Run& befor
     if (upgrade == Upgrade::Wave || upgrade == Upgrade::Spin || upgrade == Upgrade::ShieldAttack) {
         changes.push_back({"Damage", before.rank(upgrade) ? number(before.attack_power(unsigned(upgrade))) : "off",
                            number(after.attack_power(unsigned(upgrade)))});
-        if (upgrade == Upgrade::Wave) {
-            const auto count = [](unsigned rank) { return rank == 0 ? 0 : rank >= 5 ? 3 : rank >= 3 ? 2 : 1; };
-            if (count(before.rank(upgrade)) != count(after.rank(upgrade)))
-                changes.push_back({"Waves", number(count(before.rank(upgrade))), number(count(after.rank(upgrade)))});
-        }
+        if ((upgrade == Upgrade::Wave || upgrade == Upgrade::Spin) && before.great_spin(upgrade) != after.great_spin(upgrade))
+            changes.push_back({"Attack", "Normal Spin", "Great Spin (larger area)"});
+        if (upgrade == Upgrade::Wave && (!before.rank(upgrade) || before.wave_radius() != after.wave_radius()))
+            changes.push_back({"Radius", before.rank(upgrade) ? decimal(before.wave_radius()) : "off", decimal(after.wave_radius())});
         if (upgrade == Upgrade::ShieldAttack) {
             changes.push_back({"Interval", before.rank(upgrade) ? seconds(before.shield_cooldown()) : "off",
                                seconds(after.shield_cooldown())});

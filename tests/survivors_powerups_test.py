@@ -104,10 +104,23 @@ void fresh(){
  elements.clear();elements[1].kind=elements[2].kind="pane";next=3;
 }
 int main(){
+
  (void)kTreasureStyle;
  service.pane_add_row=row;service.pane_add_rml=rml;service.pane_add_text=text;
  service.pane_add_control=control;service.elem_set_class=css;service.elem_set_visible=setVisible;
  service.window_push=push;service.window_close=close;
+ for(unsigned before:{9u,14u,15u,29u}) {
+  fresh();s_run.ranks[unsigned(Upgrade::Spin)]=before;
+  assert(std::string(s_run.upgrade_name(Upgrade::Spin))==(before>=15?"Great Spin Attack":"Spin Attack"));
+  assert(powerup_description_rml(Upgrade::Spin).find(std::string(s_run.upgrade_name(Upgrade::Spin))+" - Level "+number(before))!=std::string::npos);
+  s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::Spin,Upgrade::Power,Upgrade::Heart};
+  s_run.offer_rarities[0]=before==9?Rarity::Legendary:Rarity::Common;
+  Run after=s_run;assert(after.choose(0));
+  assert(build_upgrade_choices(1,2)==MOD_OK);
+  bool found=false;for(const auto& [id,e]:elements)if(e.text.find(after.upgrade_name(Upgrade::Spin))!=std::string::npos)found=true;
+  assert(found);
+ }
+
  // This was the invalid descriptor that returned error 5 in the crash log.
  fresh();UiControlDesc invalid=UI_CONTROL_DESC_INIT;
  invalid.label="Power - Level 2";invalid.help_rml="+2 damage";
@@ -217,7 +230,7 @@ int main(){
    ++count;assert(e.pressed&&!e.help.empty());
    assert(e.help.find("</span><br/>")!=std::string::npos);
    e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);
-   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("2 arrows, 5 degrees; extra hits 25%")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
+   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("1 arrows, 0.0 degrees; extra hits 25%")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
    if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);
    if(e.text.find("Crit Chance")!=std::string::npos)assert(e.help.find("22.50% with Luck")!=std::string::npos);
    if(e.text.find("Crit Damage")!=std::string::npos)assert(e.help.find("x3.50 critical damage")!=std::string::npos);

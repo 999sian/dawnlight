@@ -76,7 +76,7 @@ int main(){
  for(unsigned i=8;i<=11;++i)assert(queue_ranged(&player,Upgrade(i)));
  assert(shots.size()==4 && player.proc==1 && player.mEquipItem==0x103 && !s_ranged.active);
  for(unsigned i=8;i<=11;++i)assert(!queue_ranged(&player,Upgrade(i)));
- fresh();s_run.ranks[8]=7;
+ fresh();s_run.ranks[8]=10;
  assert(queue_ranged(&player,Upgrade::Bow));assert(shots.size()==3);
  assert(queue_ranged(&player,Upgrade::Boomerang));assert(queue_ranged(&player,Upgrade::Bombs));
  assert(queue_ranged(&player,Upgrade::Ball));assert(shots.size()==6);
@@ -86,17 +86,17 @@ int main(){
  fresh();targetDistance=2300;s_run.ranks[unsigned(Upgrade::Reach)]=10;
  assert(queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
  assert(!queue_ranged(&player,Upgrade::Bombs));assert(!queue_ranged(&player,Upgrade::Ball));
- // Full ten-arrow fans persist beyond the old 20-arrow and 20-volley limits.
+ // Full five-arrow fans persist beyond the old 20-arrow and 20-volley limits.
  fresh();s_run.ranks[8]=30;
  for(unsigned volley=0;volley<30;++volley) {
   s_cooldowns[8]=0;assert(queue_ranged(&player,Upgrade::Bow));
-  assert(shots.size()==10*(volley+1));
-  auto lo=*std::min_element(spread.end()-10,spread.end());
-  auto hi=*std::max_element(spread.end()-10,spread.end());
+  assert(shots.size()==5*(volley+1));
+  auto lo=*std::min_element(spread.end()-5,spread.end());
+  auto hi=*std::max_element(spread.end()-5,spread.end());
   assert(std::abs(hi-lo-3.14159265f/4)<1.e-6f);
  }
  unsigned arrows=0;for(auto&a:s_attacks)if(a.active&&a.weapon==8)++arrows;
- assert(arrows==300&&s_attacks.back().bowVolleySlot==29);
+ assert(arrows==150&&s_attacks.back().bowVolleySlot==29);
  auto serial=s_attacks[8].bowVolley;
  for(auto&a:s_attacks)if(a.bowVolleySlot==0)a.active=false;
  s_cooldowns[8]=0;assert(queue_ranged(&player,Upgrade::Bow));

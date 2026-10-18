@@ -53,15 +53,15 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Rupees"};
+    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Rupees"};
 inline constexpr std::array descriptions{
-    "Automatic piercing sword waves. Higher levels add damage and extra waves.",
-    "Unlock or improve a moving spin attack.",
+    "One piercing sword wave per cast. Great Spin projectile with a larger radius from level 15.",
+    "Automatic spin attack. Great Spin with a larger radius from level 15.",
     "Unlock or improve an automatic shield bash that staggers enemies.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
     "Increase melee reach, Dual Wield target range, Spin and Jump Strike radii, bow range and Boomerang flight/hop range.", "Attract experience, rupees, hearts and heart pieces from farther away.",
     "Gain one maximum heart (does not heal).",
-    "Faster, stronger arrows. Up to ten arrows across 45 degrees; each extra arrow widens the fan by 5 degrees. Extra hits on one enemy per volley deal 25% damage.",
+    "Faster, stronger arrows. Three arrows from level 10; five from level 20, across 45 degrees. Extra hits on one enemy per volley deal 25% damage.",
     "A damaging returning boomerang. Upgrades increase damage, hops and firing rate; hit size stays fixed.",
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
@@ -237,14 +237,18 @@ struct Run {
     unsigned jump_cooldown() const { return cooldown(6 * ticks_per_second); }
     bool roll_jump_strike() { return master_sword && rank(Upgrade::JumpStrike) && next_random() % 100 < 20; }
     unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 10) : 1; }
-    unsigned bow_shots() const { return rank(Upgrade::Bow) ? std::min(10u,1+(rank(Upgrade::Bow)-1)/3) : 0; }
+    unsigned bow_shots() const { const auto level=rank(Upgrade::Bow); return !level ? 0 : level>=20 ? 5 : level>=10 ? 3 : 1; }
+    float bow_fan_degrees() const { return bow_shots() ? (bow_shots()-1)*11.25f : 0.f; }
+    bool great_spin(Upgrade weapon) const { return (weapon==Upgrade::Wave || weapon==Upgrade::Spin) && rank(weapon)>=15; }
+    const char* upgrade_name(Upgrade u) const { return u==Upgrade::Spin && great_spin(u) ? "Great Spin Attack" : names[unsigned(u)]; }
+    float wave_radius() const { return radius(great_spin(Upgrade::Wave) ? 100.f : 65.f); }
     // Center-out emission preserves a balanced, evenly spaced fan, including
-    // even counts. N arrows cover (N-1)*5 degrees; ten cover -22.5..+22.5.
+    // even counts. Three arrows cover 22.5 degrees; five cover -22.5..+22.5.
     static float bow_spread(unsigned index, unsigned count) {
-        count=std::clamp(count,1u,10u);if(index>=count)return 0;
+        count=std::clamp(count,1u,5u);if(index>=count)return 0;
         const int halfSteps=count%2 ? (index%2 ? int(index+1) : -int(index)) :
             (index%2 ? -int(index) : int(index+1));
-        return float(halfSteps)*(2.5f*3.14159265358979323846f/180.f);
+        return float(halfSteps)*(5.625f*3.14159265358979323846f/180.f);
     }
     unsigned boomerang_hops() const { return rank(Upgrade::Boomerang) ? std::min(10u,1+(rank(Upgrade::Boomerang)-1)/3) : 0; }
     bool owns(ChestReward reward) const {

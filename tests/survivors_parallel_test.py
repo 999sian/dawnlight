@@ -8,6 +8,7 @@ fixture=r'''
 #include <any>
 #include <cassert>
 #include <cmath>
+#include <span>
 #include <unordered_map>
 #include <vector>
 #include "survivors_rules.hpp"
@@ -26,7 +27,7 @@ struct Collider {Actor* owner=nullptr;unsigned power=0,hits=0;Actor* GetAc(){ret
  void ResetAtHit(){}void OnAtSetBit(){}};
 using cCcD_Obj=Collider;
 struct daAlink_c:Actor {Collider mAtSph,mAtCps[3];int tevStr=0;
- struct HIO{struct{struct{struct{float mAttackRadius=260,mLightAttackRadius=400;}m;}mCutTurn;}mCut;} hio,*mpHIO=&hio;
+ struct HIO{struct{struct{struct{float mAttackRadius=260,mLightAttackRadius=400,mLargeAttackRadius=400;}m;}mCutTurn;}mCut;} hio,*mpHIO=&hio;
 }player;
 struct Enemy{unsigned id=2;bool initialized=true,retiring=false,credited=false;};std::array<Enemy,2>enemies;
 std::array<Actor,2>actors;
@@ -48,12 +49,15 @@ void record_status_hit(Actor*,dCcU_AtInfo*){++statusHits;}
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void*a,unsigned i){return std::any_cast<T>(static_cast<std::any*>(a)[i]);}}
 bool arena=true;bool in_arena(){return arena;}
-struct Emitter{cXyz position,scale;void setGlobalTranslation(cXyz p){position=p;}};
+struct Emitter{cXyz position,scale;int effect=0;void setGlobalTranslation(cXyz p){position=p;}};
 std::unordered_map<unsigned,Emitter>emitters;unsigned nextEmitter=1;
 Emitter*dComIfGp_particle_getEmitter(unsigned k){auto i=emitters.find(k);return i==emitters.end()?nullptr:&i->second;}
-unsigned dComIfGp_particle_set(int,int,const cXyz*p,const int*,void*,const cXyz*scale,int,void*,int,void*,void*,void*){
- unsigned k=nextEmitter++;emitters[k]={*p,*scale};return k;}
+unsigned dComIfGp_particle_set(int,int effect,const cXyz*p,const int*,void*,const cXyz*scale,int,void*,int,void*,void*,void*){
+ unsigned k=nextEmitter++;emitters[k]={*p,*scale,effect};return k;}
 constexpr int kAttackSource=0,AT_TYPE_NORMAL_SWORD=1,dCcD_MTRL_NONE=0,ID_ZI_J_KAITENGIRI_A=1,ID_ZI_J_KAITENGIRI_B=2;
+constexpr u16 ID_ZI_J_KAITENGIRID_A=21,ID_ZI_J_KAITENGIRID_B=22,ID_ZI_J_KAITENGIRID_C=23,ID_ZI_J_KAITENGIRID_D=24,ID_ZI_J_KAITENGIRID_E=25,ID_ZI_J_KAITENGIRID_F=26;
+#include "survivors_spin_effects.inc"
+
 void stop_attack(Attack&a){for(auto k:a.emitters)emitters.erase(k);a.active=false;}
 float distance=100;bool enemy_in_range(daAlink_c*,float range){return distance<range;}
 cXyz target_direction(daAlink_c*){return{0,0,1};}
@@ -102,10 +106,13 @@ int main(){
  update_parallel_skills(&player);assert(waves==1&&s_attacks[kSpinSlot].active&&s_attacks[kShieldSlot].active);
  assert(s_swordAction==SwordAction::Normal&&s_cooldowns[0]&&s_cooldowns[1]&&s_cooldowns[2]);
  update_parallel_skills(&player);assert(waves==1);
- for(unsigned reach:{0u,5u,30u})for(unsigned master:{0u,5u}){
-  s_run.ranks[5]=reach;s_run.master_sword=master;assert(launch_parallel_pulse(&player,Upgrade::Spin));
-  auto&a=s_attacks[kSpinSlot];float radius=s_run.area_radius(master?400:260);
-  assert(a.radius==radius);for(auto k:a.emitters)if(k)assert(std::abs(emitters[k].scale.x*260-radius)<.01);
+ for(unsigned reach:{0u,5u,30u})for(unsigned master:{0u,5u,30u})for(unsigned level:{1u,14u,15u,30u}){
+  s_run.ranks[1]=level;s_run.ranks[5]=reach;s_run.master_sword=master;assert(launch_parallel_pulse(&player,Upgrade::Spin));
+  auto&a=s_attacks[kSpinSlot];float base=level>=15?400:260;float radius=s_run.area_radius(base);
+  assert(a.radius==radius);unsigned count=0;
+  for(auto k:a.emitters)if(k){assert(std::abs(emitters[k].scale.x*base-radius)<.01);
+   assert(emitters[k].effect==survivor_spin_effects(level>=15)[count]);++count;}
+  assert(count==(level>=15?6u:2u));
   player.current.pos={20,30,40};update_parallel_pulse(a,&player);assert(a.position.y==95);
  }
  // Same-volley extra hits are quarter damage; separate/overlapping volleys

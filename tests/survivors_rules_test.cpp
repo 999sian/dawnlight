@@ -30,14 +30,21 @@ int main() {
     assert(hp.enemy_health(8,false)==8);hp.phase=Phase::Running;
     for(unsigned i=0;i<1800;++i)hp.tick(false);
     assert(hp.enemy_health(8,false)==8);
-    // One added arrow adds exactly five degrees of total fan, centered at aim.
-    for(unsigned count=1;count<=10;++count){std::array<float,10> fan{};
+    // Fixed 11.25-degree spacing: three arrows span 22.5 degrees, five span 45.
+    for(unsigned count=1;count<=5;++count){std::array<float,10> fan{};
         for(unsigned i=0;i<count;++i)fan[i]=Run::bow_spread(i,count);
         std::sort(fan.begin(),fan.begin()+count);
-        constexpr float step=5.f*3.14159265358979323846f/180.f;
+        constexpr float step=11.25f*3.14159265358979323846f/180.f;
         assert(std::abs(fan[0]+fan[count-1])<1.e-6f);
         assert(std::abs(fan[count-1]-fan[0]-(count-1)*step)<1.e-6f);
         for(unsigned i=1;i<count;++i)assert(std::abs(fan[i]-fan[i-1]-step)<1.e-6f);
+    }
+    for(unsigned level:{1u,9u,10u,14u,15u,19u,20u,30u}) {
+        Run r;r.start(1);r.ranks[unsigned(Upgrade::Wave)]=r.ranks[unsigned(Upgrade::Spin)]=level;
+        assert(r.great_spin(Upgrade::Wave)==(level>=15)&&r.great_spin(Upgrade::Spin)==(level>=15));
+        assert(r.wave_radius()==(level>=15?100.f:65.f));
+        r.ranks[unsigned(Upgrade::Reach)]=30;
+        assert(r.wave_radius()==(level>=15?325.f:211.25f));
     }
     // Dual Wield uses one rank for chest and level-up upgrades, including rarity
     // caps/excess refunds, shield coexistence and cross-source banishment.
@@ -439,7 +446,7 @@ int main() {
     }
     for(unsigned rank=1;rank<=30;++rank){
         slots.ranks[unsigned(Upgrade::Bow)]=slots.ranks[unsigned(Upgrade::Boomerang)]=rank;
-        assert(slots.bow_shots()==1+(rank-1)/3&&slots.boomerang_hops()==1+(rank-1)/3);
+        assert(slots.bow_shots()==(rank>=20?5u:rank>=10?3u:1u)&&slots.boomerang_hops()==1+(rank-1)/3);
     }
     for(unsigned rank=1;rank<=30;++rank){slots.dual_wield=rank;
         assert(slots.melee_targets()==(rank<10?2u:rank<20?3u:rank<30?4u:5u));

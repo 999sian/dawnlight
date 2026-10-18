@@ -3,7 +3,7 @@
 constexpr unsigned kSpinSlot = 40, kShieldSlot = 41;
 float parallel_spin_base_radius(const daAlink_c* link) {
     const auto& spin = link->mpHIO->mCut.mCutTurn.m;
-    return s_run.master_sword >= 5 ? spin.mLightAttackRadius : spin.mAttackRadius;
+    return s_run.great_spin(Upgrade::Spin) ? spin.mLargeAttackRadius : spin.mAttackRadius;
 }
 void update_parallel_pulse(Attack& a, daAlink_c* link) {
     a.position = link->current.pos + cXyz(0,65,0);
@@ -28,9 +28,9 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     a.position=link->current.pos+cXyz(0,65,0);
     if (!spin) a.position += target_direction(link)*100.f;
     if (spin) {
-        constexpr std::array<u16,2> effects{ID_ZI_J_KAITENGIRI_A,ID_ZI_J_KAITENGIRI_B};
-        // Normal-spin particles are authored for the native normal-spin radius.
-        const float size=a.radius/std::max(1.f,link->mpHIO->mCut.mCutTurn.m.mAttackRadius);
+        const auto effects=survivor_spin_effects(s_run.great_spin(Upgrade::Spin));
+        // Each tier uses particles authored for its own native base radius.
+        const float size=a.radius/std::max(1.f,base);
         const cXyz scale(size,size,size);
         for(unsigned i=0;i<effects.size();++i)
             a.emitters[i]=dComIfGp_particle_set(0,effects[i],&a.position,&link->tevStr,
