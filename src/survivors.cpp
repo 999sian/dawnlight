@@ -170,7 +170,8 @@ DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
 DEFINE_HOOK(&daAlink_c::setSwordAtCollision, SurvivorsSwordCollision);
-DEFINE_HOOK(&dBgS_LinChk::Set, SurvivorsEnemyNavigationLine);
+DEFINE_HOOK_SYMBOL("dBgS_LinChk::Set", void(dBgS_LinChk*, const cXyz*, const cXyz*, const fopAc_ac_c*),
+                   SurvivorsEnemyNavigationLine);
 DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
 DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
 DEFINE_HOOK(&daAlink_c::checkAutoJumpAction, SurvivorsLedgeJump);
