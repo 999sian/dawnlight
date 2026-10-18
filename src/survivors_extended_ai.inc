@@ -58,7 +58,10 @@ void maintain_helmasaur_armor(Enemy& enemy,fopAc_ac_c* actor) {
 }
 void initialize_extended_enemy(Enemy& enemy,fopAc_ac_c* actor) {
     const auto& native=native_roster[enemy.species];
-    actor->health=actor->field_0x560=s16(std::clamp(int(enemy.elite?120:native.hp+std::min(24u,s_run.ticks/900))*int(s_run.options.enemy_hp),1,32767));
+    // Dedicated bosses may exceed the ordinary elite baseline (Stallord's head
+    // arrives at 20 minutes, when a single upgraded critical can exceed 120 HP).
+    const unsigned hp=enemy.elite?std::max(120u,native.hp):native.hp+std::min(24u,s_run.ticks/900);
+    actor->health=actor->field_0x560=s16(std::clamp(int(hp)*int(s_run.options.enemy_hp),1,32767));
     // Only these doubled elites omit actor scale in their native model matrix.
     if (enemy.elite && (enemy.profile==fpcNm_E_TT_e || enemy.profile==fpcNm_E_GI_e ||
         enemy.profile==fpcNm_E_FS_e || enemy.profile==fpcNm_E_BU_e ||

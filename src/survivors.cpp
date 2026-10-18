@@ -122,6 +122,7 @@ DEFINE_HOOK(&dCamera_c::Run, SurvivorsCamera);
 DEFINE_HOOK(&daAlink_c::orderZTalk, SurvivorsMidnaOrder);
 DEFINE_HOOK(&dMsgFlow_c::getInitNodeIndex, SurvivorsMidnaFlow);
 DEFINE_HOOK(&daAlink_c::checkSceneChange, SurvivorsArenaExit);
+DEFINE_HOOK(&daAlink_c::checkRestartRoom, SurvivorsArenaRestart);
 DEFINE_HOOK_SYMBOL("src/d/d_stage.cpp#dStage_actorCreate", void(stage_actor_data_class*, fopAcM_prm_class*, size_t), SurvivorsArenaActor);
 DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
 DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
@@ -226,6 +227,9 @@ ActorId s_meleeTarget = kNone;
 bool s_wavePending = false, s_allowDrop = false;
 std::array<unsigned, unsigned(Upgrade::Rupees)> s_cooldowns{};
 void clear_loot();
+void clear_attacks();
+void interrupt_auto_actions(daAlink_c*);
+void finish(bool won);
 void clear_enemy_effects();
 bool effect_collider(const cCcD_Obj*);
 bool native_sword_collider(const cCcD_Obj*);
@@ -1273,7 +1277,7 @@ void update_survivors() {
     if (s_player != fopAcM_GetID(link)) {
         reset_midna_dialog();
         s_player = fopAcM_GetID(link); s_run.phase = Phase::Loading; s_warmup = 0;
-        s_arenaSafe = false;
+        s_arenaSafe = s_arenaSpawn = false;
     }
     if (fpcM_IsCreating(s_player)) return;
     update_midna_dialog();
@@ -1314,6 +1318,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsPotionHeal, before_potion_heal);
     PRE(SurvivorsCamera, before_run_camera); POST(SurvivorsCamera, after_run_camera);
     PRE(SurvivorsArenaExit, before_arena_exit);
+    PRE(SurvivorsArenaRestart, before_arena_restart);
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
     PRE(SurvivorsPlayer, before_chest_action);

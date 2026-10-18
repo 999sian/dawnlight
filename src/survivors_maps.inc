@@ -6,11 +6,14 @@ std::vector<ActorId> s_arenaBackgrounds;
 bool s_arenaMeshReady = false;
 cXyz s_arenaSafePosition;
 bool s_arenaSafe = false;
+cXyz s_arenaSpawnPosition;
+s16 s_arenaSpawnYaw = 0;
+bool s_arenaSpawn = false;
 barriers::Point map_point(const cXyz& p) { return {p.x,p.y,p.z}; }
 cXyz game_point(barriers::Point p) { return cXyz(p.x,p.y,p.z); }
 void clear_arena_geometry() {
     clear_elite_sites();
-    s_barriers.clear(); s_arenaBackgrounds.clear(); s_arenaMeshReady = false; s_arenaSafe = false;
+    s_barriers.clear(); s_arenaBackgrounds.clear(); s_arenaMeshReady = false; s_arenaSafe = s_arenaSpawn = false;
 }
 void add_exit_box(const fopAcM_prm_class& params, float width, float depth) {
     const cXyz center = params.base.position;
@@ -140,9 +143,19 @@ HookAction before_arena_exit(ModContext*, void*, void* result, void*) {
     *static_cast<int*>(result)=0;
     return HOOK_SKIP_ORIGINAL;
 }
+HookAction before_arena_restart(ModContext*, void* args, void* result, void*) {
+    auto* link=mods::arg<daAlink_c*>(args,0);
+    if (!in_arena() || transitioning() || s_map!=3 || !s_arenaSpawn ||
+        s_run.phase!=Phase::Running || !link || fopAcM_GetID(link)!=s_player) return HOOK_CONTINUE;
+    // Native void returns set an event/damage before setNextStage is blocked.
+    // Our local rescue owns the penalty and never reloads the active run.
+    *static_cast<BOOL*>(result)=FALSE;
+    return HOOK_SKIP_ORIGINAL;
+}
 bool arena_grounded(daAlink_c* link) {
     const float floor=link->mLinkAcch.GetGroundH();
-    return link->mLinkAcch.ChkGroundHit() && std::isfinite(floor) && floor>-1.0e8f &&
+    return link->mGroundCode!=4 && link->mGroundCode!=5 && link->mGroundCode!=10 &&
+        link->mLinkAcch.ChkGroundHit() && std::isfinite(floor) && floor>-1.0e8f &&
         std::abs(link->current.pos.y-floor)<20 && fopAcM_GetRoomNo(link)==arena().room;
 }
 void update_arena_safety(daAlink_c* link) {
@@ -150,13 +163,36 @@ void update_arena_safety(daAlink_c* link) {
     // the first safe position during Loading as well, not just after warmup.
     if (fpcM_IsCreating(fopAcM_GetID(link))) return;
     const int room=fopAcM_GetRoomNo(link);
-    if (s_arenaSafe && (room!=arena().room || link->current.pos.y<s_arenaSafePosition.y-500)) {
+    const bool palace=s_map==3 && s_arenaSpawn && s_run.phase==Phase::Running;
+    const bool fallen=s_arenaSafe && (link->current.pos.y<s_arenaSafePosition.y-500 ||
+        (palace && link->mLinkAcch.ChkGroundHit() &&
+         (link->mGroundCode==4 || link->mGroundCode==5 || link->mGroundCode==10)));
+    if (palace && fallen) {
+        clear_attacks();interrupt_auto_actions(link);cancel_jump_abilities_for(link);
+        link->setPlayerPosAndAngle(&s_arenaSpawnPosition,s_arenaSpawnYaw,TRUE);
+        link->speed.set(0,0,0);link->speedF=link->mNormalSpeed=0;
+        link->mLastJumpPos=s_arenaSpawnPosition;
+        link->mFallHeight=link->field_0x33c8=s_arenaSpawnPosition.y;
+        fopAcM_SetRoomNo(link,arena().room);
+        link->procWaitInit();
+        link->mLinkAcch.CrrPos(dComIfG_Bgsp());
+        link->mGroundCode=dComIfG_Bgsp().GetGroundCode(link->mLinkAcch.m_gnd);
+        s_arenaSafePosition=s_arenaSpawnPosition;
+        // Life is stored in quarter hearts; this environmental cost ignores
+        // enemy damage scaling, shields, Dodge and ordinary hit invulnerability.
+        const int life=std::max(0,int(dComIfGs_getLife())-4);
+        dComIfGs_setLife(life);
+        if (!life) finish(false);
+    } else if (s_arenaSafe && (room!=arena().room || fallen)) {
         // Last safe floor position, not a scene reload that would discard a run.
         link->current.pos=link->old.pos=s_arenaSafePosition;
         link->speed.set(0,0,0);
         fopAcM_SetRoomNo(link,arena().room);
     } else if (arena_grounded(link)) {
         s_arenaSafePosition=link->current.pos; s_arenaSafe=true;
+        if (!s_arenaSpawn) {
+            s_arenaSpawnPosition=link->current.pos;s_arenaSpawnYaw=link->shape_angle.y;s_arenaSpawn=true;
+        }
     }
 }
 void draw_arena_barriers() {

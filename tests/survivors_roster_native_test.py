@@ -116,7 +116,7 @@ int main(){
   auto body=extended_body(&actor,actor.profile);assert(body.targets[0]&&body.info&&body.status&&body.morph);
   initialize_extended_enemy(enemy,&actor);assert(actor.health==int(native_roster[kind].hp));
   s_run.options.enemy_hp=3;enemy.elite=true;actor.scale={elite_scale(Species(kind)),elite_scale(Species(kind)),elite_scale(Species(kind))};
-  initialize_extended_enemy(enemy,&actor);assert(actor.health==360);s_run.options.enemy_hp=1;
+  initialize_extended_enemy(enemy,&actor);assert(actor.health==int(3*std::max(120u,native_roster[kind].hp)));s_run.options.enemy_hp=1;
   actor.health=100;
   for(auto* target:body.targets)if(target){target->owner=&actor;target->hit=&sword;}
   const auto beforeCalls=calls;
@@ -149,6 +149,24 @@ int main(){
   // Normal runtime does not execute retiring actors again.
  }
  assert(credits==species_count-5&&disappears==credits&&deletes==credits);
+ // Endgame criticals must not erase Stallord's entire boss health pool.
+ NativeActor head;head.profile=fpcNm_B_DS_e;s_enemies={};effects={};
+ auto& boss=s_enemies[0];boss.id=head.id;boss.profile=head.profile;
+ boss.species=unsigned(Species::StallordHead);boss.elite=true;
+ s_run.start(7);s_run.ticks=duration;s_run.ranks.fill(30);s_run.master_sword=10;
+ s_run.dark_link=10;s_run.dark_remaining=100; // maximal direct-hit upgrade damage
+ initialize_extended_enemy(boss,&head);assert(head.health==1200&&head.field_0x560==1200);
+ power=s_run.attack_power(unsigned(Upgrade::Spin))*s_run.crit_damage_percent()/100*2;
+ assert(power>120&&power<1200);
+ auto targets=extended_body(&head,boss.profile);
+ for(auto* target:targets.targets)if(target)target->hit=&sword;
+ const unsigned beforeHeadHits=calls;
+ assert(update_extended_enemy(&head,boss));
+ assert(head.health==1200-int(power)&&calls==beforeHeadHits+1&&!boss.credited);
+ for(auto* target:targets.targets)if(target)target->hit=&sword;
+ update_extended_enemy(&head,boss);assert(head.health==1200-int(power)); // One contact across five spheres.
+ s_run.options.enemy_hp=10;initialize_extended_enemy(boss,&head);assert(head.health==12000);
+ s_run.start(5);power=7;
  // Owned screams have a short native stun and a shared cooldown across Gibdos.
  NativeActor gibdo;gibdo.profile=fpcNm_E_GI_e;s_enemies={};effects={};
  auto& gi=s_enemies[0];gi.id=gibdo.id;gi.profile=gibdo.profile;

@@ -39,11 +39,24 @@ fixture = r'''
 #include "../include/survivors_maps.hpp"
 #include "../include/survivors_barriers.hpp"
 using namespace dawnlight::survivors;
-using ActorId=unsigned; using s16=short;
+using ActorId=unsigned; using s16=short;using BOOL=int;constexpr BOOL TRUE=1,FALSE=0;
 struct cXyz {float x=0,y=0,z=0; cXyz()=default; cXyz(float a,float b,float c):x(a),y(b),z(c){} void set(float a,float b,float c){x=a;y=b;z=c;}};
 struct csXyz {short x=0,y=0,z=0;};
-struct fopAc_ac_c {unsigned id=7; int room=51; struct{cXyz pos;}current,old;cXyz speed;};
-struct daAlink_c:fopAc_ac_c {struct{bool hit=false;float floor=-1e9f;bool ChkGroundHit(){return hit;}float GetGroundH(){return floor;}}mLinkAcch;};
+struct fopAc_ac_c {unsigned id=7; int room=51; struct{cXyz pos;}current,old;cXyz speed;csXyz shape_angle;float speedF=0;};
+struct daAlink_c:fopAc_ac_c {struct{int m_gnd=0;bool hit=false;float floor=-1e9f;bool ChkGroundHit(){return hit;}float GetGroundH(){return floor;}void CrrPos(int){hit=true;floor=0;}}mLinkAcch;
+ int mGroundCode=0;float mNormalSpeed=0,mFallHeight=0,field_0x33c8=0;cXyz mLastJumpPos;
+ unsigned teleports=0,waits=0;
+ void setPlayerPosAndAngle(const cXyz* p,s16 yaw,BOOL force){assert(force);++teleports;current.pos=old.pos=*p;shape_angle.y=yaw;}
+ void procWaitInit(){++waits;}
+};
+int life=12,damageWrites=0,finished=0,cleared=0,interrupted=0,cancelled=0;
+struct BG{operator int()const{return 0;}int GetGroundCode(int){return 0;}}background;
+BG& dComIfG_Bgsp(){return background;}int dComIfGs_getLife(){return life;}
+void dComIfGs_setLife(int n){life=n;++damageWrites;}
+void clear_attacks(){++cleared;}void interrupt_auto_actions(daAlink_c*){++interrupted;}
+void cancel_jump_abilities_for(daAlink_c*){++cancelled;}
+void finish(bool won){assert(!won);++finished;}
+
 struct fopAcM_prm_class {struct{unsigned parameters=0;cXyz position;csXyz angle;}base;int room_no=51;struct{int x=10,z=10;}scale;};
 struct stage_actor_data_class {char name[8]{};};
 struct ModContext{}; enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
@@ -123,12 +136,49 @@ int main(){
  assert(s_run.phase==Phase::Loading);
  // Replacement players cannot inherit the previous player's rescue position.
  link.id=8;link.current.pos.y=-100;creating=true;load_frame(&link);
- assert(!s_arenaSafe&&s_run.phase==Phase::Loading&&s_warmup==0);
+ assert(!s_arenaSafe&&!s_arenaSpawn&&s_run.phase==Phase::Loading&&s_warmup==0);
+ // Capture the Palace entrance once; walking never moves its respawn point.
+ creating=false;link.id=s_player=7;s_map=3;clear_arena_geometry();link.room=arena().room;
+ link.current.pos={10,0,20};link.shape_angle.y=1234;link.mLinkAcch.hit=true;link.mLinkAcch.floor=0;
+ s_run.phase=Phase::Loading;update_arena_safety(&link);assert(s_arenaSpawn);
+ link.current.pos={900,100,800};link.mLinkAcch.floor=100;update_arena_safety(&link);
+ assert(s_arenaSpawnPosition.x==10&&s_arenaSafePosition.x==900);
+ s_run.start(5);s_run.ticks=789;s_run.kills=50;
+ // Native void handling must not apply a second cost or start a blocked event.
+ BOOL restart=TRUE;assert(before_arena_restart(nullptr,moveArgs,&restart,nullptr)==HOOK_SKIP_ORIGINAL&&!restart);
+ for(int gate=0;gate<5;++gate){
+  active=gate!=0;transition=gate==1;s_map=gate==2?0:3;s_run.phase=gate==3?Phase::Ready:Phase::Running;
+  link.id=gate==4?8:s_player;
+  assert(before_arena_restart(nullptr,moveArgs,&restart,nullptr)==HOOK_CONTINUE);
+ }
+ active=true;transition=false;s_map=3;s_run.phase=Phase::Running;link.id=s_player;
+ // Ordinary jumps / air below the edge but above the cutoff are not falls.
+ link.mLinkAcch.hit=false;link.current.pos.y=-390;update_arena_safety(&link);assert(!damageWrites);
+ link.current.pos.y=-401;link.speed={5,-50,6};link.speedF=20;link.mNormalSpeed=20;
+ link.mFallHeight=5000;update_arena_safety(&link);
+ assert(life==8&&damageWrites==1&&link.teleports==1&&link.waits==1);
+ assert(link.current.pos.x==10&&link.current.pos.y==0&&link.current.pos.z==20&&link.old.pos.x==10);
+ assert(link.shape_angle.y==1234&&link.speed.y==0&&link.speedF==0&&link.mNormalSpeed==0&&link.mFallHeight==0);
+ assert(link.mLastJumpPos.x==10&&link.field_0x33c8==0&&cleared==1&&interrupted==1&&cancelled==1);
+ assert(s_run.ticks==789&&s_run.kills==50&&s_run.phase==Phase::Running);
+ for(int frame=0;frame<60;++frame)update_arena_safety(&link);
+ assert(damageWrites==1&&life==8); // No repeated charge at the destination.
+ // Native void-floor codes cannot become the next safe position.
+ link.mGroundCode=10;link.current.pos.y=-100;update_arena_safety(&link);
+ assert(life==4&&damageWrites==2&&s_arenaSafePosition.y==0&&!link.mGroundCode);
+ update_arena_safety(&link);assert(damageWrites==2);
+ // The last heart is lethal; never underflow, refund or restart the run.
+ life=3;link.current.pos.y=-501;link.mLinkAcch.hit=false;update_arena_safety(&link);
+ assert(!life&&finished==1&&damageWrites==3);
+ // Other arenas retain their existing free return to the last safe floor.
+ s_map=0;link.room=arena().room;life=12;link.current.pos.y=-501;update_arena_safety(&link);
+ assert(life==12&&damageWrites==3);
+ clear_arena_geometry();assert(!s_arenaSpawn&&!s_arenaSafe);
  std::cout<<"Survivors spawn: native entry, barrier timing, grounding, recovery and actor replacement passed\n";
 }
 '''
 functions = '\n'.join(extract(n) for n in ['add_exit_box','arena_story_actor','before_arena_stage_actor',
-    'confine_arena_actor','after_arena_position','arena_grounded','update_arena_safety'])
+    'confine_arena_actor','after_arena_position','before_arena_restart','arena_grounded','update_arena_safety'])
 globals = source[source.index('std::vector<barriers::Wall>'):source.index('void add_exit_box')]
 with tempfile.TemporaryDirectory() as tmp:
     cpp,binary=Path(tmp)/'test.cpp',Path(tmp)/'test'

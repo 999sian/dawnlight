@@ -549,6 +549,10 @@ bool gale_shortcut_priority_active(const daAlink_c* link) {
         s_galeChargeCancelledThisTick;
 }
 
+void cancel_jump_abilities_for(daAlink_c* link) {
+    if (owns_jump_abilities(link)) reset_jump_abilities(link);
+}
+
 bool jump_abilities_busy_for(daAlink_c* link) {
     return owns_jump_abilities(link) && (s_jumpAbilities.charge != GaleCharge::Idle ||
         (s_jumpAbilities.cucco != kNoGlideActor && !s_jumpAbilities.retiring));
