@@ -10,7 +10,7 @@ bool auto_movement(daAlink_c* link) {
     return sword_action_available(link) ||
         (s_swordAction == SwordAction::Spin && link->mProcID == daAlink_c::PROC_CUT_TURN) ||
         (s_swordAction == SwordAction::Normal && normal_sword_proc(link)) ||
-        (s_run.shield && shield_pose(link));
+        (s_run.owns(ChestReward::Shield) && shield_pose(link));
 }
 struct MovementSample {
     daAlink_c* link = nullptr;

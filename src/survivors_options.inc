@@ -6,16 +6,31 @@ HookAction before_enemy_speed(ModContext*, void* args, void*, void*) {
     const auto* enemy=tracked(fopAcM_GetID(actor));
     if (!enemy || !enemy->initialized || enemy->retiring || enemy->credited || enemy->dormant || actor->health<=0)
         return HOOK_CONTINUE;
-    // Speed up locomotion before wall/floor correction, never knockback or gravity.
-    if (enemy->profile==fpcNm_E_OC_e && static_cast<daE_OC_c*>(actor)->mActionMode>=5) return HOOK_CONTINUE;
-    if (enemy->profile==fpcNm_E_MS_e && static_cast<e_ms_class*>(actor)->mAction>=4) return HOOK_CONTINUE;
-    if (enemy->profile==fpcNm_E_BA_e) {
+    // Whitelist locomotion, not a numeric range which also contains attacks.
+    // Bokoblin attack root motion is separate from speed and must stay native,
+    // including the frame transitioning from attack back to the find state.
+    if (enemy->profile==fpcNm_E_OC_e) {
+        auto* bok=static_cast<daE_OC_c*>(actor);
+        const bool walk=bok->mActionMode==1 && bok->mOcState==1 && bok->checkBck(0x1d);
+        const bool chase=bok->mActionMode==3 && bok->mOcState==4 &&
+            (bok->checkBck(0x1e) || bok->checkBck(0x0b));
+        if (!walk && !chase) return HOOK_CONTINUE;
+    } else if (enemy->profile==fpcNm_E_MS_e) {
+        auto* rat=static_cast<e_ms_class*>(actor);
+        const bool walk=rat->mAction==0 && (rat->mMode==1 || rat->mMode==6);
+        const bool chase=rat->mAction==1 && rat->mMode==2;
+        if (!walk && !chase) return HOOK_CONTINUE; // Windup, leap and recovery stay native.
+    } else if (enemy->profile==fpcNm_E_BA_e) {
         auto* bat=reinterpret_cast<e_ba_class*>(actor);
-        if (bat->mIsDying || bat->mKnockbackSpeed>0.1f || bat->mAction>=10) return HOOK_CONTINUE;
-    }
-    const float extra=float(s_run.options.enemy_speed-1);
-    actor->current.pos.x+=(actor->current.pos.x-actor->old.pos.x)*extra;
-    actor->current.pos.z+=(actor->current.pos.z-actor->old.pos.z)*extra;
+        const bool fly=bat->mAction==e_ba_class::ACT_FIGHT_FLY || bat->mAction==e_ba_class::ACT_RETURN ||
+            bat->mAction==e_ba_class::ACT_FLY || bat->mAction==e_ba_class::ACT_PATH_FLY;
+        if (!fly || bat->mIsDying || bat->mKnockbackSpeed>0.1f) return HOOK_CONTINUE;
+    } else return HOOK_CONTINUE;
+    const float extra=float(std::clamp(s_run.options.enemy_speed,1u,3u)-1);
+    // Add only horizontal locomotion velocity before native wall correction.
+    // Do not multiply animation translations, collision pushes, falls or teleports.
+    actor->current.pos.x+=actor->speed.x*extra;
+    actor->current.pos.z+=actor->speed.z*extra;
     acch->OnLineCheck();
     return HOOK_CONTINUE;
 }

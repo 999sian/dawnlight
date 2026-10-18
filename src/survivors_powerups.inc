@@ -46,7 +46,7 @@ ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
         result = add_choice_card(row, rml, names[unsigned(upgrade)], select_upgrade, &s_choices[i]);
         if (result != MOD_OK) return result;
     }
-    return MOD_OK;
+    return add_choice_actions(left,false);
 }
 
 ModResult build_powerup_overview(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,

@@ -129,7 +129,7 @@ int main(){
     failHeap=false;clear_loot();missingLid=true;assert(!prepare_loot(&player) && references==0 && liveModels.empty());
     missingLid=false;clear_loot();failModel=int(modelsMade)+3;
     assert(!prepare_loot(&player) && references==0 && liveModels.empty());
-    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==27+elite_reward_capacity);
+    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==43+elite_reward_capacity);
     assert(s_loot.chests[0]->getModelData()==&data[0]);
     assert(s_loot.chests[kPaidChestCount]->getModelData()==&data[4]);
     assert(currentHeap==&defaultHeap);
@@ -137,7 +137,7 @@ int main(){
     s_chests[0].active=true;s_chests[1].active=true;s_chests[1].opening=true;s_chests[1].age=45;
     const auto before=data[0].root.getMtxCalc();draw_loot();
     assert(draws==2 && data[0].root.getMtxCalc()==before);
-    s_attacks[12].active=true;s_attacks[12].weapon=unsigned(Upgrade::Boomerang);s_attacks[12].age=40;
+    s_attacks[item_projectile_begin(1)].active=true;s_attacks[item_projectile_begin(1)].weapon=unsigned(Upgrade::Boomerang);s_attacks[item_projectile_begin(1)].age=40;
     auto oldCallback=data[0].root.getCallBack();draw_loot();
     assert(data[0].root.getCallBack()==oldCallback&&data[0].root.getMtxCalc()==before);
     s_selectedChest=0;s_chests[0].reward=ChestReward::MasterSword;

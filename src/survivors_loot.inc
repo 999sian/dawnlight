@@ -112,8 +112,8 @@ bool prepare_loot(daAlink_c* link) {
         static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1f)),
         static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x1e)), ball};
     for (unsigned type = 0; type < data.size(); ++type)
-        for (unsigned slot = 0; slot < kSlotsPerItem; ++slot) {
-            auto*& instance = s_loot.projectiles[kItemBegin + type * kSlotsPerItem + slot];
+        for (unsigned slot = 0; slot < item_projectile_count(type); ++slot) {
+            auto*& instance = s_loot.projectiles[item_projectile_begin(type) + slot];
             instance = model(data[type], type == 3);
             ready = ready && instance;
         }
@@ -192,8 +192,8 @@ void update_boom_wind(Attack& a, daAlink_c* link) {
 }
 bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0) {
     const unsigned index = unsigned(weapon), type = index - unsigned(Upgrade::Bow);
-    auto begin = s_attacks.begin() + kItemBegin + type * kSlotsPerItem;
-    auto end = begin + kSlotsPerItem;
+    auto begin = s_attacks.begin() + item_projectile_begin(type);
+    auto end = begin + item_projectile_count(type);
     auto slot = std::find_if(begin, end, [](const auto& a) { return !a.active; });
     if (slot == end) return false;
     auto& a = *slot;
@@ -218,7 +218,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     a.velocity = aimed * (weapon == Upgrade::Bow ? 70.0f : weapon == Upgrade::Ball ? 40.0f : 42.0f);
     const unsigned rank = s_run.rank(weapon);
     if (weapon == Upgrade::Boomerang) {
-        a.hops = rank; a.life = 120 + 40 * rank;
+        a.hops = s_run.boomerang_hops(); a.life = 120 + 40 * a.hops;
         if (!next_boom_target(a, link, 1400)) return false;
     }
     a.radius = s_run.radius(weapon == Upgrade::Bow ? 35 : 55 + 8 * rank);
@@ -390,7 +390,7 @@ void draw_loot() {
         draw_loot_model(s_loot.projectiles[i], a.position, yaw, pitch,
             weapon == Upgrade::Bow ? 1 : s_run.radius(1 + 0.08f * (s_run.rank(weapon) - 1)));
         if (weapon == Upgrade::Boomerang && s_loot.windAnim) {
-            auto* model = s_loot.wind[i - kItemBegin - kSlotsPerItem];
+            auto* model = s_loot.wind[i - item_projectile_begin(1)];
             auto* data = model->getModelData(); auto* root = data->getJointNodePointer(0);
             auto* joint = data->getJointNodePointer(4);
             auto* oldCalc = root->getMtxCalc(); auto oldCallback = joint->getCallBack();
@@ -400,6 +400,6 @@ void draw_loot() {
             draw_loot_model(model, a.position, 0, 0, 1);
             root->setMtxCalc(oldCalc); joint->setCallBack(oldCallback);
         }
-        if (weapon == Upgrade::Ball && link) draw_chain(i - kItemBegin - 3 * kSlotsPerItem, link, a.position);
+        if (weapon == Upgrade::Ball && link) draw_chain(i - item_projectile_begin(3), link, a.position);
     }
 }

@@ -98,7 +98,9 @@ bool begin_treasure_choice(unsigned index, daAlink_c* link) {
         chest.offers = s_run.roll_chest_offers(potion_slot() >= 0);
         for (auto& rarity : chest.rarities) rarity = s_run.roll_rarity();
     }
-    if (chest.offers[0] == ChestReward::Count) return false;
+    if (std::none_of(chest.offers.begin(), chest.offers.end(), [](ChestReward reward) {
+            return s_run.chest_eligible(reward, potion_slot() >= 0);
+        })) return false;
     s_selectedChest = index; s_chosenTreasure = ChestReward::Count;
     s_run.phase = Phase::TreasureChoice;
     clear_attacks();
@@ -216,6 +218,9 @@ void update_treasure_demo(daAlink_c* link) {
                 dComIfGs_setCollectShield(s_treasure.result.shield_tier());
                 dComIfGs_onItemFirstBit(shield);
                 dMeter2Info_setShield(shield, false);
+            } else if (chest.reward == ChestReward::OrdonSword) {
+                for (int i=COLLECT_WOODEN_SHIELD;i<=COLLECT_HYLIAN_SHIELD;++i) dComIfGs_offCollectShield(i);
+                dMeter2Info_setShield(dItemNo_NONE_e,false);
             } else if (chest.reward == ChestReward::RedPotion) {
                 for (unsigned i = 0; i < s_treasure.potions; ++i)
                     dComIfGs_setItem(potion_slot(), dItemNo_RED_BOTTLE_e);

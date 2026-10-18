@@ -139,7 +139,8 @@ int dComIfGs_getItem(int slot,bool){return bottles.at(slot-SLOT_11);}
 void dComIfGs_setItem(int slot,int item){bottles.at(slot-SLOT_11)=item;++potionGrants;}
 void dComIfGs_onItemFirstBit(int){}
 void dComIfGs_setCollectSword(int){++swordGrants;}
-int equippedShield=0;void dComIfGs_setCollectShield(int){}
+int equippedShield=0;enum{COLLECT_WOODEN_SHIELD=0,COLLECT_HYLIAN_SHIELD=2};void dComIfGs_offCollectShield(int){}
+void dComIfGs_setCollectShield(int){}
 void dMeter2Info_setShield(int item,bool){equippedShield=item;}
 void dMeter2Info_setSword(int item,bool){equippedSword=item;}
 void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
@@ -206,7 +207,7 @@ int main(){
         if(reason==4)s_loot.ready=false;
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
-        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=5;s_run.dual_wield=30;s_run.dark_link=11;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
+        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=5;s_run.dual_wield=10;s_run.dark_link=11;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!open_first()&&created==0&&rupees==100);
     }
     // Cancel and reopen retain the same offers and never charge or reroll.
@@ -215,8 +216,13 @@ int main(){
     dismiss_treasure_choice();assert(s_run.phase==Phase::Running&&rupees==100&&created==0);
     assert(begin_treasure_choice(0,&player));assert(s_chests[0].offers==savedOffers&&s_chests[0].rarities==savedRarities&&s_run.random==savedRng);
     window=1;cancel_treasure_demo();assert(window==0&&s_selectedChest==kChestCount&&s_run.phase==Phase::Running);
+    // Banishing the first card must not prevent reopening the remaining offers.
+    fresh();s_chests[0].offers={ChestReward::Count,ChestReward::Shield,ChestReward::Bow};
+    const auto sparse=s_chests[0].offers;const auto sparseRng=s_run.random;
+    assert(begin_treasure_choice(0,&player)&&s_chests[0].offers==sparse&&s_run.random==sparseRng);
+    dismiss_treasure_choice();assert(begin_treasure_choice(0,&player)&&s_chests[0].offers==sparse);
     // Fully exhausted cached offers refresh, while partially usable ones stay fixed.
-    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=30;s_run.dark_link=11;
+    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=10;s_run.dark_link=11;
     assert(begin_treasure_choice(0,&player));
     for(auto offer:s_chests[0].offers)assert(offer!=ChestReward::OrdonSword);
     // Revalidate affordability and chosen eligibility after the UI closes.
@@ -296,7 +302,7 @@ int main(){
     assert(s_run.phase==Phase::TreasureChoice&&player.mProcID==daAlink_c::PROC_WAIT);
     assert(!mDoCPd_c::pad.mPressedButtonFlags&&!s_wavePending&&s_comboStep==0);
     // Sword ranks are chest-only and equip the native sword after presentation.
-    fresh();s_run.dual_wield=30;s_run.dark_link=11;s_run.shield=10;for(unsigned i=8;i<12;++i){s_run.ranks[i]=30;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    fresh();s_run.banned_items.fill(true);s_run.banned_items[unsigned(ChestReward::MasterSword)]=false;
     assert(open_first()&&s_chests[0].reward==ChestReward::MasterSword);
     assert(prop.itemNo==dItemNo_MASTER_SWORD_e && swordGrants==0);
     accept();eventEnded=true;update_treasure_demo(&player);
@@ -311,8 +317,7 @@ int main(){
         assert(s_run.master_sword==n&&equippedSword==expected);
     }
     assert(!s_run.chest_rewards_left());
-    fresh();s_run.master_sword=5;s_run.dual_wield=30;s_run.dark_link=11;
-    for(unsigned i=8;i<12;++i){s_run.ranks[i]=30;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    fresh();s_run.banned_items.fill(true);s_run.banned_items[unsigned(ChestReward::Shield)]=false;
     for(unsigned n=1;n<=10;++n){
         s_chests[0].active=true;s_chests[0].position={0,0,100};rupees=1000;eventEnded=false;
         assert(open_first());
@@ -321,11 +326,20 @@ int main(){
         assert(s_run.block_chance()==5*n&&equippedShield==expected);
     }
     assert(!s_run.chest_rewards_left());
-    fresh();s_run.master_sword=5;s_run.shield=10;s_run.dark_link=11;s_run.dual_wield=29;
-    for(unsigned i=8;i<12;++i){s_run.ranks[i]=30;}bottles.fill(dItemNo_RED_BOTTLE_e);
+    fresh();s_run.banned_items.fill(true);s_run.banned_items[unsigned(ChestReward::OrdonSword)]=false;s_run.dual_wield=9;
     assert(open_first()&&prop.itemNo==dItemNo_SWORD_e);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dual_wield&&!s_run.chest_rewards_left());
+    // Offhand replacement is deferred until the native get animation completes.
+    for(bool toShield:{true,false}){
+        fresh();if(toShield)s_run.dual_wield=8;else s_run.shield=8;
+        const auto reward=toShield?ChestReward::Shield:ChestReward::OrdonSword;
+        s_chests[0].offers={reward,ChestReward::Count,ChestReward::Count};
+        assert(open_first());assert(toShield?s_run.dual_wield==8:s_run.shield==8);
+        accept();eventEnded=true;update_treasure_demo(&player);
+        assert(s_run.owns(reward)&&s_run.shield==0&&s_run.dual_wield==0&&s_run.equipment_count()==1);
+        assert(equippedShield==(toShield?dItemNo_WOOD_SHIELD_e:dItemNo_NONE_e));
+    }
     // Dark Link is a deferred Poe Soul presentation, not a story Poe grant.
     fresh();assert(begin_treasure_choice(0,&player));s_chests[0].offers[0]=ChestReward::DarkLink;
     s_chests[0].rarities[0]=Rarity::Common;unsigned darkChoice=0;
@@ -334,7 +348,7 @@ int main(){
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dark_link==1&&rupees==80&&!s_chests[0].active&&swordGrants==0&&potionGrants==0);
     // Potion rewards fill a new slot first, even with an existing empty bottle.
-    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=5;s_run.dual_wield=30;s_run.dark_link=11;s_run.shield=10;rupees=1000;
+    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=5;s_run.dual_wield=10;s_run.dark_link=11;s_run.shield=10;rupees=1000;
     for(unsigned n=0;n<4;++n){
         s_chests[0]={};s_chests[0].active=true;s_chests[0].position={0,0,100};
         if(n>0)bottles[0]=dItemNo_EMPTY_BOTTLE_e;

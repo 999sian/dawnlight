@@ -104,7 +104,7 @@ int main(){
  record_status_hit(&group[0],&sword);assert(s_effects[1].pending==3); // once per swing
  group[1].mSph1.hit=true;group[1].mSph1.attack=&player.mAtCps[1];hit(group[1]);
  assert(group[1].health==47&&!s_effects[1].pending); // natural capsule cannot duplicate multihit
- clear_enemy_effects();++s_meleeSerial;s_run.dual_wield=5;
+ clear_enemy_effects();++s_meleeSerial;s_run.dual_wield=10;
  record_status_hit(&group[0],&sword);
  for(unsigned i=1;i<4;++i){assert(s_effects[i].pending==3);hit(group[i]);}
  for(unsigned i=4;i<7;++i)assert(!s_effects[i].pending);

@@ -27,6 +27,7 @@ std::array<int,4> bottles;
 int dComIfGs_getItem(int slot,bool){return bottles.at(slot-SLOT_11);}
 int potion_slot(){for(int i=0;i<4;++i)if(bottles[i]==dItemNo_NONE_e||bottles[i]==dItemNo_EMPTY_BOTTLE_e)return i+11;return -1;}
 unsigned potion_capacity(){unsigned count=0;for(auto item:bottles)count+=item==dItemNo_NONE_e||item==dItemNo_EMPTY_BOTTLE_e;return count;}
+ModResult add_choice_actions(UiElementHandle,bool){return MOD_OK;}
 Run s_run;unsigned rupees=500,selected=99;
 unsigned dComIfGs_getRupee(){return rupees;}
 struct Chest {bool free=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
@@ -76,7 +77,7 @@ int main(){
  for(const auto& [id,e]:elements){
    if(e.css=="survivors-treasure-card")cards.push_back(id);
    if(e.kind=="button")buttons.push_back(id);
-   if(e.kind=="rml")texts.push_back(e.text);
+   if(e.kind=="rml"&&e.text.find("survivors-treasure-copy")!=std::string::npos)texts.push_back(e.text);
  }
  assert(cards.size()==3&&buttons.size()==3&&texts.size()==3);
  assert(elements.at(cards[0]).parent==elements.at(cards[1]).parent&&elements.at(cards[1]).parent==elements.at(cards[2]).parent);
@@ -98,7 +99,7 @@ int main(){
  assert(build_treasure_choices(1,2)==MOD_OK);unsigned freeCards=0;bool freeLabel=false;
  for(const auto& [id,e]:elements){
    if(e.kind=="button"){++freeCards;e.pressed(nullptr,e.data);assert(selected<3);}
-   freeLabel=freeLabel || e.text.find("Choose one free reward.")!=std::string::npos;
+   freeLabel=freeLabel || e.text.find("survivors-equipment")!=std::string::npos;
    assert(e.text.find("20 rupees")==std::string::npos);
  }
  assert(freeCards==3&&freeLabel&&rupees==0&&s_run.chests_opened==0);
@@ -108,14 +109,14 @@ int main(){
    Run preview=s_run;preview.phase=Phase::Treasure;unsigned money=500;
    assert(preview.buy_chest(money,reward,true));auto card=treasure_card_rml(reward,preview,Rarity::Common);
    char icon[40];std::snprintf(icon,sizeof(icon),"item://item/%02x",unsigned(treasure_item(reward,preview)));
-   assert(card.find(icon)!=std::string::npos&&card.find(reward_name(reward,preview))!=std::string::npos);
+   assert(card.find(icon)!=std::string::npos&&card.find(reward==ChestReward::OrdonSword ? "Dual Wield" : reward_name(reward,preview))!=std::string::npos);
    if(reward==ChestReward::RedPotion){assert(card.find("Bottles")!=std::string::npos&&card.find("Red potions")!=std::string::npos);}
  }
  // All rarity colors appear on both the name and icon border. Preview is pure.
  for(unsigned rarity=0;rarity<5;++rarity){
    fresh();s_chests[0].rarities.fill(Rarity(rarity));
    const auto rngBefore=s_run.random;assert(build_treasure_choices(1,2)==MOD_OK);
-   unsigned cards=0;for(const auto& [id,e]:elements)if(e.kind=="rml"){
+   unsigned cards=0;for(const auto& [id,e]:elements)if(e.kind=="rml"&&e.text.find("survivors-treasure-copy")!=std::string::npos){
      ++cards;const std::string color=rarity_colors[rarity];
      assert(e.text.find("border-color: "+color)!=std::string::npos&&e.text.find("color: "+color)!=std::string::npos);
      assert(e.text.find(std::string(rarity_names[rarity])+" x"+number(rarity+1))!=std::string::npos);
@@ -132,6 +133,30 @@ int main(){
  assert(build_treasure_choices(1,2)==MOD_OK);unsigned actual=0;
  for(const auto& [id,e]:elements)actual+=e.kind=="button";
  assert(actual==2); // Skip a reward capped after a canceled visit.
+ // Replacement warnings sit immediately under the name, before rarity/effects.
+ for(bool shield:{false,true}){
+   fresh();if(shield)s_run.shield=8;else s_run.dual_wield=8;
+   const auto reward=shield?ChestReward::OrdonSword:ChestReward::Shield;
+   Run preview=s_run;preview.phase=Phase::Treasure;unsigned money=500;
+   assert(preview.buy_chest(money,reward));
+   const auto card=treasure_card_rml(reward,preview,Rarity::Common);
+   const auto warning=card.find(shield?"replaces Shield":"replaces Dual Wield");
+   assert(warning!=std::string::npos&&card.find("survivors-treasure-name")<warning&&warning<card.find("survivors-treasure-effect"));
+   s_run=preview;
+   assert(treasure_card_rml(reward,preview,Rarity::Common).find("replaces ")==std::string::npos);
+ }
+ for(unsigned equipped=0;equipped<=4;++equipped){
+   fresh();for(unsigned i=0;i<equipped;++i)s_run.ranks[unsigned(Upgrade::Bow)+i]=1;
+   assert(build_treasure_choices(1,2)==MOD_OK);
+   unsigned headers=0;
+   for(const auto& [id,e]:elements)if(e.kind=="rml"&&e.text.find("survivors-equipment\"")!=std::string::npos){
+     ++headers;unsigned slots=0,icons=0;
+     for(size_t pos=0;(pos=e.text.find("survivors-equipment-slot",pos))!=std::string::npos;++pos)++slots;
+     for(size_t pos=0;(pos=e.text.find("<img",pos))!=std::string::npos;++pos)++icons;
+     assert(slots==4&&icons==equipped);
+   }
+   assert(headers==1);
+ }
  fresh();failControl=true;assert(build_treasure_choices(1,2)==MOD_UNAVAILABLE&&s_run.chests_opened==0);
  fresh();s_selectedChest=2;assert(build_treasure_choices(1,2)==MOD_INVALID_ARGUMENT);
 }

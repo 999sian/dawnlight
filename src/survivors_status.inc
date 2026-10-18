@@ -88,7 +88,7 @@ void spread_melee_hit(fopAc_ac_c* primary) {
     s_spreadSerial = s_meleeSerial;
     if (auto* e = tracked(fopAcM_GetID(primary))) effect_for(*e).meleeSerial = s_meleeSerial;
     auto* link = daAlink_getAlinkActorClass(); if (!link) return;
-    for (unsigned n = 0; n < s_run.dual_wield; ++n) {
+    for (unsigned n = 0; n + 1 < s_run.melee_targets(); ++n) {
         Enemy* best = nullptr; float distance = s_run.radius(280) * s_run.radius(280);
         const cXyz from = link->current.pos + cXyz(0, 70, 0);
         for (auto& e : s_enemies) {

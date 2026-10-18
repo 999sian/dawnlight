@@ -64,12 +64,14 @@ void release_ranged(daAlink_c* link) {
     s_ranged.target = target;
     if (!launch_item(link, s_ranged.weapon, target)) return;
     if (s_ranged.weapon == Upgrade::Ball) {
-        for (unsigned i = kItemBegin + 3 * kSlotsPerItem; i < s_attacks.size(); ++i)
+        for (unsigned i = item_projectile_begin(3); i < s_attacks.size(); ++i)
             if (s_attacks[i].active && s_attacks[i].age == 0) { s_ranged.projectile = i; break; }
     }
-    if (s_ranged.weapon == Upgrade::Bow && s_run.rank(Upgrade::Bow) >= 3) {
-        launch_item(link, Upgrade::Bow, target, 0.14f);
-        if (s_run.rank(Upgrade::Bow) >= 5) launch_item(link, Upgrade::Bow, target, -0.14f);
+    if (s_ranged.weapon == Upgrade::Bow) {
+        for (unsigned i=1;i<s_run.bow_shots();++i) {
+            const float spread=0.07f*float((i+1)/2)*(i%2 ? 1.f : -1.f);
+            if (!launch_item(link,Upgrade::Bow,target,spread)) break;
+        }
     }
 }
 void update_ranged(daAlink_c* link) {

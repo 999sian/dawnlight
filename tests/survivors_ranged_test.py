@@ -61,7 +61,7 @@ bool nearest_item_target(daAlink_c*,cXyz& target){target={300,100,0};return targ
 constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
 struct Attack{bool active=false,returning=false;unsigned age=0;};std::array<Attack,projectile_capacity>s_attacks;
 std::vector<Upgrade>shots;std::vector<float>spread;
-bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0){shots.push_back(weapon);spread.push_back(angle);if(weapon==Upgrade::Ball)s_attacks[20].active=true;return true;}
+bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0){shots.push_back(weapon);spread.push_back(angle);if(weapon==Upgrade::Ball)s_attacks[item_projectile_begin(3)].active=true;return true;}
 '''
 main=r'''
 void fresh(){player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;s_lastRanged=Upgrade::Boomerang;
@@ -79,10 +79,13 @@ int main(){
  for(unsigned i=0;i<11;++i){tick();assert(shots.empty());}
  tick();assert(shots.size()==1&&s_ranged.released&&player.animation==dRes_ID_ALANM_BCK_ASHOOT_e);
  for(unsigned i=0;i<30;++i){tick();}assert(shots.size()==1&&!s_ranged.active&&player.animation==0);
- fresh();s_run.ranks[8]=5;s_run.ranks[4]=5;
+ fresh();s_run.ranks[8]=7;s_run.ranks[4]=5;
  assert(queue_ranged(&player,Upgrade::Bow));const auto accelerated=player.mUpperFrameCtrl[2].rate;
  assert(accelerated>1);for(unsigned i=0;i<20;++i)tick();
  assert(shots.size()==3&&spread[1]>0&&spread[2]<0);
+ fresh();s_run.ranks[8]=30;
+ assert(queue_ranged(&player,Upgrade::Bow));for(unsigned i=0;i<30;++i)tick();
+ assert(shots.size()==10&&spread.size()==10);
  fresh();s_lastRanged=Upgrade::Bow;assert(queue_ranged(&player,Upgrade::Boomerang));
  player.mUpperFrameCtrl[2].frame=5;update_ranged(&player);assert(shots.empty());
  player.mUpperFrameCtrl[2].frame=8;update_ranged(&player);assert(shots.size()==1&&s_ranged.released);
@@ -127,8 +130,8 @@ int main(){
  assert(queue_ranged(&player,Upgrade::Ball));
  player.mUpperFrameCtrl[2].frame=5;update_ranged(&player);assert(shots.empty());
  player.mUpperFrameCtrl[2].frame=6;update_ranged(&player);assert(shots.size()==1);
- s_attacks[20].returning=true;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBPULL_e);
- s_attacks[20].active=false;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBCATCH_e);
+ s_attacks[item_projectile_begin(3)].returning=true;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBPULL_e);
+ s_attacks[item_projectile_begin(3)].active=false;update_ranged(&player);assert(player.animation==dRes_ID_ALANM_BCK_IBCATCH_e);
  for(unsigned i=0;i<30;++i){tick();}assert(!s_ranged.active&&shots.size()==1);
  fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=1;s_lastRanged=Upgrade::Ball;
  for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}){

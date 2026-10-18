@@ -78,7 +78,7 @@ struct Collider {
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
 struct Attack {
-    ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,6>visited{};
+    ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
     bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
@@ -148,11 +148,11 @@ int main(){
     assert(launch_item(&player,Upgrade::Bombs,{0,70,300}));
     assert(launch_item(&player,Upgrade::Ball,{0,70,300}));
     for(unsigned type=2;type<4;++type){
-        assert(s_attacks[8+4*type].active);
-        assert(s_attacks[8+4*type].status.owner==&player);
+        assert(s_attacks[item_projectile_begin(type)].active);
+        assert(s_attacks[item_projectile_begin(type)].status.owner==&player);
     }
-    assert(s_attacks[20].collider.type==AT_TYPE_NORMAL_SWORD &&
-           s_attacks[16].collider.type==AT_TYPE_NORMAL_SWORD);
+    assert(s_attacks[36].collider.type==AT_TYPE_NORMAL_SWORD &&
+           s_attacks[32].collider.type==AT_TYPE_NORMAL_SWORD);
     fire_items(&player);assert(!s_attacks[9].active); // Cooldowns prevent every-frame firing.
     for(unsigned i=0;i<8;++i)assert(!s_attacks[i].active); // Separate base-weapon budget.
     reset();s_run.ranks[8]=5;
@@ -161,7 +161,7 @@ int main(){
     s_attacks[8].collider.hit=true;update_item_attack(s_attacks[8],&player);assert(!s_attacks[8].active);
     blocked=true;update_item_attack(s_attacks[9],&player);assert(!s_attacks[9].active);
     reset();s_run.ranks[10]=1;assert(launch_item(&player,Upgrade::Bombs,{0,70,600}));
-    auto& bomb=s_attacks[16];
+    auto& bomb=s_attacks[32];
     for(unsigned i=0;i<29;++i){update_item_attack(bomb,&player);assert(!bomb.exploding && server.registrations==0);}
     update_item_attack(bomb,&player);
     assert(bomb.exploding && std::abs(bomb.position.z-600)<0.01f && std::abs(bomb.position.y-70)<0.01f);
@@ -169,10 +169,10 @@ int main(){
     for(unsigned i=0;i<61;++i)update_item_attack(bomb,&player);
     assert(!bomb.active);
     reset();s_run.ranks[10]=5;assert(launch_item(&player,Upgrade::Bombs,{0,70,600}));blocked=true;
-    update_item_attack(s_attacks[16],&player);assert(s_attacks[16].exploding && s_attacks[16].radius==320);
+    update_item_attack(s_attacks[32],&player);assert(s_attacks[32].exploding && s_attacks[32].radius==320);
     for(auto weapon:{Upgrade::Boomerang,Upgrade::Ball}){
         reset();s_run.ranks[unsigned(weapon)]=1;assert(launch_item(&player,weapon,{0,70,400}));
-        auto& a=s_attacks[8+4*(unsigned(weapon)-8)];
+        auto& a=s_attacks[item_projectile_begin(unsigned(weapon)-unsigned(Upgrade::Bow))];
         while(!a.returning && a.active)update_item_attack(a,&player);
         assert(a.returning && a.active);
         player.current.pos.x=100;update_item_attack(a,&player);assert(a.velocity.x>0 && a.velocity.z<0);
@@ -182,27 +182,27 @@ int main(){
     // High, low and vertically aligned targets never tilt or slow the ball.
     for(cXyz target : {cXyz(0,700,400),cXyz(0,-300,400),cXyz(0,900,0)}) {
         reset();s_run.ranks[11]=1;assert(launch_item(&player,Upgrade::Ball,target));
-        auto& a=s_attacks[20];assert(a.velocity.y==0&&std::abs(a.velocity.abs()-40)<0.001f);
+        auto& a=s_attacks[36];assert(a.velocity.y==0&&std::abs(a.velocity.abs()-40)<0.001f);
         const float height=a.position.y;
         while(a.active&&!a.returning){update_item_attack(a,&player);assert(a.position.y==height);}
         player.current.pos={100,300,0};
         for(unsigned i=0;i<80&&a.active;++i){update_item_attack(a,&player);assert(a.position.y==height&&a.velocity.y==0);}
         assert(!a.active);
     }
-    // Rank 1 visits two targets, rank 5 visits six distinct targets, then returns.
-    std::array<Actor,6> chain;
-    for(unsigned rank:{1u,5u}){
+    // Rank 1 visits two targets, rank 4 visits three, rank 30 visits eleven, then returns.
+    std::array<Actor,11> chain;
+    for(unsigned rank:{1u,4u,30u}){
         reset();actors.clear();s_enemies={};s_run.ranks[9]=rank;
-        for(unsigned i=0;i<6;++i){chain[i].id=10+i;chain[i].health=10;chain[i].eyePos={0,70,150.0f+150*i};
+        for(unsigned i=0;i<11;++i){chain[i].id=10+i;chain[i].health=10;chain[i].eyePos={0,70,150.0f+150*i};
             actors[10+i]=&chain[i];s_enemies[i]={10+i,true,false,false};}
         assert(launch_item(&player,Upgrade::Boomerang,chain[0].eyePos));
-        auto& a=s_attacks[12];
-        for(unsigned tick=0;tick<200&&!a.returning;++tick)update_item_attack(a,&player);
-        assert(a.returning&&a.visitedCount==rank+1&&a.emitters[0]&&a.emitters[1]);
+        auto& a=s_attacks[28];
+        for(unsigned tick=0;tick<500&&!a.returning;++tick)update_item_attack(a,&player);
+        assert(a.returning&&a.visitedCount==s_run.boomerang_hops()+1&&a.emitters[0]&&a.emitters[1]);
         for(unsigned i=0;i<a.visitedCount;++i)for(unsigned j=i+1;j<a.visitedCount;++j)assert(a.visited[i]!=a.visited[j]);
     }
     reset();s_run.ranks[11]=1;assert(launch_item(&player,Upgrade::Ball,{0,70,100}));
-    auto& ball=s_attacks[20];assert(ball.limit==900);
+    auto& ball=s_attacks[36];assert(ball.limit==900);
     ball.collider.hit=true;ball.collider.shield=true;update_item_attack(ball,&player);
     assert(ball.active&&!ball.returning);ball.ballVictimCount=2;
     while(ball.active&&!ball.returning)update_item_attack(ball,&player);
@@ -213,11 +213,11 @@ int main(){
     update_item_attack(s_attacks[8],&player);assert(s_attacks[8].emitters[0]);
     for(unsigned rank:{1u,5u}){
         reset();s_run.ranks[10]=rank;s_run.ranks[5]=2;effectScales.clear();
-        assert(launch_item(&player,Upgrade::Bombs,{0,70,300}));explode_item(s_attacks[16],&player);
-        assert(effectScales.size()==9);for(auto scale:effectScales)assert(std::abs(scale-s_attacks[16].radius/200)<0.001f);
+        assert(launch_item(&player,Upgrade::Bombs,{0,70,300}));explode_item(s_attacks[32],&player);
+        assert(effectScales.size()==9);for(auto scale:effectScales)assert(std::abs(scale-s_attacks[32].radius/200)<0.001f);
     }
     reset();s_run.ranks[8]=1;
-    for(unsigned i=0;i<4;++i)assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
+    for(unsigned i=0;i<20;++i)assert(launch_item(&player,Upgrade::Bow,{0,70,300}));
     assert(!launch_item(&player,Upgrade::Bow,{0,70,300})); // Bounded objects, no extra allocation.
     reset();invalidFloor=true;assert(!spawn_chest(&player));invalidFloor=false;
     blocked=true;assert(!spawn_chest(&player));blocked=false;

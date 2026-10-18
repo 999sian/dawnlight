@@ -17,7 +17,9 @@ inline constexpr unsigned guard_respawn_interval = 3 * 60 * ticks_per_second;
 inline constexpr unsigned elite_reward_capacity = timed_elite_count +
     guard_capacity * (1 + (duration - 1) / guard_respawn_interval);
 inline constexpr unsigned enemy_capacity = 24 * 5 + elite_capacity;
-inline constexpr unsigned projectile_capacity = 24;
+inline constexpr unsigned projectile_capacity = 40;
+inline constexpr unsigned item_projectile_begin(unsigned type) { return type ? 28 + (type - 1) * 4 : 8; }
+inline constexpr unsigned item_projectile_count(unsigned type) { return type ? 4 : 20; }
 inline constexpr unsigned orb_capacity = 64;
 inline constexpr unsigned pot_capacity = 72;
 inline unsigned pot_budget(unsigned map, float floorArea) {
@@ -48,7 +50,7 @@ inline constexpr std::array descriptions{
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
     "Increase the size of automatic attacks.", "Attract experience, rupees, hearts and heart pieces from farther away.",
     "Gain one maximum heart (does not heal).",
-    "Faster, stronger arrows. Ranks 3 and 5 add spread shots.",
+    "Faster, stronger arrows. Every three upgrades adds an arrow, up to ten.",
     "A damaging returning boomerang. Upgrades increase damage, size and firing rate.",
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
@@ -61,7 +63,7 @@ struct RunOptions {
     unsigned camera_distance = 200;
     void clamp() {
         enemy_hp=std::clamp(enemy_hp,1u,10u); enemy_damage=std::clamp(enemy_damage,1u,10u);
-        enemy_speed=std::clamp(enemy_speed,1u,5u); horde=std::clamp(horde,1u,5u);
+        enemy_speed=std::clamp(enemy_speed,1u,3u); horde=std::clamp(horde,1u,5u);
         camera_distance=std::clamp(camera_distance,100u,500u);
     }
 };
@@ -72,6 +74,10 @@ struct Run {
     RunOptions options;
     unsigned drop_progress = 0, maximum_hearts = 3;
     unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
+    ChestReward offhand = ChestReward::Count;
+    unsigned free_rerolls = 1, banishes = 1, paid_rerolls = 0;
+    std::array<bool,unsigned(Upgrade::Count)> banned_upgrades{};
+    std::array<bool,unsigned(ChestReward::Count)> banned_items{};
     unsigned dark_clock = 0, dark_remaining = 0;
     std::array<unsigned, unsigned(Upgrade::Rupees)> ranks{};
     unsigned chests_opened = 0;
@@ -116,29 +122,31 @@ struct Run {
         return 20 * (reward_units(rarity) - upgrade_gain(u, rarity));
     }
     bool eligible(Upgrade u) const {
+        if (u >= Upgrade::Count || banned_upgrades[unsigned(u)]) return false;
+        if (u >= Upgrade::Bow && u <= Upgrade::Ball && banned_items[unsigned(u)-unsigned(Upgrade::Bow)]) return false;
         if (u == Upgrade::Rupees) return true;
         if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
-        if (u == Upgrade::ShieldAttack && !shield) return false;
+        if (u == Upgrade::ShieldAttack && !owns(ChestReward::Shield)) return false;
         if (u == Upgrade::FireArrows && !rank(Upgrade::Bow)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
         if (u == Upgrade::Heart && maximum_hearts >= 20) return false;
         return true;
     }
-    bool level_up() {
-        if (phase != Phase::Running || xp < required_xp()) return false;
-        xp -= required_xp(); ++level;
+    void roll_upgrades() {
         std::array<Upgrade, static_cast<unsigned>(Upgrade::Count)> pool{};
         unsigned count = 0;
         for (unsigned i = 0; i < static_cast<unsigned>(Upgrade::Count); ++i)
             if (eligible(static_cast<Upgrade>(i))) pool[count++] = static_cast<Upgrade>(i);
         for (auto& offer : offers) {
-            if (!count) { offer = Upgrade::Rupees; continue; }
+            if (!count) { offer = eligible(Upgrade::Rupees) ? Upgrade::Rupees : Upgrade::Count; continue; }
             const unsigned choice = next_random() % count;
             offer = pool[choice]; pool[choice] = pool[--count];
         }
         for (auto& rarity : offer_rarities) rarity = roll_rarity();
-        phase = Phase::Upgrade;
-        return true;
+    }
+    bool level_up() {
+        if (phase != Phase::Running || xp < required_xp()) return false;
+        xp -= required_xp(); ++level; roll_upgrades(); phase = Phase::Upgrade; return true;
     }
     bool choose(unsigned choice) {
         if (phase != Phase::Upgrade || choice >= offers.size()) return false;
@@ -154,7 +162,42 @@ struct Run {
     unsigned burn_damage() const { return rank(Upgrade::FireArrows); }
     unsigned burn_duration() const { return (3 + (std::max(1u, rank(Upgrade::FireArrows)) - 1) / 3) * ticks_per_second; }
     unsigned melee_power() const { return 3 + rank(Upgrade::Power) + sword_bonus(); }
-    unsigned melee_targets() const { return 1 + dual_wield; }
+    unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 3) : 1; }
+    unsigned bow_shots() const { return rank(Upgrade::Bow) ? std::min(10u,1+(rank(Upgrade::Bow)-1)/3) : 0; }
+    unsigned boomerang_hops() const { return rank(Upgrade::Boomerang) ? std::min(10u,1+(rank(Upgrade::Boomerang)-1)/3) : 0; }
+    bool owns(ChestReward reward) const {
+        if (reward<=ChestReward::Ball) return rank(chest_weapon(reward))!=0;
+        if (reward==ChestReward::MasterSword) return master_sword!=0;
+        if (reward==ChestReward::DarkLink) return dark_link!=0;
+        if (reward==ChestReward::OrdonSword) return dual_wield || offhand==reward;
+        if (reward==ChestReward::Shield) return shield || offhand==reward;
+        return false;
+    }
+    unsigned equipment_count() const {
+        unsigned count=0;for(unsigned i=0;i<unsigned(ChestReward::Count);++i) count+=owns(ChestReward(i));
+        return count;
+    }
+    bool replaces_offhand(ChestReward reward) const {
+        return (reward==ChestReward::Shield && owns(ChestReward::OrdonSword)) ||
+               (reward==ChestReward::OrdonSword && owns(ChestReward::Shield));
+    }
+    unsigned reroll_cost() const { return free_rerolls ? 0 : 50*(paid_rerolls+1); }
+    bool pay_reroll(unsigned& rupees, unsigned reserved=0) {
+        if ((phase!=Phase::Upgrade && phase!=Phase::TreasureChoice) || rupees<reserved || rupees-reserved<reroll_cost()) return false;
+        rupees-=reroll_cost(); if(free_rerolls)--free_rerolls;else ++paid_rerolls;return true;
+    }
+    bool banish(Upgrade u) {
+        if (!banishes || phase!=Phase::Upgrade || u>=Upgrade::Count || !eligible(u)) return false;
+        --banishes; banned_upgrades[unsigned(u)]=true;
+        if(u>=Upgrade::Bow && u<=Upgrade::Ball)banned_items[unsigned(u)-unsigned(Upgrade::Bow)]=true;
+        return true;
+    }
+    bool banish(ChestReward reward, bool bottles) {
+        if (!banishes || phase!=Phase::TreasureChoice || !chest_eligible(reward,bottles)) return false;
+        --banishes;banned_items[unsigned(reward)]=true;
+        const auto weapon=chest_weapon(reward);if(weapon!=Upgrade::Count)banned_upgrades[unsigned(weapon)]=true;
+        return true;
+    }
     static constexpr unsigned dark_max_rank = 11;
     unsigned dark_interval() const { return (20 - 2 * (std::min(dark_max_rank, dark_link) / 2)) * ticks_per_second; }
     unsigned dark_duration() const { return (5 + (std::max(1u, dark_link) - 1) / 2) * ticks_per_second; }
@@ -162,9 +205,11 @@ struct Run {
     bool dark_active() const { return dark_link && (dark_permanent() || dark_remaining); }
     unsigned damage_multiplier() const { return dark_active() ? 2 : 1; }
     bool chest_eligible(ChestReward reward, bool bottle_available = false) const {
+        if (reward>=ChestReward::Count || banned_items[unsigned(reward)]) return false;
+        if (reward!=ChestReward::RedPotion && !owns(reward) && !replaces_offhand(reward) && equipment_count()>=4) return false;
         if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < upgrade_cap(chest_weapon(reward));
         if (reward == ChestReward::MasterSword) return master_sword < 5;
-        if (reward == ChestReward::OrdonSword) return dual_wield < 30;
+        if (reward == ChestReward::OrdonSword) return dual_wield < 10;
         if (reward == ChestReward::DarkLink) return !dark_permanent();
         if (reward == ChestReward::Shield) return shield < 10;
         return reward == ChestReward::RedPotion && bottle_available;
@@ -189,11 +234,12 @@ struct Run {
         return result;
     }
     unsigned chest_gain(ChestReward reward, Rarity rarity, unsigned bottle_capacity = 0) const {
+        if (replaces_offhand(reward)) return 0; // A replacement starts at rank zero.
         unsigned remaining = 0;
         if (reward <= ChestReward::Ball) remaining = upgrade_cap(chest_weapon(reward)) - std::min(upgrade_cap(chest_weapon(reward)), rank(chest_weapon(reward)));
         else if (reward == ChestReward::MasterSword) remaining = 5 - std::min(5u, master_sword);
         else if (reward == ChestReward::Shield) remaining = 10 - std::min(10u, shield);
-        else if (reward == ChestReward::OrdonSword) remaining = 30 - std::min(30u, dual_wield);
+        else if (reward == ChestReward::OrdonSword) remaining = 10 - std::min(10u, dual_wield);
         else if (reward == ChestReward::DarkLink) remaining = dark_max_rank - std::min(dark_max_rank, dark_link);
         else if (reward == ChestReward::RedPotion) remaining = bottle_capacity;
         return std::min(reward_units(rarity), remaining);
@@ -209,6 +255,8 @@ struct Run {
         const unsigned gain = chest_gain(reward, rarity, bottle_capacity);
         rupees = rupees - price + chest_rupees(reward, rarity, bottle_capacity);
         if (!free) ++chests_opened;
+        if (replaces_offhand(reward)) { shield=dual_wield=0; offhand=reward; }
+        if (reward == ChestReward::Shield || reward == ChestReward::OrdonSword) offhand=reward;
         if (reward == ChestReward::MasterSword) master_sword += gain;
         else if (reward == ChestReward::OrdonSword) dual_wield += gain;
         else if (reward == ChestReward::DarkLink) dark_link += gain;

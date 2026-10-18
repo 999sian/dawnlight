@@ -50,6 +50,7 @@ template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std
 template<class T>T& arg_ref(void* args,int n){return *std::any_cast<T>(&static_cast<std::any*>(args)[n]);}
 }
 struct dMenu_Collect2D_c{unsigned mSubWindowOpenCheck=0;};
+ModResult add_choice_actions(UiElementHandle,bool){return MOD_OK;}
 Run s_run;
 UiWindowHandle s_powerupsWindow=0;
 bool s_powerupsRequested=false,arena=true,visible=false,failPush=false;
@@ -178,7 +179,7 @@ int main(){
    ++count;assert(e.pressed&&!e.help.empty());
    assert(e.help.find("</span><br/>")!=std::string::npos);
    e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);
-   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("3 arrows/shot")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
+   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("2 arrows/shot")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
    if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);
  }
  assert(count==3&&s_run.ranks==ranks&&s_run.random==overviewRng);

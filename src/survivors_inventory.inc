@@ -103,8 +103,8 @@ void sync_survivors_inventory() {
         u8(s_run.rank(Upgrade::Bombs) ? dItemNo_NORMAL_BOMB_e : dItemNo_NONE_e),
         u8(s_run.rank(Upgrade::Ball) ? dItemNo_IRONBALL_e : dItemNo_NONE_e),
         u8(s_run.master_sword ? (s_run.master_sword >= 5 ? dItemNo_LIGHT_SWORD_e : dItemNo_MASTER_SWORD_e) : dItemNo_NONE_e),
-        u8(s_run.dual_wield ? dItemNo_SWORD_e : dItemNo_NONE_e),
-        s_run.shield ? shield_item(s_run) : u8(dItemNo_NONE_e),
+        u8(s_run.owns(ChestReward::OrdonSword) ? dItemNo_SWORD_e : dItemNo_NONE_e),
+        s_run.owns(ChestReward::Shield) ? shield_item(s_run) : u8(dItemNo_NONE_e),
         u8(s_run.dark_link ? dItemNo_POU_SPIRIT_e : dItemNo_NONE_e)};
     for (unsigned i = 0; i < items.size(); ++i)
         if (dComIfGs_getItem(kSurvivorsSlots[i], false) != items[i])

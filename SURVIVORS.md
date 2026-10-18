@@ -30,7 +30,7 @@ between maps/replays in the current session and are fixed when the run starts.
 | --- | --- | --- |
 | Enemy HP | ×1–×10, including elites | ×1 |
 | Enemy Damage | ×1–×10 | ×1 |
-| Enemy Speed | ×1–×5 movement speed | ×1 |
+| Enemy Speed | ×1–×3 normal locomotion; attacks keep native movement | ×1 |
 | Horde | ×1–×5 enemy population and spawn amount | ×1 |
 | Camera distance | 100–500%, walls may limit distance | 200% |
 
@@ -71,20 +71,33 @@ attacks and offers three items; choose one to receive it through the native Get
 Item animation. Cancelling preserves offers. Opened chests disappear; free elite
 chests never raise the paid-chest price.
 
+Equip up to **four chest items**; their icons (or empty slots) appear above the
+choices. Bottles/potions do not use equipment slots. Passive power-ups have no
+slot limit. **Dual Wield and Shield replace each other** in the same slot, with
+an explicit warning below the item name. A replacement starts at **rank 0**;
+the discarded ranks are lost, including when switching back. Replacement-card
+rank units become rupees; subsequent cards upgrade the new item normally.
+
+Each run shares **one free Reroll and one Banish** across both selection menus.
+Reroll refreshes all offers; further uses cost **50, 100, 150… rupees**. Paid
+chests reserve their purchase price. Banish removes the named choice from future
+offers without removing its current ranks or equipment; weapon bans apply to
+both menus. All counters and bans reset on a new run.
+
 | Chest reward | Main effect |
 | --- | --- |
-| Hero's Bow | Automatic aimed arrows; spread shots at ranks 3/5. Unlocks Fire Arrows level-ups: burning damage over time, refreshed on hit. |
-| Boomerang | Gale throws that hop between enemies; upgrades add targets. |
+| Hero's Bow | Automatic aimed arrows; one extra arrow every three ranks (4, 7, 10…), max 10 arrows. Unlocks Fire Arrows level-ups: burning damage over time, refreshed on hit. |
+| Boomerang | Gale throws that hop between enemies; one extra hop every three ranks (4, 7, 10…), max 10 hops / 11 targets. |
 | Bombs | Automatic throws and area explosions; upgrades improve damage, radius and frequency. |
 | Ball and Chain | Pierces outward and back, damaging and staggering enemies on both legs. |
 | Master Sword | More sword damage; rank 5 becomes the Light Sword. |
-| Ordon Sword | Dual Wield: two nearby melee targets at rank 1, up to 31 at rank 30. |
+| Ordon Sword | Dual Wield: two nearby melee targets at rank 1, up to five total targets at rank 9; capped at rank 10. |
 | Shield | 5% block chance per rank, max 50%; evolves to Ordon at 20% and Hylian at 35%. Unlocks Shield Attack level-ups. |
 | Dark Link | Double damage for 5 seconds every 20 seconds; upgrades alternate shorter intervals and longer duration, becoming permanent at rank 11. |
 | Red Potion | Adds filled bottles up to four, then refills empty bottles. Use manually to heal. |
 
-Weapons, passives, Fire Arrows, Shield Attack and Dual Wield reach rank 30.
-Luck caps at 20, Master Sword at 5, shield block at 10 and Dark Link at 11.
+Weapons, passives, Fire Arrows and Shield Attack reach rank 30.
+Luck caps at 20, Master Sword at 5, Dual Wield and shield block at 10, and Dark Link at 11.
 Haste retains its first five ranks, then improves with diminishing returns;
 weapon cooldowns never fall below six ticks (0.2 seconds). Unlocked chest weapons can also be upgraded
 at level-up. Ordinary hits do not stagger enemies; Shield Attack and Ball and

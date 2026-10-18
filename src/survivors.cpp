@@ -154,6 +154,7 @@ bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 Run s_run;
 RunOptions s_options;
 Records s_records;
+UiWindowHandle s_refreshChoices=0;
 UiWindowHandle s_window = 0, s_powerupsWindow = 0;
 bool s_powerupsRequested = false;
 dMenu_Collect2D_c* s_powerupsMenu = nullptr;
@@ -210,7 +211,7 @@ struct Attack {
     bool returning = false, exploding = false;
     ActorId target = kNone;
     unsigned hops = 0, visitedCount = 0;
-    std::array<ActorId, 31> visited{};
+    std::array<ActorId, 11> visited{};
     std::array<ActorId, enemy_capacity> ballVictims{};
     unsigned ballVictimCount = 0;
     float travel = 0, limit = 0;
@@ -1011,6 +1012,7 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
     return svc_ui->pane_add_control(mod_ctx, pane, &desc, nullptr);
 }
 #include "survivors_choice_ui.inc"
+#include "survivors_choice_actions.inc"
 #include "survivors_chest_ui.inc"
 #include "survivors_powerups.inc"
 #include "survivors_maps_ui.inc"
@@ -1059,6 +1061,7 @@ void open_window() {
     if (s_run.phase == Phase::Ready) desc.rcss = kArenaStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
         if (s_window == handle) s_window = 0;
+        if (s_refreshChoices==handle) { s_refreshChoices=0; return; }
         if (s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count)
             dismiss_treasure_choice();
     };
@@ -1082,7 +1085,7 @@ ModResult reset(void*, ModError*) { reset_runtime(); return MOD_OK; }
 
 bool survivors_active() { return s_active; }
 bool survivors_dual_wield() {
-    return in_arena() && s_run.dual_wield && !shield_pose(daAlink_getAlinkActorClass());
+    return in_arena() && s_run.owns(ChestReward::OrdonSword) && !shield_pose(daAlink_getAlinkActorClass());
 }
 bool survivors_arena_active() { return in_arena(); }
 bool survivors_dark_link_active() {

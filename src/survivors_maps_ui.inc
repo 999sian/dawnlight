@@ -75,7 +75,7 @@ struct RunOptionControl { const char* label; unsigned RunOptions::*field; unsign
 std::array<RunOptionControl,5> s_runControls{{
     {"Enemy HP",&RunOptions::enemy_hp,1,10,1,"Multiplies health of all enemies, including elites."},
     {"Enemy Damage",&RunOptions::enemy_damage,1,10,1,"Multiplies enemy damage to Link."},
-    {"Enemy Speed",&RunOptions::enemy_speed,1,5,1,"Multiplies enemy movement speed; collision and knockback remain native."},
+    {"Enemy Speed",&RunOptions::enemy_speed,1,3,1,"Multiplies normal enemy locomotion only; attack movement and knockback remain native."},
     {"Horde",&RunOptions::horde,1,5,1,"More enemies. At x5, every fifth normal kill rolls loot and drops XP. Elite rewards and pots are unchanged."},
     {"Camera distance",&RunOptions::camera_distance,100,500,25,"100% is the normal distance. Default: 200%. Walls can limit the distance; event cameras remain native."}
 }};

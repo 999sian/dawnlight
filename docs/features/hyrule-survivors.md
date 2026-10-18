@@ -296,7 +296,7 @@ the attempt before creating the event or spending rupees.
 Each chest samples its offers without replacement from the eligible reward types: Hero's Bow,
 Boomerang, Bombs, Ball and Chain, Master Sword, an Ordon Sword for Dual Wield,
 a shield upgrade, Dark Link and a bottle of Red Potion.
-The four automatic item weapons unlock at rank 1; duplicates add their rarity's number of ranks up to 5, and unlocked weapons also enter the normal level-up pool.
+The four automatic item weapons unlock at rank 1; duplicates add their rarity's number of ranks up to 30, and unlocked weapons also enter the normal level-up pool.
 
 Master Sword has five chest ranks. Rank 1 equips it and adds 3 damage;
 each later rank adds 1, and **rank 5 equips the Light Sword** with its
@@ -305,7 +305,7 @@ Whirling Blade and Sword Wave, without the vanilla light-material 100-damage ove
 Get Item uses a private instance of Link's sword model instead of the native rupee placeholder.
 An Ordon Sword reward enables and equips Dawnlight's existing Dual Wield with an
 Ordon offhand sword. At rank 1 each accepted normal sword strike also hits the next nearest reachable
-enemy; each additional rank adds another target, up to 31 total at rank 30.
+enemy; ranks 3, 6 and 9 add one target each, up to five total. Dual Wield caps at rank 10.
 Targets must be close to Link, at reachable height, and not behind a wall.
 A target receives at most one multihit per swing; the native sword capsule cannot
 also damage the same secondary target. Ranks do not change story preferences.
@@ -331,8 +331,8 @@ actor replacement, reset and mode exit.
 
 Shields provide an automatic block roll against tracked enemy attacks. A successful
 block turns Link toward the attacker and plays the native guard reaction, interrupting
-automatic attacks. Idle lock-on does not grant free blocks. Dual Wield temporarily
-uses the shield during block/bash actions and resumes afterward.
+automatic attacks. Idle lock-on does not grant free blocks. Shield and Dual Wield are mutually exclusive equipment choices. Taking the other
+removes the current item and starts the replacement at rank 0, without storing old ranks.
 
 | Shield ranks | Block chance | Reward model |
 | --- | --- | --- |
@@ -388,8 +388,8 @@ so the release follows the animated bow pose rather than a fixed body offset.
 They aim at the nearest
 live tracked enemy within range and line of sight. Arrows stop on impact;
 boomerangs use the native Gale wind model/animation and particle trails. They
-chain to one additional enemy at rank 1, then one more per rank (up to six
-different targets at rank 5, up to 31 at rank 30), before returning to Link. Each hop needs a live
+chain to one additional enemy at rank 1, then one more every three ranks
+(4, 7, 10…), up to ten hops / eleven distinct targets at rank 30, before returning to Link. Each hop needs a live
 target within range and line of sight, and cannot revisit an earlier target.
 They deal Survivors damage on their outward/return paths. Bombs follow an
 arc and explode at the target or a wall; the ball pierces outward to its full range and retracts toward Link.
@@ -441,9 +441,9 @@ sword animations and particle effects. No additional textures, models or music
 are required. Larger arenas, camera changes, weapon evolutions, persistent
 unlock trees and mid-run suspend are not part of this version.
 
-The budgets are 35 tracked enemies (24 ordinary slots plus three scheduled
-elites and up to eight guards, including pending/deleting actors), 24 attack
-objects (eight base-weapon slots and four per chest weapon), two paid chest props,
+The budgets are 131 tracked enemies (120 ordinary slots plus three scheduled
+elites and up to eight guards, including pending/deleting actors), 40 attack
+objects (eight base-weapon slots, twenty arrow slots and four per other chest weapon), two paid chest props,
 up to 59 free chest props, 64 experience crystals and up to 72 native pot actors. The free pool covers seven
 lives per guard plus the three scheduled elites; opened slots are reused. Model allocation is bounded by a 2 MiB heap,
 trimmed after loading; native pot actors use their own engine-managed heaps. Excess crystals merge their value.
@@ -542,7 +542,7 @@ Before merging/releasing, test on Android and desktop:
     wheel slot, first activation at 20 seconds for 5 seconds, x2 damage for every
     weapon/burn/multihit, pause behavior and permanent rank 11. Check that leaving
     Survivors restores normal story Dark Link settings and gauge behavior.
-23. Compare Dual Wield ranks 1–5 against a close group (2–6 targets). Check walls,
+23. Compare Dual Wield ranks 1–10 against a close group (2–5 targets). Check walls,
     high/far enemies, duplicate capsule hits and ordinary native death rewards.
 
 Automated tests cover burn timing/refresh/final ticks and emitter cleanup,

@@ -135,16 +135,16 @@ int main() {
     assert(!run.tick(true)); // Get Item cannot advance encounter time.
     run.start(20); run.phase = Phase::Treasure;
     wallet = 20000000;
-    for (unsigned n = 0; n < 176; ++n) {
+    for (unsigned n = 0; n < 120; ++n) {
         assert(run.chest_cost() == 20+n*(n+4));
-        reward = run.roll_chest_offers()[0];
+        reward = ChestReward(n%4);
         assert(run.buy_chest(wallet, reward) && run.rank(chest_weapon(reward)) <= 30);
     }
-    assert(wallet == 18133080 && !run.chest_rewards_left());
-    assert(run.master_sword==5 && run.sword_bonus() == 7 && run.dual_wield && run.shield==10);
+    assert(wallet == 19400220 && !run.chest_rewards_left());
+    assert(run.equipment_count()==4&&!run.chest_eligible(ChestReward::MasterSword));
     assert(run.chest_rewards_left(true)); // A refill remains available after all weapons.
     const auto maxedRng = run.random;
-    assert(!run.buy_chest(wallet, reward) && wallet == 18133080 && run.random == maxedRng);
+    assert(!run.buy_chest(wallet, reward) && wallet == 19400220 && run.random == maxedRng);
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
         const auto weapon = static_cast<Upgrade>(i);
         assert(run.rank(weapon) == 30 && !run.eligible(weapon));
@@ -168,7 +168,7 @@ int main() {
         assert(!choices.master_sword&&!choices.dual_wield&&choices.rank(Upgrade::Bow)==0);
         assert(choices.random==rng&&money==0);
         assert(!choices.buy_chest(money,ChestReward::Count));
-        choices.ranks.fill(30);choices.master_sword=5;choices.dual_wield=30;choices.dark_link=11;choices.shield=9;
+        choices.ranks.fill(30);choices.ranks[unsigned(Upgrade::Ball)]=0;choices.shield=9;choices.banned_items[unsigned(ChestReward::OrdonSword)]=true;
         auto few=choices.roll_chest_offers(true);
         assert(few[0]!=few[1]&&few[2]==ChestReward::Count);
         assert((few[0]==ChestReward::Shield||few[1]==ChestReward::Shield));
@@ -208,9 +208,9 @@ int main() {
     assert(effects.dark_link==11&&effects.dark_permanent()&&money==140);
     effects.dual_wield=0;effects.chests_opened=0;
     assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Common)&&effects.melee_targets()==2);
-    assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Legendary)&&effects.melee_targets()==7);
+    assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Legendary)&&effects.melee_targets()==4);
     assert(effects.chest_eligible(ChestReward::OrdonSword));
-    effects.dual_wield=30;assert(!effects.chest_eligible(ChestReward::OrdonSword));
+    effects.dual_wield=10;assert(!effects.chest_eligible(ChestReward::OrdonSword));
     effects.start(7);assert(!effects.dark_active()&&!effects.dark_clock&&!effects.dual_wield&&effects.damage_multiplier()==1);
     // Free elite chests grant exactly one item with no currency or price change.
     Run freeRun; freeRun.start(9); freeRun.phase=Phase::Treasure;
@@ -246,8 +246,50 @@ int main() {
         swarm.ticks=duration;assert(swarm.target_population()==23*horde&&swarm.target_population()+elite_capacity<enemy_capacity);
     }
     RunOptions invalid{0,100,100,0,1000};invalid.clamp();
-    assert(invalid.enemy_hp==1&&invalid.enemy_damage==10&&invalid.enemy_speed==5&&invalid.horde==1&&invalid.camera_distance==500);
+    assert(invalid.enemy_hp==1&&invalid.enemy_damage==10&&invalid.enemy_speed==3&&invalid.horde==1&&invalid.camera_distance==500);
     assert(RunOptions{}.camera_distance==200);
+    // Equipment slots never cap passives; the offhand replaces within a full build.
+    Run slots;slots.start(51);slots.ranks.fill(1);slots.ranks[unsigned(Upgrade::Ball)]=0;
+    slots.dual_wield=8;assert(slots.equipment_count()==4);
+    assert(slots.eligible(Upgrade::Heart)&&slots.eligible(Upgrade::Magnet));
+    assert(!slots.chest_eligible(ChestReward::Ball)&&!slots.chest_eligible(ChestReward::MasterSword));
+    assert(slots.chest_eligible(ChestReward::Bow)&&slots.chest_eligible(ChestReward::RedPotion,true));
+    wallet=10000;
+    for(auto reward:{ChestReward::Shield,ChestReward::OrdonSword,ChestReward::Shield}) {
+        assert(slots.chest_eligible(reward)&&slots.replaces_offhand(reward));
+        slots.phase=Phase::Treasure;assert(slots.buy_chest(wallet,reward,0,Rarity::Legendary));
+        assert(slots.owns(reward)&&slots.equipment_count()==4&&slots.shield==0&&slots.dual_wield==0);
+        assert(slots.owns(ChestReward::Shield)!=slots.owns(ChestReward::OrdonSword));
+        assert(slots.buy_chest(wallet,reward)&&slots.equipment_count()==4);
+        assert((reward==ChestReward::Shield?slots.shield:slots.dual_wield)==1);
+    }
+    for(unsigned rank=1;rank<=30;++rank){
+        slots.ranks[unsigned(Upgrade::Bow)]=slots.ranks[unsigned(Upgrade::Boomerang)]=rank;
+        assert(slots.bow_shots()==1+(rank-1)/3&&slots.boomerang_hops()==1+(rank-1)/3);
+    }
+    for(unsigned rank=1;rank<=10;++rank){slots.dual_wield=rank;assert(slots.melee_targets()==std::min(5u,2+rank/3));}
+    slots.shield=0;slots.offhand=ChestReward::OrdonSword;
+    assert(!slots.chest_eligible(ChestReward::OrdonSword)&&slots.chest_eligible(ChestReward::Shield));
+    // Shared reroll budget, increasing paid costs and reservation of the purchase price.
+    Run actions;actions.start(7);actions.phase=Phase::Upgrade;wallet=250;
+    assert(actions.pay_reroll(wallet)&&wallet==250&&actions.reroll_cost()==50);
+    actions.phase=Phase::TreasureChoice;
+    assert(actions.pay_reroll(wallet,20)&&wallet==200&&actions.reroll_cost()==100);
+    actions.phase=Phase::Upgrade;
+    assert(actions.pay_reroll(wallet)&&wallet==100&&actions.reroll_cost()==150);
+    assert(!actions.pay_reroll(wallet)&&wallet==100&&actions.paid_rerolls==2);
+    // Banish preserves ownership/ranks and excludes a weapon from both sources.
+    actions.ranks[unsigned(Upgrade::Bow)]=6;
+    assert(actions.banish(Upgrade::Bow)&&actions.rank(Upgrade::Bow)==6&&actions.owns(ChestReward::Bow));
+    assert(!actions.eligible(Upgrade::Bow)&&!actions.chest_eligible(ChestReward::Bow));
+    assert(!actions.banish(Upgrade::Power));
+    for(unsigned i=0;i<100;++i){actions.roll_upgrades();for(auto u:actions.offers)assert(u!=Upgrade::Bow);}
+    actions.start(7);assert(actions.free_rerolls==1&&actions.banishes==1&&actions.reroll_cost()==0);
+    actions.phase=Phase::TreasureChoice;actions.shield=6;
+    assert(actions.banish(ChestReward::Shield,true)&&actions.shield==6&&actions.owns(ChestReward::Shield));
+    assert(!actions.chest_eligible(ChestReward::Shield));
+    actions.banned_upgrades.fill(true);actions.roll_upgrades();
+    for(auto u:actions.offers)assert(u==Upgrade::Count);
     Records records;
     records.finish(run); assert(records.runs == 0); // Live runs cannot become records.
     run.end(false); assert(run.phase == Phase::Defeat && !run.tick(true));

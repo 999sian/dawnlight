@@ -1,6 +1,10 @@
 // Native UI rows/buttons provide controller focus, touch activation and Cancel.
 // The complete card is the button's hit target; its display uses native item icons.
 constexpr const char* kTreasureStyle = R"(
+.survivors-equipment { display: flex; justify-content: center; gap: 10dp; margin-bottom: 12dp; }
+.survivors-equipment-slot { width: 40dp; height: 40dp; border: 2dp #788873; border-radius: 5dp; padding: 4dp; }
+.survivors-equipment-slot img { width: 100%; height: 100%; }
+.survivors-replaces { display: block; font-size: 12dp; color: #ffbd80; margin-bottom: 8dp; }
 window content pane.survivors-treasure-pane { border-right-width: 0; padding: 16dp; font-size: 16dp; }
 ui-row.survivors-treasure-row { gap: 12dp; align-items: stretch; }
 ui-row.survivors-treasure-card { display: block; position: relative; flex: 1 1 0; min-width: 0; background-color: #18251fee; border-radius: 8dp; }
@@ -35,11 +39,11 @@ std::string treasure_rml_escape(const std::string& text) {
     }
     return escaped;
 }
-std::string choice_rml_start(const char* icon, const char* name, Rarity rarity) {
+std::string choice_rml_start(const char* icon, const char* name, Rarity rarity, const char* replacement = "") {
     const std::string color = rarity_colors[unsigned(rarity)];
     return "<div class=\"survivors-treasure-copy\"><img src=\"" + treasure_rml_escape(icon) +
         "\" style=\"border-color: " + color + ";\"/><div class=\"survivors-treasure-name\" style=\"color: " + color +
-        ";\">" + treasure_rml_escape(name) + "</div><div class=\"survivors-treasure-effect\">" +
+        ";\">" + treasure_rml_escape(name) + "</div>" + (*replacement ? "<div class=\"survivors-replaces\">" + treasure_rml_escape(replacement) + "</div>" : "") + "<div class=\"survivors-treasure-effect\">" +
         rarity_names[unsigned(rarity)] + " x" + number(reward_units(rarity)) + "</div>";
 }
 ModResult begin_choice_cards(UiElementHandle left, UiElementHandle right, const std::string& hint,
@@ -48,7 +52,7 @@ ModResult begin_choice_cards(UiElementHandle left, UiElementHandle right, const 
     if (result != MOD_OK) return result;
     result = svc_ui->elem_set_class(mod_ctx, left, "survivors-treasure-pane", true);
     if (result != MOD_OK) return result;
-    result = svc_ui->pane_add_text(mod_ctx, left, hint.c_str(), nullptr);
+    if (!hint.empty()) result = svc_ui->pane_add_text(mod_ctx, left, hint.c_str(), nullptr);
     if (result != MOD_OK) return result;
     UiRowDesc rowDesc = UI_ROW_DESC_INIT;
     result = svc_ui->pane_add_row(mod_ctx, left, &rowDesc, &row);

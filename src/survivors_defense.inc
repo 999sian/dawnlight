@@ -12,7 +12,7 @@ void interrupt_auto_actions(daAlink_c* link) {
 HookAction before_shield_block(ModContext*, void* args, void* result, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!link || fopAcM_GetID(link) != s_player || !playable() || s_run.phase != Phase::Running ||
-        !s_run.shield || link->checkWolf() || link->mDamageTimer || !link->mLinkAcch.ChkGroundHit()) return HOOK_CONTINUE;
+        !s_run.owns(ChestReward::Shield) || link->checkWolf() || link->mDamageTimer || !link->mLinkAcch.ChkGroundHit()) return HOOK_CONTINUE;
     for (auto& target : link->mTgCyls) {
         if (!target.ChkTgHit()) continue;
         auto* attacker = target.GetTgHitAc();
@@ -34,13 +34,13 @@ HookAction before_shield_block(ModContext*, void* args, void* result, void*) {
 HookAction before_survivors_guard(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!in_arena() || !link || fopAcM_GetID(link) != s_player) return HOOK_CONTINUE;
-    if (s_run.shield && shield_pose(link)) return HOOK_CONTINUE;
+    if (s_run.owns(ChestReward::Shield) && shield_pose(link)) return HOOK_CONTINUE;
     link->offNoResetFlg2(daPy_py_c::FLG2_UNK_8000000);
     return HOOK_SKIP_ORIGINAL; // Idle lock-on must not replace the probabilistic block with free guarding.
 }
 bool update_shield_attack(daAlink_c* link) {
     const auto rank = s_run.rank(Upgrade::ShieldAttack);
-    if (!s_run.shield || !rank || s_cooldowns[unsigned(Upgrade::ShieldAttack)] ||
+    if (!s_run.owns(ChestReward::Shield) || !rank || s_cooldowns[unsigned(Upgrade::ShieldAttack)] ||
         !sword_action_available(link) || s_ranged.active || !enemy_in_range(link, s_run.radius(200))) return false;
     interrupt_auto_actions(link);
     const cXyz direction = target_direction(link);
