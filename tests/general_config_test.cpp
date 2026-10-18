@@ -14,6 +14,8 @@ const UiService* svc_ui = nullptr;
 namespace dawnlight {
 bool survivors_active() { return false; }
 bool survivors_dual_wield() { return false; }
+bool survivors_mobility_override(ModeSetting,int64_t&) { return false; }
+float survivors_sprint_multiplier() { return 1.f; }
 bool g_configCheckForUpdatesEnabled = false;
 // Touch UI registration is outside this config/UI binding test.
 ModResult register_touch_button_config(ModError*) { return MOD_OK; }

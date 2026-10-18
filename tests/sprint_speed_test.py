@@ -33,6 +33,8 @@ namespace mods {
 template<class T> T& arg_ref(void* args,int i){return *static_cast<T*>(static_cast<void**>(args)[i]);}
 template<class T> T arg(void* args,int i){return arg_ref<T>(args,i);}
 }
+bool survivors_active(){return false;}
+float survivors_sprint_multiplier(){return 1.f;}
 bool enabled=true,stamina=true,event=false,jumpReady=true,bPressed=false;
 int staminaMarks=0,manualMarks=0,manualClears=0;
 bool sprint_enabled(){return enabled;}
