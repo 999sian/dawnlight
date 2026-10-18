@@ -53,7 +53,10 @@ Random horde and scheduled-elite positions require dry native ground, safe
 footprints and a sampled walkable path to Link. Native water-volume checks reject
 riverbeds while allowing bridges above water; gaps, steep steps, walls and exit
 barriers reject a candidate instead of falling back to an unsafe position.
-Random Field/Desert guards use the same path check. Guard/pot footprints also
+Random Field/Desert guards use local path checks in eight directions over 600
+units, with 3,000 units of clearance from the original start and 1,800 from
+Link. They sample the whole room without a straight-line path to Link, so an
+entrance tunnel cannot attract the entire guard population. Guard/pot footprints also
 reject submerged or hazardous ground.
 
 Every arena hosts a twenty-minute run.
@@ -121,7 +124,11 @@ animations. Rats keep their real hit cooldown instead of resetting it each frame
 of the damage animation. Native brief hit cooldowns, death states and the ball's
 once-per-leg hit rule remain; ordinary hits do not restart the prone animation. The ball can hit an enemy
 once on each leg, including a return hit during recovery from its outbound hit; the mod replaces the native nonlinear damage table only
-for its own weapons and automatic sword strikes. Sword Wave fires independently of the normal sword combo.
+for its own weapons and automatic sword strikes. Sword Wave keeps its own cooldown but releases at the attack-start frame of
+a visible normal sword cut. An existing normal cut can carry the wave; at ranged
+distance it starts a new first cut, drawing the sword if needed. Interrupted
+wind-ups cancel, finishers are left intact, and items/spin/shield keep their own
+independent schedulers.
 It emits one piercing projectile at every rank. At rank 15, both Sword Wave and
 Spin Attack switch from the two normal-spin particles to the six Great Spin
 particles. The wave base radius increases from 65 to 100; Spin Attack uses the
@@ -778,3 +785,8 @@ volleys at different distances, large and small targets, high-Reach ball returns
 first versus repeated guard rewards, and every map's final boss on desktop/Android.
 The previous balancing simulation predates the requested wider fan; its DPS
 figures are not a new measurement of this build.
+
+Hyrule Field navigation: owned Bokoblins use the native Link-through polygon
+flag for their collision correction and generic navigation probes. Solid walls
+remain solid. The probe hook is restricted to their tracked Execute scope in
+this arena; story actors and camera/projectile-specific probes are unchanged.

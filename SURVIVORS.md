@@ -333,3 +333,8 @@ Sword Wave always fires one projectile. At rank 15 it becomes a Great Spin
 projectile (base radius 65 → 100). Spin Attack becomes **Great Spin Attack**
 at rank 15 (base radius 260 → 400), including its displayed name. Both use the
 six native Great Spin effects, scaled to the hitbox with Reach.
+
+Field/Desert guards are distributed away from the original entrance and Link,
+on open land validated locally rather than along a straight path from Link.
+Sword Waves again fire from a visible normal sword swing, including at ranged
+distance; other automatic skills continue during its wind-up.

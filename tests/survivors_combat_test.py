@@ -160,6 +160,7 @@ struct Attack {bool active=true,greatSpin=false;float radius=65,effectBaseRadius
 std::array<Attack,initial_projectile_slots>s_attacks;
 struct Effect{cCcD_Obj collider;unsigned damage=0;bool critical=false;};std::array<Effect,24>s_effects;
 void new_melee_swing(){}
+void cancel_ranged(){}
 constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
 struct dCcU_AtInfo {cCcD_Obj* mpCollider;unsigned mAttackPower=200;int mHitType=0;};
 HookAction before_drop(ModContext*,void*,void*,void*);
@@ -417,6 +418,28 @@ int main(){
     assert(info.mAttackPower==200&&s_run.random==critRng);
     s_run.ranks[unsigned(Upgrade::CritChance)]=s_run.ranks[unsigned(Upgrade::CritDamage)]=0;
     s_run.dark_link=s_run.dark_remaining=0;
+    // Ranged waves start a visible normal cut even without a melee target.
+    reset();s_run.ranks[0]=15;enemy.current.pos.z=900;waves=0;
+    update_sword_wave(&player);assert(player.normals==1&&s_wavePending&&waves==0);
+    player.mUnderFrameCtrl[0].frame=player.field_0x3478-1;update_sword_wave(&player);assert(waves==0);
+    player.mUnderFrameCtrl[0].frame=player.field_0x3478;update_sword_wave(&player);
+    assert(waves==1&&!s_wavePending&&s_cooldowns[0]==s_run.cooldown(60));
+    update_sword_wave(&player);assert(waves==1&&player.normals==1);
+    // Interruptions cancel wind-up; no shot appears during damage or a jump.
+    for(int proc:{daAlink_c::PROC_DAMAGE,daAlink_c::PROC_JUMP}){
+      reset();s_run.ranks[0]=1;waves=0;update_sword_wave(&player);assert(s_wavePending);
+      player.mProcID=proc;update_sword_wave(&player);assert(!s_wavePending&&waves==0);
+    }
+    // Existing melee cuts are reused, finishers are never replaced for a wave.
+    reset();s_run.ranks[0]=1;waves=0;update_sword(&player);auto cuts=player.normals;
+    update_sword_wave(&player);assert(s_wavePending&&player.normals==cuts);
+    player.mUnderFrameCtrl[0].frame=player.field_0x3478;update_sword_wave(&player);assert(waves==1);
+    s_cooldowns[0]=0;player.mProcID=daAlink_c::PROC_CUT_FINISH;
+    update_sword_wave(&player);assert(!s_wavePending&&player.normals==cuts);
+    // Sheathed casting draws the sword, then waits for equip before starting.
+    reset();s_run.ranks[0]=1;player.mEquipItem=dItemNo_NONE_e;player.field_0x2fde=0;player.equipping=false;waves=0;
+    update_sword_wave(&player);assert(player.equips==1&&!s_wavePending&&waves==0);
+    player.equipping=false;player.mEquipItem=0x103;update_sword_wave(&player);assert(s_wavePending);
     // Expired and missing emitters restart; all surviving emitters are invalidated on cleanup.
     for(unsigned level:{1u,3u,5u,14u,15u,20u,30u}) {
         s_run.ranks[0]=level;waves=0;release_sword_wave(&player);assert(waves==1);
@@ -532,7 +555,7 @@ int main(){
 '''
 functions = ['stop_attack', 'update_wave_effects', 'sword_action_available', 'enemy_in_range',
              'before_cut', 'before_sword_attack', 'normal_sword_proc', 'melee', 'targeting', 'begin_sword_combo',
-             'release_sword_wave', 'jump_strike', 'sync_spin_radius', 'after_spin_effect', 'update_sword', 'after_sword_move', 'before_large_spin',
+             'release_sword_wave', 'wave_cast', 'jump_strike', 'sync_spin_radius', 'after_spin_effect', 'update_sword', 'after_sword_move', 'before_large_spin',
              'native_sword_collider', 'after_power', 'before_drop', 'drop_reward', 'select_upgrade']
 # Execute Dusklight's actual combo counter/selector, not a reimplementation of
 # the sequence. Animation setup remains an observable boundary above.
@@ -542,7 +565,7 @@ native_combo_functions = extract('daAlink_c::commonCutAction', native) + '\n' + 
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join((root/'src/survivors_melee.inc').read_text() if name=='melee' else (root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else extract(name) for name in functions) + '\n' + main)
+    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join((root/'src/survivors_melee.inc').read_text() if name=='melee' else (root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else (root/'src/survivors_wave_cast.inc').read_text() if name=='wave_cast' else extract(name) for name in functions) + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

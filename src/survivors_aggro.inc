@@ -38,6 +38,8 @@ void engage_enemy(fopAc_ac_c* actor, const Enemy& enemy) {
         if (rat->mAction == 0) { rat->mAction = 1; rat->mMode = 0; }
     } else if (enemy.profile == fpcNm_E_OC_e) {
         auto* bokoblin = static_cast<daE_OC_c*>(actor);
+        // Match the field navigation probes without disabling wall collision.
+        if (s_map==1) bokoblin->mAcch.SetLink();
         bokoblin->mMoveRange = 0; // Disable the native home-position leash.
         bokoblin->field_0x6e3 = 0;
         if (bokoblin->getActionMode() <= 2) bokoblin->setActionMode(3, 0);

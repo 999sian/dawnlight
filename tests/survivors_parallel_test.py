@@ -62,7 +62,8 @@ void stop_attack(Attack&a){for(auto k:a.emitters)emitters.erase(k);a.active=fals
 float distance=100;bool enemy_in_range(daAlink_c*,float range){return distance<range;}
 cXyz target_direction(daAlink_c*){return{0,0,1};}
 std::array<unsigned,unsigned(Upgrade::Rupees)>s_cooldowns{};unsigned waves=0;
-void release_sword_wave(daAlink_c*){++waves;}
+bool waveReady=true;
+void update_sword_wave(daAlink_c*){if(waveReady&&s_run.ranks[0]&&!s_cooldowns[0]){++waves;s_cooldowns[0]=s_run.cooldown(60);}}
 '''
 main=r'''
 int main(){
@@ -106,6 +107,8 @@ int main(){
  update_parallel_skills(&player);assert(waves==1&&s_attacks[kSpinSlot].active&&s_attacks[kShieldSlot].active);
  assert(s_swordAction==SwordAction::Normal&&s_cooldowns[0]&&s_cooldowns[1]&&s_cooldowns[2]);
  update_parallel_skills(&player);assert(waves==1);
+ waveReady=false;s_cooldowns={};update_parallel_skills(&player);
+ assert(waves==1&&!s_cooldowns[0]&&s_cooldowns[1]&&s_cooldowns[2]);waveReady=true;
  for(unsigned reach:{0u,5u,30u})for(unsigned master:{0u,5u,30u})for(unsigned level:{1u,14u,15u,30u}){
   s_run.ranks[1]=level;s_run.ranks[5]=reach;s_run.master_sword=master;assert(launch_parallel_pulse(&player,Upgrade::Spin));
   auto&a=s_attacks[kSpinSlot];float base=level>=15?400:260;float radius=s_run.area_radius(base);

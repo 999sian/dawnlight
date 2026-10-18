@@ -47,6 +47,7 @@ std::array<Enemy,enemy_capacity>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id)return &e;return nullptr;}
 ActorId fopAcM_GetID(daE_OC_c* a){return a->id;}
 int dComIfGs_getMaxLife(){return 15;}
+bool s_arenaSpawn=true; cXyz s_arenaSpawnPosition{};
 Run s_run;unsigned s_map=0,s_spawnCooldown=0,s_spawnFailures=0;
 const Arena& arena(){return arenas[s_map];}
 bool arenaPresent=true;bool in_arena(){return arenaPresent;}
@@ -78,7 +79,9 @@ bool arena_path_clear(cXyz,cXyz,float){return !barrierBlocked;}
 bool dry_arena_floor(cXyz& p,float,float){if(groundMissing||groundCode==4||groundCode==5||groundCode==10||
  (groundRoom!=-2&&groundRoom!=arena().room))return false;
  p.y=0;return true;}
-bool walkable_spawn_path(cXyz,cXyz&,float){return !groundMissing&&!wallBlocked&&!barrierBlocked;}
+bool rejectLongPath=false,narrowLanding=false;
+bool walkable_spawn_path(cXyz from,cXyz& to,float){return !groundMissing&&!wallBlocked&&!barrierBlocked &&
+ (!rejectLongPath||from.absXZ(to)<1000) && (!narrowLanding||std::abs(to.x-from.x)<300); }
 bool failCreate=false;unsigned nextId=1,ordinarySpawns=0;
 fopAc_ac_c* actor_by_id(ActorId){return &player;}
 bool create_enemy_at(cXyz pos,s16,unsigned kind,bool elite,int slot=-1,bool dormant=false){
@@ -103,7 +106,7 @@ void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c
 
 '''
 main=r'''
-void fresh(unsigned map){s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};clear_elite_sites();player.current.pos={};reset_elite_encounters();
+void fresh(unsigned map){s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};clear_elite_sites();player.current.pos={};reset_elite_encounters();
  groundMissing=wallBlocked=barrierBlocked=failCreate=false;groundRoom=-2;groundCode=0;s_spawnCooldown=s_spawnFailures=ordinarySpawns=0;}
 unsigned guards(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.dormant;return n;}
 unsigned waves(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.elite&&!e.dormant;return n;}
@@ -145,6 +148,15 @@ int main(){
   for(auto& e:s_enemies)if(e.id!=kNone)e.age=6000;
   s_spawnCooldown=0;update_spawns(&player);for(auto& e:s_enemies)if(e.elite)assert(!e.retiring);
  }
+ // An entrance corridor is not a valid guard landing; no fallback to Link.
+ fresh(1);add_floor(1000);for(unsigned frame=0;frame<20;++frame)update_elite_spawns(&player);assert(guards()==0);
+ // Distant open land is accepted even when a direct path from Link is blocked.
+ fresh(1);add_floor(10000);rejectLongPath=true;update_elite_spawns(&player);assert(guards()==4);
+ for(const auto&e:s_enemies)if(e.dormant)assert(e.lootPosition.absXZ(s_arenaSpawnPosition)>=3000);
+ // Locally narrow or blocked land still fails, despite broad map sampling.
+ fresh(1);add_floor(10000);narrowLanding=true;update_elite_spawns(&player);assert(guards()==0);
+ fresh(1);add_floor(10000);player.current.pos={5000,0,0};update_elite_spawns(&player);assert(guards()==4);
+ for(const auto&e:s_enemies)if(e.dormant)assert(e.lootPosition.absXZ(s_arenaSpawnPosition)>=3000 && e.lootPosition.absXZ(player.current.pos)>=1800);
  // One per authored building entrance; repeated layer records deduplicate.
  fresh(3);add_floor(10000);door(-4000,0);door(4000,0);door(0,6000);door(0,6000);update_elite_spawns(&player);assert(guards()==3);
  for(unsigned i=0;i<3;++i)assert(s_enemies[i].lootPosition.absXZ(s_eliteDoorSites[i].position)>=450);

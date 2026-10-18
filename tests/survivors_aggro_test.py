@@ -15,6 +15,7 @@ fixture=r'''
 #include <any>
 #include <cassert>
 #include <cmath>
+#include <vector>
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
 using BOOL=int;using f32=float;using s16=short;using ProfileName=int;
@@ -31,7 +32,7 @@ float fopAcM_searchPlayerDistance(fopAc_ac_c* a){return a->distance;}
 s16 fopAcM_searchPlayerAngleY(fopAc_ac_c*){return 0;}
 bool fopAcM_otherBgCheck(fopAc_ac_c*,fopAc_ac_c*){return blocked;}
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}
-struct daE_OC_c:fopAc_ac_c{float mPlayerRange=1000,mMoveRange=1000;unsigned field_0x6e3=2;int action=0,mode=7;
+struct daE_OC_c:fopAc_ac_c{struct{bool link=false;void SetLink(){link=true;}}mAcch;float mPlayerRange=1000,mMoveRange=1000;unsigned field_0x6e3=2;int action=0,mode=7;
  bool searchPlayer();int getActionMode(){return action;}void setActionMode(int a,int m){action=a;mode=m;}};
 struct e_ms_class:fopAc_ac_c{float mPlayerDistance=100000;int mAction=0,mMode=7;};
 struct e_ba_class{fopEn_enemy_c mEnemy;
@@ -45,6 +46,10 @@ struct Enemy{unsigned id;ProfileName profile;bool initialized=true,retiring=fals
 Enemy enemies[]={{1,fpcNm_E_OC_e},{2,fpcNm_E_BA_e},{3,fpcNm_E_MS_e},{4,fpcNm_E_RD_e}};
 Enemy* tracked(unsigned id){for(auto& e:enemies)if(e.id==id)return &e;return nullptr;}
 bool in_arena(){return arena;}
+unsigned s_map=0;
+struct ProcessFrame{unsigned id;};std::vector<ProcessFrame>s_processFrames;
+struct dBgS_LinChk{bool link=false,cam=false,arrow=false,bomb=false,boom=false;
+ void SetLink(){link=true;}bool ChkCam(){return cam;}bool ChkArrow(){return arrow;}bool ChkBomb(){return bomb;}bool ChkBoomerang(){return boom;}};
 Run s_run;bool playable(){return arena&&!paused;}
 '''
 native=(function(sdk/'src/d/actor/d_a_e_oc.cpp','bool daE_OC_c::searchPlayer()')+'\n'+
@@ -58,6 +63,27 @@ int detect(e_ms_class& rat,float range){int result=0;std::any args[]={&rat,range
 BOOL detect(e_ba_class& bat,float range){BOOL result=0;std::any args[]={&bat,range,s16(1)};
  return before_keese_aggro(nullptr,args,&result,nullptr)==HOOK_SKIP_ORIGINAL?result:native_bat_check(&bat,range,1);}
 int main(){
+ s_run.start(1);s_map=1;s_processFrames={{1}};
+ dBgS_LinChk query;std::any lineArgs[]={&query};
+ after_enemy_navigation_line(nullptr,lineArgs,nullptr,nullptr);assert(query.link);
+ // Only the tracked field Bokoblin's generic navigation probes are changed.
+ for(unsigned reason=0;reason<9;++reason){query={};arena=true;s_map=1;s_processFrames={{1}};s_run.phase=Phase::Running;
+  if(reason==0)arena=false;
+  if(reason==1)s_map=2;
+  if(reason==2)s_processFrames.clear();
+  if(reason==3)s_processFrames={{99}};
+  if(reason==4)s_processFrames={{2}};
+  if(reason==5)query.cam=true;
+  if(reason==6)query.arrow=true;
+  if(reason==7)query.bomb=true;
+  if(reason==8)s_run.phase=Phase::Upgrade;
+  after_enemy_navigation_line(nullptr,lineArgs,nullptr,nullptr);assert(!query.link);
+ }
+ arena=true;s_map=1;s_run.phase=Phase::Running;s_processFrames.clear();
+ daE_OC_c fieldBok;fieldBok.id=1;engage_enemy(&fieldBok,enemies[0]);assert(fieldBok.mAcch.link);
+ daE_OC_c storyBok;storyBok.id=99;engage_enemy(&storyBok,enemies[0]);assert(!storyBok.mAcch.link);
+ s_map=0;
+
  s_run.start(1);e_rd_class bulblin;bulblin.enemy.id=4;
  for(int weapon:{1,2}){bulblin.weapon_type=weapon;bulblin.action=0;bulblin.mode=7;
   engage_enemy(&bulblin.enemy,enemies[3]);assert(bulblin.action==(weapon==1?3:5)&&bulblin.mode==0);}
@@ -110,7 +136,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
-    cpp.write_text(fixture+'void engage_extended_enemy(fopAc_ac_c*,const Enemy&){}\n'+native+(root/'src/survivors_aggro.inc').read_text()+main)
+    cpp.write_text(fixture+'void engage_extended_enemy(fopAc_ac_c*,const Enemy&){}\n'+native+(root/'src/survivors_aggro.inc').read_text()+(root/'src/survivors_navigation.inc').read_text()+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
 print('Survivors aggro: unlimited detection, native close attack range, chase entry, recovery/death and mode isolation passed')

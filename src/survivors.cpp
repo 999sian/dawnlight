@@ -170,6 +170,7 @@ DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
 DEFINE_HOOK(&daAlink_c::setSwordAtCollision, SurvivorsSwordCollision);
+DEFINE_HOOK(&dBgS_LinChk::Set, SurvivorsEnemyNavigationLine);
 DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
 DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
 DEFINE_HOOK(&daAlink_c::checkAutoJumpAction, SurvivorsLedgeJump);
@@ -333,6 +334,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_maps.inc"
 #include "survivors_extended_ai.inc"
 #include "survivors_aggro.inc"
+#include "survivors_navigation.inc"
 #include "survivors_enemy_facing.inc"
 #include "survivors_feedback.inc"
 #include "survivors_ground.inc"
@@ -738,6 +740,7 @@ bool begin_sword_combo(daAlink_c* link) {
     s_comboTimeout = 2 * ticks_per_second;
     return true;
 }
+#include "survivors_wave_cast.inc"
 #include "survivors_jump_strike.inc"
 void sync_spin_radius(daAlink_c* link) {
     // Native normal/light particles are authored for the final native radius.
@@ -1391,6 +1394,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_cut);
     POST(SurvivorsPower, after_power);
     POST(SurvivorsSwordCollision, after_sword_collision);
+    POST(SurvivorsEnemyNavigationLine, after_enemy_navigation_line);
     PRE(SurvivorsHitMaterial, before_hit_material); POST(SurvivorsHitMaterial, after_hit_material);
     POST(SurvivorsLightSword, after_light_sword);
     POST(SurvivorsJumpStrike, after_jump_strike); POST(SurvivorsJumpStrikeLand, after_jump_strike);

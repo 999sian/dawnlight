@@ -42,8 +42,21 @@ bool random_arena_floor(cXyz& pos) {
 }
 bool random_guard_position(cXyz& pos) {
     auto* link=daAlink_getAlinkActorClass();
-    return link && random_arena_floor(pos) && walkable_spawn_path(link->current.pos,pos,100) &&
-        separated_guard(pos,1800);
+    if (!link || !random_arena_floor(pos) || !separated_guard(pos,1800)) return false;
+    // A straight path from Link confines every guard to an entrance corridor.
+    // Sample the whole room, but keep guards away from both the original start
+    // and the player's current location, including when a guard respawns.
+    const cXyz start=s_arenaSpawn ? s_arenaSpawnPosition : link->current.pos;
+    if (pos.absXZ(start)<3000 || pos.absXZ(link->current.pos)<1800) return false;
+    // Require an open landing in every direction, not just a 200-unit footprint.
+    // Local paths preserve wall/cliff/water checks without requiring a straight
+    // route across the entire map. Narrow entrance tunnels cannot qualify.
+    for (unsigned i=0;i<8;++i) {
+        const s16 angle=s16(i*0x2000);
+        cXyz edge=pos+cXyz(cM_ssin(angle)*600,0,cM_scos(angle)*600);
+        if (!walkable_spawn_path(pos,edge,100)) return false;
+    }
+    return true;
 }
 bool guard_floor_near(cXyz anchor, float radius, cXyz& pos) {
     // Interpolate actual floor triangles, instead of assuming an authored

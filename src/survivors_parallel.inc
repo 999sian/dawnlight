@@ -39,10 +39,7 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     return true;
 }
 void update_parallel_skills(daAlink_c* link) {
-    if(s_run.rank(Upgrade::Wave) && !s_cooldowns[unsigned(Upgrade::Wave)] && enemy_in_range(link,1600)) {
-        release_sword_wave(link);
-        s_cooldowns[unsigned(Upgrade::Wave)]=s_run.cooldown(60);
-    }
+    update_sword_wave(link);
     if(s_run.rank(Upgrade::Spin) && !s_cooldowns[unsigned(Upgrade::Spin)] && launch_parallel_pulse(link,Upgrade::Spin))
         s_cooldowns[unsigned(Upgrade::Spin)]=s_run.cooldown(120);
     if(s_run.owns(ChestReward::Shield) && s_run.rank(Upgrade::ShieldAttack) &&
