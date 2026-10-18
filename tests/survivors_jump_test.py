@@ -33,7 +33,7 @@ constexpr int dItemNo_FAIRY_e=1;constexpr float l_autoDownHeight=-30;
 struct daPy_demo_c{enum{DEMO_TYPE_SPECIAL_e=3};};
 struct daAlink_c {
  enum{PROC_WAIT,PROC_MOVE,PROC_ATN_MOVE,PROC_ATN_ACTOR_WAIT,PROC_ATN_ACTOR_MOVE,PROC_WAIT_TURN,PROC_MOVE_TURN,
- PROC_CUT_NORMAL,PROC_CUT_TURN,PROC_GUARD_SLIP,PROC_AUTO_JUMP,PROC_FALL,PROC_DAMAGE,PROC_DOOR_OPEN,PROC_WARP,
+ PROC_CUT_NORMAL,PROC_CUT_FINISH,PROC_CUT_TURN,PROC_GUARD_SLIP,PROC_AUTO_JUMP,PROC_FALL,PROC_DAMAGE,PROC_DOOR_OPEN,PROC_WARP,
  PROC_WOLF_LOCK_ATTACK,PROC_WOLF_LOCK_ATTACK_TURN,PROC_WOLF_GIANT_PUZZLE,PROC_FRONT_ROLL,PROC_CROUCH};
  enum{UPPER_2,FLG0_WATER_IN_MOVE=1,FLG0_UNK_2000=2,ERFLG0_NOT_AUTO_JUMP=1,ERFLG0_FORCE_AUTO_JUMP=2,ERFLG0_NOT_HANG=4,ERFLG0_UNK_100=8};
  static constexpr unsigned MODE_PLAYER_FLY=0x70C52;
@@ -70,12 +70,14 @@ struct daAlink_c {
 unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
 bool playing=true;bool playable(){return playing;}unsigned s_player=7;Run s_run;
 bool jump_abilities_busy_for(daAlink_c* p){return p->ability;}
-bool auto_movement_action(daAlink_c* p){return p->mProcID==daAlink_c::PROC_CUT_NORMAL||p->mProcID==daAlink_c::PROC_CUT_TURN||p->mProcID==daAlink_c::PROC_GUARD_SLIP;}
+// Simulate the previous post-Execute pause already clearing sword ownership.
+// Locomotion availability also requires ground, so it cannot cover this edge.
+bool auto_movement_action(daAlink_c* p){return p->mProcID==daAlink_c::PROC_GUARD_SLIP;}
 '''
 main=r'''
 int main(){
  s_run.start(1);
- for(int proc:{daAlink_c::PROC_MOVE,daAlink_c::PROC_ATN_ACTOR_MOVE,daAlink_c::PROC_CUT_NORMAL,daAlink_c::PROC_CUT_TURN,daAlink_c::PROC_GUARD_SLIP})
+ for(int proc:{daAlink_c::PROC_MOVE,daAlink_c::PROC_ATN_ACTOR_MOVE,daAlink_c::PROC_CUT_NORMAL,daAlink_c::PROC_CUT_FINISH,daAlink_c::PROC_CUT_TURN,daAlink_c::PROC_GUARD_SLIP})
  for(s16 facing:{s16(0x4000),s16(-0x4000),s16(0x7000)}){
   daAlink_c link;link.mProcID=proc;link.shape_angle.y=facing;
   assert(link.checkAutoJumpAction()&&link.mProcID==daAlink_c::PROC_FALL); // Reproduce the native failure.

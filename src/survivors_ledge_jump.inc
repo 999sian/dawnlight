@@ -15,7 +15,11 @@ bool ledge_movement_action(daAlink_c* link) {
     case daAlink_c::PROC_WAIT: case daAlink_c::PROC_MOVE:
     case daAlink_c::PROC_ATN_MOVE: case daAlink_c::PROC_ATN_ACTOR_WAIT:
     case daAlink_c::PROC_ATN_ACTOR_MOVE: case daAlink_c::PROC_WAIT_TURN:
-    case daAlink_c::PROC_MOVE_TURN: return true;
+    case daAlink_c::PROC_MOVE_TURN:
+    // The previous frame can lose ground contact and cancel attack ownership
+    // before this check runs. Its native cut proc still needs the travel axis.
+    case daAlink_c::PROC_CUT_NORMAL: case daAlink_c::PROC_CUT_FINISH:
+    case daAlink_c::PROC_CUT_TURN: return true;
     default:return auto_movement_action(link);
     }
 }
