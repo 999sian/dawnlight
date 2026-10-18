@@ -1,5 +1,5 @@
 bool auto_attacks_suspended(daAlink_c* link) {
-    return !link->mLinkAcch.ChkGroundHit() || link->checkModeFlg(daAlink_c::MODE_PLAYER_FLY) ||
+    return (s_swordAction == SwordAction::Jump && jump_strike_pose(link)) || !link->mLinkAcch.ChkGroundHit() || link->checkModeFlg(daAlink_c::MODE_PLAYER_FLY) ||
         jump_abilities_busy_for(link);
 }
 void suspend_auto_attacks(daAlink_c* link) {

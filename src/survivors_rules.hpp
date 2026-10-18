@@ -32,7 +32,7 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
     return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, Rupees, Count };
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, Rupees, Count };
 inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::Luck ? 20 : 30; }
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
@@ -43,13 +43,13 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Rupees"};
+    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Rupees"};
 inline constexpr std::array descriptions{
     "Automatic piercing sword waves. Higher levels add damage and extra waves.",
     "Unlock or improve a moving spin attack.",
     "Unlock or improve an automatic shield bash that staggers enemies.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
-    "Increase the size of automatic attacks.", "Attract experience, rupees, hearts and heart pieces from farther away.",
+    "Increase attack size, including Spin and Jump Strike splash radii.", "Attract experience, rupees, hearts and heart pieces from farther away.",
     "Gain one maximum heart (does not heal).",
     "Faster, stronger arrows. Every three upgrades adds an arrow, up to ten.",
     "A damaging returning boomerang. Upgrades increase damage, size and firing rate.",
@@ -60,6 +60,7 @@ inline constexpr std::array descriptions{
     "Red potions restore an extra quarter heart per level.",
     "Direct hits gain +1% base critical chance per level. Luck multiplies this chance.",
     "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
+    "Master Sword: occasionally perform a quick Jump Strike. Landing splash starts at 30% melee damage; +5 percentage points per rank.",
     "Receive 20 rupees."};
 
 struct RunOptions {
@@ -165,6 +166,7 @@ struct Run {
         if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
         if (u == Upgrade::ShieldAttack && !owns(ChestReward::Shield)) return false;
         if (u == Upgrade::PotionHealing && !red_potion) return false;
+        if (u == Upgrade::JumpStrike && !master_sword) return false;
         if (u == Upgrade::FireArrows && !rank(Upgrade::Bow)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
         if (u == Upgrade::Heart && maximum_hearts >= 20) return false;
@@ -200,6 +202,15 @@ struct Run {
     unsigned burn_damage() const { return rank(Upgrade::FireArrows); }
     unsigned burn_duration() const { return (3 + (std::max(1u, rank(Upgrade::FireArrows)) - 1) / 3) * ticks_per_second; }
     unsigned melee_power() const { return 3 + rank(Upgrade::Power) + sword_bonus(); }
+    unsigned jump_splash_percent() const {
+        const auto level = std::min(30u, rank(Upgrade::JumpStrike));
+        return level ? 30 + 5 * (level - 1) : 0;
+    }
+    unsigned jump_splash_power() const {
+        return jump_splash_percent() ? std::max(1u, (melee_power() * jump_splash_percent() + 50) / 100) : 0;
+    }
+    unsigned jump_cooldown() const { return cooldown(6 * ticks_per_second); }
+    bool roll_jump_strike() { return master_sword && rank(Upgrade::JumpStrike) && next_random() % 100 < 20; }
     unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 3) : 1; }
     unsigned bow_shots() const { return rank(Upgrade::Bow) ? std::min(10u,1+(rank(Upgrade::Bow)-1)/3) : 0; }
     unsigned boomerang_hops() const { return rank(Upgrade::Boomerang) ? std::min(10u,1+(rank(Upgrade::Boomerang)-1)/3) : 0; }

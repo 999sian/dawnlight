@@ -50,7 +50,7 @@ struct Enemy {
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
 Run s_run;RunOptions s_options;
-enum class SwordAction { None, Normal, Spin };
+enum class SwordAction { None, Normal, Spin, Jump };
 SwordAction s_swordAction=SwordAction::None;
 unsigned s_comboStep=0,s_comboTimeout=0;
 unsigned s_meleeCooldown=0; bool s_wavePending=false;
@@ -136,7 +136,7 @@ int dComIfGp_getStartStageRoomNo(){return arenaPresent?arenas[s_map].room:0;}
 unsigned restartParam=123;
 void dComIfGs_setRestartRoomParam(unsigned value){restartParam=value;}
 struct Collider { unsigned power=0; unsigned GetAtAtp(){return power;} };
-struct daAlink_c{Collider mGuardAtCps;};
+struct daAlink_c{Collider mGuardAtCps,mAtSph;};
 daAlink_c* daAlink_getAlinkActorClass(){return nullptr;}
 bool native_sword_collider(const Collider*){return false;}
 struct Attack { Collider collider; };

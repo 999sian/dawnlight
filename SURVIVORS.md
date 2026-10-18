@@ -141,13 +141,21 @@ banish symbol at the top right of a card to remove that choice. Talents can add 
 | Boomerang | Gale throws that hop between enemies; one extra hop every three ranks (4, 7, 10…), max 10 hops / 11 targets. |
 | Bombs | Automatic throws and area explosions; upgrades improve damage, radius and frequency. |
 | Ball and Chain | Pierces outward and back, damaging and staggering enemies on both legs. |
-| Master Sword | More sword damage; rank 5 becomes the Light Sword. |
+| Master Sword | More sword damage; rank 5 becomes the Light Sword. Unlocks Jump Strike level-ups. |
 | Ordon Sword | Dual Wield: two nearby melee targets at rank 1, up to five total targets at rank 9; capped at rank 10. |
 | Shield | 5% block chance per rank, max 50%; evolves to Ordon at 20% and Hylian at 35%. Unlocks Shield Attack level-ups. |
 | Dark Link | Double damage for 5 seconds every 20 seconds; upgrades alternate shorter intervals and longer duration, becoming permanent at rank 11. |
 | Red Potion | One equipment slot; adds filled bottles up to four, then refills empty ones. Rank 0 heals 1 heart. Potion Healing level-ups add ¼ heart per rank, up to 8½ hearts at rank 30. Use manually. |
 
-Weapons, passives, Fire Arrows and Shield Attack reach rank 30.
+**Jump Strike:** 20% chance at an eligible normal melee attack, with a 6-second
+cooldown reduced by Haste. Uses the native quick jump attack and the original
+bomb shockwave on landing. Landing splash deals 30% of melee damage at rank 1,
++5 percentage points per rank (175% at rank 30), rounded to native whole damage.
+Direct sword contact deals normal melee damage; critical hits and Dark Link apply.
+**Reach** scales both Jump Strike and Spin collision radii by +15% per rank.
+Other automatic attacks pause throughout Jump Strike, as they do during traversal.
+
+Weapons, passives, Fire Arrows, Shield Attack and Jump Strike reach rank 30.
 Luck caps at 20, Master Sword at 5, Dual Wield and shield block at 10, and Dark Link at 11.
 Haste retains its first five ranks, then improves with diminishing returns;
 weapon cooldowns never fall below six ticks (0.2 seconds). Unlocked chest weapons can also be upgraded

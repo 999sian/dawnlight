@@ -160,6 +160,14 @@ int main(){
    size_t start=0,end;do{end=text.find('\n',start);assert((end==std::string::npos?text.size():end)-start<=54);start=end+1;}while(end!=std::string::npos);
   }
  }
+ for(unsigned rank:{1u,30u}){
+  Run jump; jump.ranks.fill(rank);jump.master_sword=5;
+  const auto text=item_description(ChestReward::MasterSword,jump);
+  assert(text.find("Jump Strike Lv."+std::to_string(rank))!=std::string::npos);
+  assert(text.find(std::to_string(jump.jump_splash_percent())+"% splash")!=std::string::npos);
+  assert(std::count(text.begin(),text.end(),'\n')==3);
+  size_t start=0,end;do{end=text.find('\n',start);assert((end==std::string::npos?text.size():end)-start<=54);start=end+1;}while(end!=std::string::npos);
+ }
  before=s_run;before.dark_link=10;after=before;after.dark_link=11;
  assert(prepare_treasure_message(ChestReward::DarkLink,before,after,Rarity::Common));
  assert(native_icon(treasure_message_id())==dItemNo_POU_SPIRIT_e);

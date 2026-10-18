@@ -17,13 +17,14 @@ struct Collider{bool active=true;void OffAtSetBit(){active=false;}void ResetAtHi
 struct daAlink_c {
  static constexpr unsigned MODE_PLAYER_FLY=0x70C52;
  struct{bool ground=true;bool ChkGroundHit(){return ground;}}mLinkAcch;
+ enum {PROC_WAIT,PROC_CUT_LARGE_JUMP,PROC_CUT_LARGE_JUMP_LAND};int mProcID=PROC_WAIT;
  unsigned flags=0;bool checkModeFlg(unsigned n){return flags&n;}
  std::array<Collider,3> mAtCps;Collider mAtSph;
 };
 enum class GaleCharge{Idle,Airborne,Ready};constexpr unsigned kNoGlideActor=~0u;
 struct{GaleCharge charge=GaleCharge::Idle;unsigned cucco=kNoGlideActor;bool retiring=false;}s_jumpAbilities;
 bool owns=true;bool owns_jump_abilities(daAlink_c*){return owns;}
-enum class SwordAction{None,Normal,Spin};SwordAction s_swordAction=SwordAction::None;
+enum class SwordAction{None,Normal,Spin,Jump};SwordAction s_swordAction=SwordAction::None;
 bool s_wavePending=false,s_trackMelee=false;unsigned s_meleeTarget=1,s_comboStep=2,s_comboTimeout=60;
 constexpr unsigned kNone=~0u;
 std::array<unsigned,20>s_cooldowns;
@@ -42,6 +43,19 @@ struct CC{void Set(Collider*){}}cc;CC* dComIfG_Ccsp(){return &cc;}
 '''
 main=r'''
 int main(){
+ for(auto proc:{daAlink_c::PROC_CUT_LARGE_JUMP,daAlink_c::PROC_CUT_LARGE_JUMP_LAND}){
+  daAlink_c link;link.mProcID=proc;link.mLinkAcch.ground=proc==daAlink_c::PROC_CUT_LARGE_JUMP_LAND;
+  s_swordAction=SwordAction::Jump;s_cooldowns.fill(5);shots=swords=shields=0;
+  assert(auto_attacks_suspended(&link));update_weapons(&link);
+  assert(!shots&&!swords&&!shields&&s_cooldowns[0]==5&&s_swordAction==SwordAction::Jump);
+  assert(link.mAtCps[0].active); // Preserve only the owned Jump Strike.
+  s_jumpAbilities.charge=GaleCharge::Ready;update_weapons(&link);
+  assert(s_swordAction==SwordAction::None&&!link.mAtCps[0].active);
+  s_jumpAbilities={};link.mProcID=daAlink_c::PROC_WAIT;link.mLinkAcch.ground=true;
+  s_swordAction=SwordAction::Jump;update_weapons(&link);
+  assert(s_swordAction==SwordAction::None&&swords==1&&s_cooldowns[0]==4);
+ }
+
  for(int context=0;context<7;++context){
   daAlink_c link;s_jumpAbilities={};s_cooldowns.fill(5);shots=swords=shields=projectileTicks=0;
   s_ranged.active=true;s_wavePending=s_trackMelee=true;s_swordAction=SwordAction::Normal;s_attacks[0].active=true;
@@ -70,7 +84,11 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+busy+(root/'src/survivors_combat_pause.inc').read_text()+schedule+main)
+ jump_source=(root/'src/survivors_jump_strike.inc').read_text()
+ def function(name):
+  start=jump_source.index('bool '+name+'(');end=jump_source.index('\n}',start)+2
+  return jump_source[start:end]
+ cpp.write_text(fixture+busy+function('jump_strike_pose')+function('update_jump_strike')+(root/'src/survivors_combat_pause.inc').read_text()+schedule+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors combat pause: jumps, Gale charge/landing, glide, pending releases, cooldowns and resume passed')

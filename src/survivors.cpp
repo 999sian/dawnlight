@@ -137,6 +137,9 @@ DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
 DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
 DEFINE_HOOK(&daAlink_c::checkAutoJumpAction, SurvivorsLedgeJump);
 DEFINE_HOOK(&daAlink_c::procCutTurn, SurvivorsSpinMove);
+DEFINE_HOOK(&daAlink_c::procCutLargeJump, SurvivorsJumpStrike);
+DEFINE_HOOK(&daAlink_c::procCutLargeJumpLand, SurvivorsJumpStrikeLand);
+DEFINE_HOOK(&daAlink_c::setCutLargeJumpLandEffect, SurvivorsJumpStrikeEffect);
 DEFINE_HOOK(&daAlink_c::procCutNormal, SurvivorsNormalMove);
 DEFINE_HOOK(&daAlink_c::procCutFinish, SurvivorsFinishMove);
 DEFINE_HOOK(&daAlink_c::checkCutLargeTurnState, SurvivorsLargeSpin);
@@ -175,7 +178,7 @@ unsigned s_midnaRequestFrames = 0;
 bool s_midnaTalking = false, s_midnaEndPending = false;
 bool midna_dialog_busy() { return s_midnaRequestFrames || s_midnaTalking || s_midnaEndPending; }
 void reset_midna_dialog() { s_midnaRequestFrames=0; s_midnaTalking=s_midnaEndPending=false; }
-enum class SwordAction { None, Normal, Spin };
+enum class SwordAction { None, Normal, Spin, Jump };
 SwordAction s_swordAction = SwordAction::None;
 unsigned s_meleeCooldown = 0;
 unsigned s_comboStep = 0, s_comboTimeout = 0;
@@ -187,6 +190,7 @@ void clear_loot();
 void clear_enemy_effects();
 bool effect_collider(const cCcD_Obj*);
 bool native_sword_collider(const cCcD_Obj*);
+void clear_jump_effects();
 void new_melee_swing();
 void cancel_treasure_demo();
 int potion_slot();
@@ -284,6 +288,7 @@ void stop_attack(Attack& a) {
     a.collider.OffAtSetBit(); a.collider.ResetAtHit();
 }
 void clear_attacks() {
+    clear_jump_effects();
     s_meleeTarget = kNone; s_trackMelee = false;
     cancel_ranged();
     for (auto& a : s_attacks) stop_attack(a);
@@ -650,10 +655,12 @@ bool begin_sword_combo(daAlink_c* link) {
     s_comboTimeout = 2 * ticks_per_second;
     return true;
 }
+#include "survivors_jump_strike.inc"
 void update_sword(daAlink_c* link) {
     if (s_meleeCooldown) --s_meleeCooldown;
     if (s_comboTimeout && !--s_comboTimeout) s_comboStep = 0;
     bool continuingSwing = false;
+    if (s_swordAction == SwordAction::Jump) return; // Owned traversal finishes before the scheduler resumes.
     if (s_swordAction == SwordAction::Normal) {
         if (normal_sword_proc(link)) {
             if (s_wavePending && link->mUnderFrameCtrl[0].getFrame() >= link->field_0x3478) {
@@ -684,6 +691,8 @@ void update_sword(daAlink_c* link) {
         if (link->field_0x2fde != 0x103) link->swordEquip(0);
         return; // Let native equip animation finish before replacing the body action.
     }
+    // Roll only at a real melee opportunity, never once per idle frame.
+    if (!spin && !wave && try_jump_strike(link)) return;
     auto direction = target_direction(link);
     if (!spin && !wave) {
         auto* target = melee_target(link);
@@ -696,7 +705,7 @@ void update_sword(daAlink_c* link) {
         if (link->procCutTurnInit(1, 1)) {
             s_swordAction = SwordAction::Spin;
             s_comboStep = s_comboTimeout = 0;
-            link->field_0x3478 = s_run.radius(link->field_0x3478);
+            link->mAtSph.SetR(s_run.radius(link->field_0x347c));
             s_cooldowns[1] = s_run.cooldown(100);
         }
     } else if (wave ? link->procCutNormalInit(1) : begin_sword_combo(link)) {
@@ -712,6 +721,9 @@ void after_sword_move(ModContext*, void* args, void*, void*) {
     if (!link || !playable() || s_run.phase != Phase::Running || fopAcM_GetID(link) != s_player) return;
     const bool spin = s_swordAction == SwordAction::Spin && link->mProcID == daAlink_c::PROC_CUT_TURN;
     const bool normal = s_swordAction == SwordAction::Normal && normal_sword_proc(link);
+    // Scale the actual collision radius each frame, not only its target. The
+    // native expansion window is too short to reach a scaled target at high Reach.
+    if (spin) link->mAtSph.SetR(s_run.radius(link->field_0x347c));
     if ((!spin && !normal) || !link->mLinkAcch.ChkGroundHit()) return;
     // Runs before native posMove/ground/wall resolution, retaining collision.
     // Normal swings and finishers decelerate/lunge too, not only spin attacks.
@@ -749,6 +761,7 @@ void update_weapons(daAlink_c* link) {
         a.collider.SetAtVec(a.velocity);
         dComIfG_Ccsp()->Set(&a.collider);
     }
+    if (update_jump_strike(link)) return;
     if(auto_attacks_suspended(link)){suspend_auto_attacks(link);return;}
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
     update_ranged(link);
@@ -761,7 +774,8 @@ bool native_sword_collider(const cCcD_Obj* collider) {
     auto* link = daAlink_getAlinkActorClass();
     if (!in_arena() || !link || fopAcM_GetID(link) != s_player) return false;
     if (s_swordAction == SwordAction::Spin && collider == &link->mAtSph) return true;
-    if (s_swordAction == SwordAction::Normal)
+    if (s_swordAction == SwordAction::Jump && jump_strike_pose(link) && collider == &link->mAtSph) return true;
+    if (s_swordAction == SwordAction::Normal || (s_swordAction == SwordAction::Jump && jump_strike_pose(link)))
         for (const auto& capsule : link->mAtCps) if (collider == &capsule) return true;
     return false;
 }
@@ -779,8 +793,9 @@ void after_power(ModContext*, void* args, void*, void*) {
     }
     if (native_sword_collider(info->mpCollider)) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Keep cc_at_check from doubling the linear value for Master Sword.
-        info->mAttackPower = s_run.critical_power(s_swordAction == SwordAction::Spin ? s_run.attack_power(1) :
-            s_run.melee_power()) * s_run.damage_multiplier();
+        const auto base = s_swordAction == SwordAction::Jump && info->mpCollider == &link->mAtSph ?
+            s_run.jump_splash_power() : s_swordAction == SwordAction::Spin ? s_run.attack_power(1) : s_run.melee_power();
+        info->mAttackPower = s_run.critical_power(base) * s_run.damage_multiplier();
         return;
     }
     for (const auto& attack : s_attacks) {
@@ -1251,6 +1266,8 @@ ModResult initialize_survivors(ModError* error) {
     POST(SurvivorsPower, after_power);
     PRE(SurvivorsHitMaterial, before_hit_material); POST(SurvivorsHitMaterial, after_hit_material);
     POST(SurvivorsLightSword, after_light_sword);
+    POST(SurvivorsJumpStrike, after_jump_strike); POST(SurvivorsJumpStrikeLand, after_jump_strike);
+    PRE(SurvivorsJumpStrikeEffect, before_jump_strike_effect);
     POST(SurvivorsSpinMove, after_sword_move); PRE(SurvivorsLargeSpin, before_large_spin);
     POST(SurvivorsNormalMove, after_sword_move); POST(SurvivorsFinishMove, after_sword_move);
     PRE(SurvivorsStage, before_stage); POST(SurvivorsHud, draw_hud);

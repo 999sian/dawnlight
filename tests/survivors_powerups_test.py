@@ -129,7 +129,7 @@ int main(){
  buttons[1]->pressed(nullptr,buttons[1]->data);assert(lifeMax==20&&closed==1);
  // All upgrade kinds produce a valid preview and don't mutate the live run.
  for(unsigned i=0;i<unsigned(Upgrade::Count);++i){
-   fresh();s_run.phase=Phase::Upgrade;s_run.shield=1;s_run.red_potion=true;s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;
+   fresh();s_run.phase=Phase::Upgrade;s_run.shield=1;s_run.red_potion=true;s_run.master_sword=1;s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;
    s_run.offers.fill(Upgrade(i));assert(build_upgrade_choices(1,2)==MOD_OK);
    assert(s_run.phase==Phase::Upgrade&&s_run.rank(Upgrade::Heart)==0&&money==100);
  }

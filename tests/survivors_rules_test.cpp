@@ -4,6 +4,24 @@
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
+    Run jump; jump.start(12);
+    assert(!jump.eligible(Upgrade::JumpStrike));
+    jump.master_sword=1;assert(jump.eligible(Upgrade::JumpStrike));
+    const auto jumpRng=jump.random;assert(!jump.roll_jump_strike()&&jump.random==jumpRng);
+    for(unsigned level=1;level<=30;++level){
+        jump.ranks[unsigned(Upgrade::JumpStrike)]=level;
+        assert(jump.jump_splash_percent()==30+5*(level-1));
+        assert(jump.jump_splash_power()==(6*(30+5*(level-1))+50)/100);
+        assert(jump.eligible(Upgrade::JumpStrike)==(level<30));
+    }
+    jump.ranks[unsigned(Upgrade::JumpStrike)]=1;
+    unsigned triggers=0;for(unsigned i=0;i<100000;++i)triggers+=jump.roll_jump_strike();
+    assert(triggers>19500&&triggers<20500);
+    jump.ranks[unsigned(Upgrade::Haste)]=30;assert(jump.jump_cooldown()<180&&jump.jump_cooldown()>=6);
+    jump.phase=Phase::Upgrade;assert(jump.banish(Upgrade::JumpStrike));
+    assert(!jump.eligible(Upgrade::JumpStrike)&&jump.rank(Upgrade::JumpStrike)==1);
+    jump.start(12);assert(!jump.rank(Upgrade::JumpStrike)&&!jump.banned_upgrades[unsigned(Upgrade::JumpStrike)]);
+
     // Critical chance scales with full Luck, independently of the drop bonus cap.
     Run crit;crit.start(98765);
     const auto initialRandom=crit.random;
@@ -81,7 +99,7 @@ int main() {
     maximum.start(58);assert(maximum.luck_percent()==100&&maximum.eligible(Upgrade::Luck));
     for(unsigned rarity=0;rarity<5;++rarity) {
         for(unsigned u=0;u<unsigned(Upgrade::Rupees);++u)for(unsigned initial:{0u,4u}) {
-            Run r;r.start(13);r.shield=1;r.red_potion=true;r.ranks[8]=1;r.ranks[u]=initial;
+            Run r;r.start(13);r.shield=1;r.red_potion=true;r.master_sword=1;r.ranks[8]=1;r.ranks[u]=initial;
             // Weapons must be chest-unlocked first.
             if(u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)&&!initial)continue;
             r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);
@@ -256,7 +274,7 @@ int main() {
     assert(duration==20*60*30 && elite_interval==5*60*30 && timed_elite_count==3);
     // Every ordinary upgrade and weapon can cross the old cap safely.
     for (unsigned rank=0;rank<=30;++rank) {
-        Run high;high.start(1);high.shield=1;high.red_potion=true;high.ranks.fill(rank);
+        Run high;high.start(1);high.shield=1;high.red_potion=true;high.master_sword=1;high.ranks.fill(rank);
         for (unsigned u=0;u<unsigned(Upgrade::Rupees);++u) {
             if (Upgrade(u)==Upgrade::Luck) continue;
             assert(upgrade_cap(Upgrade(u))==30);

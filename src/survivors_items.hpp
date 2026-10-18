@@ -54,6 +54,8 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
         add("Melee damage", number(3 + before.rank(Upgrade::Power) + before.sword_bonus()), number(3 + after.rank(Upgrade::Power) + after.sword_bonus()));
         for (auto weapon : {Upgrade::Wave, Upgrade::Spin}) if (after.rank(weapon))
             add(weapon == Upgrade::Wave ? "Wave damage" : "Spin damage", number(before.attack_power(unsigned(weapon))), number(after.attack_power(unsigned(weapon))));
+        if (after.rank(Upgrade::JumpStrike))
+            add("Jump splash damage", number(before.jump_splash_power()), number(after.jump_splash_power()));
         if (after.master_sword == 5) add("Light Sword", "off", "on");
     } else if (reward == ChestReward::OrdonSword) {
         add("Dual Wield level", number(before.dual_wield), number(after.dual_wield));
@@ -95,8 +97,11 @@ inline std::string item_description(ChestReward reward, const Run& run) {
         const unsigned waves = run.rank(Upgrade::Wave) >= 5 ? 3 : run.rank(Upgrade::Wave) >= 3 ? 2 : 1;
         return (reward == ChestReward::OrdonSword ? "Dual Wield Lv." + number(run.dual_wield) + "; " + number(run.melee_targets()) + " targets" : "Sword Lv." + number(run.master_sword) + "; bonus +" + number(run.sword_bonus())) +
             "; melee " + number(3 + run.rank(Upgrade::Power) + run.sword_bonus()) +
+            (reward == ChestReward::MasterSword ? "; Reach +" + number(15 * run.rank(Upgrade::Reach)) + "%" : "") +
             "\nWave Lv." + number(run.rank(Upgrade::Wave)) + ": " + (run.rank(Upgrade::Wave) ? number(waves) + " piercing, " + number(run.attack_power(0)) + " dmg/" + seconds(run.cooldown(40)) : "locked") +
-            "\nSpin Lv." + number(run.rank(Upgrade::Spin)) + ": " + (run.rank(Upgrade::Spin) ? "moving, " + number(run.attack_power(1)) + " dmg/" + seconds(run.cooldown(100)) : "locked") + "\n" + bonuses;
+            "\nSpin Lv." + number(run.rank(Upgrade::Spin)) + ": " + (run.rank(Upgrade::Spin) ? "moving, " + number(run.attack_power(1)) + " dmg/" + seconds(run.cooldown(100)) : "locked") +
+            "\n" + (reward == ChestReward::MasterSword ? "Jump Strike Lv." + number(run.rank(Upgrade::JumpStrike)) +
+                (run.rank(Upgrade::JumpStrike) ? ": " + number(run.jump_splash_percent()) + "% splash; 20%/" + seconds(run.jump_cooldown()) : ": level-up unlock") : bonuses);
     }
     if (reward == ChestReward::DarkLink) return "Automatic Dark Link; all damage x2.\nLv." + number(run.dark_link) +
         (run.dark_permanent() ? "; permanently active" : "; every " + seconds(run.dark_interval())) +
@@ -107,6 +112,7 @@ inline std::string item_description(ChestReward reward, const Run& run) {
 inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     const auto rank = run.rank(upgrade);
     switch (upgrade) {
+    case Upgrade::JumpStrike: return rank ? number(run.jump_splash_percent()) + "% melee splash (" + number(run.jump_splash_power()) + " damage); 20% trigger; " + seconds(run.jump_cooldown()) + " cooldown" : "off";
     case Upgrade::Power: return "+" + number(rank) + " damage";
     case Upgrade::Haste: return "-" + number(100 - run.cooldown_percent()) + "% cooldown";
     case Upgrade::Reach: return "+" + number(15 * rank) + "% attack size";

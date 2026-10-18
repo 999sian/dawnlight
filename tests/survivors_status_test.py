@@ -32,11 +32,12 @@ std::array<Enemy,enemy_capacity>s_enemies;
 std::map<ActorId,fopAc_ac_c*> actors;
 fopAc_ac_c* actor_by_id(ActorId id){auto it=actors.find(id);return it==actors.end()?nullptr:it->second;}''')
 fixture = fixture.replace('Enemy* tracked(int id){return present&&id==2?&enemy:nullptr;}', 'Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id)return &e;return nullptr;}')
-fixture = fixture.replace('SwordAction{None,Normal}', 'SwordAction{None,Normal,Spin}')
+fixture = fixture.replace('SwordAction{None,Normal}', 'SwordAction{None,Normal,Spin,Jump}')
 fixture = fixture.replace('Run s_run;int s_player=1;', 'Run s_run;ActorId s_player=1;bool s_active=true;')
 fixture = fixture.replace('struct dCcU_AtInfo{Collider* mpCollider;};', '')
 fixture = re.sub(r'void (?:prepare_effect_hit|finish_effect_hit|record_status_hit)\([^\n]+\n', '', fixture)
 fixture += r'''
+bool jump_strike_pose(const daAlink_c*){return false;}
 struct dBgS_LinChk{cXyz target;void Set(const cXyz*,cXyz* to,daAlink_c*){target=*to;}};
 struct Background{bool LineCross(dBgS_LinChk* line){return line->target.x==999;}} bg;
 Background& dComIfG_Bgsp(){return bg;}

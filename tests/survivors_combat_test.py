@@ -1,6 +1,7 @@
 """Run production Survivors combat orchestration against observable engine boundaries."""
 from pathlib import Path
 import re
+import os
 import subprocess
 import sys
 import tempfile
@@ -52,6 +53,7 @@ struct cXyz {
 struct csXyz {short x=0,y=0,z=0; csXyz(short a=0,short b=0,short c=0):x(a),y(b),z(c){}};
 short cM_atan2s(float a,float b){return short(std::atan2(a,b)*32768/3.14159265);}
 struct cCcD_Obj {
+    float radius=0;void SetR(float r){radius=r;}
     unsigned power=1; bool active=true,hit=true;
     unsigned GetAtAtp()const{return power;}
     void OffAtSetBit(){active=false;} void ResetAtHit(){hit=false;}
@@ -61,11 +63,13 @@ constexpr int dItemNo_NONE_e=255,dItemNo_HEART_e=0,dItemNo_GREEN_RUPEE_e=1,dItem
 HookAction before_sword_attack(ModContext*,void*,void*,void*);
 struct daAlink_c : fopAc_ac_c {
     enum {PROC_WAIT,PROC_MOVE,PROC_ATN_MOVE,PROC_ATN_ACTOR_WAIT,PROC_ATN_ACTOR_MOVE,
-          PROC_WAIT_TURN,PROC_MOVE_TURN,PROC_CUT_NORMAL,PROC_CUT_TURN,PROC_CUT_FINISH,PROC_DAMAGE,PROC_JUMP,PROC_DODGE};
+          PROC_WAIT_TURN,PROC_MOVE_TURN,PROC_CUT_NORMAL,PROC_CUT_TURN,PROC_CUT_FINISH,PROC_DAMAGE,PROC_JUMP,PROC_DODGE,PROC_CUT_LARGE_JUMP,PROC_CUT_LARGE_JUMP_LAND};
     int mProcID=PROC_WAIT,mEquipItem=0x103,field_0x2fde=0;
     bool wolf=false,model=true; void* mSwordModel=&model;
     struct {bool ground=true;bool ChkGroundHit(){return ground;}}mLinkAcch;
-    struct Frame {float frame=0;float getFrame(){return frame;}}mUnderFrameCtrl[1];
+    struct Frame {float frame=0,rate=1;float getFrame(){return frame;}void setRate(float r){rate=r;}}mUnderFrameCtrl[1],mUpperFrameCtrl[1];
+    int field_0x3198=2;
+    int procCutLargeJumpInit(){mProcID=PROC_CUT_LARGE_JUMP;return 1;}
     float field_0x3478=0,field_0x347c=10,field_0x3484=15,mNormalSpeed=0,mStickValue=0;short mMoveAngle=0;csXyz shape_angle;
     struct HIO {struct {struct {float mMaxSpeed=20;}m;}mMove;}hio;
     HIO* mpHIO=&hio;
@@ -95,22 +99,24 @@ struct daAlink_c : fopAc_ac_c {
     int procCutFinishInit(int type){finishTypes.push_back(type);comboCounts.push_back(mComboCutCount);
         ++finishes;mProcID=PROC_CUT_FINISH;field_0x3478=5;mUnderFrameCtrl[0].frame=0;return 1;}
     int procCutTurnInit(int quick,int dir){assert(quick==1 && dir==1);++spins;
-        mProcID=PROC_CUT_TURN;field_0x3478=220;return 1;}
+        mProcID=PROC_CUT_TURN;field_0x3478=220;field_0x347c=130;return 1;}
 } player;
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}
 int rewardRoom=51;
 int fopAcM_GetRoomNo(fopAc_ac_c*){return rewardRoom;}
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 Run s_run;
-enum class SwordAction {None,Normal,Spin};
+enum class SwordAction {None,Normal,Spin,Jump};
 SwordAction s_swordAction=SwordAction::None;
 bool s_wavePending=false,s_allowDrop=false,s_active=true,arena=true,playing=true;
 unsigned s_meleeCooldown=0,s_player=7,s_comboStep=0,s_comboTimeout=0;
 bool s_autoSwordCall=false,s_trackMelee=false;unsigned s_meleeTarget=kNone;
-std::array<unsigned,3>s_cooldowns{};
+std::array<unsigned,unsigned(Upgrade::Rupees)>s_cooldowns{};
 bool in_arena(){return arena;} bool playable(){return arena && playing;}
 struct Enemy {unsigned id=kNone;bool initialized=false,retiring=false,credited=false;};
 std::array<Enemy,enemy_capacity>s_enemies;
+Enemy* tracked(unsigned id){for(auto& e:s_enemies)if(e.id==id&&e.initialized)return &e;return nullptr;}
+bool abilityBusy=false;bool jump_abilities_busy_for(daAlink_c*){return abilityBusy;}
 fopAc_ac_c enemy,enemy2;
 fopAc_ac_c potActor; bool potCarried=false;
 struct ArenaPot{unsigned id=kNone;bool initialized=false,retiring=false,broken=false;};
@@ -131,10 +137,12 @@ struct Emitter {
     void setGlobalTranslation(cXyz p){position=p;}
 };
 std::map<u32,Emitter>emitters;unsigned nextEmitter=1;
-constexpr u16 ID_ZI_J_KAITENGIRI_A=11,ID_ZI_J_KAITENGIRI_B=12;
+constexpr u16 ID_ZI_J_KAITENGIRI_A=11,ID_ZI_J_KAITENGIRI_B=12,ID_ZI_J_BOMBex_A=0x161,ID_ZI_J_BOMBex_B=0x162;
+std::vector<u16>particles;std::vector<float>particleScales;
 Emitter* dComIfGp_particle_getEmitter(u32 id){auto it=emitters.find(id);return it==emitters.end()?nullptr:&it->second;}
-u32 dComIfGp_particle_set(u32 id,u16 effect,cXyz*,int*,const csXyz*,void*,int,void*,int,void*,void*,void*){
-    assert(effect==ID_ZI_J_KAITENGIRI_A || effect==ID_ZI_J_KAITENGIRI_B);
+u32 dComIfGp_particle_set(u32 id,u16 effect,cXyz*,int*,const csXyz*,const cXyz* scale,int,void*,int,void*,void*,void*){
+    assert(effect==ID_ZI_J_KAITENGIRI_A || effect==ID_ZI_J_KAITENGIRI_B || effect==0x161 || effect==0x162);
+    particles.push_back(effect);particleScales.push_back(scale?scale->x:1);
     if(!id){id=nextEmitter++;emitters.emplace(id,Emitter{});}return id;
 }
 void dComIfGp_particle_levelEmitterOnEventMove(u32){}
@@ -162,7 +170,7 @@ fpc_ProcID create_run_pickup(cXyz pos,int item){
 
 '''
 main = r'''
-void reset(){s_pots={};potActor.id=99;potCarried=false;
+void reset(){player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;
     player.mLinkAcch.ground=true;player.wolf=false;player.mSwordModel=&player.model;
     player.normals=player.spins=player.equips=player.finishes=player.mComboCutCount=0;
@@ -283,7 +291,17 @@ int main(){
     // Native spin has priority, receives Reach and follows the stick at normal speed.
     reset();s_run.ranks[0]=s_run.ranks[1]=1;s_run.ranks[5]=2;
     update_sword(&player);assert(player.spins==1 && player.normals==0 && waves==0);
-    assert(std::abs(player.field_0x3478-286)<0.01);
+    assert(player.field_0x3478==220&&std::abs(player.mAtSph.radius-169)<0.01);
+    for(unsigned reach:{0u,5u,30u}){
+        s_run.ranks[unsigned(Upgrade::Reach)]=reach;
+        for(float nativeRadius:{130.f,170.f,220.f}){
+            player.field_0x347c=nativeRadius;
+            std::any spinArgs[]={&player};after_sword_move(nullptr,spinArgs,nullptr,nullptr);
+            assert(std::abs(player.mAtSph.radius-s_run.radius(nativeRadius))<.01f);
+            after_sword_move(nullptr,spinArgs,nullptr,nullptr); // No cumulative multiplication.
+            assert(std::abs(player.mAtSph.radius-s_run.radius(nativeRadius))<.01f);
+        }
+    }
     std::any args[]={&player};
     for(float stick:{0.0f,0.5f,1.0f})for(short angle:{short(-16000),short(16000)}){
         player.mStickValue=stick;player.mMoveAngle=angle;
@@ -367,6 +385,42 @@ int main(){
         player.shape_angle.y=123;track_melee_facing(&player);assert(player.shape_angle.y==123);
     }
     reset();
+    // Automatic Jump Strike owns only its native jump/landing poses and damage.
+    reset();s_run.master_sword=1;s_run.ranks[unsigned(Upgrade::JumpStrike)]=1;
+    for(unsigned i=0;i<100&&s_swordAction!=SwordAction::Jump;++i){
+        player.mProcID=daAlink_c::PROC_WAIT;s_meleeCooldown=0;update_sword(&player);
+    }
+    assert(s_swordAction==SwordAction::Jump&&player.mProcID==daAlink_c::PROC_CUT_LARGE_JUMP);
+    assert(s_cooldowns[unsigned(Upgrade::JumpStrike)]==180&&!s_wavePending&&!s_trackMelee);
+    assert(player.mUnderFrameCtrl[0].rate==2&&player.mUpperFrameCtrl[0].rate==2);
+    info={&player.mAtCps[0]};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==6);
+    player.mProcID=daAlink_c::PROC_CUT_LARGE_JUMP_LAND;player.field_0x3478=300;
+    particles.clear();particleScales.clear();s_run.ranks[unsigned(Upgrade::Reach)]=5;
+    assert(before_jump_strike_effect(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+    assert((particles==std::vector<u16>{0x161,0x162}));
+    assert(std::abs(particleScales[0]-2.625f)<.01f&&particleScales[0]==particleScales[1]);
+    for(unsigned rank:{1u,30u}){
+        s_run.ranks[unsigned(Upgrade::JumpStrike)]=rank;
+        info={&player.mAtSph};after_power(nullptr,powerArgs,nullptr,nullptr);
+        assert(info.mAttackPower==s_run.jump_splash_power());
+    }
+    s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::CritDamage)]=30;
+    s_run.dark_link=1;s_run.dark_remaining=150;checkCritical(player.mAtSph,s_run.jump_splash_power());
+    for(float radius:{130.f,200.f,300.f}){
+        player.field_0x347c=radius;player.mUnderFrameCtrl[0].rate=1;
+        after_jump_strike(nullptr,args,nullptr,nullptr);
+        assert(player.mAtSph.radius==s_run.radius(radius)&&player.mUnderFrameCtrl[0].rate==2);
+    }
+    const auto jumpParticles=s_jumpEmitters;clear_jump_effects();clear_jump_effects();
+    for(auto id:jumpParticles)assert(emitters[id].invalid);
+    abilityBusy=true;assert(!update_jump_strike(&player));
+    assert(before_jump_strike_effect(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);abilityBusy=false;
+    player.mProcID=daAlink_c::PROC_DAMAGE;assert(!update_jump_strike(&player)&&s_swordAction==SwordAction::None);
+    assert(before_jump_strike_effect(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+    // Ordinary attacks still work when the jump's cooldown has not elapsed.
+    player.mProcID=daAlink_c::PROC_WAIT;s_meleeCooldown=0;update_sword(&player);
+    assert(s_swordAction==SwordAction::Normal);
+    reset();
     // Native random drops stay suppressed; only scoped reward creation bypasses the hook.
     fpc_ProcID result=0;assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_SKIP_ORIGINAL && result==kNone);
     bool seen[8]{};
@@ -388,7 +442,7 @@ int main(){
 '''
 functions = ['stop_attack', 'update_wave_effects', 'sword_action_available', 'enemy_in_range',
              'before_cut', 'before_sword_attack', 'normal_sword_proc', 'targeting', 'begin_sword_combo',
-             'release_sword_wave', 'update_sword', 'after_sword_move', 'before_large_spin',
+             'release_sword_wave', 'jump_strike', 'update_sword', 'after_sword_move', 'before_large_spin',
              'native_sword_collider', 'after_power', 'before_drop', 'drop_reward', 'select_upgrade']
 # Execute Dusklight's actual combo counter/selector, not a reimplementation of
 # the sequence. Animation setup remains an observable boundary above.
@@ -398,7 +452,7 @@ native_combo_functions = extract('daAlink_c::commonCutAction', native) + '\n' + 
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join((root/'src/survivors_targeting.inc').read_text() if name=='targeting' else extract(name) for name in functions) + '\n' + main)
-    subprocess.run(['c++', '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
+    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join((root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else extract(name) for name in functions) + '\n' + main)
+    subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
