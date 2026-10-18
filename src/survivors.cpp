@@ -171,6 +171,7 @@ DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
 DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
 DEFINE_HOOK(&daAlink_c::checkAutoJumpAction, SurvivorsLedgeJump);
 DEFINE_HOOK(&daAlink_c::procCutTurn, SurvivorsSpinMove);
+DEFINE_HOOK(&daAlink_c::setCutTurnEffect, SurvivorsSpinEffect);
 DEFINE_HOOK(&daAlink_c::procCutLargeJump, SurvivorsJumpStrike);
 DEFINE_HOOK(&daAlink_c::procCutLargeJumpLand, SurvivorsJumpStrikeLand);
 DEFINE_HOOK(&daAlink_c::setCutLargeJumpLandEffect, SurvivorsJumpStrikeEffect);
@@ -733,6 +734,28 @@ bool begin_sword_combo(daAlink_c* link) {
     return true;
 }
 #include "survivors_jump_strike.inc"
+void sync_spin_radius(daAlink_c* link) {
+    // Native normal/light particles are authored for the final native radius.
+    // Match their geometry and particle size to the current expanding hitbox,
+    // including Reach. Absolute scales avoid compounding on reused emitters.
+    const float radius = s_run.radius(link->field_0x347c);
+    const float nativeRadius = link->field_0x3478;
+    if (!std::isfinite(radius) || !std::isfinite(nativeRadius) || radius <= 0 || nativeRadius <= 0) return;
+    link->mAtSph.SetR(radius);
+    const float scale = radius / nativeRadius;
+    const cXyz effectScale(scale, scale, scale);
+    for (auto id : link->field_0x3204)
+        if (auto* emitter = id ? dComIfGp_particle_getEmitter(id) : nullptr)
+            emitter->setGlobalScale(effectScale);
+}
+void after_spin_effect(ModContext*, void* args, void*, void*) {
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    if (!link || !playable() || s_run.phase != Phase::Running || fopAcM_GetID(link) != s_player ||
+        s_swordAction != SwordAction::Spin || link->mProcID != daAlink_c::PROC_CUT_TURN) return;
+    // Runs after native creation/update, so newly created normal and Light Sword
+    // emitters receive the same radius in their very first rendered frame.
+    sync_spin_radius(link);
+}
 void update_sword(daAlink_c* link) {
     if (s_meleeCooldown) --s_meleeCooldown;
     if (s_comboTimeout && !--s_comboTimeout) s_comboStep = 0;
@@ -805,7 +828,7 @@ void after_sword_move(ModContext*, void* args, void*, void*) {
     const bool normal = s_swordAction == SwordAction::Normal && normal_sword_proc(link);
     // Scale the actual collision radius each frame, not only its target. The
     // native expansion window is too short to reach a scaled target at high Reach.
-    if (spin) link->mAtSph.SetR(s_run.radius(link->field_0x347c));
+    if (spin) sync_spin_radius(link);
     if ((!spin && !normal) || !link->mLinkAcch.ChkGroundHit()) return;
     // Runs before native posMove/ground/wall resolution, retaining collision.
     // Normal swings and finishers decelerate/lunge too, not only spin attacks.
@@ -1383,7 +1406,8 @@ ModResult initialize_survivors(ModError* error) {
     POST(SurvivorsLightSword, after_light_sword);
     POST(SurvivorsJumpStrike, after_jump_strike); POST(SurvivorsJumpStrikeLand, after_jump_strike);
     PRE(SurvivorsJumpStrikeEffect, before_jump_strike_effect);
-    POST(SurvivorsSpinMove, after_sword_move); PRE(SurvivorsLargeSpin, before_large_spin);
+    POST(SurvivorsSpinMove, after_sword_move); POST(SurvivorsSpinEffect, after_spin_effect);
+    PRE(SurvivorsLargeSpin, before_large_spin);
     POST(SurvivorsNormalMove, after_sword_move); POST(SurvivorsFinishMove, after_sword_move);
     PRE(SurvivorsStage, before_stage); POST(SurvivorsHud, draw_hud);
     PRE(SurvivorsGameStart, before_game_start); PRE(SurvivorsOpening, before_opening);

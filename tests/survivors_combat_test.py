@@ -77,6 +77,7 @@ struct daAlink_c : fopAc_ac_c {
     struct HIO {struct {struct {float mMaxSpeed=20;}m;}mMove;}hio;
     HIO* mpHIO=&hio;
     cCcD_Obj mAtCps[3],mAtSph,mGuardAtCps;int tevStr=0;
+    u32 field_0x3204[6]{};
     unsigned normals=0,spins=0,equips=0,finishes=0,mComboCutCount=0;
     enum {FLG0_UNK_1000000,FLG0_UNK_8000,DIR_FORWARD=0,DIR_BACKWARD=1};
     struct {int field_0x300a=4;}mProcVar1;
@@ -135,7 +136,8 @@ cXyz target_direction(daAlink_c*){return {0,0,1};}
 unsigned waves=0;
 void launch(daAlink_c*,unsigned weapon,cXyz){assert(weapon==0);++waves;}
 struct Emitter {
-    int mMaxFrame=5,age=0;bool stopped=false,quit=false,invalid=false;cXyz position;
+    int mMaxFrame=5,age=0;bool stopped=false,quit=false,invalid=false;cXyz position,scale{1,1,1};
+    void setGlobalScale(const cXyz& value){scale=value;}
     int getAge(){return age;}void stopCreateParticle(){stopped=true;}
     void quitImmortalEmitter(){quit=true;}void becomeInvalidEmitter(){invalid=true;}
     void setGlobalTranslation(cXyz p){position=p;}
@@ -204,6 +206,42 @@ int main(){
             assert(s_meleeCooldown==s_run.melee_cooldown());
         }
     }
+    // Native normal and Light Sword emitters match the expanding hitbox at all
+    // Reach ranks. Reuse, new emitters and shrinking Reach never compound scale.
+    reset();s_swordAction=SwordAction::Spin;player.mProcID=daAlink_c::PROC_CUT_TURN;
+    std::any spinArgs[]={&player};
+    for(unsigned count:{2u,4u})for(float nativeRadius:{220.f,300.f}) {
+        player.field_0x3478=nativeRadius;
+        for(unsigned i=0;i<count;++i){player.field_0x3204[i]=nextEmitter++;emitters[player.field_0x3204[i]]={};}
+        for(unsigned reach:{0u,1u,10u,30u,0u})for(float current:{130.f,175.f,nativeRadius}) {
+            s_run.ranks[unsigned(Upgrade::Reach)]=reach;player.field_0x347c=current;
+            for(unsigned frame=0;frame<3;++frame) {
+                after_sword_move(nullptr,spinArgs,nullptr,nullptr);
+                after_spin_effect(nullptr,spinArgs,nullptr,nullptr);
+                const float radius=current*(1+.15f*reach);
+                assert(std::abs(player.mAtSph.radius-radius)<.001f);
+                for(unsigned i=0;i<count;++i){
+                    const auto& emitter=emitters[player.field_0x3204[i]];
+                    assert(std::abs(nativeRadius*emitter.scale.x-radius)<.001f);
+                    assert(emitter.scale.x==emitter.scale.y&&emitter.scale.y==emitter.scale.z);
+                    assert(!emitter.stopped&&!emitter.quit&&!emitter.invalid);
+                }
+            }
+        }
+        for(auto& id:player.field_0x3204)id=0;
+    }
+    // Empty/stale emitter slots are safe; paused/outside/foreign actions stay native.
+    player.field_0x3204[0]=nextEmitter++; // deliberately not in the emitter registry
+    after_spin_effect(nullptr,spinArgs,nullptr,nullptr);
+    player.field_0x3204[0]=nextEmitter++;emitters[player.field_0x3204[0]]={};
+    for(unsigned gate=0;gate<5;++gate) {
+        playing=gate!=0;arena=gate!=1;s_run.phase=gate==2?Phase::Upgrade:Phase::Running;
+        player.id=gate==3?99:7;s_swordAction=gate==4?SwordAction::Normal:SwordAction::Spin;
+        player.mAtSph.radius=77;emitters[player.field_0x3204[0]].scale={7,7,7};
+        after_spin_effect(nullptr,spinArgs,nullptr,nullptr);
+        assert(player.mAtSph.radius==77&&emitters[player.field_0x3204[0]].scale.x==7);
+    }
+    player.field_0x3204[0]=0;
     // Reach extends native swept capsules each frame from fresh blade points,
     // clips extension at walls, and does not widen capsules or invent hit flags.
     reset();update_sword(&player);std::any swordArgs[]={&player};
@@ -499,7 +537,7 @@ int main(){
 '''
 functions = ['stop_attack', 'update_wave_effects', 'sword_action_available', 'enemy_in_range',
              'before_cut', 'before_sword_attack', 'normal_sword_proc', 'melee', 'targeting', 'begin_sword_combo',
-             'release_sword_wave', 'jump_strike', 'update_sword', 'after_sword_move', 'before_large_spin',
+             'release_sword_wave', 'jump_strike', 'sync_spin_radius', 'after_spin_effect', 'update_sword', 'after_sword_move', 'before_large_spin',
              'native_sword_collider', 'after_power', 'before_drop', 'drop_reward', 'select_upgrade']
 # Execute Dusklight's actual combo counter/selector, not a reimplementation of
 # the sequence. Animation setup remains an observable boundary above.
