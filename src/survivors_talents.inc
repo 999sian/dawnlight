@@ -45,11 +45,12 @@ void describe_talent(ModContext*,void* data) {
     const std::string body="<p>Rank "+talent_detail(t)+"</p><p>"+talent_help[unsigned(t)]+"</p>"+
         "<p>+ spends one point; - refunds one rank. Removing a prerequisite also refunds its dependent perks.</p>";
     UiDialogAction close=UI_DIALOG_ACTION_INIT;close.label="Close";
-    close.on_pressed=[](ModContext*,UiDialogHandle,void*){s_talentDialog=0;};
+    close.on_pressed=[](ModContext*,UiDialogHandle,void*){s_talentDialog=0;s_talentDocument=nullptr;};
     UiDialogDesc dialog=UI_DIALOG_DESC_INIT;
     dialog.title=talent_names[unsigned(t)];dialog.body_rml=body.c_str();dialog.actions=&close;dialog.action_count=1;
     dialog.on_dismiss=close.on_pressed;
     if(svc_ui->dialog_push(mod_ctx,&dialog,&s_talentDialog)!=MOD_OK)s_talentDialog=0;
+    else remember_menu_document(true);
 }
 ModResult update_talent_tab(ModContext*,void*,ModError*) {
     svc_ui->elem_set_text(mod_ctx,s_talentSummary,talent_summary().c_str());return MOD_OK;

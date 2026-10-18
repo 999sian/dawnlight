@@ -5,6 +5,9 @@
 A 20-minute survival mode included in `dawnlight_mod.dusk`. Select **Hyrule
 Survivors** in Dusklight's game-mode menu, create/load its separate save, pick a
 map and press **Start run**. Story and Boss Rush saves remain separate.
+The Dusklight menu shortcut (keyboard, controller or three-finger tap) closes
+this setup menu and opens Dusklight. Closing Dusklight returns to setup;
+your map, difficulty, settings and allocated talents remain unchanged.
 
 ## Playing a run
 

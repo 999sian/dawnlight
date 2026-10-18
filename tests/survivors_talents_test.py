@@ -3,6 +3,7 @@ from pathlib import Path
 import os, re, subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
 fixture=r'''
+void* s_talentDocument=nullptr;void remember_menu_document(bool){}
 #include <cassert>
 #include <string>
 #include <map>

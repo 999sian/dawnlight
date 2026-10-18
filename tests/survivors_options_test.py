@@ -34,6 +34,7 @@ bool owned=true,active=true,paused=false,transition=false,event=false,aim=false,
 Enemy* tracked(int id){return owned&&id==2?&enemy:nullptr;}
 bool in_arena(){return active;}bool playable(){return active&&!paused;}bool transitioning(){return transition;}
 bool dComIfGp_event_runCheck(){return event;}
+void* s_menuDocument=nullptr;void remember_menu_document(bool){}
 Run s_run;RunOptions s_options;int s_player=1;bool s_restart=false;
 struct dBgS_Acch{fopAc_ac_c* actor;bool line=false;auto* getMyAc(){return actor;}void OnLineCheck(){line=true;}};
 struct dBgS_CamLinChk{cXyz cross{0,0,150};cXyz GetCross(){return cross;}};

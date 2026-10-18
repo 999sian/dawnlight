@@ -10,17 +10,17 @@ button.survivors-talent-adjust { flex: 0 0 44dp; min-width: 44dp; font-size: 22d
 .survivors-talent-rank { flex: 0 0 64dp; text-align: center; font-size: 16dp; }
 window tab-bar { background-color: #171d19ee; }
 window content pane.survivors-map-list { flex: 0 0 35%; background-color: #171d19ef; padding: 16dp; gap: 8dp; font-size: 15dp; }
-window content pane.survivors-map-preview { flex: 1 1 0; padding: 16dp; justify-content: space-between; }
-.survivors-map-preview-copy { background-color: #171d19e8; border-radius: 8dp; padding: 16dp; font-size: 16dp; }
+window content pane.survivors-map-preview { flex: 1 1 0; padding: 0dp 16dp 16dp; justify-content: flex-start; }
+.survivors-map-preview-copy { background-color: #171d19e8; border-radius: 8dp; padding: 0dp 16dp 16dp; font-size: 16dp; }
 .survivors-map-preview-title { display: block; font-family: var(--font-family-heading); font-size: 24dp; }
-button.survivors-map-start { align-self: flex-end; padding: 12dp 28dp; font-size: 18dp; background-color: #171d19ee; }
+button.survivors-map-start { margin-top: auto; align-self: flex-end; padding: 12dp 28dp; font-size: 18dp; background-color: #171d19ee; }
 button.survivors-map-option { padding: 12dp; font-size: 16dp; }
 button.survivors-map-selected { background-color: #e5bc3b28; border-color: #ffdc75; }
 @media (max-width: 640dp) {
     window content pane.survivors-map-list { flex-basis: 42%; padding: 8dp; font-size: 12dp; }
-    window content pane.survivors-map-preview { padding: 8dp; }
+    window content pane.survivors-map-preview { padding: 0dp 8dp 8dp; }
     button.survivors-map-option { font-size: 13dp; padding: 9dp; }
-    .survivors-map-preview-copy { padding: 10dp; font-size: 13dp; }
+    .survivors-map-preview-copy { padding: 0dp 10dp 10dp; font-size: 13dp; }
     .survivors-map-preview-title { font-size: 18dp; }
 }
 )";

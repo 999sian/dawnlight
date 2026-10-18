@@ -13,6 +13,7 @@
 #include "mods/hook.hpp"
 #include "mods/service.hpp"
 #include "mods/svc/flow.hpp"
+#include "dusk/ui/nav_types.hpp"
 #include "d/d_menu_ring.h"
 #include "d/d_menu_collect.h"
 #include "d/d_menu_item_explain.h"
@@ -166,6 +167,11 @@ RunOptions s_options;
 Records s_records;
 bool s_progressSaving=false, s_progressSaved=false;
 UiWindowHandle s_refreshChoices=0;
+// Opaque host documents: no private RmlUi/Window layouts are copied.
+DEFINE_HOOK_SYMBOL("dusk::ui::Document::handle_nav_event", bool(void*, void*), SurvivorsMenuEvent);
+void* s_menuDocument = nullptr;
+void* s_talentDocument = nullptr;
+void remember_menu_document(bool talent);
 UiWindowHandle s_window = 0, s_powerupsWindow = 0;
 UiDialogHandle s_talentDialog=0;
 bool s_powerupsRequested = false;
@@ -294,11 +300,13 @@ void clear_attacks() {
     for (auto& a : s_attacks) stop_attack(a);
 }
 void close_window() {
+    s_menuDocument = s_talentDocument = nullptr;
     const auto dialog=s_talentDialog;s_talentDialog=0;
     if(dialog)svc_ui->dialog_close(mod_ctx,dialog);
     const auto handle = s_window; s_window = 0;
     if (handle) svc_ui->window_close(mod_ctx, handle);
 }
+#include "survivors_menu_handoff.inc"
 void retire_pots();
 void cleanup_pots();
 void detach_pot_attacks();
@@ -1110,13 +1118,14 @@ void open_window() {
     if (s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Upgrade) desc.rcss = kTreasureStyle;
     if (s_run.phase == Phase::Ready) desc.rcss = kArenaStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
-        if (s_window == handle) s_window = 0;
+        if (s_window == handle) { s_window = 0; s_menuDocument = nullptr; }
         if (s_refreshChoices==handle) { s_refreshChoices=0; return; }
         if (s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count)
             dismiss_treasure_choice();
     };
     if (svc_ui->window_push(mod_ctx, &desc, &s_window) != MOD_OK)
         svc_log->warn(mod_ctx, "Hyrule Survivors: could not open run window");
+    else if (s_run.phase == Phase::Ready) remember_menu_document(false);
 }
 ModResult activated(void*, ModError*) { s_active = true; reset_runtime(); return MOD_OK; }
 ModResult deactivated(void*, ModError*) { s_active = false; reset_runtime(); return MOD_OK; }
@@ -1206,8 +1215,10 @@ void update_survivors() {
 }
 ModResult initialize_survivors(ModError* error) {
     ModResult result = initialize_midna_dialog();
+    if (result == MOD_OK) result = initialize_menu_handoff(error);
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
+    PRE(SurvivorsMenuEvent, before_survivors_menu_event);
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
     PRE(SurvivorsEnemySpeed, before_enemy_speed);
     PRE(SurvivorsEnemyDamage, before_enemy_damage);
