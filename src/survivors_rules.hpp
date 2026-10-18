@@ -57,10 +57,10 @@ inline constexpr std::array descriptions{
     "Unlock or improve a moving spin attack.",
     "Unlock or improve an automatic shield bash that staggers enemies.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
-    "Increase attack size, including Spin and Jump Strike splash radii.", "Attract experience, rupees, hearts and heart pieces from farther away.",
+    "Increase attack size, including Spin and Jump Strike splash radii, and Boomerang flight and hop range.", "Attract experience, rupees, hearts and heart pieces from farther away.",
     "Gain one maximum heart (does not heal).",
     "Faster, stronger arrows. Every three upgrades adds an arrow, up to ten.",
-    "A damaging returning boomerang. Upgrades increase damage, size and firing rate.",
+    "A damaging returning boomerang. Upgrades increase damage, hops and firing rate; hit size stays fixed.",
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
     "Ignite enemies for periodic damage. Hits refresh the burn; upgrades improve damage and duration.",
@@ -395,6 +395,8 @@ struct Run {
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }
     unsigned sword_bonus() const { return master_sword ? 2 + master_sword : 0; }
     unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0); }
+    float item_range(Upgrade weapon) const { return weapon==Upgrade::Boomerang ? radius(item_target_range) : item_target_range; }
+    float boomerang_hop_range() const { return radius(800.f); }
     float radius(float base) const { return base * (1.0f + 0.15f * rank(Upgrade::Reach)); }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };

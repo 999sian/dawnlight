@@ -148,8 +148,8 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
     chest.position=pos;
 }
 
-bool nearest_item_target(daAlink_c* link, cXyz& target) {
-    float nearest = item_target_range * item_target_range;
+bool nearest_item_target(daAlink_c* link, cXyz& target, float range=item_target_range) {
+    float nearest = range * range;
     bool found = false;
     const cXyz origin = link->current.pos + cXyz(0, 70, 0);
     for (const auto& e : s_enemies) {
@@ -215,14 +215,16 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
     cXyz direction = delta * (1.0f / distance);
     const cXyz aimed(direction.x * std::cos(spread) + direction.z * std::sin(spread), direction.y,
                      direction.z * std::cos(spread) - direction.x * std::sin(spread));
-    a.limit = weapon == Upgrade::Ball ? s_run.radius(900.0f) : std::min(distance + 80.0f, 1400.0f);
+    a.limit = weapon == Upgrade::Ball ? s_run.radius(900.0f) : std::min(distance + 80.0f, s_run.item_range(weapon));
     a.velocity = aimed * (weapon == Upgrade::Bow ? 70.0f : weapon == Upgrade::Ball ? 40.0f : 42.0f);
     const unsigned rank = s_run.rank(weapon);
     if (weapon == Upgrade::Boomerang) {
-        a.hops = s_run.boomerang_hops(); a.life = 120 + 40 * a.hops;
-        if (!next_boom_target(a, link, 1400)) return false;
+        a.hops = s_run.boomerang_hops();
+        // Keep enough flight time for the longer first leg, every hop and return.
+        a.life = unsigned(std::ceil(s_run.radius(float(120 + 40 * a.hops))));
+        if (!next_boom_target(a, link, s_run.item_range(weapon))) return false;
     }
-    a.radius = s_run.radius(weapon == Upgrade::Bow ? 35 : 55 + 8 * rank);
+    a.radius = s_run.radius(weapon == Upgrade::Bow ? 35 : weapon == Upgrade::Boomerang ? 63 : 55 + 8 * rank);
     if (weapon == Upgrade::Bombs) {
         // Discrete ballistic arc reaches the target in 30 simulation ticks.
         a.velocity = delta * (1.0f / 30); a.velocity.y += 1.4f * 29 / 2;
@@ -264,7 +266,7 @@ void update_item_attack(Attack& a, daAlink_c* link) {
             auto* target = actor_by_id(a.target);
             if (shield) a.returning = true;
             else if (!target || target->health <= 0 || (target->eyePos - a.position).abs() <= a.radius || a.collider.ChkAtHit()) {
-                if (a.hops && next_boom_target(a, link, 800)) { --a.hops; a.collider.ResetAtHit(); }
+                if (a.hops && next_boom_target(a, link, s_run.boomerang_hop_range())) { --a.hops; a.collider.ResetAtHit(); }
                 else { a.returning = true; a.collider.ResetAtHit(); }
             }
             if (!a.returning) {
@@ -316,8 +318,6 @@ void update_item_attack(Attack& a, daAlink_c* link) {
 }
 void fire_items(daAlink_c* link) {
     if (!s_loot.ready) return;
-    cXyz target;
-    if (!nearest_item_target(link, target)) return;
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
         if (!s_run.ranks[i] || s_cooldowns[i]) continue;
         const auto weapon = static_cast<Upgrade>(i);
@@ -419,7 +419,7 @@ void draw_loot() {
         const auto yaw = weapon == Upgrade::Boomerang ? s16(a.age * 7000) : cM_atan2s(a.velocity.x, a.velocity.z);
         const auto pitch = weapon == Upgrade::Bow ? s16(-cM_atan2s(a.velocity.y, a.velocity.absXZ())) : s16(0);
         draw_loot_model(s_loot.projectiles[i], a.position, yaw, pitch,
-            weapon == Upgrade::Bow ? 1 : s_run.radius(1 + 0.08f * (s_run.rank(weapon) - 1)));
+            weapon == Upgrade::Bow ? 1 : s_run.radius(weapon == Upgrade::Boomerang ? 1.f : 1 + 0.08f * (s_run.rank(weapon) - 1)));
         if (weapon == Upgrade::Boomerang && s_loot.windAnim) {
             auto* model = s_loot.wind[i - item_projectile_begin(1)];
             auto* data = model->getModelData(); auto* root = data->getJointNodePointer(0);

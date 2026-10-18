@@ -30,19 +30,21 @@ void ranged_anime(daAlink_c* link, u16 animation, unsigned ticks) {
 bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     if (s_ranged.active || s_rangedRest || !s_loot.ready || !playable() || link->checkEquipAnime() ||
         (link->mEquipItem != dItemNo_NONE_e && link->mEquipItem != 0x103)) return false;
-    // Round-robin among all due item weapons so high-rate arrows cannot starve throws.
+    // Round-robin among due weapons with a reachable target. A shorter-range
+    // bow must not starve a Reach-upgraded boomerang outside the bow's range.
+    cXyz target;bool eligible=false;
     for (unsigned step = 1; step <= 4; ++step) {
         const unsigned candidate = unsigned(Upgrade::Bow) + (unsigned(s_lastRanged) - unsigned(Upgrade::Bow) + step) % 4;
-        if (s_run.ranks[candidate] && !s_cooldowns[candidate]) {
+        if (s_run.ranks[candidate] && !s_cooldowns[candidate] &&
+            nearest_item_target(link,target,s_run.item_range(Upgrade(candidate)))) {
             if (candidate != unsigned(weapon)) return false;
-            break;
+            eligible=true;break;
         }
     }
+    if (!eligible) return false;
     const bool recover = normal_sword_proc(link) && link->mUnderFrameCtrl[0].getFrame() >
         std::max(link->field_0x347c, link->field_0x3484);
     if (!sword_action_available(link) && !recover) return false;
-    cXyz target;
-    if (!nearest_item_target(link, target)) return false;
     if (recover) link->procWaitInit();
     link->deleteEquipItem(FALSE, FALSE); // Sheathe the sword while the held item is visible.
     s_swordAction = SwordAction::None; s_wavePending = false;
@@ -60,7 +62,7 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
 }
 void release_ranged(daAlink_c* link) {
     cXyz target;
-    if (!nearest_item_target(link, target)) return;
+    if (!nearest_item_target(link, target, s_run.item_range(s_ranged.weapon))) return;
     s_ranged.target = target;
     if (!launch_item(link, s_ranged.weapon, target)) return;
     if (s_ranged.weapon == Upgrade::Ball) {
@@ -124,7 +126,7 @@ HookAction before_ranged_aim(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!s_ranged.active || !link || fopAcM_GetID(link) != s_player || !playable() ||
         !sword_action_available(link) || !link->checkUpperAnime(s_ranged.animation)) return HOOK_CONTINUE;
-    if (!s_ranged.released) nearest_item_target(link, s_ranged.target);
+    if (!s_ranged.released) nearest_item_target(link, s_ranged.target, s_run.item_range(s_ranged.weapon));
     const cXyz delta = s_ranged.target - link->current.pos - cXyz(0, 70, 0);
     link->shape_angle.y = cM_atan2s(delta.x, delta.z);
     link->mBodyAngle.y = 0;

@@ -10,13 +10,13 @@ constexpr std::array<NativeSpecies,species_count> native_roster{{
     {fpcNm_E_GI_e,0x00ff01ff,-1,0,20}, {fpcNm_E_SF_e,0x0000ff00,-1,0,24},
     {fpcNm_E_FS_e,0,-1,0,8}, {fpcNm_E_BU_e,0xffff0f00,-1,180,6},
     {fpcNm_E_BU_e,0xffff1f00,-1,180,10}, {fpcNm_E_SM2_e,0xffff0060,-1,0,12},
-    {fpcNm_E_MF_e,0xff000000,-1,0,24}, {fpcNm_B_GG_e,0xffff0002,-1,300,120},
-    {fpcNm_B_TN_e,0x000001ff,-1,0,120},
+    {fpcNm_E_MF_e,0xff000000,-1,0,24}, {fpcNm_B_GG_e,0xffff0002,-1,300,1200},
+    {fpcNm_B_TN_e,0x000001ff,-1,0,1200},
     {fpcNm_E_DD_e,0xffff0000,-1,0,16}, {fpcNm_E_SH_e,0x0014ff00,-1,0,10},
     {fpcNm_E_RDY_e,0xff000107,-1,0,8}, {fpcNm_E_RDY_e,0xff000207,-1,0,8},
     {fpcNm_E_S1_e,0xffffffF0,-1,0,20}, {fpcNm_E_YK_e,0xffff0f01,-1,180,4},
     {fpcNm_E_YC_e,0,-1,260,12}, {fpcNm_B_DS_e,0xffffff02,-1,300,1200},
-    {fpcNm_E_ZH_e,0xffffff00,-1,240,120}
+    {fpcNm_E_ZH_e,0xffffff00,-1,240,1200}
 }};
 bool extended_enemy(ProfileName profile) {
     return std::any_of(native_roster.begin()+5,native_roster.end(),

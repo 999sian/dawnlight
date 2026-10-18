@@ -211,6 +211,31 @@ int main(){
         assert(a.returning&&a.visitedCount==s_run.boomerang_hops()+1&&a.emitters[0]&&a.emitters[1]);
         for(unsigned i=0;i<a.visitedCount;++i)for(unsigned j=i+1;j<a.visitedCount;++j)assert(a.visited[i]!=a.visited[j]);
     }
+    // Item rank never grows the boomerang collider; Reach keeps its size bonus.
+    for(unsigned rank:{1u,4u,30u}) {
+        reset();s_run.ranks[9]=rank;actors.clear();s_enemies={};
+        near.id=2;near.health=10;near.eyePos={0,70,300};actors[2]=&near;s_enemies[0]={2,true,false,false};
+        assert(launch_item(&player,Upgrade::Boomerang,near.eyePos));
+        assert(s_attacks[28].radius==63);
+        s_attacks={};s_run.ranks[unsigned(Upgrade::Reach)]=10;
+        assert(launch_item(&player,Upgrade::Boomerang,near.eyePos));
+        assert(s_attacks[28].radius==s_run.radius(63));
+    }
+    // An extended first target is acquired, every hop uses Reach, and the
+    // projectile lives long enough to complete the maximum-length chain/return.
+    reset();actors.clear();s_enemies={};s_run.ranks[9]=30;
+    for(unsigned i=0;i<11;++i){chain[i].id=10+i;chain[i].health=10;chain[i].eyePos={0,70,7000.f+4000*i};
+        actors[10+i]=&chain[i];s_enemies[i]={10+i,true,false,false};}
+    assert(!nearest_item_target(&player,target));
+    assert(!launch_item(&player,Upgrade::Boomerang,chain[0].eyePos));
+    s_run.ranks[unsigned(Upgrade::Reach)]=30;
+    assert(nearest_item_target(&player,target,s_run.item_range(Upgrade::Boomerang))&&target.z==7000);
+    assert(!nearest_item_target(&player,target,s_run.item_range(Upgrade::Bow)));
+    assert(launch_item(&player,Upgrade::Boomerang,chain[0].eyePos));
+    auto& longBoom=s_attacks[28];
+    for(unsigned tick=0;tick<4000&&longBoom.active;++tick)update_item_attack(longBoom,&player);
+    assert(longBoom.visitedCount==11&&longBoom.returning&&!longBoom.active&&longBoom.life>0);
+    assert(longBoom.position.abs(player.current.pos+cXyz(0,70,0))<65); // Actual catch, not lifetime expiry.
     reset();s_run.ranks[11]=1;assert(launch_item(&player,Upgrade::Ball,{0,70,100}));
     auto& ball=s_attacks[36];assert(ball.limit==900);
     ball.collider.hit=true;ball.collider.shield=true;update_item_attack(ball,&player);

@@ -49,7 +49,7 @@ struct daAlink_c{
 }player;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 int fopAcM_GetID(daAlink_c* p){return p->id;}
-bool playing=true,targetExists=true;
+bool playing=true,targetExists=true;float targetDistance=300;
 bool playable(){return playing;}bool in_arena(){return playing;}
 bool normal_sword_proc(daAlink_c* p){return p->proc==1;}
 bool sword_action_available(daAlink_c* p){return p->proc==0;}
@@ -57,17 +57,27 @@ struct{bool ready=true;}s_loot;
 Run s_run;std::array<unsigned,12>s_cooldowns{};int s_player=1;
 enum class SwordAction{None,Normal};SwordAction s_swordAction=SwordAction::Normal;
 bool s_wavePending=false;unsigned s_comboStep=0,s_comboTimeout=0;
-bool nearest_item_target(daAlink_c*,cXyz& target){target={300,100,0};return targetExists;}
+bool nearest_item_target(daAlink_c*,cXyz& target,float range){target={targetDistance,100,0};return targetExists&&targetDistance<range;}
 constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
 struct Attack{bool active=false,returning=false;unsigned age=0;};std::array<Attack,projectile_capacity>s_attacks;
 std::vector<Upgrade>shots;std::vector<float>spread;
 bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0){shots.push_back(weapon);spread.push_back(angle);if(weapon==Upgrade::Ball)s_attacks[item_projectile_begin(3)].active=true;return true;}
 '''
 main=r'''
-void fresh(){player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;s_lastRanged=Upgrade::Boomerang;
+void fresh(){targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;s_lastRanged=Upgrade::Boomerang;
  s_attacks={};shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;s_run.ranks[8]=s_run.ranks[9]=1;}
 void tick(){auto& f=player.mUpperFrameCtrl[2];f.frame=std::min(float(f.end),f.frame+f.rate);update_ranged(&player);}
 int main(){
+ // Range is checked at scheduling, aiming and release, without a short-range
+ // weapon blocking the boomerang in round-robin order.
+ fresh();targetDistance=2000;s_lastRanged=Upgrade::Ball;
+ assert(!queue_ranged(&player,Upgrade::Boomerang));
+ s_run.ranks[unsigned(Upgrade::Reach)]=10;
+ assert(!queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
+ assert(s_ranged.target.x==2000);
+ targetDistance=2500;before_ranged_aim(nullptr,&player,nullptr,nullptr);assert(s_ranged.target.x==2500);
+ release_ranged(&player);assert(shots.size()==1&&shots[0]==Upgrade::Boomerang);
+ targetDistance=4000;release_ranged(&player);assert(shots.size()==1);
  fresh();assert(queue_ranged(&player,Upgrade::Bow));
  assert(player.animation==dRes_ID_ALANM_BCK_ARELORD_e&&shots.empty()&&player.mEquipItem==dItemNo_NONE_e);
  assert(!queue_ranged(&player,Upgrade::Boomerang));

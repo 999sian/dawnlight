@@ -149,6 +149,17 @@ int main(){
   // Normal runtime does not execute retiring actors again.
  }
  assert(credits==species_count-5&&disappears==credits&&deletes==credits);
+ // Every map's final boss uses the full boss pool and selected HP multiplier.
+ for(unsigned map=0;map<map_rosters.size();++map) {
+  NativeActor finalBoss;Enemy finalEnemy;
+  finalEnemy.species=unsigned(map_roster(map).elites.back());finalEnemy.elite=true;
+  finalEnemy.profile=native_roster[finalEnemy.species].profile;
+  for(unsigned multiplier:{1u,3u,10u}) {
+   s_run.options.enemy_hp=multiplier;initialize_extended_enemy(finalEnemy,&finalBoss);
+   assert(finalBoss.health==int(1200*multiplier)&&finalBoss.field_0x560==finalBoss.health);
+  }
+ }
+ s_run.options.enemy_hp=1;
  // Endgame criticals must not erase Stallord's entire boss health pool.
  NativeActor head;head.profile=fpcNm_B_DS_e;s_enemies={};effects={};
  auto& boss=s_enemies[0];boss.id=head.id;boss.profile=head.profile;
