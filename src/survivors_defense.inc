@@ -159,6 +159,12 @@ void after_enemy_hit(ModContext*, void* args, void*, void*) {
     if (s_hitStates.empty() || s_hitStates.back().args != args) return;
     const auto state = s_hitStates.back(); s_hitStates.pop_back();
     finish_effect_hit(state.actor, state.profile);
+    if (state.profile == fpcNm_E_BA_e && state.actor->health <= 0) {
+        auto* bat=reinterpret_cast<e_ba_class*>(state.actor);
+        // Native shield hits clear mIsDying even when our linear bash damage is
+        // lethal. Enter its normal knockback/deletion path before AI resumes.
+        if (!bat->mIsDying) { bat->mIsDying=true; bat->mKnockbackSpeed=80.f; }
+    }
     if (!state.suppress || state.actor->health <= (state.profile == fpcNm_E_OC_e ? 1 : 0)) return;
     if (state.profile == fpcNm_E_OC_e) {
         auto* e = static_cast<daE_OC_c*>(state.actor);

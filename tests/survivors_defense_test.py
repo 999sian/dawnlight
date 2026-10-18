@@ -113,6 +113,13 @@ int main(){
  e_ba_class bat;args={&bat,nullptr};enemy.profile=fpcNm_E_BA_e;bat.mSph.hit=true;bat.mSph.attack=&hit;
  before_enemy_hit(nullptr,&args,nullptr,nullptr);bat.health=30;bat.mKnockbackSpeed=80;bat.mAction=8;
  after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(bat.health==30&&bat.mKnockbackSpeed==0&&bat.mAction==2);
+ // Native shield reaction must not resurrect a lethally damaged elite Keese.
+ bat.mSph.attack=&player.mGuardAtCps;bat.mIFrames=0;
+ before_enemy_hit(nullptr,&args,nullptr,nullptr);bat.health=0;bat.mIsDying=false;bat.mKnockbackSpeed=70;
+ after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(bat.mIsDying&&bat.mKnockbackSpeed==80);
+ bat.health=20;bat.mIsDying=false;bat.mKnockbackSpeed=0;
+ before_enemy_hit(nullptr,&args,nullptr,nullptr);bat.health=15;bat.mKnockbackSpeed=70;
+ after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(!bat.mIsDying&&bat.mKnockbackSpeed==70);
  e_ms_class rat;args={&rat,nullptr};enemy.profile=fpcNm_E_MS_e;rat.mSph1.hit=true;rat.mSph1.attack=&hit;
  before_enemy_hit(nullptr,&args,nullptr,nullptr);rat.health=10;rat.mAction=4;rat.current.angle.y=300;
  after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(rat.health==10&&rat.mAction==1&&rat.current.angle.y==0);
