@@ -184,6 +184,8 @@ struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 main = r'''
 void reset(){player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;
+    player.field_0x3478=0;player.field_0x347c=10;player.field_0x3484=15;
+    for(auto& id:player.field_0x3204)id=0;
     player.mLinkAcch.ground=true;player.wolf=false;player.mSwordModel=&player.model;
     player.normals=player.spins=player.equips=player.finishes=player.mComboCutCount=0;
     player.normalTypes.clear();player.finishTypes.clear();player.comboCounts.clear();
