@@ -148,6 +148,15 @@ int main(){
    fresh();s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Power;s_run.ranks[3]=4;s_run.offer_rarities[0]=Rarity(r);
    select_upgrade(nullptr,&s_choices[0]);assert(s_run.ranks[3]==5&&money==100+20*r);
  }
+ // Luck previews and grants agree at the new cap, with surplus paid as rupees.
+ fresh();s_run.phase=Phase::Upgrade;s_run.offers.fill(Upgrade::Luck);
+ s_run.ranks[unsigned(Upgrade::Luck)]=18;s_run.offer_rarities.fill(Rarity::Orange);
+ assert(build_upgrade_choices(1,2)==MOD_OK);
+ bool beforeLuck=false,afterLuck=false;
+ for(auto& [id,e]:elements){beforeLuck|=e.text.find("+180% Luck")!=std::string::npos;afterLuck|=e.text.find("+200% Luck")!=std::string::npos;}
+ assert(beforeLuck&&afterLuck);
+ select_upgrade(nullptr,&s_choices[0]);
+ assert(s_run.luck_percent()==300&&!s_run.eligible(Upgrade::Luck)&&money==160);
  // Native controller/touch request is consumed before dMw's fade/subscreen transition.
  fresh();dMenu_Collect2D_c menu,other;std::any args[]{&menu};bool shown=false;
  after_powerup_scroll_visible(nullptr,nullptr,&shown,nullptr);assert(shown);

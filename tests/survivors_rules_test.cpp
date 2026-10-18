@@ -4,17 +4,23 @@
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
-    // Exact base chances and multiplicative Luck; no additive percentage points.
-    for(unsigned luck:{0u,1u,5u}) {
+    // Published chart checkpoints (basis points), sampled from actual rarity rolls.
+    constexpr std::array<std::array<unsigned,5>,7> chart{{
+        {6000,2500,1000,400,100}, {5640,2585,1137,500,138},
+        {4957,2685,1396,726,236}, {4330,2706,1624,974,365},
+        {3030,2525,2020,1616,808}, {2094,2181,2181,2181,1363},
+        {1449,1812,2174,2609,1957}}};
+    unsigned row=0;
+    for(unsigned luck:{0u,1u,3u,5u,10u,15u,20u}) {
         Run sample;sample.start(98765);sample.ranks[unsigned(Upgrade::Luck)]=luck;
         assert(sample.luck_percent()==100+10*luck);
-        assert(sample.lucky_chance(2000)==2000+200*luck);
-        constexpr unsigned trials=200000;
+        assert(sample.lucky_chance(2000)==2000+200*std::min(5u,luck));
+        constexpr unsigned trials=500000;
         std::array<unsigned,5> rarities{};
         std::array<unsigned,unsigned(Run::Drop::Count)> loot{};
         for(unsigned n=0;n<trials;++n){++rarities[unsigned(sample.roll_rarity())];++loot[unsigned(sample.roll_drop())];}
-        const std::array<unsigned,5> expected{10000-sample.lucky_chance(3600),sample.lucky_chance(2000),sample.lucky_chance(1000),sample.lucky_chance(500),sample.lucky_chance(100)};
-        for(unsigned i=0;i<5;++i)assert(std::abs(int(rarities[i]*10000/trials)-int(expected[i]))<40);
+        for(unsigned i=0;i<5;++i)assert(std::abs(int(rarities[i]*10000/trials)-int(chart[row][i]))<40);
+        ++row;
         assert(std::abs(int(loot[1]*10000/trials)-int(sample.lucky_chance(500)))<30);
         assert(std::abs(int(loot[0]*10000/trials)-int(10000-sample.lucky_chance(5000)))<40);
         const unsigned rupees=trials-loot[0]-loot[1];
@@ -22,13 +28,29 @@ int main() {
         assert(std::abs(int(valuable*10000/rupees)-int(sample.lucky_chance(1700)))<80);
         for(unsigned i=1;i<loot.size();++i)assert(loot[i]); // Every native color is reachable.
     }
+    // All Luck ranks remain eligible up to 20; rarity grants/overflow use that cap.
+    for(unsigned initial=0;initial<=20;++initial)for(unsigned tier=0;tier<5;++tier){
+        Run r;r.start(1);r.ranks[unsigned(Upgrade::Luck)]=initial;
+        assert(r.eligible(Upgrade::Luck)==(initial<20));
+        const unsigned gain=std::min(20-initial,tier+1);
+        assert(r.upgrade_gain(Upgrade::Luck,Rarity(tier))==gain);
+        assert(r.upgrade_rupees(Upgrade::Luck,Rarity(tier))==20*(tier+1-gain));
+        if(initial<20){r.phase=Phase::Upgrade;r.offers[0]=Upgrade::Luck;r.offer_rarities[0]=Rarity(tier);
+            assert(r.choose(0)&&r.luck_percent()==100+10*(initial+gain));}
+    }
+    // Higher rarity Luck must not inflate enemy or pot drops past their old cap.
+    Run capped,maximum;capped.start(58);maximum.start(58);
+    capped.ranks[unsigned(Upgrade::Luck)]=5;maximum.ranks[unsigned(Upgrade::Luck)]=20;
+    for(unsigned n=0;n<10000;++n){assert(capped.roll_drop()==maximum.roll_drop());
+        assert(capped.roll_pot_drop()==maximum.roll_pot_drop());}
+    maximum.start(58);assert(maximum.luck_percent()==100&&maximum.eligible(Upgrade::Luck));
     for(unsigned rarity=0;rarity<5;++rarity) {
         for(unsigned u=0;u<unsigned(Upgrade::Rupees);++u)for(unsigned initial:{0u,4u}) {
             Run r;r.start(13);r.shield=1;r.ranks[8]=1;r.ranks[u]=initial;
             // Weapons must be chest-unlocked first.
             if(u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)&&!initial)continue;
             r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);
-            const auto random=r.random;const unsigned gain=std::min(5-initial,rarity+1);
+            const auto random=r.random;const unsigned gain=std::min(upgrade_cap(Upgrade(u))-initial,rarity+1);
             assert(r.upgrade_rupees(Upgrade(u),Rarity(rarity))==20*(rarity+1-gain));
             assert(r.choose(0)&&r.rank(Upgrade(u))==initial+gain&&r.random==random);
             assert(!r.choose(0));
@@ -75,11 +97,11 @@ int main() {
     assert(run.level_up()); // Excess XP remains available.
     for (uint32_t seed = 1; seed < 1000; ++seed) {
         run.start(seed);
-        run.ranks.fill(5); run.shield=1; run.ranks[2] = 4; run.xp = 100;
+        run.ranks.fill(5); run.ranks[unsigned(Upgrade::Luck)]=20; run.shield=1; run.ranks[2] = 4; run.xp = 100;
         assert(run.level_up());
         for (const auto offer : run.offers) assert(offer == Upgrade::ShieldAttack || offer == Upgrade::Rupees);
         assert(std::count(run.offers.begin(), run.offers.end(), Upgrade::ShieldAttack) == 1);
-        run.start(seed); run.ranks.fill(5); run.xp = 100;
+        run.start(seed); run.ranks.fill(5); run.ranks[unsigned(Upgrade::Luck)]=20; run.xp = 100;
         assert(run.level_up());
         for (const auto offer : run.offers) assert(offer == Upgrade::Rupees);
         assert(run.choose(2));

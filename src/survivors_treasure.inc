@@ -96,7 +96,7 @@ bool begin_treasure_choice(unsigned index, daAlink_c* link) {
             return s_run.chest_eligible(reward, potion_slot() >= 0);
         })) {
         chest.offers = s_run.roll_chest_offers(potion_slot() >= 0);
-        for (auto& rarity : chest.rarities) rarity = chest.free ? Rarity::Common : s_run.roll_rarity();
+        for (auto& rarity : chest.rarities) rarity = s_run.roll_rarity();
     }
     if (chest.offers[0] == ChestReward::Count) return false;
     s_selectedChest = index; s_chosenTreasure = ChestReward::Count;

@@ -30,6 +30,7 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
 enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, Rupees, Count };
+inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::Luck ? 20 : 5; }
 enum class Rarity : unsigned { Common, Green, Blue, Purple, Orange };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
 inline constexpr std::array rarity_names{"Common", "Green", "Blue", "Purple", "Orange"};
@@ -52,7 +53,7 @@ inline constexpr std::array descriptions{
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
     "Ignite enemies for periodic damage. Hits refresh the burn; upgrades improve damage and duration.",
-    "Improve reward rarities, heart drops, rupee drops and rupee colors. Each level adds +10% Luck.",
+    "Improve reward rarities. +10% Luck per level, max +200%. Heart and rupee bonuses stop at +50%.",
     "Receive 20 rupees."};
 
 struct Run {
@@ -72,29 +73,38 @@ struct Run {
     void start(uint32_t seed) { *this = {}; random = seed ? seed : 1; phase = Phase::Running; }
     unsigned required_xp() const { return 5 + level * 3; }
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return i < ranks.size() ? ranks[i] : 0; }
-    unsigned luck_percent() const { return 100 + 10 * rank(Upgrade::Luck); }
-    // Multiplicative positive-outcome chances, expressed in basis points.
-    // Five Luck ranks cap the multiplier at 1.5; totals stay below 100%.
-    unsigned lucky_chance(unsigned basis_points) const { return basis_points * luck_percent() / 100; }
+    unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
+    // Drop frequency/quality retain their old +50% cap independently of rarities.
+    unsigned lucky_chance(unsigned basis_points) const { return basis_points * std::min(150u, luck_percent()) / 100; }
+    std::array<uint32_t, 5> rarity_weights() const {
+        // 60 / 25k / 10k^2 / 4k^3 / k^4, scaled by 10,000 for exact integers.
+        const uint32_t t = luck_percent() / 10; // k = t / 10; t is in [10, 30].
+        return {600000, 25000*t, 1000*t*t, 40*t*t*t, t*t*t*t};
+    }
     Rarity roll_rarity() {
-        const unsigned roll = next_random() % 10000;
-        unsigned threshold = 0;
-        constexpr std::array<unsigned, 4> chances{100, 500, 1000, 2000};
-        for (unsigned i = 0; i < chances.size(); ++i) {
-            threshold += lucky_chance(chances[i]);
-            if (roll < threshold) return Rarity(4 - i);
+        const auto weights = rarity_weights();
+        uint32_t total = 0;
+        for (auto weight : weights) total += weight;
+        // Xorshift visits 1..UINT32_MAX. Reject the short tail before reducing.
+        const uint32_t limit = UINT32_MAX - UINT32_MAX % total;
+        uint32_t roll;
+        do { roll = next_random() - 1; } while (roll >= limit);
+        roll %= total;
+        for (unsigned i = 0; i < weights.size(); ++i) {
+            if (roll < weights[i]) return Rarity(i);
+            roll -= weights[i];
         }
         return Rarity::Common;
     }
     unsigned upgrade_gain(Upgrade u, Rarity rarity) const {
-        return u < Upgrade::Rupees ? std::min(reward_units(rarity), 5 - std::min(5u, rank(u))) : 0;
+        return u < Upgrade::Rupees ? std::min(reward_units(rarity), upgrade_cap(u) - std::min(upgrade_cap(u), rank(u))) : 0;
     }
     unsigned upgrade_rupees(Upgrade u, Rarity rarity) const {
         return 20 * (reward_units(rarity) - upgrade_gain(u, rarity));
     }
     bool eligible(Upgrade u) const {
         if (u == Upgrade::Rupees) return true;
-        if (u >= Upgrade::Count || rank(u) >= 5) return false;
+        if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
         if (u == Upgrade::ShieldAttack && !shield) return false;
         if (u == Upgrade::FireArrows && !rank(Upgrade::Bow)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;

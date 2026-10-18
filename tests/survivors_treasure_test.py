@@ -223,16 +223,28 @@ int main(){
     fresh();assert(begin_treasure_choice(0,&player));rupees=0;
     unsigned zero=0;select_treasure(nullptr,&zero);update_treasure_choice(&player);
     assert(created==0&&s_run.phase==Phase::Running&&s_run.chests_opened==0);
+    // Paid and free chests use the same Luck distribution, including high rarities.
+    bool orange=false,purple=false;
+    for(unsigned seed=1;seed<=100;++seed){
+        fresh();s_run.start(seed);s_run.ranks[unsigned(Upgrade::Luck)]=20;
+        assert(begin_treasure_choice(0,&player));
+        const auto paid=s_chests[0].rarities;
+        fresh();s_run.start(seed);s_run.ranks[unsigned(Upgrade::Luck)]=20;s_chests[0].free=true;rupees=0;
+        assert(begin_treasure_choice(0,&player)&&s_chests[0].rarities==paid);
+        for(auto rarity:paid){orange|=rarity==Rarity::Orange;purple|=rarity==Rarity::Purple;}
+    }
+    assert(orange&&purple);
     fresh();s_chests[0].free=true;rupees=0;
     assert(chest_interactable(s_chests[0],&player));
     assert(begin_treasure_choice(0,&player));
     assert(s_chosenTreasure==ChestReward::Count);
     assert(s_chests[0].offers[1]!=ChestReward::Count && s_chests[0].offers[2]!=ChestReward::Count);
-    assert(s_chests[0].rarities[0]==Rarity::Common);
+    Run expectedFree;expectedFree.start(123);expectedFree.roll_chest_offers(true);
+    for(auto rarity:s_chests[0].rarities)assert(rarity==expectedFree.roll_rarity());
     update_treasure_choice(&player);assert(s_run.phase==Phase::TreasureChoice && created==0);
-    const auto freeOffers=s_chests[0].offers;const auto freeRng=s_run.random;
+    const auto freeOffers=s_chests[0].offers;const auto freeRarities=s_chests[0].rarities;const auto freeRng=s_run.random;
     dismiss_treasure_choice();assert(rupees==0 && s_run.chests_opened==0);
-    assert(begin_treasure_choice(0,&player) && s_chests[0].offers==freeOffers && s_run.random==freeRng);
+    assert(begin_treasure_choice(0,&player) && s_chests[0].offers==freeOffers && s_chests[0].rarities==freeRarities && s_run.random==freeRng);
     unsigned freeChoice=2;select_treasure(nullptr,&freeChoice);
     update_treasure_choice(&player);assert(s_run.phase==Phase::Treasure && s_treasure.price==0);
     assert(s_chests[0].reward==freeOffers[2]);

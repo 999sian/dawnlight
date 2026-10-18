@@ -1,6 +1,6 @@
 # Hyrule Survivors
 
-[← Dawnlight overview](../../README.md)
+[← Dawnlight overview](../../README.md) · [Player guide and Luck chart](../../SURVIVORS.md)
 
 Hyrule Survivors is a separate game mode included in `dawnlight_mod.dusk`.
 Select it in Dusklight's game-mode menu and create or load a Survivors save.
@@ -92,7 +92,7 @@ is retained and multiple earned levels are offered consecutively.
 | Reach | Increase weapon size |
 | Magnet | Attract experience from farther away |
 | Heart Container | Add one maximum heart without healing |
-| Luck | +10% Luck per rank (five ranks); multiplies positive reward/drop chances |
+| Luck | +10% Luck per rank (20 ranks, +200% max); weighted rarity chances; drop bonuses cap at +50% |
 | Rupees | Receive 20 rupees per reward unit without healing |
 
 Equip both base weapons, all four chest weapons and up to four different
@@ -133,25 +133,20 @@ Each of the three level-up or chest choices independently rolls a rarity when
 its offers are generated. Rarity controls how many ranks of the selected reward
 are granted; it does not choose additional random items after confirmation.
 
-| Rarity | Reward units | Base chance | With +10% Luck |
-| --- | ---: | ---: | ---: |
-| Common | 1 | 64% | 60.4% |
-| Green | 2 | 20% | 22% |
-| Blue | 3 | 10% | 11% |
-| Purple | 4 | 5% | 5.5% |
-| Orange | 5 | 1% | 1.1% |
-
-`chance = base chance * (1 + 0.10 * Luck rank)` for each non-common tier;
-common receives the remaining probability. These are mutually exclusive outcomes
-of one roll, preserving the requested base percentages. Luck has five ranks
-(+10% through +50%) and resets each run. The multiplier approach also applies to
-heart/rupee drop chances and the separate rupee-quality roll. Luck never rerolls
-already displayed choices; previews and reopening a window consume no randomness.
+The player-facing [Luck chart](../../SURVIVORS.md#rarities-and-luck) lists the
+rounded probabilities. With `k = 1 + Luck / 100`, weights for Common through
+Orange are `60 / 25k / 10k² / 4k³ / k⁴`, normalized by their sum. Integer-scaled
+weights and rejection sampling avoid modulo bias. All three cards roll separately
+for level-ups, paid chests and free elite chests; no level/source bonus applies.
+Luck has 20 ranks (+10% each, max +200%) and resets each run. Heart, heart-piece,
+rupee frequency and rupee-quality bonuses retain their previous +50% effective
+Luck cap. Existing offers never reroll merely because Luck changes or a window
+is reopened; previews consume no randomness.
 
 The reward name and icon border show its rarity color; each card also says
 **Green x2**, **Blue x3**, etc. Before/after values include the full grant. Native
 Get Item names use the same rarity and quantity while changed values remain red.
-Upgrade caps are unchanged. Each unit exceeding the cap becomes **20 rupees**,
+Luck caps at 20 ranks; other upgrade caps are unchanged. Each unit exceeding the cap becomes **20 rupees**,
 shown in the preview/message and capped by the wallet when granted. This also
 applies to extra Ordon Sword units and potion units beyond available bottle slots.
 One chest still charges only once. Price increases are +5, +7, +9, +11 rupees, etc.
@@ -511,7 +506,7 @@ Before merging/releasing, test on Android and desktop:
 21. Compare all rarity colors on names and icon borders, quantities and full deltas.
     Test multi-rank grants near a cap, shield/sword evolution, potion batches with
     mixed empty/full/missing bottles, overflow currency and cancel/reopen stability.
-    Check Luck's +10% increments, reset and appearance in the power-up overview.
+    Check Luck's +10% increments through +200%, cap/overflow, reset and appearance in the power-up overview.
 
 22. Collect Dark Link, verify the Poe Soul icon/Get Item text and automatic-only
     wheel slot, first activation at 20 seconds for 5 seconds, x2 damage for every
@@ -522,7 +517,7 @@ Before merging/releasing, test on Android and desktop:
 
 Automated tests cover burn timing/refresh/final ticks and emitter cleanup,
 Dark Link timing/pause/caps/visual isolation, nearest-target multihit selection,
-duplicate suppression and rarity/drop distributions at 0/10/50% Luck, colored card
+duplicate suppression and rarity distributions through +200% Luck and the separate +50% drop cap, colored card
 previews, multi-rank grants and overflow, potion transactions and cancellation,
 continuous melee facing while orbiting, target retention/replacement, rules, caps, upgrade choice integrity, record encoding,
 true-death accounting, deferred spawn cleanup, startup/reset routing and shared
