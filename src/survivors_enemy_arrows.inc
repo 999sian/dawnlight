@@ -29,8 +29,12 @@ bool owned_arrow_spawn(void* args) {
 HookAction before_enemy_arrow(ModContext*, void* args, void* result, void*) {
     if (!owned_arrow_spawn(args)) return HOOK_CONTINUE;
     const auto* enemy=tracked(mods::arg<ActorId>(args,1));
-    const bool full=std::none_of(s_enemyArrows.begin(),s_enemyArrows.end(),[](const auto& a){return a.id==kNone;});
-    if (enemy->retiring || enemy->credited || s_run.phase!=Phase::Running || full) {
+    const bool shell=mods::arg<s16>(args,0)==fpcNm_E_MM_MT_e;
+    const auto used=std::count_if(s_enemyArrows.begin(),s_enemyArrows.end(),[](const auto& a){return a.id!=kNone;});
+    // Structural children must finish asynchronous creation during menus too.
+    // Reserve one armor slot per enemy; projectiles cannot exhaust that reserve.
+    const bool full=used>=int(s_enemyArrows.size()-(shell?0:enemy_capacity));
+    if (enemy->retiring || enemy->credited || (!shell&&s_run.phase!=Phase::Running) || full) {
         *static_cast<ActorId*>(result)=kNone;
         return HOOK_SKIP_ORIGINAL;
     }

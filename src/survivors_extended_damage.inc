@@ -20,6 +20,16 @@ void finish_extended_targets(const Enemy* enemy,fopAc_ac_c* actor) {
        actor->health<=0||!extended_enemy(enemy->profile))return;
     // Dodongo and some armor paths change shield flags after registering CC.
     for(auto* target:extended_body(actor,enemy->profile).targets)if(target)allow_roster_target(target);
+    if(enemy->profile==fpcNm_E_MM_e) {
+        auto* helmasaur=reinterpret_cast<e_mm_class*>(actor);
+        // Native Execute omits this body collider while it believes armor is
+        // attached. Keep HP reachable even while its child is still loading.
+        if(helmasaur->field_0x672&&!actor_by_id(helmasaur->armorChildId)) {
+            auto center=actor->current.pos;center.y+=40.f*actor->scale.x;
+            helmasaur->ccSph.SetC(center);helmasaur->ccSph.SetR(40.f*actor->scale.x);
+            helmasaur->ccSph.OffAtSetBit();dComIfG_Ccsp()->Set(&helmasaur->ccSph);
+        }
+    }
 }
 HookAction before_roster_targets(ModContext*,void* args,void*,void*) {
     auto* object=mods::arg<cCcD_Obj*>(args,1);if(!object||!in_arena())return HOOK_CONTINUE;
@@ -91,6 +101,10 @@ HookAction before_roster_shell(ModContext*,void* args,void*,void*) {
     auto* parent=actor_by_id(actor->parentActorID);
     if(!roster_owned(parent))return HOOK_CONTINUE;
     auto* enemy=tracked(actor->parentActorID);
+    if(enemy->profile!=fpcNm_E_MM_e||enemy->retiring||enemy->credited||parent->health<=0)return HOOK_CONTINUE;
+    auto* helmasaur=reinterpret_cast<e_mm_class*>(parent);
+    helmasaur->field_0x672=1;helmasaur->field_0xb99&=~4;
+    shell->m_action=0;shell->m_mode=0;
     for(auto* target:{&shell->m_sphere,&shell->m_sph}) {
         if(target->ChkTgHit() && !enemy->childHit && roster_attack(target->GetTgHitObj()))
             enemy->childHit=target->GetTgHitObj();
@@ -111,6 +125,7 @@ HookAction before_roster_bubble_search(ModContext*,void* args,void* result,void*
     *static_cast<int*>(result)=1;return HOOK_SKIP_ORIGINAL;
 }
 bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
+    maintain_helmasaur_armor(enemy,actor);
     auto body=extended_body(actor,enemy.profile);
     if(!body.targets[0])return true;
     if(enemy.hitCooldown)--enemy.hitCooldown;

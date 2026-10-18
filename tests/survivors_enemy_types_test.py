@@ -112,6 +112,23 @@ int main(){
   actors[200]=&player;retire_enemy_arrows();cleanup_enemy_arrows();assert(deleted.contains(200));
   actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(200));
  }
+ // Pending armor creation may complete after a level-up pauses the run.
+ s_enemyArrows={};s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=fpcNm_E_MM_e;
+ std::any armorArgs[]={s16(fpcNm_E_MM_MT_e),ActorId(42)};ActorId armorId=300;
+ for(auto phase:{Phase::Upgrade,Phase::Treasure}){
+  s_run.phase=phase;assert(before_enemy_arrow(nullptr,armorArgs,&armorId,nullptr)==HOOK_CONTINUE);
+ }
+ after_enemy_arrow(nullptr,armorArgs,&armorId,nullptr);assert(active_enemy_arrow(300));
+ s_run.phase=Phase::Running;
+ // Projectile saturation leaves room for structural shells.
+ s_enemyArrows={};for(unsigned i=0;i<enemy_capacity*2;++i)s_enemyArrows[i].id=1000+i;
+ s_enemies[1].id=43;s_enemies[1].profile=fpcNm_E_RD_e;
+ std::any shotArgs[]={s16(fpcNm_E_ARROW_e),ActorId(43)};ActorId shot=301;
+ assert(before_enemy_arrow(nullptr,shotArgs,&shot,nullptr)==HOOK_SKIP_ORIGINAL&&shot==kNone);
+ assert(before_enemy_arrow(nullptr,armorArgs,&armorId,nullptr)==HOOK_CONTINUE);
+ s_enemies[0].retiring=true;assert(before_enemy_arrow(nullptr,armorArgs,&armorId,nullptr)==HOOK_SKIP_ORIGINAL);
+ s_enemies[0].retiring=false;s_enemies[0].credited=true;armorId=300;
+ assert(before_enemy_arrow(nullptr,armorArgs,&armorId,nullptr)==HOOK_SKIP_ORIGINAL);
  // Shadow arrows and Stallord fireballs share pause/teardown ownership.
  for(auto spec:{std::pair{fpcNm_E_RDY_e,fpcNm_E_ARROW_e},std::pair{fpcNm_B_DS_e,fpcNm_B_DS_e}}){
   s_enemyArrows={};s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=spec.first;

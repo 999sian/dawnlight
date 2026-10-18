@@ -359,13 +359,13 @@ struct Run {
     unsigned cooldown(unsigned base) const { return std::max(6u, base * cooldown_percent() / 100); }
     unsigned shield_cooldown() const { return cooldown(100 - std::min(90u, 10 * rank(Upgrade::ShieldAttack))); }
     bool normal_kill_drops() { if (++drop_progress < options.horde) return false; drop_progress=0; return true; }
-    // At base Luck: 5% heart, 45% rupee, 50% nothing. A second lucky
+    // At base Luck: 2.5% heart, 45% rupee, 52.5% nothing. A second lucky
     // roll chooses rupee value, so Luck improves both frequency and quality.
     enum class Drop { None, Heart, GreenRupee, BlueRupee, YellowRupee, RedRupee, PurpleRupee, OrangeRupee, SilverRupee, Count };
     Drop roll_drop() {
         const unsigned roll = next_random() % 10000;
-        if (roll < lucky_chance(500)) return Drop::Heart;
-        if (roll >= lucky_chance(5000)) return Drop::None;
+        if (roll < lucky_chance(250)) return Drop::Heart;
+        if (roll < lucky_chance(500) || roll >= lucky_chance(5000)) return Drop::None;
         const unsigned color = next_random() % 10000;
         unsigned threshold = 0;
         constexpr std::array<unsigned, 6> chances{5, 15, 80, 200, 400, 1000};

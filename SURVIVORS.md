@@ -281,7 +281,8 @@ a selection has about **47.96%** chance to contain at least one Legendary card.
 Luck never rerolls existing offers.
 
 Heart, heart-piece and rupee bonuses use a separate multiplier capped at **+50%
-Luck**: enemy drops reach 7.5% heart / 67.5% rupee / 25% nothing; pot heart pieces
+Luck**: enemy drops start at 2.5% heart / 45% rupee / 52.5% nothing and reach
+3.75% heart / 67.5% rupee / 28.75% nothing; pot heart pieces
 reach 3%. Better rupee-color chances also stop improving above +50%.
 
 [Technical details and testing notes](docs/features/hyrule-survivors.md)

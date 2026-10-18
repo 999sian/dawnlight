@@ -44,6 +44,18 @@ ExtendedBody extended_body(fopAc_ac_c* actor,ProfileName profile) {
     }
 #undef BODY
 }
+void maintain_helmasaur_armor(Enemy& enemy,fopAc_ac_c* actor) {
+    if(enemy.profile!=fpcNm_E_MM_e||enemy.retiring||enemy.credited||actor->health<=0)return;
+    auto* helmasaur=reinterpret_cast<e_mm_class*>(actor);
+    helmasaur->field_0x672=1;
+    helmasaur->field_0xb99&=~4; // Never enter the native detached-shell path.
+    const auto id=helmasaur->armorChildId;
+    if(actor_by_id(id)||fpcM_IsCreating(id))return;
+    // Failed child creation is retried at most once per playable second.
+    if(enemy.age%30==0)
+        helmasaur->armorChildId=fopAcM_createChild(fpcNm_E_MM_MT_e,enemy.id,0,&actor->current.pos,
+            fopAcM_GetRoomNo(actor),&actor->shape_angle,&actor->scale,actor->argument,nullptr);
+}
 void initialize_extended_enemy(Enemy& enemy,fopAc_ac_c* actor) {
     const auto& native=native_roster[enemy.species];
     actor->health=actor->field_0x560=s16(std::clamp(int(enemy.elite?120:native.hp+std::min(24u,s_run.ticks/900))*int(s_run.options.enemy_hp),1,32767));

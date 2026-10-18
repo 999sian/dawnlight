@@ -126,9 +126,9 @@ Sword Wave uses the two smaller
 normal-spin particle effects, following the moving-emitter approach of Great Spin
 Projectile. It does not use the large Great Spin effect or a debug sphere.
 
-Each confirmed ordinary enemy kill has a base 5% chance to drop a native heart,
-45% to drop a rupee and 50% to drop nothing. Luck multiplies the heart and rupee
-chances; at +50% Luck these become 7.5%, 67.5% and 25%. A second roll chooses the
+Each confirmed ordinary enemy kill has a base 2.5% chance to drop a native heart,
+45% to drop a rupee and 52.5% to drop nothing. Luck multiplies the heart and rupee
+chances; at +50% Luck these become 3.75%, 67.5% and 28.75%. A second roll chooses the
 rupee's color. Experience crystals are awarded independently. Native random drops
 are suppressed to prevent duplicate rewards. Level-ups never heal Link.
 
@@ -198,6 +198,13 @@ Helmasaur shell contacts route to parent HP regardless of parent/child execution
 order. Shells retire with their owner; Bomskit eggs and Bulblin arrows retain
 independent ownership for pause, difficulty, defense and deferred teardown.
 Native hooks pass through for actors outside Survivors ownership.
+
+Helmasaur armor is a structural child: it may finish creation during upgrade/treasure
+pauses, with one child slot per enemy reserved against projectile saturation.
+Failed/missing armor is retried once per playable second, pending creates are
+retained, and the attached state is maintained for live run-owned Helmasaurs.
+The body remains a damage target while armor loads; death/teardown still retires
+its shell with the parent.
 
 Gerudo replaces Lizalfos with Dodongo and adds Stalhounds; its second/final elites
 are a giant Stalhound and Stallord’s flying head. Palace enemies are entirely

@@ -74,8 +74,8 @@ int main() {
         for(unsigned n=0;n<trials;++n){++rarities[unsigned(sample.roll_rarity())];++loot[unsigned(sample.roll_drop())];}
         for(unsigned i=0;i<5;++i)assert(std::abs(int(rarities[i]*10000/trials)-int(chart[row][i]))<40);
         ++row;
-        assert(std::abs(int(loot[1]*10000/trials)-int(sample.lucky_chance(500)))<30);
-        assert(std::abs(int(loot[0]*10000/trials)-int(10000-sample.lucky_chance(5000)))<40);
+        assert(std::abs(int(loot[1]*10000/trials)-int(sample.lucky_chance(250)))<30);
+        assert(std::abs(int(loot[0]*10000/trials)-int(10000-sample.lucky_chance(5000)+sample.lucky_chance(250)))<40);
         const unsigned rupees=trials-loot[0]-loot[1];
         const unsigned valuable=rupees-loot[unsigned(Run::Drop::GreenRupee)];
         assert(std::abs(int(valuable*10000/rupees)-int(sample.lucky_chance(1700)))<80);
@@ -122,7 +122,7 @@ int main() {
     std::array<unsigned,unsigned(Run::Drop::Count)> drops{};
     run.start(123);
     for(unsigned i=0;i<10000;++i) ++drops[static_cast<unsigned>(run.roll_drop())];
-    assert(drops[1]>350 && drops[1]<650); // Rare hearts, not an every-kill heal.
+    assert(drops[1]>170 && drops[1]<330); // Rare hearts, not an every-kill heal.
     assert(drops[2]>3500 && drops[2]<4500 && drops[3]>350 && drops[3]<650);
     run = {};
     assert(!run.tick(true));

@@ -11,6 +11,7 @@ fixture=r'''
 #include <cassert>
 #include <cmath>
 #include <map>
+#include <set>
 #include "survivors_rules.hpp"
 #include "survivors_roster.hpp"
 using namespace dawnlight::survivors;
@@ -21,7 +22,7 @@ namespace mods {template<class T>T arg(void* p,unsigned i){return std::any_cast<
 struct cXyz {float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator-(cXyz v)const{return{x-v.x,y-v.y,z-v.z};}float absXZ()const{return std::sqrt(x*x+z*z);}};
 s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.141592653589793);}
-struct fopAc_ac_c {ActorId id=1,parentActorID=kNone;int profile=0,health=100,field_0x560=100;
+struct fopAc_ac_c {ActorId id=1,parentActorID=kNone;int profile=0,health=100,field_0x560=100,argument=-1;
  struct {cXyz pos;struct{s16 y=0;}angle;}current,home;struct{s16 y=0;}shape_angle;cXyz scale{1,1,1};};
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}int fopAcM_GetName(fopAc_ac_c* a){return a->profile;}
 std::map<ActorId,fopAc_ac_c*> actors;fopAc_ac_c* actor_by_id(ActorId id){auto it=actors.find(id);return it==actors.end()?nullptr:it->second;}
@@ -32,6 +33,7 @@ struct dCcD_GObjInf:cCcD_Obj {cCcD_Obj* hit=nullptr;bool shield=true;unsigned ty
  bool ChkTgHit(){return hit;}cCcD_Obj* GetTgHitObj(){return hit;}void ResetTgHit(){hit=nullptr;}
  void OnTgSetBit(){tg=true;}void SetTgType(unsigned t){type=t;}void OffTgShield(){shield=false;}
  void OffTgShieldFrontRange(){}float GetR(){return r;}void SetR(float n){r=n;}void SetH(float n){h=n;}
+ void SetC(cXyz p){center=p;}cXyz center;
  void Set(int){}void SetStts(dCcD_Stts*){}void SetAtType(unsigned){}void SetAtAtp(unsigned n){atp=n;}
  void SetAtMtrl(int){} };
 using dCcD_Sph=dCcD_GObjInf;using dCcD_Cyl=dCcD_GObjInf;
@@ -48,7 +50,7 @@ struct NativeActor:fopAc_ac_c {
  int field_0x5b4=0,mCurAction=0,field_0x672=0,mCryTimer=0,combine_off_timer=0;
  float field_0x6d4=0,pl_range=0,field_0x6b8=0,mRecognizeDist=0,pl_recognize_dist=0,pl_search_range=0;
  s16 angle_target=0,mTargetAngleY=0,mCurrentAngleYTarget=0,field_0x6c0=0;int timers[4]{};
- ActorId armorChildId=kNone;
+ ActorId armorChildId=kNone;int field_0xb99=0,m_action=0,m_mode=0;
  dCcD_Sph mSphere,mSphere2,mSphere3,cc_sph[3],tate_sph,mCcSphs[3],mTateSph;
  dCcD_Sph field_0xa7c[3],field_0xf5c,mCcHookCyl,mCcShieldSph,mSphA[3],mSphB[3],mSphC,m_sphere,m_sph;
  TargetSet ccSph,mCcSph;
@@ -68,7 +70,7 @@ using e_mm_class=NativeActor;using e_mm_mt_class=NativeActor;using e_cr_class=Na
 using daE_GI_c=NativeActor;using e_sf_class=NativeActor;using e_fs_class=NativeActor;using e_bu_class=NativeActor;
 using e_sm2_class=NativeActor;using e_mf_class=NativeActor;using daB_GG_c=NativeActor;using daB_TN_c=NativeActor;
 constexpr int ACTION_COMBINE=2,ACTION_ATTACK=1;
-struct Enemy {ActorId id=kNone;ProfileName profile=0;unsigned species=0,stagger=0,hitCooldown=0;
+struct Enemy {ActorId id=kNone;ProfileName profile=0;unsigned species=0,stagger=0,hitCooldown=0,age=1;
  cCcD_Obj* childHit=nullptr;bool elite=false,credited=false,retiring=false,initialized=true;};
 std::array<Enemy,enemy_capacity> s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id!=kNone&&e.id==id)return &e;return nullptr;}
@@ -96,6 +98,13 @@ void credit_death(Enemy& e,fopAc_ac_c*){if(!e.credited){++credits;e.credited=tru
 void fopAcM_createDisappear(fopAc_ac_c*,cXyz*,int,int,int){++disappears;}
 struct Service{void delete_actor(ModContext*,ActorId){++deletes;}}service;auto* svc_actor=&service;ModContext* mod_ctx=nullptr;
 struct Collision {unsigned sets=0;void Set(cCcD_Obj*){++sets;}}collision;Collision* dComIfG_Ccsp(){return &collision;}
+'''
+fixture+=r'''
+std::set<ActorId> creating;bool fpcM_IsCreating(ActorId id){return creating.contains(id);}
+int fopAcM_GetRoomNo(fopAc_ac_c*){return 7;}
+unsigned armorCreates=0;ActorId createdArmor=kNone;int armorArgument=0;ActorId armorParent=kNone;
+template<class Angle>ActorId fopAcM_createChild(int,ActorId parent,unsigned params,cXyz*,int room,Angle*,cXyz*,int argument,void*){
+ ++armorCreates;assert(params==0&&room==7);armorArgument=argument;armorParent=parent;return createdArmor;}
 '''
 main=r'''
 int main(){
@@ -153,6 +162,29 @@ int main(){
  before_roster_shell(nullptr,shellArgs,nullptr,nullptr);assert(e.childHit==&sword&&!shell.m_sphere.hit);
  update_extended_enemy(&helmet,e);assert(helmet.health==86&&!e.childHit);
  update_extended_enemy(&helmet,e);assert(helmet.health==86);
+ // A missing/pending shell cannot leave the armored body without a target.
+ helmet.field_0x672=1;helmet.ccSph.owner=&helmet;helmet.scale={2,2,2};
+ const auto registered=collision.sets;finish_extended_targets(&e,&helmet);assert(collision.sets==registered);
+ actors.erase(2);finish_extended_targets(&e,&helmet);
+ assert(collision.sets==registered+1&&helmet.ccSph.r==80&&helmet.ccSph.center.y==80&&!helmet.ccSph.at);
+ // Restore the attached state before either parent-first or child-first execution.
+ actors[2]=&shell;helmet.field_0x672=0;helmet.field_0xb99=4;shell.m_action=2;shell.m_mode=5;
+ before_roster_shell(nullptr,shellArgs,nullptr,nullptr);
+ assert(helmet.field_0x672==1&&helmet.field_0xb99==0&&shell.m_action==0&&shell.m_mode==0);
+ actors.erase(2);helmet.armorChildId=kNone;e.age=30;createdArmor=77;
+ maintain_helmasaur_armor(e,&helmet);assert(armorCreates==1&&helmet.armorChildId==77&&armorParent==1&&armorArgument==-1);
+ creating.insert(77);e.age=60;maintain_helmasaur_armor(e,&helmet);assert(armorCreates==1);
+ creating.clear();e.age=61;maintain_helmasaur_armor(e,&helmet);assert(armorCreates==1);
+ createdArmor=kNone;e.age=90;maintain_helmasaur_armor(e,&helmet);assert(armorCreates==2&&helmet.armorChildId==kNone);
+ e.age=91;maintain_helmasaur_armor(e,&helmet);assert(armorCreates==2);
+ helmet.argument=1;createdArmor=88;e.age=120;maintain_helmasaur_armor(e,&helmet);
+ assert(armorCreates==3&&armorArgument==1&&helmet.armorChildId==88);
+ actors[88]=&shell;maintain_helmasaur_armor(e,&helmet);assert(armorCreates==3);
+ actors.erase(88);e.retiring=true;maintain_helmasaur_armor(e,&helmet);assert(armorCreates==3);
+ e.retiring=false;e.credited=true;maintain_helmasaur_armor(e,&helmet);assert(armorCreates==3);
+ e.credited=false;helmet.health=0;maintain_helmasaur_armor(e,&helmet);assert(armorCreates==3);
+ helmet.health=86;helmet.armorChildId=kNone;e.hitCooldown=0;helmet.ccSph.hit=&sword;
+ update_extended_enemy(&helmet,e);assert(helmet.health==79); // Body damage during failed armor creation.
  NativeActor tektite;tektite.profile=fpcNm_E_TT_e;std::any searchArgs[]={static_cast<fopAc_ac_c*>(&tektite)};bool found=false;
  assert(before_roster_search(nullptr,searchArgs,&found,nullptr)==HOOK_SKIP_ORIGINAL&&found);
  NativeActor bubble;bubble.profile=fpcNm_E_BU_e;bubble.pl_search_range=1e9;
