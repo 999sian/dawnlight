@@ -34,6 +34,7 @@ constexpr int MOD_OK=0,TRUE=1,cPhs_ERROR_e=-1,cPhs_COMPLEATE_e=4;
 constexpr unsigned dRes_ID_ALANM_BMD_AL_IB_e=0x311,dRes_ID_ALANM_BMD_AL_BOW_e=0x312,dRes_ID_ALANM_BMD_AL_HS_KUSARI_e=0x313,
  dRes_ID_ALANM_BCK_BARELORD_e=1,dRes_ID_ALANM_BCK_BASHOOT_e=2;
 struct ModContext{};ModContext* mod_ctx=nullptr;
+void clear_locomotion(){}
 struct cXyz {float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
     cXyz operator+(cXyz p)const{return {x+p.x,y+p.y,z+p.z};}
     float absXZ()const{return std::sqrt(x*x+z*z);}};

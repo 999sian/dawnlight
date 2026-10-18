@@ -36,6 +36,7 @@ struct LootModels {
 } s_loot;
 
 void clear_loot() {
+    clear_locomotion();
     cancel_treasure_demo();
     // Some engines cache model matrices outside the owning heap.
     using ForgetModel = void (*)(J3DModel*);

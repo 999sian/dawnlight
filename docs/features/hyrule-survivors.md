@@ -793,3 +793,17 @@ Hyrule Field navigation: owned Bokoblins use the native Link-through polygon
 flag for their collision correction and generic navigation probes. Solid walls
 remain solid. The probe hook is restricted to their tracked Execute scope in
 this arena; story actors and camera/projectile-specific probes are unchanged.
+
+Moving auto-attacks use directional leg animation. Native forward, left, back
+and right attention walk/run clips blend by movement relative to Link's final
+facing, including diagonal travel. The gait advances with horizontal travel and
+uses the normal movement HIO speeds, so Sprint increases cadence. Native foot
+contact phases are aligned before blending. Only the pelvis subtree borrows a
+separate matrix calculator during body evaluation; attack/upper animation packs,
+frame controllers, root movement, weapon matrices and Dual Wield remain native.
+The pelvis compensates attack-root rotation without turning the upper body.
+Standstill, airborne actions, Spin/Jump attacks, damage, riding, events and pause
+retain their native presentation. Animation storage is released with run resources;
+nonstandard rigs and unavailable resources fall back to native animation.
+Desktop/Android visual validation of diagonal blends and attack transitions is
+still required.

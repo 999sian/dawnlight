@@ -6,6 +6,8 @@
 #include "survivors_items.hpp"
 #include "survivors_maps.hpp"
 #include "survivors_barriers.hpp"
+#include "survivors_locomotion.hpp"
+#include "dual_wield_animation.hpp"
 #include "enemy_spawner.hpp"
 #include "bow_fire_resource.hpp"
 #include "save_state.hpp"
@@ -104,6 +106,7 @@
 #include <vector>
 #include <memory>
 #include <span>
+#include <optional>
 
 namespace dawnlight {
 namespace {
@@ -173,6 +176,7 @@ DEFINE_HOOK(&daAlink_c::setSwordAtCollision, SurvivorsSwordCollision);
 DEFINE_HOOK_SYMBOL("dBgS_LinChk::Set", void(dBgS_LinChk*, const cXyz*, const cXyz*, const fopAc_ac_c*),
                    SurvivorsEnemyNavigationLine);
 DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
+DEFINE_HOOK(&daAlink_c::modelCalc, SurvivorsLocomotionModel);
 DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
 DEFINE_HOOK(&daAlink_c::checkAutoJumpAction, SurvivorsLedgeJump);
 DEFINE_HOOK(&daAlink_c::procCutTurn, SurvivorsSpinMove);
@@ -235,6 +239,7 @@ ActorId s_meleeTarget = kNone;
 bool s_wavePending = false, s_allowDrop = false;
 std::array<unsigned, unsigned(Upgrade::Rupees)> s_cooldowns{};
 void clear_loot();
+void clear_locomotion();
 void clear_attacks();
 void interrupt_auto_actions(daAlink_c*);
 void finish(bool won);
@@ -843,6 +848,7 @@ void new_melee_swing() { ++s_meleeSerial; }
 #include "survivors_concurrent_hits.inc"
 #include "survivors_bulblin.inc"
 #include "survivors_movement.inc"
+#include "survivors_locomotion.inc"
 #include "survivors_ledge_jump.inc"
 
 #include "survivors_parallel.inc"
@@ -1369,6 +1375,8 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsLedgeJump, before_survivors_ledge_jump); POST(SurvivorsLedgeJump, after_survivors_ledge_jump);
     POST(SurvivorsPosition, after_arena_position);
     POST(SurvivorsPosition, after_auto_position);
+    POST(SurvivorsPosition, after_locomotion_position);
+    PRE(SurvivorsLocomotionModel, before_locomotion_model); POST(SurvivorsLocomotionModel, after_locomotion_model);
     PRE(SurvivorsRangedAim, before_ranged_aim);
     PRE(SurvivorsBowAction, before_ranged_native);
     PRE(SurvivorsBowNext, before_ranged_native);
