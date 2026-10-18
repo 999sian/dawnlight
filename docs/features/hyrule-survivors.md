@@ -829,3 +829,24 @@ reward opportunities as before. Four slots remain reserved for timed bosses;
 additional magnet slots grow as needed and reuse collected ordinary drops.
 Collecting either type summons the current XP, heart and rupee snapshot globally,
 including pending owned item creates. Later drops and retiring items are excluded.
+
+
+### Expanded combat perks, Legendary Chance and regeneration
+
+Crit Chance and Bonus Damage have ten ranks (+10 base percentage points and +10
+weapon damage at maximum). Append Legendary Chance and Life Regen without moving
+existing talent IDs. Records v6 uses 132 bytes and migrates v1–v5, preserving
+scores, XP and old ranks; appended perks start unspent.
+
+Legendary Chance transfers 0.6 base percentage points per rank from Common to
+Legendary, up to +3 points (1% to 4%), before the existing rarity Luck weights.
+The shared rarity roll covers chest items, Starting Item choices and level-up
+power-ups. It does not change the frequency of enemy heart/rupee/magnet drops.
+Use 64-bit intermediate arithmetic; total weights fit the 32-bit rejection sampler
+at every supported perk/Luck combination.
+
+After each active player tick, regenerate one native life unit (one quarter heart)
+at intervals of (20 - Life Regen rank) seconds. Rank zero already regenerates;
+rank five shortens the interval to 15 seconds. Run pause/menu/death guards and the
+native maximum-life gauge apply. Full health does not accumulate healing, restart
+resets the interval, and ticks continue through the final boss beyond 20 minutes.

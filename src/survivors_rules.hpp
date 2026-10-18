@@ -151,7 +151,11 @@ struct Run {
     std::array<uint32_t, 5> rarity_weights() const {
         // 60 / 25k / 10k^2 / 4k^3 / k^4. Integer weights retain half-step Luck ranks.
         const uint32_t t = 100 + 5*std::min(20u,rank(Upgrade::Luck)); // k = t / 100; t is in [100, 200].
-        return {600000000, 2500000*t, 10000*t*t, 40*t*t*t, t*t*t*t/10};
+        // Shift 0.6 percentage points per perk rank from Common to Legendary
+        // in the base distribution, then apply the same Luck weights.
+        const uint32_t perk=std::min(5u,talents.rank(Talent::LegendaryChance));
+        return {600000000-6000000*perk, 2500000*t, 10000*t*t, 40*t*t*t,
+            uint32_t(uint64_t(10+6*perk)*t*t*t*t/100)};
     }
     Rarity roll_rarity() {
         const auto weights = rarity_weights();
@@ -226,6 +230,8 @@ struct Run {
     unsigned melee_speed_percent() const { return 100 + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield)/2 + 5*talents.rank(Talent::MeleeHaste); }
     float melee_speed() const { return melee_speed_percent()/100.f; }
     unsigned melee_cooldown() const { return std::max(6u, 30*cooldown_percent()/melee_speed_percent()); }
+    unsigned life_regen_interval() const { return (20-std::min(5u,talents.rank(Talent::LifeRegen)))*ticks_per_second; }
+    bool life_regen_due() const { return phase==Phase::Running && ticks && ticks%life_regen_interval()==0; }
     unsigned auto_rupees() const { return ticks && ticks%(5*ticks_per_second)==0 ? talents.rank(Talent::AutoRupees) : 0; }
     unsigned jump_splash_percent() const {
         const auto level = std::min(30u, rank(Upgrade::JumpStrike));
@@ -469,21 +475,21 @@ struct Records {
         best_kills = std::max(best_kills, run.kills);
         best_level = std::max(best_level, run.level);
     }
-    std::array<uint8_t,124> encode() const {
-        std::array<uint32_t,31> words{0x56525348,5,runs,wins,best_ticks,best_kills,best_level};
+    std::array<uint8_t,132> encode() const {
+        std::array<uint32_t,33> words{0x56525348,6,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
-        std::array<uint8_t,124> bytes{};
+        std::array<uint8_t,132> bytes{};
         for(unsigned i=0;i<words.size();++i)for(unsigned b=0;b<4;++b)bytes[i*4+b]=uint8_t(words[i]>>(8*b));
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124)return false;
-        std::array<uint32_t,31> words{};
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132)return false;
+        std::array<uint32_t,33> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)))return false;
         Records next;
         next.runs=words[2];next.wins=words[3];next.best_ticks=words[4];next.best_kills=words[5];next.best_level=words[6];
         if(words[1]>=2){

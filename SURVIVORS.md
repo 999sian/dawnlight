@@ -77,7 +77,7 @@ writes the native save in the background and keeps the menu open; wait for
 | Talent | Ranks | Effect / prerequisite |
 | --- | ---: | --- |
 | Max Health | 5 | +1 starting heart/rank, up to 8; overall health cap stays 20. |
-| Crit Chance | 5 | +1 percentage point base chance/rank before Luck. Combined final chance caps at 100%. |
+| Crit Chance | 10 | +1 percentage point base chance/rank, up to +10 points before Luck. Combined final chance caps at 100%. |
 | Sprint | 1 | Unlock 125% running speed, including automatic combat. |
 | Sprint Speed | 2 | Requires Sprint; 137.5%, then 150%. |
 | Magnet | 5 | +10% pickup range/rank after run upgrades; includes all magnet pickups. |
@@ -89,6 +89,17 @@ writes the native save in the background and keeps the menu open; wait for
 | Banishes | 2 | +1 banishment/rank/run, up to three; shared by both choice menus. |
 | Dodge | 5 | 5%, 6.25%, 7.5%, 8.75%, then 10% chance to dodge an enemy hit. Independent of Luck; no shield required. |
 | Starting Item | 1 | Start each run with a free choice of one of three chest rewards. Normal rarity; shared rerolls and banishes. |
+| Auto Rupees | 5 | 1–5 rupees every five seconds of active play. |
+| Bonus Damage | 10 | +1 weapon damage/rank, up to +10 before crits and Dark Link. |
+| Melee Haste | 5 | +5% normal sword speed/rank, up to +25%. |
+| Crit Damage | 5 | +10 percentage points critical damage/rank, up to +50%. |
+| Legendary Chance | 5 | +0.6 percentage points base Legendary chance/rank: 1% → 4% at rank 5, before Luck. Applies to item and power-up rarities. |
+| Life Regen | 5 | Shortens regeneration by one second/rank: 20 → 15 seconds. |
+
+Link regenerates **1/4 heart every 20 seconds** even without Life Regen ranks.
+Regeneration pauses with the run, continues during the final fight after 20 minutes,
+and never exceeds maximum health or revives Link. Each Legendary Chance rank
+moves 0.6 percentage points from Common to Legendary before Luck is applied.
 
 The starting selection pauses the timer and combat until you choose. Closing it
 keeps the same offers. It grants the reward directly, without a world chest,

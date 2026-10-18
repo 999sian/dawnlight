@@ -94,8 +94,10 @@ bool spawn_enemy(daAlink_c*,bool elite,int slot=-1){if(!elite)++ordinarySpawns;r
 constexpr unsigned kPaidChestCount=2,kSmallChestCount=kPaidChestCount,kChestCount=2+elite_reward_capacity;
 struct Chest{bool active=false,free=false;s16 yaw=0;cXyz position;};
 std::array<Chest,kChestCount>s_chests;
-bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes=0;
+bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes=0,lifeWrites=0;
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
+int dComIfGs_getMaxLifeGauge(){return 12;}
+void dComIfGs_setLife(unsigned value){life=int(value);++lifeWrites;}
 void finish(bool victory){++finishes;s_run.end(victory);}
 unsigned rupees=0,rupeeWrites=0;
 unsigned dComIfGs_getRupee(){return rupees;}unsigned dComIfGs_getRupeeMax(){return 300;}
@@ -239,6 +241,27 @@ int main(){
   s_run.ticks=299;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(rupees==2*rank);
   rupees=299;s_run.ticks=449;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(rupees==(rank?300:299));
  }
+ // Quarter-heart regeneration uses active time, every rank, and preserves native max life.
+ for(unsigned rank=0;rank<=5;++rank) {
+  fresh(0);life=4;lifeWrites=0;s_run.talents.ranks[unsigned(Talent::LifeRegen)]=rank;
+  const unsigned interval=(20-rank)*ticks_per_second;assert(s_run.life_regen_interval()==interval);
+  std::any regenArgs[]={&player};assert(!s_run.life_regen_due());
+  s_run.ticks=interval-1;
+  for(auto phase:{Phase::Ready,Phase::Upgrade,Phase::TreasureChoice,Phase::Treasure,Phase::Victory,Phase::Defeat}) {
+   s_run.phase=phase;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==4&&!lifeWrites&&s_run.ticks==interval-1);
+  }
+  s_run.phase=Phase::Running;paused=true;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==4&&!lifeWrites);
+  paused=false;player.id=2;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==4&&!lifeWrites);player.id=1;
+  after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==5&&lifeWrites==1);
+  after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==5&&lifeWrites==1);
+  s_run.ticks=2*interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==6&&lifeWrites==2);
+  life=11;s_run.ticks=3*interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==12&&lifeWrites==3);
+  s_run.ticks=4*interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==12&&lifeWrites==3);
+  life=5;s_run.ticks=(duration/interval+1)*interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);
+  assert(life==6); // Still regenerates during the last boss beyond 20 minutes.
+  life=0;s_run.ticks=interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==0&&s_run.phase==Phase::Defeat);
+ }
+ finishes=0;life=12;
  // Production timer completion: pause and UI phases never consume run time.
  fresh(0);s_run.ticks=duration-1;std::any playerArgs[]={&player};paused=true;
  after_player(nullptr,playerArgs,nullptr,nullptr);assert(s_run.ticks==duration-1&&finishes==0);

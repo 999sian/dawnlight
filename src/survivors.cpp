@@ -949,6 +949,8 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (dComIfGs_getLife() == 0) { finish(false); return; }
     update_combat_feedback();
     s_run.tick(true);
+    if (s_run.life_regen_due() && dComIfGs_getLife()<dComIfGs_getMaxLifeGauge())
+        dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if (const unsigned rupees=s_run.auto_rupees())
         dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(),dComIfGs_getRupee()+rupees));
     if (s_run.ticks >= duration && s_run.timed_elites == timed_elite_count) { finish(true); return; }

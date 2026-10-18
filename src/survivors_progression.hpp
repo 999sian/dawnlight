@@ -4,12 +4,12 @@
 #include <algorithm>
 
 namespace dawnlight::survivors {
-enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, StartingItem, AutoRupees, BonusDamage, MeleeHaste, CritDamage, Count };
-inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge", "Starting Item", "Auto Rupees", "Bonus Damage", "Melee Haste", "Crit Damage"};
-inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{5,5,1,2,5,1,1,1,2,2,2,5,1,5,5,5,5};
+enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, StartingItem, AutoRupees, BonusDamage, MeleeHaste, CritDamage, LegendaryChance, LifeRegen, Count };
+inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge", "Starting Item", "Auto Rupees", "Bonus Damage", "Melee Haste", "Crit Damage", "Legendary Chance", "Life Regen"};
+inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{5,10,1,2,5,1,1,1,2,2,2,5,1,5,10,5,5,5,5};
 inline constexpr std::array talent_help{
     "+1 starting heart per rank (up to 8). Run Heart Containers remain separate.",
-    "+1 percentage point base critical chance per rank. Luck multiplies it; final chance caps at 100%.",
+    "+1 percentage point base critical chance per rank, up to +10. Luck multiplies it; final chance caps at 100%.",
     "Hold the normal Sprint input to run at 125% speed, including automatic combat.",
     "Requires Sprint. +12.5 percentage points sprint speed per rank, up to 150%.",
     "+10% pickup range per rank, applied after run Magnet upgrades. Includes XP, rupees and hearts.",
@@ -22,9 +22,11 @@ inline constexpr std::array talent_help{
     "Avoid enemy hits: 5% / 6.25% / 7.5% / 8.75% / 10%. Independent of Luck and shield blocks.",
     "Start each run by choosing one free item from three chest rewards. Uses normal rarity and shared rerolls/banishes.",
     "Gain 1 rupee per rank every 5 seconds of active play, up to 5. Pauses with the run; respects wallet capacity.",
-    "+1 weapon damage per rank, up to +5, before critical hits and Dark Link. Jump Strike scales from melee damage.",
+    "+1 weapon damage per rank, up to +10, before critical hits and Dark Link. Jump Strike scales from melee damage.",
     "+5% normal sword attack speed per rank, up to +25%. Adds to Dual Wield speed; combines with Haste cooldowns.",
-    "+10 percentage points critical damage per rank, up to +50%. Base x2 becomes x2.5; stacks with run Crit Damage upgrades."};
+    "+10 percentage points critical damage per rank, up to +50%. Base x2 becomes x2.5; stacks with run Crit Damage upgrades.",
+    "+0.6 percentage points base Legendary rarity chance per rank, up to +3 (1% to 4%) before Luck. Applies to item and power-up rarities.",
+    "Regenerate 1/4 heart every 20 seconds of active play. Each rank shortens the interval by 1 second, down to 15 seconds. Pauses with the run."};
 inline constexpr Talent talent_parent(Talent t) {
     switch(t) {
     case Talent::SprintSpeed: return Talent::Sprint;

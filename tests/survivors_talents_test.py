@@ -43,25 +43,25 @@ int main(){
  assert(s_resultsStored&&s_records.total_xp==2000&&s_records.high_scores[3]==2000&&s_records.available_points()==1);
  finish(false);finish(true);assert(s_records.runs==1&&s_records.total_xp==2000);
  s_records={};save={};
- s_run.phase=Phase::Ready;s_records.total_xp=meta_threshold(53);
+ s_run.phase=Phase::Ready;s_records.total_xp=meta_threshold(73);
  assert(build_talents(nullptr,0,1,2,nullptr,nullptr)==MOD_OK&&ui.controls.size()==3*unsigned(Talent::Count)+2&&ui.rowCount==unsigned(Talent::Count)&&ui.rightHidden);
  auto press=[](Talent t){auto& c=ui.controls[3*unsigned(t)+2];c.on_pressed(nullptr,c.user_data);};
  auto disabled=[](Talent t){auto& c=ui.controls[3*unsigned(t)+2];return c.is_disabled(nullptr,c.user_data);};
  assert(disabled(Talent::SprintSpeed)&&disabled(Talent::Glider)&&disabled(Talent::Gale));
- press(Talent::Gale);assert(save.writes==0&&s_records.available_points()==53);
- save.fail=true;press(Talent::MaxHealth);assert(s_storeFailed&&s_records.available_points()==53&&s_records.talents.spent()==0);
+ press(Talent::Gale);assert(save.writes==0&&s_records.available_points()==73);
+ save.fail=true;press(Talent::MaxHealth);assert(s_storeFailed&&s_records.available_points()==73&&s_records.talents.spent()==0);
  assert(ui.texts[s_talentSummary].find("Save failed")!=std::string::npos);
- save.fail=false;press(Talent::MaxHealth);assert(!s_storeFailed&&s_records.available_points()==52);
- assert(ui.texts[s_talentSummary].find("Unlock Points: 52")!=std::string::npos);
+ save.fail=false;press(Talent::MaxHealth);assert(!s_storeFailed&&s_records.available_points()==72);
+ assert(ui.texts[s_talentSummary].find("Unlock Points: 72")!=std::string::npos);
  assert(ui.texts[s_talentRows[0]].find("1 / 5")!=std::string::npos);
  Records loaded;assert(loaded.decode(save.blob)&&loaded.talents.rank(Talent::MaxHealth)==1);
- s_run.phase=Phase::Running;press(Talent::Magnet);assert(s_records.available_points()==52);
- s_run.phase=Phase::Ready;s_restart=true;press(Talent::Magnet);assert(s_records.available_points()==52);s_restart=false;
+ s_run.phase=Phase::Running;press(Talent::Magnet);assert(s_records.available_points()==72);
+ s_run.phase=Phase::Ready;s_restart=true;press(Talent::Magnet);assert(s_records.available_points()==72);s_restart=false;
  press(Talent::Sprint);assert(!disabled(Talent::SprintSpeed)&&disabled(Talent::Sprint));
  press(Talent::ManualJump);assert(!disabled(Talent::Glider));press(Talent::Glider);assert(!disabled(Talent::Gale));
  press(Talent::Gale);assert(!disabled(Talent::GaleCharges));
  for(unsigned i=0;i<unsigned(Talent::Count);++i)while(!disabled(Talent(i)))press(Talent(i));
- assert(s_records.available_points()==0&&s_records.talents.spent()==53);
+ assert(s_records.available_points()==0&&s_records.talents.spent()==73);
  assert(s_records.talents.rank(Talent::Rerolls)==2&&s_records.talents.rank(Talent::Banishes)==2);
  for(unsigned i=0;i<unsigned(Talent::Count);++i)assert(disabled(Talent(i)));
  assert(loaded.decode(save.blob)&&loaded.encode()==s_records.encode());
@@ -83,7 +83,7 @@ int main(){
  save.fail=true;reset_talents(nullptr,nullptr);assert(s_records.encode()==partial);
  save.fail=false;s_records.high_scores[2]=12345;const auto xp=s_records.total_xp;
  ui.controls[3*unsigned(Talent::Count)].on_pressed(nullptr,nullptr);
- assert(s_records.available_points()==53&&!s_records.talents.spent()&&s_records.total_xp==xp&&s_records.high_scores[2]==12345);
+ assert(s_records.available_points()==73&&!s_records.talents.spent()&&s_records.total_xp==xp&&s_records.high_scores[2]==12345);
  assert(loaded.decode(save.blob)&&loaded.encode()==s_records.encode());
  s_progressSaved=true;update_talent_tab(nullptr,nullptr,nullptr);
  assert(ui.texts[s_talentSummary].find("Progress saved")!=std::string::npos);
@@ -91,7 +91,7 @@ int main(){
  assert(ui.texts[s_talentSummary].find("Saving...")!=std::string::npos);s_progressSaving=false;
  // Rebuilding a tab obtains fresh handles; no stale text writes after navigation.
  ui.texts.clear();ui.controls.clear();assert(build_talents(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
- assert(ui.texts[s_talentSummary].find("Unlock Points: 53")!=std::string::npos);
+ assert(ui.texts[s_talentSummary].find("Unlock Points: 73")!=std::string::npos);
 }
 '''
 core=(root/'src/survivors.cpp').read_text()

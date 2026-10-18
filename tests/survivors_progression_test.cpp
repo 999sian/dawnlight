@@ -17,6 +17,24 @@ int main(){
         assert(r.melee_power()==10+level);
         r.ranks[unsigned(Upgrade::CritDamage)]=30;assert(r.crit_damage_percent()==350+10*level);
     }
+    for(unsigned rank=0;rank<=10;++rank) {
+        Talents perks;perks.ranks[unsigned(Talent::BonusDamage)]=perks.ranks[unsigned(Talent::CritChance)]=rank;
+        r.start(9,{},perks);assert(r.bonus_damage()==rank&&r.melee_power()==3+rank&&r.crit_chance_basis_points()==100*rank);
+    }
+    for(unsigned rank=0;rank<=5;++rank) {
+        Talents perks;perks.ranks[unsigned(Talent::LegendaryChance)]=rank;
+        r.start(9,{},perks);auto weights=r.rarity_weights();uint64_t total=0;for(auto w:weights)total+=w;
+        assert(total==1000000000&&weights[4]==10000000+6000000*rank);
+        const auto base=weights;
+        for(unsigned luck=0;luck<=20;++luck) {
+            r.ranks[unsigned(Upgrade::Luck)]=luck;weights=r.rarity_weights();total=0;for(auto w:weights)total+=w;
+            assert(total<=UINT32_MAX&&uint64_t(weights[4])*1000000000>=uint64_t(base[4])*total);
+            for(unsigned n=0;n<100;++n)assert(r.roll_rarity()<=Rarity::Legendary);
+        }
+    }
+    r.start(9);r.talents.ranks[unsigned(Talent::LegendaryChance)]=5;
+    unsigned legendary=0;for(unsigned i=0;i<100000;++i)legendary+=r.roll_rarity()==Rarity::Legendary;
+    assert(legendary>3700&&legendary<4300);
     r.start(1);assert(!r.bonus_damage()&&r.melee_speed_percent()==100&&r.crit_damage_percent()==200);
     r.ticks=60*30;r.kills=100;r.level=5;assert(r.score()==1320);
     r.timed_elites=1;r.guard_elites=2;r.kills=103;assert(r.score()==2320);
@@ -29,13 +47,13 @@ int main(){
     Records untouched=records;r.start(1);records.finish(r,0);assert(records.encode()==untouched.encode());
     r.end(false);records.finish(r,5);assert(records.encode()==untouched.encode());
     records.finish(r,2);assert(records.high_scores[2]==22078); // Never replace a higher score.
-    records.total_xp=meta_threshold(53);assert(records.available_points()==53);
+    records.total_xp=meta_threshold(73);assert(records.available_points()==73);
     assert(!records.buy(Talent::SprintSpeed)&&!records.buy(Talent::Glider)&&!records.buy(Talent::Gale)&&!records.buy(Talent::GaleCharges));
     for(unsigned i=0;i<unsigned(Talent::Count);++i){
         for(unsigned n=0;n<talent_caps[i];++n)assert(records.buy(Talent(i)));
         assert(!records.buy(Talent(i)));
     }
-    assert(records.available_points()==0&&records.talents.spent()==53&&records.talents.valid());
+    assert(records.available_points()==0&&records.talents.spent()==73&&records.talents.valid());
     auto refunded=records;
     assert(!refunded.talents.refund(Talent::Count));
     assert(refunded.talents.refund(Talent::ManualJump));
@@ -50,11 +68,11 @@ int main(){
     r.start(3,{},records.talents);
     assert(r.maximum_hearts==8&&r.free_rerolls==3&&r.banishes==3);
     assert(r.rank(Upgrade::Heart)==0&&r.rank(Upgrade::Magnet)==0&&r.rank(Upgrade::CritChance)==0);
-    assert(r.magnet_range()==225&&r.crit_chance_basis_points()==500);
+    assert(r.magnet_range()==225&&r.crit_chance_basis_points()==1000);
     r.ranks[unsigned(Upgrade::CritChance)]=30;r.ranks[unsigned(Upgrade::Luck)]=20;
-    assert(r.crit_chance_basis_points()==4125);
+    assert(r.crit_chance_basis_points()==4875);
     unsigned crits=0;for(int i=0;i<10000;++i){auto damage=r.critical_power(100);assert(damage==100||damage==250);crits+=damage==250;}
-    assert(crits>3900&&crits<4350);
+    assert(crits>4650&&crits<5100);
     r.ranks[unsigned(Upgrade::Magnet)]=30;assert(r.magnet_range()==3150);
     unsigned money=0;for(int i=0;i<3;++i){r.phase=Phase::Upgrade;assert(r.pay_reroll(money));assert(r.banish(Upgrade(i==0?3:i==1?4:5)));}
     assert(!r.pay_reroll(money)&&r.reroll_cost()==50&&!r.banish(Upgrade::Magnet));
@@ -76,21 +94,33 @@ int main(){
     corrupt=bytes;corrupt[76]=0;assert(!loaded.decode(corrupt)); // Glider without Manual Jump.
     corrupt=bytes;for(unsigned i=48;i<56;++i)corrupt[i]=0;assert(!loaded.decode(corrupt)); // Unfunded ranks.
     assert(!loaded.decode(std::span(bytes.data(),bytes.size()-1)));
-    auto v2=bytes;v2[4]=2;
+    auto legacyRecords=records;
+    legacyRecords.talents.ranks[unsigned(Talent::CritChance)]=5;
+    legacyRecords.talents.ranks[unsigned(Talent::BonusDamage)]=5;
+    legacyRecords.talents.ranks[unsigned(Talent::LegendaryChance)]=0;
+    legacyRecords.talents.ranks[unsigned(Talent::LifeRegen)]=0;
+    const auto legacyBytes=legacyRecords.encode();
+    auto v2=legacyBytes;v2[4]=2;
     assert(loaded.decode(std::span(v2.data(),100)) && loaded.talents.rank(Talent::Dodge)==0);
     assert(loaded.total_xp==records.total_xp && loaded.high_scores==records.high_scores);
-    for(unsigned i=0;i<11;++i)assert(loaded.talents.ranks[i]==records.talents.ranks[i]);
-    assert(loaded.available_points()==26); // New perks never spends legacy points.
+    for(unsigned i=0;i<11;++i)assert(loaded.talents.ranks[i]==legacyRecords.talents.ranks[i]);
+    assert(loaded.available_points()==46); // New perks never spends legacy points.
     assert(loaded.talents.rank(Talent::StartingItem)==0);
-    auto v3=bytes;v3[4]=3;assert(loaded.decode(std::span(v3.data(),104)));
-    assert(loaded.talents.rank(Talent::Dodge)==5&&loaded.talents.rank(Talent::StartingItem)==0&&loaded.available_points()==21);
-    auto v4=bytes;v4[4]=4;assert(loaded.decode(std::span(v4.data(),108)));
-    assert(loaded.talents.rank(Talent::StartingItem)==1&&loaded.available_points()==20);
+    auto v3=legacyBytes;v3[4]=3;assert(loaded.decode(std::span(v3.data(),104)));
+    assert(loaded.talents.rank(Talent::Dodge)==5&&loaded.talents.rank(Talent::StartingItem)==0&&loaded.available_points()==41);
+    auto v4=legacyBytes;v4[4]=4;assert(loaded.decode(std::span(v4.data(),108)));
+    assert(loaded.talents.rank(Talent::StartingItem)==1&&loaded.available_points()==40);
     for(auto talent:{Talent::AutoRupees,Talent::BonusDamage,Talent::MeleeHaste,Talent::CritDamage}) {
         assert(!loaded.talents.rank(talent));
-        auto invalid=bytes;invalid[56+4*unsigned(talent)]=6;assert(!loaded.decode(invalid));
+        auto invalid=bytes;invalid[56+4*unsigned(talent)]=talent_caps[unsigned(talent)]+1;assert(!loaded.decode(invalid));
     }
     assert(loaded.total_xp==records.total_xp&&loaded.high_scores==records.high_scores);
+    auto v5=legacyBytes;v5[4]=5;assert(loaded.decode(std::span(v5.data(),124)));
+    assert(loaded.talents.ranks==legacyRecords.talents.ranks&&loaded.available_points()==20);
+    assert(!loaded.talents.rank(Talent::LegendaryChance)&&!loaded.talents.rank(Talent::LifeRegen));
+    for(auto talent:{Talent::CritChance,Talent::LegendaryChance,Talent::LifeRegen}) {
+        auto invalid=bytes;invalid[56+4*unsigned(talent)]=talent_caps[unsigned(talent)]+1;assert(!loaded.decode(invalid));
+    }
     auto badStarting=bytes;badStarting[104]=2;assert(!loaded.decode(badStarting));
     auto refundedStarting=records;assert(refundedStarting.talents.refund(Talent::StartingItem));
     assert(refundedStarting.available_points()==1&&refundedStarting.talents.rank(Talent::StartingItem)==0);
