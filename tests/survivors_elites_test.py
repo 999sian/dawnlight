@@ -73,6 +73,10 @@ struct Bg{float GroundCross(dBgS_ObjGndChk*){return groundMissing ? -1.e9f : 0.f
  bool LineCross(dBgS_LinChk*){return wallBlocked;}}bg;
 Bg& dComIfG_Bgsp(){return bg;}
 bool arena_path_clear(cXyz,cXyz,float){return !barrierBlocked;}
+bool dry_arena_floor(cXyz& p,float,float){if(groundMissing||groundCode==4||groundCode==5||groundCode==10||
+ (groundRoom!=-2&&groundRoom!=arena().room))return false;
+ p.y=0;return true;}
+bool walkable_spawn_path(cXyz,cXyz&,float){return !groundMissing&&!wallBlocked&&!barrierBlocked;}
 bool failCreate=false;unsigned nextId=1,ordinarySpawns=0;
 fopAc_ac_c* actor_by_id(ActorId){return &player;}
 bool create_enemy_at(cXyz pos,s16,unsigned,bool elite,int slot=-1,bool dormant=false){
@@ -87,7 +91,7 @@ std::array<Chest,kChestCount>s_chests;
 bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes=0;
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
 void finish(bool victory){++finishes;s_run.end(victory);}
-void update_enemy_effects(){}void update_weapons(daAlink_c*){}void update_orbs(daAlink_c*){}
+void update_enemy_effects(){}void update_weapons(daAlink_c*){}void update_orbs(daAlink_c*){} void update_flutes(daAlink_c*){}
 void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c*){}
 
 '''

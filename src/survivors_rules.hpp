@@ -46,7 +46,7 @@ inline constexpr std::array descriptions{
     "Unlock or improve a moving spin attack.",
     "Unlock or improve an automatic shield bash that staggers enemies.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
-    "Increase the size of automatic attacks.", "Collect experience from farther away.",
+    "Increase the size of automatic attacks.", "Attract experience, rupees, hearts and heart pieces from farther away.",
     "Gain one maximum heart (does not heal).",
     "Faster, stronger arrows. Ranks 3 and 5 add spread shots.",
     "A damaging returning boomerang. Upgrades increase damage, size and firing rate.",

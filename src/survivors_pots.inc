@@ -84,11 +84,6 @@ HookAction before_pot_break(ModContext*, void* args, void*, void*) {
         dItemNo_YELLOW_RUPEE_e,dItemNo_RED_RUPEE_e,dItemNo_PURPLE_RUPEE_e,
         dItemNo_ORANGE_RUPEE_e,dItemNo_SILVER_RUPEE_e};
     const int item=items[unsigned(s_run.roll_pot_drop())];
-    struct AllowDrop {
-        bool previous=s_allowDrop;
-        AllowDrop(){s_allowDrop=true;}
-        ~AllowDrop(){s_allowDrop=previous;}
-    } allow;
-    fopAcM_createItem(&actor->current.pos,item,-1,arena().room,nullptr,nullptr,0);
+    create_run_pickup(actor->current.pos,item);
     return HOOK_CONTINUE;
 }

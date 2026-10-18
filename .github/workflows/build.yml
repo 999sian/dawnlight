@@ -55,6 +55,9 @@ jobs:
           /tmp/survivors-maps-test
           python3 tests/survivors_elites_test.py
           python3 tests/survivors_pots_test.py
+          python3 tests/survivors_ground_test.py
+          python3 tests/survivors_pickups_test.py
+          python3 tests/survivors_prices_test.py
           python3 tests/survivors_minimap_test.py
           python3 tests/survivors_lifecycle_test.py
           python3 tests/survivors_defense_test.py
@@ -244,6 +247,9 @@ jobs:
           CXX=clang++ python3 tests/survivors_aggro_test.py dusklight
           CXX=clang++ python3 tests/survivors_elites_test.py
           CXX=clang++ python3 tests/survivors_pots_test.py
+          CXX=clang++ python3 tests/survivors_ground_test.py
+          CXX=clang++ python3 tests/survivors_pickups_test.py
+          CXX=clang++ python3 tests/survivors_prices_test.py
           CXX=clang++ python3 tests/survivors_minimap_test.py
           python3 tests/survivors_combat_test.py dusklight
           python3 tests/survivors_ranged_test.py dusklight

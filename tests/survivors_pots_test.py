@@ -62,6 +62,9 @@ std::vector<int> drops;
 ActorId fopAcM_createItem(const cXyz*,int item,int bit,int room,void*,void*,int){
  assert(s_allowDrop&&bit==-1&&room==arena().room);drops.push_back(item);return 900;
 }
+ActorId create_run_pickup(cXyz pos,int item){
+ const bool old=s_allowDrop;s_allowDrop=true;const auto id=fopAcM_createItem(&pos,item,-1,arena().room,nullptr,nullptr,0);s_allowDrop=old;return id;}
+
 '''
 main = r'''
 void fresh(unsigned map=0){s_pots={};s_potTarget=s_potDelay=0;actors.clear();pending.clear();drops.clear();

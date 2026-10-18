@@ -70,7 +70,8 @@ unsigned s_spawnCooldown=0, s_spawnFailures=0, s_warmup=0;
 std::array<unsigned,3> s_cooldowns{};
 std::array<int,64> s_orbs{};
 Records s_records;
-void retire_pots(){}
+void retire_pots(){} void retire_pickups(){}
+void queue_flute(const Enemy&,fopAc_ac_c*){}
 void clear_enemy_effects(){}
 void close_powerup_window() {} void close_window() {} void clear_attacks() {} void clear_loot() {} void detach_attack_references() {}
 void d_GameOver_Delete(ActorId) {} void dComIfGp_setGameoverStatus(int) {}

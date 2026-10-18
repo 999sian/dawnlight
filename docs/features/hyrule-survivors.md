@@ -49,6 +49,13 @@ dialog and opens the existing results screen without awarding a victory. Run tim
 automatic attacks and enemies pause while talking. Calling Midna interrupts
 automatic attacks; chest interaction keeps priority if both are pressed together.
 
+Random horde and scheduled-elite positions require dry native ground, safe
+footprints and a sampled walkable path to Link. Native water-volume checks reject
+riverbeds while allowing bridges above water; gaps, steep steps, walls and exit
+barriers reject a candidate instead of falling back to an unsafe position.
+Random Field/Desert guards use the same path check. Guard/pot footprints also
+reject submerged or hazardous ground.
+
 Every arena hosts a twenty-minute run.
 Start with three hearts and automatic normal sword strikes. Sword Wave starts
 locked, like Whirling Blade. Move, dodge and collect blue experience
@@ -66,7 +73,13 @@ swings and finishers, facing follows the same live enemy every frame after movem
 without changing travel direction or camera lock-on. Dead, blocked, out-of-range
 or elevated targets are released; a nearby reachable target can replace them.
 
+Normal sword attacks also target nearby unbroken arena pots when no reachable
+enemy is available; carried pots are excluded. Native sword collision breaks them.
+
 The HUD shows time, level, kills, experience and the next chest price.
+Active small chests also show the current price floating above them; opening and
+free large chests have no floating price. Labels track the camera and shared
+price rule, including after another chest is purchased.
 Weapon ranks and power-up details are available in the item wheel and Collection
 overview; they are not repeated during combat.
 
@@ -90,7 +103,7 @@ is retained and multiple earned levels are offered consecutively.
 | Power | Increase automatic weapon damage |
 | Haste | Reduce automatic weapon cooldowns |
 | Reach | Increase weapon size |
-| Magnet | Attract experience from farther away |
+| Magnet | Attract XP, rupees, hearts and heart pieces from farther away |
 | Heart Container | Add one maximum heart without healing |
 | Luck | +10% Luck per rank (20 ranks, +200% max); weighted rarity chances; drop bonuses cap at +50% |
 | Rupees | Receive 20 rupees per reward unit without healing |
@@ -125,7 +138,12 @@ are suppressed to prevent duplicate rewards. Level-ups never heal Link.
 | Silver | 200 | 0.05% |
 
 Luck also multiplies the non-green color chances, with green taking the remainder.
-Hearts and all rupee colors use native pickup behavior.
+Hearts and all rupee colors use native pickup behavior. Magnet's range is
+150 + 65 units per rank for XP and run-owned rupees, hearts and heart pieces.
+Native pickup actors move toward Link only while waiting during active gameplay;
+their item events, sounds and health/currency handling remain native. Owned
+pickups pause with menus, retain pending creation through cleanup and retire at
+run end. Story items are never attracted.
 
 ## Rarities and Luck
 
@@ -198,6 +216,14 @@ Free chests cost zero rupees, never advance the paid-chest price, and disappear
 once the reward completes. A separate pool retains all unopened drops from earlier guard lives, independent
 of the two paid chests. Failed creation is retried; deletion, cleanup and repeated
 death callbacks never generate extra loot. Guards and elites do not age-despawn.
+
+The three scheduled elites additionally leave a native Epona-flute model about
+160 units from their death position, on connected dry floor. Failed placement or
+creation retries. Walking within 80 units consumes it without granting a story
+item or starting Get Item, and marks every existing XP orb for global attraction.
+Marked orbs keep following Link until collected, accelerating over long distances;
+new XP retains normal Magnet behavior. Map guards do not drop flutes. The three
+requests and owned pickup actors are cleared/retired with the run.
 
 Spawn frequency, ordinary population and Bokoblin health increase during the run.
 Death opens a result screen with time, kills, level and weapon levels. **New run**

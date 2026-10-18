@@ -11,21 +11,12 @@ std::array<EliteEncounter, elite_capacity> s_eliteEncounters;
 void reset_elite_encounters() { s_eliteEncounters = {}; }
 
 bool elite_floor_position(cXyz& pos) {
-    cXyz probe = pos + cXyz(0, 250, 0);
-    dBgS_ObjGndChk ground; ground.SetPos(&probe);
-    const float floor = dComIfG_Bgsp().GroundCross(&ground);
-    if (!std::isfinite(floor) || floor < -1.e8f || std::abs(floor-pos.y) > 240 ||
-        dComIfG_Bgsp().GetRoomId(ground) != arena().room) return false;
-    const int code = dComIfG_Bgsp().GetGroundCode(ground);
-    if (code == 4 || code == 5 || code == 10) return false;
-    pos.y = floor;
+    if (!dry_arena_floor(pos,250,240)) return false;
     // A doubled Bokoblin / large chest must fit on real floor, away from exits.
     constexpr float offsets[4][2]{{-100,-100},{100,-100},{100,100},{-100,100}};
     for (const auto& offset : offsets) {
         cXyz corner = pos + cXyz(offset[0], 0, offset[1]);
-        cXyz above = corner + cXyz(0, 150, 0); ground.SetPos(&above);
-        const float h = dComIfG_Bgsp().GroundCross(&ground);
-        if (!std::isfinite(h) || std::abs(h-floor) > 45 || dComIfG_Bgsp().GetRoomId(ground) != arena().room) return false;
+        if (!dry_arena_floor(corner,45,45)) return false;
         cXyz from = pos + cXyz(0, 100, 0), to = corner + cXyz(0, 100, 0);
         dBgS_LinChk wall; wall.Set(&from, &to, nullptr);
         if (dComIfG_Bgsp().LineCross(&wall) || !arena_path_clear(from,to,100)) return false;
@@ -50,7 +41,9 @@ bool random_arena_floor(cXyz& pos) {
     return elite_floor_position(pos);
 }
 bool random_guard_position(cXyz& pos) {
-    return random_arena_floor(pos) && separated_guard(pos,1800);
+    auto* link=daAlink_getAlinkActorClass();
+    return link && random_arena_floor(pos) && walkable_spawn_path(link->current.pos,pos,100) &&
+        separated_guard(pos,1800);
 }
 bool guard_floor_near(cXyz anchor, float radius, cXyz& pos) {
     // Interpolate actual floor triangles, instead of assuming an authored

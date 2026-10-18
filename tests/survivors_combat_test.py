@@ -112,7 +112,11 @@ bool in_arena(){return arena;} bool playable(){return arena && playing;}
 struct Enemy {unsigned id=kNone;bool initialized=false,retiring=false,credited=false;};
 std::array<Enemy,enemy_capacity>s_enemies;
 fopAc_ac_c enemy,enemy2;
-fopAc_ac_c* actor_by_id(unsigned id){return id==enemy.id?&enemy:id==enemy2.id?&enemy2:nullptr;}
+fopAc_ac_c potActor; bool potCarried=false;
+struct ArenaPot{unsigned id=kNone;bool initialized=false,retiring=false,broken=false;};
+std::array<ArenaPot,1>s_pots;
+bool fopAcM_checkCarryNow(fopAc_ac_c*){return potCarried;}bool fopAcM_checkHookCarryNow(fopAc_ac_c*){return false;}
+fopAc_ac_c* actor_by_id(unsigned id){return id==enemy.id?&enemy:id==enemy2.id?&enemy2:id==potActor.id?&potActor:nullptr;}
 struct dBgS_LinChk {unsigned unused=0;void Set(const cXyz*,const cXyz*,daAlink_c*){}};
 bool blocked=false;
 struct World{bool LineCross(dBgS_LinChk*){return blocked;}}world;
@@ -153,9 +157,12 @@ void dComIfGs_setMaxLife(unsigned v){maxLife=v;}
 unsigned dComIfGs_getRupeeMax(){return 300;}unsigned dComIfGs_getRupee(){return rupees;}
 void dComIfGs_setRupee(unsigned v){rupees=v;}
 void close_window(){}
+fpc_ProcID create_run_pickup(cXyz pos,int item){
+ const bool old=s_allowDrop;s_allowDrop=true;const auto id=fopAcM_createItem(&pos,item,-1,rewardRoom,nullptr,nullptr,0);s_allowDrop=old;return id;}
+
 '''
 main = r'''
-void reset(){
+void reset(){s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;
     player.mLinkAcch.ground=true;player.wolf=false;player.mSwordModel=&player.model;
     player.normals=player.spins=player.equips=player.finishes=player.mComboCutCount=0;
@@ -207,6 +214,13 @@ int main(){
     for(unsigned i=0;i<2*ticks_per_second;++i)update_sword(&player);
     enemy.current.pos.z=150;update_sword(&player);assert(player.mComboCutCount==1);
     auto count=player.normals;assert(!player.checkCutAction() && player.normals==count);
+    // Ordinary sword combo targets nearby unbroken pots when no enemy is reachable.
+    reset();s_enemies={};potActor.current.pos={0,0,150};s_pots[0]={99,true,false,false};
+    update_sword(&player);assert(player.normals==1&&s_meleeTarget==99);
+    player.mProcID=daAlink_c::PROC_WAIT;s_meleeCooldown=0;s_pots[0].broken=true;
+    update_sword(&player);assert(player.normals==1);
+    s_pots[0].broken=false;potCarried=true;update_sword(&player);assert(player.normals==1);
+    potCarried=false;potActor.current.pos.y=200;update_sword(&player);assert(player.normals==1);
     // Movement is restored after every native normal/spin/finish procedure.
     // It changes travel direction, while retaining the sword-facing angle.
     for(int proc:{daAlink_c::PROC_CUT_NORMAL,daAlink_c::PROC_CUT_FINISH,daAlink_c::PROC_CUT_TURN}){

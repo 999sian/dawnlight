@@ -18,6 +18,19 @@ fopAc_ac_c* melee_target(daAlink_c* link) {
         if (enemy.id == s_meleeTarget) return actor;
         if (distance < best) { best = distance; nearest = actor; }
     }
+    // Enemies retain priority; otherwise normal sword swings can break our pots.
+    if (!nearest) for (const auto& pot:s_pots) {
+        if (!pot.initialized || pot.retiring || pot.broken) continue;
+        auto* actor=actor_by_id(pot.id);
+        if (!actor || fopAcM_checkCarryNow(actor) || fopAcM_checkHookCarryNow(actor)) continue;
+        const cXyz delta=actor->current.pos-link->current.pos;
+        const float distance=delta.x*delta.x+delta.z*delta.z;
+        if (std::abs(delta.y)>80 || distance<1 || distance>best) continue;
+        cXyz point=actor->current.pos+cXyz(0,30,0);
+        dBgS_LinChk wall;wall.Set(&origin,&point,link);
+        if (dComIfG_Bgsp().LineCross(&wall)) continue;
+        nearest=actor;best=distance;
+    }
     s_meleeTarget = nearest ? fopAcM_GetID(nearest) : kNone;
     return nearest;
 }

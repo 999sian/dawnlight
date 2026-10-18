@@ -24,6 +24,10 @@
 #include "d/actor/d_a_e_ba.h"
 #include "d/actor/d_a_e_oc.h"
 #include "d/actor/d_a_obj_carry.h"
+#include "d/actor/d_a_obj_item.h"
+#include "d/actor/d_a_obj_life_container.h"
+#include "d/d_bg_s_wtr_chk.h"
+#include "m_Do/m_Do_lib.h"
 #include "d/actor/d_a_e_ms.h"
 #include "d/d_com_inf_game.h"
 #include "d/d_debug_viewer.h"
@@ -85,6 +89,7 @@ DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
 DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
 DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
 DEFINE_HOOK(&daObjCarry_c::obj_break, SurvivorsPotBreak);
+DEFINE_HOOK(&daItem_c::itemGetNextExecute, SurvivorsFluteGet);
 DEFINE_HOOK(&renderingAmap_c::afterDrawPath, SurvivorsEliteMinimap);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#pl_check", int(e_ms_class*, f32), SurvivorsRatAggro);
@@ -189,7 +194,7 @@ struct Enemy {
     cXyz lootPosition{};
 };
 std::array<Enemy, enemy_capacity> s_enemies;
-struct Orb { cXyz position{}; unsigned value = 0; };
+struct Orb { cXyz position{}; unsigned value = 0; bool summoned = false; };
 std::array<Orb, orb_capacity> s_orbs;
 struct Attack {
     bool active = false;
@@ -242,6 +247,8 @@ Enemy* tracked(ActorId id) {
 #include "survivors_elite_positions.inc"
 #include "survivors_maps.inc"
 #include "survivors_aggro.inc"
+#include "survivors_ground.inc"
+#include "survivors_pickups.inc"
 void stop_attack(Attack& a) {
     for (auto& id : a.emitters) {
         if (id) {
@@ -269,7 +276,7 @@ void retire_pots();
 void cleanup_pots();
 void detach_pot_attacks();
 void retire_enemies() {
-    retire_pots();
+    retire_pots(); retire_pickups();
     clear_enemy_effects();
     for (auto& e : s_enemies) if (e.id != kNone) e.retiring = true;
 }
@@ -424,8 +431,7 @@ void drop_reward(fopAc_ac_c* actor) {
     const int item = items[unsigned(drop)];
     // Native item physics, pickup effects and currency/health handling. Ordinary
     // enemy drop hooks remain blocked, so a death cannot generate two rewards.
-    struct Scope { Scope(){s_allowDrop=true;} ~Scope(){s_allowDrop=false;} } scope;
-    fopAcM_createItem(&actor->current.pos, item, -1, fopAcM_GetRoomNo(actor), nullptr, nullptr, 0);
+    create_run_pickup(actor->current.pos, item);
 }
 void credit_death(Enemy& e, fopAc_ac_c* actor) {
     if (e.credited || e.retiring || !e.initialized || s_run.phase != Phase::Running ||
@@ -439,17 +445,20 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
     e.credited = true; ++s_run.kills;
     if (!e.elite) drop_reward(actor);
     add_orb(actor->current.pos, e.elite ? 30 : e.profile == fpcNm_E_OC_e ? 3 : 1);
-    if (e.elite) drop_elite_chest(e, actor);
+    if (e.elite) { drop_elite_chest(e, actor); queue_flute(e, actor); }
 }
 void update_orbs(daAlink_c* link) {
-    const float range = 150.0f + 65.0f * s_run.rank(Upgrade::Magnet);
+    const float range = magnet_range();
     for (auto& orb : s_orbs) {
         if (!orb.value) continue;
         const auto target = link->current.pos + cXyz(0, 30, 0);
         cXyz delta = target - orb.position;
         const float distance = delta.abs();
         if (distance < 60) { s_run.xp += orb.value; orb = {}; }
-        else if (distance < range) orb.position += delta * (std::min(35.0f, distance) / distance);
+        else if (orb.summoned || distance < range) {
+            const float speed = orb.summoned ? std::max(35.f, distance * 0.08f) : 35.f;
+            orb.position += delta * (std::min(speed, distance) / distance);
+        }
     }
 }
 bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot = -1, bool dormant = false) {
@@ -478,15 +487,8 @@ bool spawn_enemy(daAlink_c* link, bool elite, int eliteSlot = -1) {
         const auto yaw = static_cast<s16>(s_run.next_random());
         const float radius = 600.0f + float(s_run.next_random() % 450);
         cXyz pos = link->current.pos + cXyz(cM_ssin(yaw) * radius, 0, cM_scos(yaw) * radius);
-        cXyz probe = pos; probe.y += 400;
-        dBgS_ObjGndChk ground; ground.SetPos(&probe);
-        const float floor = dComIfG_Bgsp().GroundCross(&ground);
-        if (!std::isfinite(floor) || floor < -1.0e8f || std::abs(floor - link->current.pos.y) > 180) continue;
-        pos.y = floor + (type == 1 ? 180 : 0);
-        cXyz from = link->current.pos + cXyz(0, 80, 0), to = pos + cXyz(0, 80, 0);
-        dBgS_LinChk wall; wall.Set(&from, &to, link);
-        if (dComIfG_Bgsp().LineCross(&wall) || !arena_path_clear(from, to)) continue;
-        if (dComIfG_Bgsp().GetRoomId(ground) != arena().room) continue;
+        if (!walkable_spawn_path(link->current.pos, pos, elite ? 100.f : 40.f)) continue;
+        if (type == 1) pos.y += 180;
         return create_enemy_at(pos, yaw, type, elite, eliteSlot);
     }
     return false;
@@ -643,7 +645,7 @@ void update_sword(daAlink_c* link) {
     }
     const bool spin = !continuingSwing && s_run.ranks[1] && !s_cooldowns[1] && enemy_in_range(link, s_run.radius(450));
     const bool wave = s_run.ranks[0] && !s_cooldowns[0] && enemy_in_range(link, 1600);
-    if (!spin && !wave && (s_meleeCooldown || !enemy_in_range(link, s_run.radius(280)))) return;
+    if (!spin && !wave && (s_meleeCooldown || !melee_target(link))) return;
     if (!link->checkItemSwordEquip()) {
         if (link->mEquipItem != dItemNo_NONE_e) return;
         if (link->field_0x2fde != 0x103) link->swordEquip(0);
@@ -764,7 +766,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     s_run.tick(true);
     if (s_run.ticks >= duration) { finish(true); return; }
     update_enemy_effects();
-    update_spawns(link); update_pots(link); update_weapons(link); update_orbs(link);
+    update_spawns(link); update_pots(link); update_flutes(link); update_weapons(link); update_orbs(link);
     if (s_run.level_up()) clear_attacks();
     else update_chests(link);
 }
@@ -797,17 +799,19 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     const auto id = fopAcM_GetID(actor);
     auto* enemy = tracked(id);
     auto* pot = tracked_pot(id);
+    auto* pickup = tracked_pickup(id);
     retain_treasure_actor(actor, args);
     if (in_arena()) {
         const auto* nativeMethods = reinterpret_cast<const process_method_class*>(actor->sub_method);
         if (nativeMethods && mods::arg<process_method_func>(args, 0) == nativeMethods->execute_method)
             collect_arena_mesh(actor);
     }
-    if (!enemy && !pot && (!in_arena() || id != s_player)) return HOOK_CONTINUE;
+    if (!enemy && !pot && !pickup && (!in_arena() || id != s_player)) return HOOK_CONTINUE;
     const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);
     if (!methods) return HOOK_CONTINUE;
     const auto method = mods::arg<process_method_func>(args, 0);
     if (method == methods->delete_method) {
+        if (pickup) pickup->id=kNone;
         // Never award XP here: cancellation, unloading and despawning also delete.
         if (enemy) {
             *enemy = {};
@@ -819,6 +823,13 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
         return HOOK_CONTINUE;
     }
     if (method != methods->execute_method) return HOOK_CONTINUE;
+    if (pickup) {
+        if (pickup->retiring || pause_run_actor(pickup_waiting(*pickup,actor))) {
+            *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
+        }
+        move_pickup(*pickup,actor);
+        if (pickup->retiring) { *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL; }
+    }
     if (pot) pot->initialized=true;
     if (enemy) s_processFrames.push_back({args, id});
     if (enemy && !enemy->initialized) {
@@ -916,10 +927,12 @@ void label(const char* text, float x, float y, float size) {
     print.setFontSize(size, size);
     print.printReturn(text, 550, size + 8, HBIND_CENTER, VBIND_TOP, x - 275, y, 255);
 }
+#include "survivors_prices.inc"
 void draw_hud(ModContext*, void*, void*, void*) {
     if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
     graf->setup2D();
+    draw_chest_prices();
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
     char text[180];
     std::snprintf(text, sizeof(text), "%02u:%02u / 20:00   Level %u   Kills %u",
@@ -1053,7 +1066,7 @@ bool survivors_dark_link_active() {
 }
 void update_survivors() {
     cleanup_enemies();
-    cleanup_pots();
+    cleanup_pots(); cleanup_pickups();
     if (s_treasure.retiring) retire_treasure_actor();
     if (!s_active || !s_gameStarted) return;
     if (s_savePrompt != kNone) {
@@ -1125,6 +1138,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
     PRE(SurvivorsBokoblinWait, before_bokoblin_wait);
     PRE(SurvivorsPotBreak, before_pot_break);
+    PRE(SurvivorsFluteGet, before_flute_get);
     POST(SurvivorsEliteMinimap, after_elite_minimap);
     PRE(SurvivorsKeeseAggro, before_keese_aggro);
     PRE(SurvivorsRatAggro, before_rat_aggro);
@@ -1181,7 +1195,7 @@ ModResult initialize_survivors(ModError* error) {
     return MOD_OK;
 }
 void shutdown_survivors() {
-    s_active = false; reset_runtime(); cleanup_enemies(); cleanup_pots();
+    s_active = false; reset_runtime(); cleanup_enemies(); cleanup_pots(); cleanup_pickups();
     s_midnaGraph.reset(); s_midnaPrompt.reset(); s_midnaOptions.reset(); s_midnaStart=0;
     s_treasureMessage.reset(); s_itemNameMessage.reset(); s_itemDescriptionMessage.reset();
     if (s_savePrompt != kNone) { d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone; }
