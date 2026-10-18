@@ -1,4 +1,5 @@
 #include "enemy_slow_motion.hpp"
+#include "process_actor.hpp"
 #include "enemy_hard_mode.hpp"
 #include "enemy_slow_motion/profile.hpp"
 #include "enemy_slow_motion/boss.hpp"
@@ -271,7 +272,7 @@ HookAction before_chase_short(ModContext*, void* args, void*, void*) {
 HookAction before_process_method(ModContext* ctx, void* args, void* retval, void*) {
     bool entered = false;
     void* process = mods::arg<void*>(args, 1);
-    if (s_processDepth < s_processFrames.size() && process != nullptr && fopAcM_IsActor(process)) {
+    if (s_processDepth < s_processFrames.size() && process != nullptr && is_actor_process(process)) {
         auto* actor = static_cast<fopAc_ac_c*>(process);
         const auto* profile = find_profile(actor);
         const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);

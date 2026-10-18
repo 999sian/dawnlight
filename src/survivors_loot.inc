@@ -224,7 +224,12 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0)
         a.life = unsigned(std::ceil(s_run.radius(float(120 + 40 * a.hops))));
         if (!next_boom_target(a, link, s_run.item_range(weapon))) return false;
     }
-    a.radius = s_run.radius(weapon == Upgrade::Bow ? 35 : weapon == Upgrade::Boomerang ? 63 : 55 + 8 * rank);
+    if (weapon == Upgrade::Bow) {
+        // Reach extends acquisition and flight, never the arrow's hit radius.
+        // Retain the original lifetime unless a longer shot needs more ticks.
+        a.life = std::max(a.life, unsigned(std::ceil(s_run.item_range(weapon) / 70.0f)) + 1);
+    }
+    a.radius = weapon == Upgrade::Bow ? 35.0f : s_run.radius(weapon == Upgrade::Boomerang ? 63 : 55 + 8 * rank);
     if (weapon == Upgrade::Bombs) {
         // Discrete ballistic arc reaches the target in 30 simulation ticks.
         a.velocity = delta * (1.0f / 30); a.velocity.y += 1.4f * 29 / 2;

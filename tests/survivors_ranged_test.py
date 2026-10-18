@@ -73,7 +73,14 @@ int main(){
  fresh();targetDistance=2000;s_lastRanged=Upgrade::Ball;
  assert(!queue_ranged(&player,Upgrade::Boomerang));
  s_run.ranks[unsigned(Upgrade::Reach)]=10;
- assert(!queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
+ // Bow now reaches the same distant target and updates its aim at release.
+ assert(queue_ranged(&player,Upgrade::Bow));
+ targetDistance=2500;before_ranged_aim(nullptr,&player,nullptr,nullptr);assert(s_ranged.target.x==2500);
+ release_ranged(&player);assert(shots.size()==1&&shots[0]==Upgrade::Bow);
+ targetDistance=4000;release_ranged(&player);assert(shots.size()==1);
+ fresh();targetDistance=2000;s_lastRanged=Upgrade::Boomerang;
+ s_run.ranks[8]=0;s_run.ranks[10]=1;s_run.ranks[unsigned(Upgrade::Reach)]=10;
+ assert(!queue_ranged(&player,Upgrade::Bombs));assert(queue_ranged(&player,Upgrade::Boomerang));
  assert(s_ranged.target.x==2000);
  targetDistance=2500;before_ranged_aim(nullptr,&player,nullptr,nullptr);assert(s_ranged.target.x==2500);
  release_ranged(&player);assert(shots.size()==1&&shots[0]==Upgrade::Boomerang);

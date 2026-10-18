@@ -1,4 +1,5 @@
 #include "survivors.hpp"
+#include "process_actor.hpp"
 #include "survivors_rules.hpp"
 #include "survivors_roster.hpp"
 #include "survivors_items.hpp"
@@ -942,7 +943,7 @@ bool pause_run_actor(bool enemy) {
 }
 HookAction before_process(ModContext*, void* args, void* result, void*) {
     auto* process = mods::arg<void*>(args, 1);
-    if (!process || !fopAcM_IsActor(process)) return HOOK_CONTINUE;
+    if (!process || !is_actor_process(process)) return HOOK_CONTINUE;
     auto* actor = static_cast<fopAc_ac_c*>(process);
     const auto id = fopAcM_GetID(actor);
     auto* enemy = tracked(id);

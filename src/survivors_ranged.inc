@@ -31,7 +31,7 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     if (s_ranged.active || s_rangedRest || !s_loot.ready || !playable() || link->checkEquipAnime() ||
         (link->mEquipItem != dItemNo_NONE_e && link->mEquipItem != 0x103)) return false;
     // Round-robin among due weapons with a reachable target. A shorter-range
-    // bow must not starve a Reach-upgraded boomerang outside the bow's range.
+    // bomb must not starve a Reach-upgraded bow/boomerang outside bomb range.
     cXyz target;bool eligible=false;
     for (unsigned step = 1; step <= 4; ++step) {
         const unsigned candidate = unsigned(Upgrade::Bow) + (unsigned(s_lastRanged) - unsigned(Upgrade::Bow) + step) % 4;

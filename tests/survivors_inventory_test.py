@@ -83,6 +83,15 @@ std::vector<std::string> colored_segments(MessageId id,MessageTextColor color){
 }
 std::vector<std::string> red_segments(MessageId id){return colored_segments(id,MESSAGE_COLOR_RED);}
 int main(){
+ // Displayed collider sizes must match actual arrows and boomerangs: Reach
+ // cannot widen arrows, and item ranks cannot widen the boomerang.
+ for(unsigned reach:{0u,10u,30u})for(unsigned rank:{1u,10u,30u}) {
+  Run stats;stats.start(1);stats.ranks[unsigned(Upgrade::Reach)]=reach;
+  stats.ranks[unsigned(Upgrade::Bow)]=stats.ranks[unsigned(Upgrade::Boomerang)]=rank;
+  assert(item_radius(stats,Upgrade::Bow)==35);
+  assert(item_radius(stats,Upgrade::Boomerang)==unsigned(stats.radius(63)));
+ }
+
  inventory.fill(dItemNo_NONE_e);s_run.start(1);
  Run before=s_run,after=before;before.shield=1;after.shield=2;
  assert(prepare_treasure_message(ChestReward::Shield,before,after,Rarity::Common));

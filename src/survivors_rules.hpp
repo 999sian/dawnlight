@@ -395,7 +395,7 @@ struct Run {
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }
     unsigned sword_bonus() const { return master_sword ? 2 + master_sword : 0; }
     unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0); }
-    float item_range(Upgrade weapon) const { return weapon==Upgrade::Boomerang ? radius(item_target_range) : item_target_range; }
+    float item_range(Upgrade weapon) const { return (weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range; }
     float boomerang_hop_range() const { return radius(800.f); }
     float radius(float base) const { return base * (1.0f + 0.15f * rank(Upgrade::Reach)); }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }

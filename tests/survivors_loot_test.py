@@ -211,6 +211,30 @@ int main(){
         assert(a.returning&&a.visitedCount==s_run.boomerang_hops()+1&&a.emitters[0]&&a.emitters[1]);
         for(unsigned i=0;i<a.visitedCount;++i)for(unsigned j=i+1;j<a.visitedCount;++j)assert(a.visited[i]!=a.visited[j]);
     }
+    // Reach extends bow acquisition without widening any arrow, including
+    // volleys. The farthest supported shot must outlive the old 100-tick cap.
+    for(unsigned reach:{0u,10u,30u}) {
+        reset();actors.clear();s_enemies={};s_run.ranks[8]=30;
+        s_run.ranks[unsigned(Upgrade::Reach)]=reach;
+        const float range=s_run.item_range(Upgrade::Bow);
+        near.id=2;near.health=10;near.eyePos={0,70,range-1};
+        actors[2]=&near;s_enemies[0]={2,true,false,false};
+        assert(nearest_item_target(&player,target,range));
+        near.eyePos.z=range+1;assert(!nearest_item_target(&player,target,range));
+        near.eyePos.z=range-1;
+        for(float spread:{0.f,0.14f,-0.14f}) {
+            assert(launch_item(&player,Upgrade::Bow,near.eyePos,spread));
+        }
+        for(unsigned slot=8;slot<11;++slot)assert(s_attacks[slot].radius==35);
+        auto& arrow=s_attacks[8];
+        while(arrow.active&&arrow.position.z<near.eyePos.z)update_item_attack(arrow,&player);
+        assert(arrow.active&&arrow.collider.radius==35);
+        if(reach==30)assert(arrow.age>100);
+        arrow.collider.hit=true;update_item_attack(arrow,&player);assert(!arrow.active);
+        blocked=true;update_item_attack(s_attacks[9],&player);assert(!s_attacks[9].active);
+        blocked=false;s_attacks[10].collider.shield=true;
+        update_item_attack(s_attacks[10],&player);assert(!s_attacks[10].active);
+    }
     // Item rank never grows the boomerang collider; Reach keeps its size bonus.
     for(unsigned rank:{1u,4u,30u}) {
         reset();s_run.ranks[9]=rank;actors.clear();s_enemies={};
@@ -230,7 +254,7 @@ int main(){
     assert(!launch_item(&player,Upgrade::Boomerang,chain[0].eyePos));
     s_run.ranks[unsigned(Upgrade::Reach)]=30;
     assert(nearest_item_target(&player,target,s_run.item_range(Upgrade::Boomerang))&&target.z==7000);
-    assert(!nearest_item_target(&player,target,s_run.item_range(Upgrade::Bow)));
+    assert(!nearest_item_target(&player,target,s_run.item_range(Upgrade::Bombs)));
     assert(launch_item(&player,Upgrade::Boomerang,chain[0].eyePos));
     auto& longBoom=s_attacks[28];
     for(unsigned tick=0;tick<4000&&longBoom.active;++tick)update_item_attack(longBoom,&player);

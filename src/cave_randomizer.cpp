@@ -1,4 +1,5 @@
 #include "cave_randomizer.hpp"
+#include "process_actor.hpp"
 
 #include "config.hpp"
 #include "cave_randomizer_ground.hpp"
@@ -128,7 +129,7 @@ bool in_cave() {
 HookAction before_stalhound_process(ModContext*, void* args, void*, void*) {
     auto* process = mods::arg<void*>(args, 1);
     bool owned = false;
-    if (process != nullptr && fopAcM_IsActor(process) && in_cave()) {
+    if (process != nullptr && is_actor_process(process) && in_cave()) {
         auto* actor = static_cast<fopAc_ac_c*>(process);
         if (fopAcM_GetName(actor) == fpcNm_E_SH_e &&
             s_stalhounds.contains(fopAcM_GetID(actor))) {

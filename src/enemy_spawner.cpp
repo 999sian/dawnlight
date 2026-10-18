@@ -1,4 +1,5 @@
 #include "enemy_spawner.hpp"
+#include "process_actor.hpp"
 
 #include "save_state.hpp"
 #include "bow_fire_resource.hpp"
@@ -159,8 +160,8 @@ HookAction before_process(ModContext*, void* args, void*, void*) {
     auto* process = mods::arg<void*>(args, 1);
     // The room's enemy-appearance switch is read in base creation, before the
     // first fopAcM_IsActor check can succeed. Process IDs already exist here.
-    s_testProcessStack.emplace_back(args, process != nullptr && s_testActors.contains(fpcM_GetID(process)));
-    if (process == nullptr || !fopAcM_IsActor(process)) return HOOK_CONTINUE;
+    s_testProcessStack.emplace_back(args, is_base_process(process) && s_testActors.contains(fpcM_GetID(process)));
+    if (process == nullptr || !is_actor_process(process)) return HOOK_CONTINUE;
     auto* actor = static_cast<fopAc_ac_c*>(process);
     if (!is_test_actor(actor)) return HOOK_CONTINUE;
     const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);

@@ -37,7 +37,7 @@ struct fopAc_ac_c {
     bool isActor = true;
 };
 using Actor = fopAc_ac_c;
-bool fopAcM_IsActor(void* process) { return static_cast<Actor*>(process)->isActor; }
+bool is_actor_process(void* process) { return static_cast<Actor*>(process)->isActor; }
 int fopAcM_GetName(void* actor) { return static_cast<Actor*>(actor)->name; }
 struct Environment { float daytime; } environment;
 Environment* dKy_getEnvlight() { return &environment; }

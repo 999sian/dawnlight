@@ -150,7 +150,7 @@ struct RosterTimeFrame {void* args;float daytime;};
 std::vector<RosterTimeFrame> s_rosterTimes;
 HookAction before_roster_time(ModContext*,void* args,void*,void*) {
     auto* process=mods::arg<void*>(args,1);bool owned=false;
-    if(process&&fopAcM_IsActor(process)&&in_arena()) {
+    if(process&&is_actor_process(process)&&in_arena()) {
         auto* actor=static_cast<fopAc_ac_c*>(process);
         const auto* enemy=tracked(fopAcM_GetID(actor));
         const auto* methods=reinterpret_cast<const process_method_class*>(actor->sub_method);

@@ -24,8 +24,9 @@ inline unsigned item_damage(const Run& run, Upgrade weapon) {
     return run.attack_power(unsigned(weapon)) + (weapon == Upgrade::Ball ? 3 : 0);
 }
 inline unsigned item_radius(const Run& run, Upgrade weapon) {
+    if (weapon == Upgrade::Bow) return 35;
     return unsigned(run.radius(weapon == Upgrade::Bombs ? 170 + 30 * run.rank(weapon) :
-        weapon == Upgrade::Bow ? 35 : 55 + 8 * run.rank(weapon)));
+        weapon == Upgrade::Boomerang ? 63 : 55 + 8 * run.rank(weapon)));
 }
 inline const char* reward_name(ChestReward reward, const Run& run) {
     if (reward <= ChestReward::Ball) return names[unsigned(chest_weapon(reward))];
@@ -115,7 +116,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::JumpStrike: return rank ? number(run.jump_splash_percent()) + "% melee splash (" + number(run.jump_splash_power()) + " damage); 20% trigger; " + seconds(run.jump_cooldown()) + " cooldown" : "off";
     case Upgrade::Power: return "+" + number(rank) + " damage";
     case Upgrade::Haste: return "-" + number(100 - run.cooldown_percent()) + "% cooldown";
-    case Upgrade::Reach: return "+" + number(15 * rank) + "% attack size";
+    case Upgrade::Reach: return "+" + number(15 * rank) + "% attack size; bow/boomerang range";
     case Upgrade::Magnet: return number(run.magnet_range()) + " pickup range";
     case Upgrade::Heart: return number(run.maximum_hearts) + " maximum hearts (max 20)";
     case Upgrade::FireArrows: return number(run.burn_damage()) + " damage/s for " + seconds(run.burn_duration());

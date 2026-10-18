@@ -23,7 +23,7 @@ using process_method_func=int(*)(void*);int exec(void*){return 1;}int del(void*)
 struct process_method_class {process_method_func execute_method=exec;};process_method_class methods;
 struct fopAc_ac_c {ActorId id=1;int profile=1;bool isActor=true;void* sub_method=&methods;
  struct {cXyz pos;csXyz angle;} current,old;csXyz shape_angle;cXyz speed,scale{1,1,1};float gravity=0,speedF=0;};
-unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}bool fopAcM_IsActor(void* a){return static_cast<fopAc_ac_c*>(a)->isActor;}
+unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}bool is_actor_process(void* a){return static_cast<fopAc_ac_c*>(a)->isActor;}
 int fopAcM_GetRoomNo(fopAc_ac_c*){return 0;}int dComIfGp_getReverb(int){return 0;}
 struct J3DAnmTransform{};J3DAnmTransform transform;
 void* dComIfG_getObjectRes(const char*,int){return &transform;}

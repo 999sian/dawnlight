@@ -34,7 +34,7 @@ using ActorId = unsigned; using fpc_ProcID = unsigned;
 constexpr fpc_ProcID fpcM_ERROR_PROCESS_ID_e=~0u;
 using process_method_func = int (*)(void*);
 struct process_method_class { process_method_func create_method, delete_method, execute_method; };
-struct process_class { ActorId id; bool initialized=false; };
+struct process_class { ActorId id; bool initialized=false; bool validProcess=true; };
 struct fopAc_ac_c : process_class {
     const process_method_class* sub_method=nullptr;
     int profile=0;
@@ -46,7 +46,8 @@ struct e_tk2_class : fopAc_ac_c { int mActionTimer[4]{}; };
 struct daE_ZS_c : fopAc_ac_c { int field_0x671=0; };
 ActorId fpcM_GetID(const void* p) { return static_cast<const process_class*>(p)->id; }
 ActorId fopAcM_GetID(fopAc_ac_c* p) { return p->id; }
-bool fopAcM_IsActor(void* p) { return static_cast<process_class*>(p)->initialized; }
+bool is_base_process(void* p) { return p && static_cast<process_class*>(p)->validProcess; }
+bool is_actor_process(void* p) { return is_base_process(p) && static_cast<process_class*>(p)->initialized; }
 int fopAcM_GetName(fopAc_ac_c* p) { return p->profile; }
 std::unordered_set<ActorId> s_testActors;
 std::vector<std::pair<void*, bool>> s_testProcessStack;
@@ -316,6 +317,14 @@ int main() {
     before_process(nullptr,processArgs,nullptr,nullptr);
     assert(enemy_spawner_process_active());
     checkRoom(0); // fopAc_Create uses native admission, not the forced cleared state.
+    // Non-process callbacks cannot inherit ownership even if their bytes look
+    // like an owned process ID, and must still mask/restore the outer context.
+    process_class request{42,true,false};
+    std::any requestArgs[]={process_method_func(nullptr),static_cast<void*>(&request)};
+    before_process(nullptr,requestArgs,nullptr,nullptr);
+    assert(!enemy_spawner_process_active());checkRoom(1);
+    after_process(nullptr,requestArgs,nullptr,nullptr);
+    assert(enemy_spawner_process_active());checkRoom(0);
     std::any skippedArgs[]={process_method_func(nullptr),static_cast<void*>(&nativeGate)};
     after_process(nullptr,skippedArgs,nullptr,nullptr); // another mod skipped its pre
     checkRoom(0);
