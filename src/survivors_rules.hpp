@@ -274,6 +274,7 @@ struct Run {
         const auto weapon=chest_weapon(reward);if(weapon!=Upgrade::Count)banned_upgrades[unsigned(weapon)]=true;
         return true;
     }
+    static constexpr unsigned master_sword_max_rank = 30;
     static constexpr unsigned dark_max_rank = 11;
     unsigned dark_interval() const { return (20 - 2 * (std::min(dark_max_rank, dark_link) / 2)) * ticks_per_second; }
     unsigned dark_duration() const { return (5 + (std::max(1u, dark_link) - 1) / 2) * ticks_per_second; }
@@ -284,7 +285,7 @@ struct Run {
         if (reward>=ChestReward::Count || banned_items[unsigned(reward)]) return false;
         if (!owns(reward) && !replaces_offhand(reward) && equipment_count()>=4) return false;
         if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < upgrade_cap(chest_weapon(reward));
-        if (reward == ChestReward::MasterSword) return master_sword < 5;
+        if (reward == ChestReward::MasterSword) return master_sword < master_sword_max_rank;
         if (reward == ChestReward::OrdonSword) return dual_wield < 10;
         if (reward == ChestReward::DarkLink) return !dark_permanent();
         if (reward == ChestReward::Shield) return shield < 10;
@@ -313,7 +314,7 @@ struct Run {
         if (replaces_offhand(reward)) return 0; // A replacement starts at rank zero.
         unsigned remaining = 0;
         if (reward <= ChestReward::Ball) remaining = upgrade_cap(chest_weapon(reward)) - std::min(upgrade_cap(chest_weapon(reward)), rank(chest_weapon(reward)));
-        else if (reward == ChestReward::MasterSword) remaining = 5 - std::min(5u, master_sword);
+        else if (reward == ChestReward::MasterSword) remaining = master_sword_max_rank - std::min(master_sword_max_rank, master_sword);
         else if (reward == ChestReward::Shield) remaining = 10 - std::min(10u, shield);
         else if (reward == ChestReward::OrdonSword) remaining = 10 - std::min(10u, dual_wield);
         else if (reward == ChestReward::DarkLink) remaining = dark_max_rank - std::min(dark_max_rank, dark_link);

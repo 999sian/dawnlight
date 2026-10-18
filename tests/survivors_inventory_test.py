@@ -112,6 +112,13 @@ int main(){
  before=s_run;before.master_sword=4;before.ranks[0]=3;after=before;after.master_sword=5;
  assert(prepare_treasure_message(ChestReward::MasterSword,before,after,Rarity::Common));
  assert(plain(treasure_message_id()).find("Light Sword x1\nSword bonus: +6 -> +7") == 0);
+ after.master_sword=9;
+ assert(prepare_treasure_message(ChestReward::MasterSword,before,after,Rarity::Legendary));
+ assert(plain(treasure_message_id()).find("Light Sword: off -> on")!=std::string::npos);
+ before.master_sword=29;after.master_sword=30;
+ assert(prepare_treasure_message(ChestReward::MasterSword,before,after,Rarity::Legendary));
+ assert(plain(treasure_message_id()).find("Sword bonus: +31 -> +32")!=std::string::npos);
+ assert(plain(treasure_message_id()).find("Light Sword: off -> on")==std::string::npos);
  assert(prepare_treasure_message(ChestReward::RedPotion,s_run,s_run,Rarity::Common));
  assert(plain(treasure_message_id()).find("Bottles: 0 -> 1")!=std::string::npos);
  inventory[11]=inventory[12]=inventory[13]=dItemNo_RED_BOTTLE_e;inventory[14]=dItemNo_EMPTY_BOTTLE_e;
@@ -170,7 +177,7 @@ int main(){
   }
  }
  for(unsigned rank:{1u,30u}){
-  Run jump; jump.ranks.fill(rank);jump.master_sword=5;
+  Run jump; jump.ranks.fill(rank);jump.master_sword=30;
   const auto text=item_description(ChestReward::MasterSword,jump);
   assert(text.find("Jump Strike Lv."+std::to_string(rank))!=std::string::npos);
   assert(text.find(std::to_string(jump.jump_splash_percent())+"% splash")!=std::string::npos);
@@ -187,7 +194,7 @@ int main(){
  assert(plain(treasure_message_id()).find("Melee targets: 2 -> 3")!=std::string::npos);
  assert(messages.size()==18); // Six languages per reward/name/description, never accumulated.
  // Native IDs work with the original global-archive selection and item-icon code.
- for(unsigned shield:{1u,4u,7u})for(unsigned master:{1u,5u})for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward){
+ for(unsigned shield:{1u,4u,7u})for(unsigned master:{1u,5u,30u})for(unsigned reward=0;reward<unsigned(ChestReward::Count);++reward){
   after=s_run;after.shield=shield;after.master_sword=master;
   assert(prepare_treasure_message(ChestReward(reward),s_run,after,Rarity::Common));
   assert(native_icon(treasure_message_id())==treasure_item(ChestReward(reward),after));

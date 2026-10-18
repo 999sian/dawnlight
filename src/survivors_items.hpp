@@ -57,7 +57,7 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
             add(weapon == Upgrade::Wave ? "Wave damage" : "Spin damage", number(before.attack_power(unsigned(weapon))), number(after.attack_power(unsigned(weapon))));
         if (after.rank(Upgrade::JumpStrike))
             add("Jump splash damage", number(before.jump_splash_power()), number(after.jump_splash_power()));
-        if (after.master_sword == 5) add("Light Sword", "off", "on");
+        if (before.master_sword < 5 && after.master_sword >= 5) add("Light Sword", "off", "on");
     } else if (reward == ChestReward::OrdonSword) {
         add("Dual Wield level", number(before.dual_wield), number(after.dual_wield));
         add("Melee targets", number(before.melee_targets()), number(after.melee_targets()));

@@ -142,8 +142,20 @@ int main() {
             const unsigned extra=r.chest_rupees(reward,Rarity(rarity),3);unsigned money=20;
             assert(gain+extra/20==rarity+1);
             assert(r.buy_chest(money,reward,3,Rarity(rarity))&&money==extra&&r.chests_opened==1);
-            assert(r.master_sword<=5&&r.shield<=10&&r.rank(Upgrade::Bow)<=30);
+            assert(r.master_sword<=30&&r.shield<=10&&r.rank(Upgrade::Bow)<=30);
         }
+    }
+    // Every rarity can advance the sword beyond Light Sword, but never past 30.
+    for(unsigned initial=0;initial<=30;++initial)for(unsigned tier=0;tier<5;++tier){
+        Run sword;sword.start(17);sword.phase=Phase::Treasure;sword.master_sword=initial;
+        const auto rarity=Rarity(tier);const unsigned gain=std::min(30-initial,tier+1);
+        assert(sword.chest_eligible(ChestReward::MasterSword)==(initial<30));
+        assert(sword.chest_gain(ChestReward::MasterSword,rarity)==gain);
+        unsigned money=100;
+        assert(sword.buy_chest(money,ChestReward::MasterSword,0,rarity,true)==(initial<30));
+        assert(sword.master_sword==initial+gain);
+        assert(sword.sword_bonus()==2+sword.master_sword);
+        assert(money==100+(initial<30?20*(tier+1-gain):0));
     }
     Run run;
     assert(std::all_of(run.ranks.begin(),run.ranks.end(),[](auto r){return r==0;}));

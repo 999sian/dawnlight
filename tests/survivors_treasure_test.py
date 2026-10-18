@@ -238,7 +238,7 @@ int main(){
         if(reason==4)s_loot.ready=false;
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
-        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=5;s_run.dual_wield=10;s_run.dark_link=11;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
+        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=30;s_run.dual_wield=10;s_run.dark_link=11;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!open_first()&&created==0&&rupees==100);
     }
     // Cancel and reopen retain the same offers and never charge or reroll.
@@ -345,11 +345,11 @@ int main(){
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.master_sword&&equippedSword==dItemNo_MASTER_SWORD_e&&swordGrants==1&&!s_chests[0].active);
     update_treasure_demo(&player);assert(swordGrants==1&&rupees==80);
-    // The fifth displayed/committed sword reward is Light Sword.
-    for(unsigned n=2;n<=5;++n){
+    // Light Sword unlocks at five and remains equipped through level 30.
+    for(unsigned n=2;n<=30;++n){
         s_chests[0].active=true;s_chests[0].position={0,0,100};rupees=1000;eventEnded=false;
         assert(open_first());
-        const auto expected=n==5?dItemNo_LIGHT_SWORD_e:dItemNo_MASTER_SWORD_e;
+        const auto expected=n>=5?dItemNo_LIGHT_SWORD_e:dItemNo_MASTER_SWORD_e;
         assert(prop.itemNo==expected);accept();eventEnded=true;update_treasure_demo(&player);
         assert(s_run.master_sword==n&&equippedSword==expected);
     }
