@@ -155,6 +155,7 @@ Background& dComIfG_Bgsp(){return background;}
 Actor* actor_by_id(int id){return !creating?fopAcM_SearchByID(id):nullptr;}
 bool in_arena(){return mode;}bool transitioning(){return stageChange;}
 bool ui_visible(){return window!=0;}
+bool midna_dialog_busy(){return false;}
 bool playable(){return mode&&!stageChange&&!running&&!paused&&!ui_visible();}
 void close_window(){window=0;}
 bool sword_action_available(daAlink_c* link){return link->mProcID==daAlink_c::PROC_WAIT;}

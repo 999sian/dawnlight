@@ -56,6 +56,8 @@ bool fpcM_IsCreating(ActorId){return creating;}
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}int fopAcM_GetRoomNo(fopAc_ac_c* a){return a->room;}
 void fopAcM_SetRoomNo(fopAc_ac_c* a,int n){a->room=n;}
 void load_records(){++recordsLoaded;}
+void reset_midna_dialog(){}
+void update_midna_dialog(){}
 constexpr int fopAc_ENEMY_e=2,fopAc_NPC_e=4;
 struct actor_process_profile_definition{int group=0;}profile;
 const auto* fpcPf_Get(s16){return &profile;}

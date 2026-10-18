@@ -18,6 +18,7 @@
 #include "JSystem/JMessage/control.h"
 #include "SSystem/SComponent/c_math.h"
 #include "d/actor/d_a_alink.h"
+#include "d/actor/d_a_midna.h"
 #include "d/actor/d_a_demo_item.h"
 #include "d/actor/d_a_e_ba.h"
 #include "d/actor/d_a_e_oc.h"
@@ -72,6 +73,8 @@ const Arena& arena() { return arenas[s_map]; }
 constexpr char kBlob[] = "hyrule-survivors-records-v1";
 constexpr ActorId kNone = fpcM_ERROR_PROCESS_ID_e;
 DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
+DEFINE_HOOK(&daAlink_c::orderZTalk, SurvivorsMidnaOrder);
+DEFINE_HOOK(&dMsgFlow_c::getInitNodeIndex, SurvivorsMidnaFlow);
 DEFINE_HOOK(&daAlink_c::checkSceneChange, SurvivorsArenaExit);
 DEFINE_HOOK_SYMBOL("src/d/d_stage.cpp#dStage_actorCreate", void(stage_actor_data_class*, fopAcM_prm_class*, size_t), SurvivorsArenaActor);
 DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
@@ -140,6 +143,10 @@ void close_powerup_window();
 ActorId s_player = kNone;
 fpc_ProcID s_savePrompt = kNone;
 unsigned s_spawnCooldown = 0, s_spawnFailures = 0, s_warmup = 0;
+unsigned s_midnaRequestFrames = 0;
+bool s_midnaTalking = false, s_midnaEndPending = false;
+bool midna_dialog_busy() { return s_midnaRequestFrames || s_midnaTalking || s_midnaEndPending; }
+void reset_midna_dialog() { s_midnaRequestFrames=0; s_midnaTalking=s_midnaEndPending=false; }
 enum class SwordAction { None, Normal, Spin };
 SwordAction s_swordAction = SwordAction::None;
 unsigned s_meleeCooldown = 0;
@@ -209,7 +216,7 @@ bool ui_visible() {
 }
 bool transitioning() { return dComIfGp_isEnableNextStage() || fopOvlpM_IsPeek(); }
 bool playable() {
-    return in_arena() && !transitioning() && !dComIfGp_isPauseFlag() &&
+    return in_arena() && !midna_dialog_busy() && !transitioning() && !dComIfGp_isPauseFlag() &&
         !dScnPly_c::isPause() && !dComIfGp_event_runCheck() && !ui_visible() &&
         dMeter2Info_getGameOverType() == 0;
 }
@@ -301,6 +308,7 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    reset_midna_dialog();
     s_saveReady = false; s_gameStarted = false;
     s_map = s_requestedMap = 0; clear_arena_geometry();
     close_powerup_window(); close_window(); clear_attacks(); clear_loot(); detach_attack_references(); retire_enemies();
@@ -323,6 +331,7 @@ void prepare_save() {
     dComIfGs_onEventBit(dSv_event_flag_c::F_0250);
     dComIfGs_onEventBit(dSv_event_flag_c::F_0302);
     dComIfGs_onEventBit(dSv_event_flag_c::M_010);
+    dComIfGs_onEventBit(dSv_event_flag_c::M_067); // Native Midna riding/call and touch icon.
     for (int province=0; province<3; ++province) dComIfGs_onDarkClearLV(province);
     dComIfGs_setTransformStatus(TF_STATUS_HUMAN);
     dComIfGs_onItemFirstBit(dItemNo_WEAR_KOKIRI_e);
@@ -375,6 +384,7 @@ void finish(bool won) {
         s_resultsStored = true;
     }
 }
+#include "survivors_midna.inc"
 void add_orb(cXyz position, unsigned value) {
     position.y -= 20;
     cXyz probe = position; probe.y += 500;
@@ -756,6 +766,7 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
 }
 bool pause_run_actor(bool enemy) {
     if (!in_arena() || s_run.phase == Phase::Loading) return false;
+    if (enemy && midna_dialog_busy()) return true;
     if (ui_visible() || dComIfGp_isPauseFlag()) return true;
     // Native Get Item needs Link's Execute; enemies and the run clock stay paused.
     return s_run.phase != Phase::Running && (enemy || s_run.phase != Phase::Treasure);
@@ -1017,7 +1028,7 @@ void update_survivors() {
         }
         return;
     }
-    if (!in_arena() || transitioning()) { close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
+    if (!in_arena() || transitioning()) { reset_midna_dialog(); close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
     if (s_restart) {
@@ -1032,10 +1043,12 @@ void update_survivors() {
         return;
     }
     if (s_player != fopAcM_GetID(link)) {
+        reset_midna_dialog();
         s_player = fopAcM_GetID(link); s_run.phase = Phase::Loading; s_warmup = 0;
         s_arenaSafe = false;
     }
     if (fpcM_IsCreating(s_player)) return;
+    update_midna_dialog();
     update_arena_safety(link);
     if (s_run.phase == Phase::Loading) {
         // Never freeze a falling or partially initialized Link in the preview.
@@ -1061,7 +1074,7 @@ void update_survivors() {
         s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) open_window();
 }
 ModResult initialize_survivors(ModError* error) {
-    ModResult result = MOD_OK;
+    ModResult result = initialize_midna_dialog();
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
@@ -1069,6 +1082,9 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
     PRE(SurvivorsPlayer, before_chest_action);
+    PRE(SurvivorsPlayer, before_midna_call);
+    PRE(SurvivorsMidnaOrder, before_midna_order);
+    PRE(SurvivorsMidnaFlow, before_midna_flow);
     PRE(SurvivorsBlock, before_shield_block); PRE(SurvivorsGuard, before_survivors_guard);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
@@ -1128,6 +1144,7 @@ ModResult initialize_survivors(ModError* error) {
 }
 void shutdown_survivors() {
     s_active = false; reset_runtime(); cleanup_enemies();
+    s_midnaGraph.reset(); s_midnaPrompt.reset(); s_midnaOptions.reset(); s_midnaStart=0;
     s_treasureMessage.reset(); s_itemNameMessage.reset(); s_itemDescriptionMessage.reset();
     if (s_savePrompt != kNone) { d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone; }
     if (s_registered) svc_game_mode->unregister_game_mode(mod_ctx, kMode);

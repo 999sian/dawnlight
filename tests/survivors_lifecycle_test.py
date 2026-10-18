@@ -55,6 +55,8 @@ unsigned s_meleeCooldown=0; bool s_wavePending=false;
 unsigned s_map=0,s_requestedMap=0;
 const Arena& arena(){return arenas[s_map];}
 void clear_arena_geometry(){}
+void reset_midna_dialog(){}
+bool midna_dialog_busy(){return false;}
 bool s_arenaMeshReady=true;
 unsigned s_chestDelay=0;
 void dMeter2Info_setSword(int,bool){}
@@ -72,7 +74,7 @@ void d_GameOver_Delete(ActorId) {} void dComIfGp_setGameoverStatus(int) {}
 constexpr int MAX_SELECT_ITEM=4, MAX_ITEM_SLOTS=24, dItemNo_NONE_e=255;
 constexpr int TF_STATUS_HUMAN=0, dItemNo_WEAR_KOKIRI_e=47, KOKIRI_CLOTHES_FLAG=1;
 constexpr int dItemNo_SWORD_e=40, COLLECT_ORDON_SWORD=1;
-struct dSv_event_flag_c { enum { F_0250, F_0302, M_010 }; };
+struct dSv_event_flag_c { enum { F_0250, F_0302, M_010, M_067 }; };
 struct Status {
     std::array<int,MAX_SELECT_ITEM> slots{}, mixes{};
     void setSelectItemIndex(int i,int v){slots.at(i)=v;}
