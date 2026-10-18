@@ -46,7 +46,7 @@ int main() {
     maximum.start(58);assert(maximum.luck_percent()==100&&maximum.eligible(Upgrade::Luck));
     for(unsigned rarity=0;rarity<5;++rarity) {
         for(unsigned u=0;u<unsigned(Upgrade::Rupees);++u)for(unsigned initial:{0u,4u}) {
-            Run r;r.start(13);r.shield=1;r.ranks[8]=1;r.ranks[u]=initial;
+            Run r;r.start(13);r.shield=1;r.red_potion=true;r.ranks[8]=1;r.ranks[u]=initial;
             // Weapons must be chest-unlocked first.
             if(u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)&&!initial)continue;
             r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);
@@ -142,7 +142,7 @@ int main() {
     }
     assert(wallet == 19400220 && !run.chest_rewards_left());
     assert(run.equipment_count()==4&&!run.chest_eligible(ChestReward::MasterSword));
-    assert(run.chest_rewards_left(true)); // A refill remains available after all weapons.
+    assert(!run.chest_rewards_left(true)); // Four weapons leave no slot for a first potion.
     const auto maxedRng = run.random;
     assert(!run.buy_chest(wallet, reward) && wallet == 19400220 && run.random == maxedRng);
     for (unsigned i = unsigned(Upgrade::Bow); i <= unsigned(Upgrade::Ball); ++i) {
@@ -153,6 +153,7 @@ int main() {
         assert(run.item_cooldown(weapon) > fast);
         run.ranks[i] = 30;
     }
+    run.start(20);run.phase=Phase::Treasure;run.banned_items.fill(true);run.banned_items[unsigned(ChestReward::RedPotion)]=false;
     wallet = 100000;
     reward = run.roll_chest_offers(true)[0];
     assert(run.buy_chest(wallet, reward, true) && reward == ChestReward::RedPotion);
@@ -170,7 +171,7 @@ int main() {
         assert(!choices.buy_chest(money,ChestReward::Count));
         choices.ranks.fill(30);choices.ranks[unsigned(Upgrade::Ball)]=0;choices.shield=9;choices.banned_items[unsigned(ChestReward::OrdonSword)]=true;
         auto few=choices.roll_chest_offers(true);
-        assert(few[0]!=few[1]&&few[2]==ChestReward::Count);
+        assert(few[0]==ChestReward::Shield&&few[1]==ChestReward::Count&&few[2]==ChestReward::Count);
         assert((few[0]==ChestReward::Shield||few[1]==ChestReward::Shield));
         few=choices.roll_chest_offers(false);
         assert(few[0]==ChestReward::Shield&&few[1]==ChestReward::Count&&few[2]==ChestReward::Count);
@@ -220,7 +221,7 @@ int main() {
     assert(duration==20*60*30 && elite_interval==5*60*30 && timed_elite_count==3);
     // Every ordinary upgrade and weapon can cross the old cap safely.
     for (unsigned rank=0;rank<=30;++rank) {
-        Run high;high.start(1);high.shield=1;high.ranks.fill(rank);
+        Run high;high.start(1);high.shield=1;high.red_potion=true;high.ranks.fill(rank);
         for (unsigned u=0;u<unsigned(Upgrade::Rupees);++u) {
             if (Upgrade(u)==Upgrade::Luck) continue;
             assert(upgrade_cap(Upgrade(u))==30);
@@ -253,7 +254,7 @@ int main() {
     slots.dual_wield=8;assert(slots.equipment_count()==4);
     assert(slots.eligible(Upgrade::Heart)&&slots.eligible(Upgrade::Magnet));
     assert(!slots.chest_eligible(ChestReward::Ball)&&!slots.chest_eligible(ChestReward::MasterSword));
-    assert(slots.chest_eligible(ChestReward::Bow)&&slots.chest_eligible(ChestReward::RedPotion,true));
+    assert(slots.chest_eligible(ChestReward::Bow)&&!slots.chest_eligible(ChestReward::RedPotion,true));
     wallet=10000;
     for(auto reward:{ChestReward::Shield,ChestReward::OrdonSword,ChestReward::Shield}) {
         assert(slots.chest_eligible(reward)&&slots.replaces_offhand(reward));

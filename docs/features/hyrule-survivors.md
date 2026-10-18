@@ -363,7 +363,10 @@ archive; the native reward ID/icon and normal dialog completion stay intact.
 Only bottles can be assigned to item buttons; automatic equipment cannot be
 assigned or combined. This also applies to extra bindings supplied by other mods.
 These inventory entries belong only to the isolated Survivors save and reset
-with the run. Red Potion retains the native recovery of up to eight hearts.
+with the run. Red Potion occupies one equipment slot shared by all bottles, including empty ones.
+It starts at rank 0 with one heart of healing. The unlocked Potion Healing power-up
+adds a quarter heart per rank, up to 8.5 hearts at rank 30. Refills retain this rank;
+only the red-potion drinking call changes healing, preserving other pickups and native bottle consumption.
 
 Maxed weapons, a rank-5 Master Sword, an owned offhand sword and a 50% shield are excluded. New chests stop
 spawning only while no useful reward is available. Each run resets the separate

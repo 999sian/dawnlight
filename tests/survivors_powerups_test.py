@@ -127,10 +127,18 @@ int main(){
  buttons[1]->pressed(nullptr,buttons[1]->data);assert(lifeMax==20&&closed==1);
  // All upgrade kinds produce a valid preview and don't mutate the live run.
  for(unsigned i=0;i<unsigned(Upgrade::Count);++i){
-   fresh();s_run.phase=Phase::Upgrade;s_run.shield=1;s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;
+   fresh();s_run.phase=Phase::Upgrade;s_run.shield=1;s_run.red_potion=true;s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;
    s_run.offers.fill(Upgrade(i));assert(build_upgrade_choices(1,2)==MOD_OK);
    assert(s_run.phase==Phase::Upgrade&&s_run.rank(Upgrade::Heart)==0&&money==100);
  }
+ // Potion healing previews show the actual fractional gain and commit only the rank.
+ fresh();s_run.red_potion=true;s_run.phase=Phase::Upgrade;
+ s_run.offers={Upgrade::PotionHealing,Upgrade::Count,Upgrade::Count};
+ assert(build_upgrade_choices(1,2)==MOD_OK);bool healing=false;
+ for(const auto& [id,e]:elements)if(e.kind=="rml")healing|=e.text.find("1.00 hearts per red potion -&gt; 1.25 hearts per red potion")!=std::string::npos;
+ assert(healing&&s_run.potion_heal_quarters()==4);
+ for(const auto& [id,e]:elements)if(e.kind=="button")e.pressed(nullptr,e.data);
+ assert(s_run.potion_heal_quarters()==5&&s_run.equipment_count()==1);
  // Rarity presentation and the actual activation agree, including overflow.
  for(unsigned r=0;r<5;++r){
    fresh();s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::Luck,Upgrade::Power,Upgrade::Rupees};

@@ -31,7 +31,7 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
     return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, Rupees, Count };
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, Rupees, Count };
 inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::Luck ? 20 : 30; }
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
@@ -42,7 +42,7 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Rupees"};
+    "Sword Wave", "Whirling Blade", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Rupees"};
 inline constexpr std::array descriptions{
     "Automatic piercing sword waves. Higher levels add damage and extra waves.",
     "Unlock or improve a moving spin attack.",
@@ -56,6 +56,7 @@ inline constexpr std::array descriptions{
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
     "Ignite enemies for periodic damage. Hits refresh the burn; upgrades improve damage and duration.",
     "Improve reward rarities. +10% Luck per level, max +200%. Heart and rupee bonuses stop at +50%.",
+    "Red potions restore an extra quarter heart per level.",
     "Receive 20 rupees."};
 
 struct RunOptions {
@@ -74,6 +75,7 @@ struct Run {
     RunOptions options;
     unsigned drop_progress = 0, maximum_hearts = 3;
     unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
+    bool red_potion = false;
     ChestReward offhand = ChestReward::Count;
     unsigned free_rerolls = 1, banishes = 1, paid_rerolls = 0;
     std::array<bool,unsigned(Upgrade::Count)> banned_upgrades{};
@@ -90,6 +92,7 @@ struct Run {
     void start(uint32_t seed, RunOptions settings = {}) { *this = {}; options=settings; options.clamp(); random = seed ? seed : 1; phase = Phase::Running; }
     unsigned required_xp() const { return 5 + level * 3; }
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return i < ranks.size() ? ranks[i] : 0; }
+    unsigned potion_heal_quarters() const { return 4 + rank(Upgrade::PotionHealing); }
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
     // Drop frequency/quality retain their old +50% cap independently of rarities.
     unsigned lucky_chance(unsigned basis_points) const { return basis_points * std::min(150u, luck_percent()) / 100; }
@@ -127,6 +130,7 @@ struct Run {
         if (u == Upgrade::Rupees) return true;
         if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
         if (u == Upgrade::ShieldAttack && !owns(ChestReward::Shield)) return false;
+        if (u == Upgrade::PotionHealing && !red_potion) return false;
         if (u == Upgrade::FireArrows && !rank(Upgrade::Bow)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
         if (u == Upgrade::Heart && maximum_hearts >= 20) return false;
@@ -169,6 +173,7 @@ struct Run {
         if (reward<=ChestReward::Ball) return rank(chest_weapon(reward))!=0;
         if (reward==ChestReward::MasterSword) return master_sword!=0;
         if (reward==ChestReward::DarkLink) return dark_link!=0;
+        if (reward==ChestReward::RedPotion) return red_potion;
         if (reward==ChestReward::OrdonSword) return dual_wield || offhand==reward;
         if (reward==ChestReward::Shield) return shield || offhand==reward;
         return false;
@@ -206,7 +211,7 @@ struct Run {
     unsigned damage_multiplier() const { return dark_active() ? 2 : 1; }
     bool chest_eligible(ChestReward reward, bool bottle_available = false) const {
         if (reward>=ChestReward::Count || banned_items[unsigned(reward)]) return false;
-        if (reward!=ChestReward::RedPotion && !owns(reward) && !replaces_offhand(reward) && equipment_count()>=4) return false;
+        if (!owns(reward) && !replaces_offhand(reward) && equipment_count()>=4) return false;
         if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < upgrade_cap(chest_weapon(reward));
         if (reward == ChestReward::MasterSword) return master_sword < 5;
         if (reward == ChestReward::OrdonSword) return dual_wield < 10;
@@ -257,6 +262,7 @@ struct Run {
         if (!free) ++chests_opened;
         if (replaces_offhand(reward)) { shield=dual_wield=0; offhand=reward; }
         if (reward == ChestReward::Shield || reward == ChestReward::OrdonSword) offhand=reward;
+        if (reward == ChestReward::RedPotion) red_potion = true;
         if (reward == ChestReward::MasterSword) master_sword += gain;
         else if (reward == ChestReward::OrdonSword) dual_wield += gain;
         else if (reward == ChestReward::DarkLink) dark_link += gain;

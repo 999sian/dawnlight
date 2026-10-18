@@ -10,6 +10,9 @@ inline std::string number(unsigned value) { return std::to_string(value); }
 inline std::string seconds(unsigned ticks) {
     char text[24]; std::snprintf(text, sizeof(text), "%.2fs", ticks / float(ticks_per_second)); return text;
 }
+inline std::string potion_healing(const Run& run) {
+    char text[32]; std::snprintf(text,sizeof(text),"%.2f hearts",run.potion_heal_quarters()/4.f); return text;
+}
 inline unsigned arrow_count(const Run& run) { return run.bow_shots(); }
 inline unsigned item_damage(const Run& run, Upgrade weapon) {
     return run.attack_power(unsigned(weapon)) + (weapon == Upgrade::Ball ? 3 : 0);
@@ -57,6 +60,8 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
         add("Duration", before.dark_link ? seconds(before.dark_duration()) : "off",
             after.dark_permanent() ? "infinite" : seconds(after.dark_duration()));
     }
+    else if (reward == ChestReward::RedPotion && !before.red_potion && after.red_potion)
+        add("Healing", "off", potion_healing(after));
     else if (reward == ChestReward::Shield) add("Block chance", number(before.block_chance()) + "%", number(after.block_chance()) + "%");
     if (before.replaces_offhand(reward)) {
         add("Replaces", reward==ChestReward::Shield ? "Dual Wield" : "Shield", "removed; new item level 0");
@@ -91,7 +96,7 @@ inline std::string item_description(ChestReward reward, const Run& run) {
         (run.dark_permanent() ? "; permanently active" : "; every " + seconds(run.dark_interval())) +
         "\nDuration: " + (run.dark_permanent() ? std::string("infinite") : seconds(run.dark_duration())) +
         "\nUpgrades alternate interval and duration.";
-    return "Restores up to 8 hearts when used.\nBottles can be assigned to item buttons.\nChest rewards add bottles up to four,\nthen refill empty bottles.";
+    return "Restores " + potion_healing(run) + " when used.\nHealing Lv." + number(run.rank(Upgrade::PotionHealing)) + "; +0.25 hearts per upgrade.\nOne equipment slot for all four bottles.\nChests add/refill bottles; bind to use.";
 }
 inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     const auto rank = run.rank(upgrade);
@@ -102,6 +107,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::Magnet: return number(150 + 65 * rank) + " pickup range";
     case Upgrade::Heart: return number(run.maximum_hearts) + " maximum hearts (max 20)";
     case Upgrade::FireArrows: return number(run.burn_damage()) + " damage/s for " + seconds(run.burn_duration());
+    case Upgrade::PotionHealing: return potion_healing(run) + " per red potion";
     case Upgrade::Luck: return "+" + number(run.luck_percent() - 100) + "% Luck";
     case Upgrade::Rupees: return "+20 rupees";
     default: return "Level " + number(rank);

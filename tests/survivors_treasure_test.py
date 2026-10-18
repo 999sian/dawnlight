@@ -348,7 +348,7 @@ int main(){
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dark_link==1&&rupees==80&&!s_chests[0].active&&swordGrants==0&&potionGrants==0);
     // Potion rewards fill a new slot first, even with an existing empty bottle.
-    fresh();for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=5;s_run.dual_wield=10;s_run.dark_link=11;s_run.shield=10;rupees=1000;
+    fresh();s_run.banned_items.fill(true);s_run.banned_items[unsigned(ChestReward::RedPotion)]=false;rupees=1000;
     for(unsigned n=0;n<4;++n){
         s_chests[0]={};s_chests[0].active=true;s_chests[0].position={0,0,100};
         if(n>0)bottles[0]=dItemNo_EMPTY_BOTTLE_e;
@@ -358,6 +358,7 @@ int main(){
         assert(prop.itemNo==dItemNo_RED_BOTTLE_e);
         accept();eventEnded=true;update_treasure_demo(&player);
         assert(bottles[n]==dItemNo_RED_BOTTLE_e && potionGrants==int(n+1)&&!s_chests[0].active);
+        assert(s_run.red_potion&&s_run.equipment_count()==1&&s_run.potion_heal_quarters()==4);
         if(n>0)assert(bottles[0]==dItemNo_EMPTY_BOTTLE_e);
     }
     assert(rupees==882&&s_run.chest_cost()==52&&potion_slot()==SLOT_11);

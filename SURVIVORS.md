@@ -72,7 +72,8 @@ Item animation. Cancelling preserves offers. Opened chests disappear; free elite
 chests never raise the paid-chest price.
 
 Equip up to **four chest items**; their icons (or empty slots) appear above the
-choices. Bottles/potions do not use equipment slots. Passive power-ups have no
+choices. Red Potion uses one shared slot for all bottles, retained even when
+they are empty. Passive power-ups have no
 slot limit. **Dual Wield and Shield replace each other** in the same slot, with
 an explicit warning below the item name. A replacement starts at **rank 0**;
 the discarded ranks are lost, including when switching back. Replacement-card
@@ -94,7 +95,7 @@ both menus. All counters and bans reset on a new run.
 | Ordon Sword | Dual Wield: two nearby melee targets at rank 1, up to five total targets at rank 9; capped at rank 10. |
 | Shield | 5% block chance per rank, max 50%; evolves to Ordon at 20% and Hylian at 35%. Unlocks Shield Attack level-ups. |
 | Dark Link | Double damage for 5 seconds every 20 seconds; upgrades alternate shorter intervals and longer duration, becoming permanent at rank 11. |
-| Red Potion | Adds filled bottles up to four, then refills empty bottles. Use manually to heal. |
+| Red Potion | One equipment slot; adds filled bottles up to four, then refills empty ones. Rank 0 heals 1 heart. Potion Healing level-ups add ¼ heart per rank, up to 8½ hearts at rank 30. Use manually. |
 
 Weapons, passives, Fire Arrows and Shield Attack reach rank 30.
 Luck caps at 20, Master Sword at 5, Dual Wield and shield block at 10, and Dark Link at 11.

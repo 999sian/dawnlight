@@ -83,6 +83,8 @@ DEFINE_HOOK(&daAlink_c::execute, SurvivorsPlayer);
 // Symbol form avoids MSVC constinit failure for this multiply-inherited class.
 DEFINE_HOOK_SYMBOL("dBgS_Acch::CrrPos", void(dBgS_Acch*, dBgS&), SurvivorsEnemySpeed);
 DEFINE_HOOK(&daAlink_c::setDamagePoint, SurvivorsEnemyDamage);
+DEFINE_HOOK(&daAlink_c::commonBottleDrink, SurvivorsPotionDrink);
+DEFINE_HOOK(&dComIfGp_setItemLifeCount, SurvivorsPotionHeal);
 DEFINE_HOOK(&dCamera_c::Run, SurvivorsCamera);
 DEFINE_HOOK(&daAlink_c::orderZTalk, SurvivorsMidnaOrder);
 DEFINE_HOOK(&dMsgFlow_c::getInitNodeIndex, SurvivorsMidnaFlow);
@@ -259,6 +261,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_ground.inc"
 #include "survivors_pickups.inc"
 #include "survivors_options.inc"
+#include "survivors_potions.inc"
 void stop_attack(Attack& a) {
     for (auto& id : a.emitters) {
         if (id) {
@@ -1156,6 +1159,8 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
     PRE(SurvivorsEnemySpeed, before_enemy_speed);
     PRE(SurvivorsEnemyDamage, before_enemy_damage);
+    PRE(SurvivorsPotionDrink, before_potion_drink); POST(SurvivorsPotionDrink, after_potion_drink);
+    PRE(SurvivorsPotionHeal, before_potion_heal);
     PRE(SurvivorsCamera, before_run_camera); POST(SurvivorsCamera, after_run_camera);
     PRE(SurvivorsArenaExit, before_arena_exit);
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);

@@ -62,6 +62,7 @@ jobs:
           python3 tests/survivors_lifecycle_test.py
           python3 tests/survivors_defense_test.py
           python3 tests/survivors_status_test.py
+          python3 tests/survivors_potions_test.py
           python3 tests/survivors_treasure_test.py
           python3 tests/survivors_loot_test.py
           python3 tests/survivors_loot_resources_test.py
@@ -247,6 +248,7 @@ jobs:
           CXX=clang++ python3 tests/survivors_midna_test.py dusklight
           python3 tests/survivors_aggro_test.py dusklight
           CXX=clang++ python3 tests/survivors_aggro_test.py dusklight
+          CXX=clang++ python3 tests/survivors_potions_test.py
           CXX=clang++ python3 tests/survivors_defense_test.py
           CXX=clang++ python3 tests/survivors_elites_test.py
           CXX=clang++ python3 tests/survivors_pots_test.py

@@ -157,6 +157,11 @@ int main(){
    }
    assert(headers==1);
  }
+ fresh();s_run.red_potion=true; // Empty bottles retain their equipment icon.
+ assert(build_treasure_choices(1,2)==MOD_OK);bool potionIcon=false;
+ char potionUrl[40];std::snprintf(potionUrl,sizeof(potionUrl),"item://item/%02x",unsigned(dItemNo_RED_BOTTLE_e));
+ for(const auto& [id,e]:elements)if(e.text.find("survivors-equipment\"")!=std::string::npos)potionIcon=e.text.find(potionUrl)!=std::string::npos;
+ assert(potionIcon);
  fresh();failControl=true;assert(build_treasure_choices(1,2)==MOD_UNAVAILABLE&&s_run.chests_opened==0);
  fresh();s_selectedChest=2;assert(build_treasure_choices(1,2)==MOD_INVALID_ARGUMENT);
 }
