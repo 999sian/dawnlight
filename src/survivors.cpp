@@ -81,6 +81,7 @@ DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
 DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
 DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
+DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#pl_check", int(e_ms_class*, f32), SurvivorsRatAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#damage_check", void(e_ba_class*), SurvivorsKeeseHit);
@@ -168,6 +169,8 @@ bool prepare_treasure_message(ChestReward, const Run&, const Run&, Rarity);
 unsigned treasure_message_id();
 void sync_survivors_inventory();
 bool queue_ranged(daAlink_c*, Upgrade);
+struct Enemy;
+void drop_elite_chest(Enemy&, fopAc_ac_c*);
 std::array<unsigned, 3> s_choices{0, 1, 2};
 struct ProcessFrame { void* args; ActorId id; };
 std::vector<ProcessFrame> s_processFrames;
@@ -177,6 +180,9 @@ struct Enemy {
     ProfileName profile = 0;
     bool initialized = false, credited = false, retiring = false, elite = false;
     unsigned age = 0;
+    int eliteSlot = -1;
+    bool dormant = false, idleAnimation = false;
+    cXyz lootPosition{};
 };
 std::array<Enemy, enemy_capacity> s_enemies;
 struct Orb { cXyz position{}; unsigned value = 0; };
@@ -229,6 +235,7 @@ Enemy* tracked(ActorId id) {
     for (auto& e : s_enemies) if (e.id != kNone && e.id == id) return &e;
     return nullptr;
 }
+#include "survivors_elite_positions.inc"
 #include "survivors_maps.inc"
 #include "survivors_aggro.inc"
 void stop_attack(Attack& a) {
@@ -263,7 +270,6 @@ void cleanup_enemies() {
         if (e.id == kNone) continue;
         auto* actor = actor_by_id(e.id);
         if (!actor && !fpcM_IsCreating(e.id)) {
-            if (e.elite && !e.credited) s_run.elite_spawned = false;
             e = {}; continue;
         }
         // Pending creation is not completion or a kill. Keep its ID until the scene
@@ -424,7 +430,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
     e.credited = true; ++s_run.kills;
     if (!e.elite) drop_reward(actor);
     add_orb(actor->current.pos, e.elite ? 30 : e.profile == fpcNm_E_OC_e ? 3 : 1);
-    if (e.elite) finish(true);
+    if (e.elite) drop_elite_chest(e, actor);
 }
 void update_orbs(daAlink_c* link) {
     const float range = 150.0f + 65.0f * s_run.rank(Upgrade::Magnet);
@@ -437,12 +443,28 @@ void update_orbs(daAlink_c* link) {
         else if (distance < range) orb.position += delta * (std::min(35.0f, distance) / distance);
     }
 }
-bool spawn_enemy(daAlink_c* link, bool elite) {
+bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot = -1, bool dormant = false) {
+    auto slot = std::find_if(s_enemies.begin(), s_enemies.end(), [](const auto& e) { return e.id == kNone; });
+    if (slot == s_enemies.end()) return false;
+    constexpr std::array<ProfileName, 3> profiles{fpcNm_E_OC_e, fpcNm_E_BA_e, fpcNm_E_MS_e};
+    constexpr std::array<u32, 3> parameters{0x00ff0000, 0xffff0f01, 0xffff0000};
+    ActorId id = kNone;
+    const float scale = elite ? 2.0f : 1.0f;
+    const ActorSpawnParams params{
+        .parameters = parameters[type], .argument = -1, .room_num = arena().room,
+        .position = {pos.x, pos.y, pos.z},
+        .angle = {0, static_cast<s16>(yaw + 0x8000), 0},
+        .scale = {scale, scale, scale}, .create_function = nullptr,
+    };
+    if (create_standalone_actor(profiles[type], params, id) != MOD_OK) return false;
+    *slot = {id, profiles[type], false, false, false, elite, 0};
+    slot->eliteSlot = eliteSlot; slot->dormant = dormant; slot->lootPosition = pos;
+    return true;
+}
+bool spawn_enemy(daAlink_c* link, bool elite, int eliteSlot = -1) {
     auto slot = std::find_if(s_enemies.begin(), s_enemies.end(), [](const auto& e) { return e.id == kNone; });
     if (slot == s_enemies.end()) return false;
     const unsigned type = elite ? 0 : s_run.next_random() % (s_run.ticks < 900 ? 2 : 3);
-    constexpr std::array<ProfileName, 3> profiles{fpcNm_E_OC_e, fpcNm_E_BA_e, fpcNm_E_MS_e};
-    constexpr std::array<u32, 3> parameters{0x00ff0000, 0xffff0f01, 0xffff0000};
     for (unsigned attempt = 0; attempt < 12; ++attempt) {
         const auto yaw = static_cast<s16>(s_run.next_random());
         const float radius = 600.0f + float(s_run.next_random() % 450);
@@ -456,44 +478,27 @@ bool spawn_enemy(daAlink_c* link, bool elite) {
         dBgS_LinChk wall; wall.Set(&from, &to, link);
         if (dComIfG_Bgsp().LineCross(&wall) || !arena_path_clear(from, to)) continue;
         if (dComIfG_Bgsp().GetRoomId(ground) != arena().room) continue;
-        ActorId id = kNone;
-        const float scale = elite ? 2.0f : 1.0f;
-        const ActorSpawnParams params{
-            .parameters = parameters[type], .argument = -1, .room_num = arena().room,
-            .position = {pos.x, pos.y, pos.z},
-            .angle = {0, static_cast<s16>(yaw + 0x8000), 0},
-            .scale = {scale, scale, scale}, .create_function = nullptr,
-        };
-        if (create_standalone_actor(profiles[type], params, id) != MOD_OK) return false;
-        *slot = {id, profiles[type], false, false, false, elite, 0};
-        return true;
+        return create_enemy_at(pos, yaw, type, elite, eliteSlot);
     }
     return false;
 }
+#include "survivors_elites.inc"
 void update_spawns(daAlink_c* link) {
     unsigned population = 0;
     for (auto& e : s_enemies) {
         if (e.id == kNone) continue;
-        ++population;
+        if (!e.elite) ++population;
         auto* actor = actor_by_id(e.id);
         if (!actor || !e.initialized) continue;
         ++e.age;
-        // Cleanup is never a reward. A lost elite can be attempted again.
-        if (!e.retiring && e.age > 5400) {
-            e.retiring = true;
-            if (e.elite && !e.credited) s_run.elite_spawned = false;
-        }
+        // Guards and scheduled elites persist until killed; cleanup grants no loot.
+        if (!e.elite && !e.retiring && e.age > 5400) e.retiring = true;
     }
+    if (s_run.ticks % elite_interval == 0) s_spawnCooldown = 0;
     if (s_spawnCooldown) { --s_spawnCooldown; return; }
     s_spawnCooldown = s_run.spawn_interval();
-    if (s_run.ticks >= duration) {
-        if (!s_run.elite_spawned && population < enemy_capacity) {
-            s_run.elite_spawned = spawn_enemy(link, true);
-            if (!s_run.elite_spawned) ++s_spawnFailures;
-        }
-    } else if (population < s_run.target_population()) {
-        if (!spawn_enemy(link, false)) ++s_spawnFailures;
-    }
+    update_elite_spawns(link);
+    if (population < s_run.target_population() && !spawn_enemy(link, false)) ++s_spawnFailures;
 }
 cXyz target_direction(daAlink_c* link) {
     float nearest = 1600 * 1600;
@@ -744,6 +749,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (!link || fopAcM_GetID(link) != s_player) return;
     if (dComIfGs_getLife() == 0) { finish(false); return; }
     s_run.tick(true);
+    if (s_run.ticks >= duration) { finish(true); return; }
     update_enemy_effects();
     update_spawns(link); update_weapons(link); update_orbs(link);
     if (s_run.level_up()) clear_attacks();
@@ -790,7 +796,6 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     if (method == methods->delete_method) {
         // Never award XP here: cancellation, unloading and despawning also delete.
         if (enemy) {
-            if (enemy->elite && !enemy->credited) s_run.elite_spawned = false;
             *enemy = {};
         }
         return HOOK_CONTINUE;
@@ -806,6 +811,11 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
             actor->field_0x560 = actor->health = enemy->elite ? 120 :
                 static_cast<s16>(8 + std::min(24u, s_run.ticks / 900));
         }
+    }
+    if (enemy && enemy->dormant && enemy->profile == fpcNm_E_OC_e) {
+        auto* guard = static_cast<daE_OC_c*>(actor);
+        guard->mMoveRange = 0; guard->field_0x6e3 = 1; // No social alert/idle search.
+        if (guard->getActionMode() <= 3) guard->setActionMode(0, 0);
     }
     if (enemy) engage_enemy(actor, *enemy);
     if ((enemy && enemy->retiring) || pause_run_actor(enemy != nullptr)) {
@@ -833,6 +843,10 @@ void after_process(ModContext*, void* args, void*, void*) {
     }
     if (enemy && actor) {
         confine_arena_actor(actor, enemy->elite ? 80.f : 35.f);
+        if (enemy->elite && actor->health > 0 && enemy->age % 15 == 0) {
+            cXyz floor = actor->current.pos;
+            if (elite_floor_position(floor)) enemy->lootPosition = floor;
+        }
         credit_death(*enemy, actor);
     }
 }
@@ -889,7 +903,7 @@ void draw_hud(ModContext*, void*, void*, void*) {
     graf->setup2D();
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
     char text[180];
-    std::snprintf(text, sizeof(text), "%02u:%02u / 10:00   Level %u   Kills %u",
+    std::snprintf(text, sizeof(text), "%02u:%02u / 20:00   Level %u   Kills %u",
         s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.level, s_run.kills);
     label(text, x, 40, 17);
     std::snprintf(text, sizeof(text), "XP %u / %u", s_run.xp, s_run.required_xp());
@@ -910,9 +924,7 @@ void draw_hud(ModContext*, void*, void*, void*) {
         std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
     else std::snprintf(text, sizeof(text), "No chest rewards available");
     label(text, x, 96, 14);
-    if (s_run.ticks >= duration && s_run.phase == Phase::Running)
-        label("Defeat the Elite Bokoblin!", x, 118, 16);
-    else if (s_spawnFailures >= 10)
+    if (s_spawnFailures >= 10)
         label("Waiting for a clear enemy spawn position", x, 118, 13);
     graf->setup2D();
 }
@@ -932,6 +944,7 @@ void start_run(ModContext*, void*) {
     close_window(); clear_attacks(); clear_loot(); prepare_save();
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+    reset_elite_encounters();
     s_run.start(seed); s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
     s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
@@ -1088,6 +1101,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBlock, before_shield_block); PRE(SurvivorsGuard, before_survivors_guard);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
+    PRE(SurvivorsBokoblinWait, before_bokoblin_wait);
     PRE(SurvivorsKeeseAggro, before_keese_aggro);
     PRE(SurvivorsRatAggro, before_rat_aggro);
     PRE(SurvivorsKeeseHit, before_enemy_hit); POST(SurvivorsKeeseHit, after_enemy_hit);

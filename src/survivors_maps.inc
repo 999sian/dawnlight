@@ -9,6 +9,7 @@ bool s_arenaSafe = false;
 barriers::Point map_point(const cXyz& p) { return {p.x,p.y,p.z}; }
 cXyz game_point(barriers::Point p) { return cXyz(p.x,p.y,p.z); }
 void clear_arena_geometry() {
+    clear_elite_sites();
     s_barriers.clear(); s_arenaBackgrounds.clear(); s_arenaMeshReady = false; s_arenaSafe = false;
 }
 void add_exit_box(const fopAcM_prm_class& params, float width, float depth) {
@@ -55,6 +56,7 @@ HookAction before_arena_stage_actor(ModContext*, void* args, void*, void*) {
         return HOOK_CONTINUE;
     }
     const bool local=params->room_no==arena().room || params->room_no==-1;
+    capture_elite_site(info->procname, *params);
     bool skip=arena_story_actor(info->procname);
     if (info->procname==fpcNm_SCENE_EXIT_e || info->procname==fpcNm_SCENE_EXIT2_e) {
         if (local) {
@@ -105,6 +107,7 @@ void collect_arena_mesh(fopAc_ac_c* actor) {
         // A mesh edge or another room group is not necessarily an exit. Only
         // native scene-exit polygons justify an additional curtain here.
         const bool exit=mesh->GetExitId(polygon)!=0x3f;
+        capture_elite_floor(a,b,c,normal.GetNP()->y,exit);
         boundary.triangle({map_point(a),map_point(b),map_point(c)},normal.GetNP()->y>0.25f,exit);
     }
     auto walls=boundary.walls();

@@ -156,20 +156,46 @@ shown in the preview/message and capped by the wallet when granted. This also
 applies to extra Ordon Sword units and potion units beyond available bottle slots.
 One chest still charges only once. Price increases are +5, +7, +9, +11 rupees, etc.
 
-Bokoblins and Keese appear first; Rats join after 30 seconds.
-All three enemy types pursue Link regardless of distance, including elites.
-Bokoblins have no home-position leash, and enemies are not despawned for being
-far from Link. Native attack distances, collision, recovery and death states remain.
-Spawn frequency,
-population and Bokoblin health increase during the run. At ten minutes, ordinary
-spawning stops and an Elite Bokoblin appears at twice the normal size, with
-matching hitboxes so it is easy to recognize. Defeat it to win. Death opens a
-result screen with time, kills, level and weapon levels. **New run** reloads the
-arena and resets all run upgrades.
+Bokoblins and Keese appear first; Rats join after 30 seconds. A run lasts
+**20 minutes of active gameplay** and ends automatically in victory at 20:00.
+Menus, Get Item and Midna dialogue pause the timer. Elite Bokoblins spawn at
+**5:00, 10:00 and 15:00**; 20:00 ends the run instead of spawning an enemy that
+would immediately disappear. Elites remain twice normal size with matching
+hitboxes. Killing an elite no longer ends the run or stops ordinary spawning.
+
+Additional stationary elite guards wait at these map locations:
+
+| Map | Guards |
+| --- | --- |
+| Hyrule Field | Four random, separated positions across the room's floor |
+| Gerudo Desert | Four random, separated positions across the room's floor |
+| Darknut Arena | One at the authored chest position in the small side room |
+| Hyrule Castle Throne Room | One near the entrance and one at the opposite end |
+| Palace of Twilight | One in front of each authored building doorway |
+
+Guards use native idle animation, physics, collision and damage handling, but
+skip idle detection/social alerts. Only a damaging hit from Link wakes them.
+Once provoked they pursue Link at any distance, just like ordinary and scheduled
+enemies. Standing nearby alone does not provoke a guard. Placement uses loaded
+DZB/KCL floor geometry and authored chest/door records, with floor, room, hazard,
+footprint and exit-barrier checks. No map archives or assets are bundled.
+
+Each killed elite leaves **one free large chest** at its death position (or its
+last safe floor position). It uses native Dalways large-chest model 13 and lid
+animation 8, not a scaled small chest. Open immediately gives one random eligible
+item through the native Get Item sequence, without the paid three-choice screen.
+Free chests cost zero rupees, never advance the paid-chest price, and disappear
+once the reward completes. Each encounter reserves its own chest slot, independent
+of the two paid chests. Failed creation is retried; deletion, cleanup and repeated
+death callbacks never generate extra loot. Guards and elites do not age-despawn.
+
+Spawn frequency, ordinary population and Bokoblin health increase during the run.
+Death opens a result screen with time, kills, level and weapon levels. **New run**
+reloads the arena and resets all run upgrades and elite encounters.
 
 ## Treasure chests
 
-Two treasure chests can be present at once. The first appears after 20–30 seconds;
+Two paid treasure chests can be present at once, in addition to free elite chests. The first appears after 20–30 seconds;
 subsequent spawns are attempted at random 25–45 second intervals. Positions need
 flat ground, a clear footprint and an unobstructed line from Link. Failed/full
 placements retry after three seconds. Closed chests remain until purchased or the
@@ -351,7 +377,7 @@ props and 64 experience crystals. Model allocation is bounded by a 2 MiB heap,
 trimmed after loading. Excess crystals merge their value.
 These limits are starting budgets, not a measured Android performance guarantee.
 Spawns require a valid floor and unobstructed line from Link, and are staggered.
-A failed elite creation/despawn can be retried without counting as a victory.
+A failed elite creation/despawn can be retried without granting loot or counting as a kill.
 Only confirmed deaths of initialized, tracked actors award experience.
 
 Regression checks include three-card UI construction and activation, cached offers,
@@ -362,7 +388,7 @@ and native movement/root-motion equations.
 Before merging/releasing, test on Android and desktop:
 
 1. Create and reload a separate Survivors slot; verify story and Boss Rush saves.
-2. Complete a run using all weapons and both dependent upgrades; check native enemy death, elite victory
+2. Complete a run using all weapons and both dependent upgrades; check native enemy death, elite drops and automatic 20-minute victory
    and no HP scaling leakage. Verify jump, dodge, controller and touch controls.
 3. Level up while surrounded; check three scroll cards, names/descriptions and
    red upgrade values with controller and touch. Close/reopen the choice window, and earn several

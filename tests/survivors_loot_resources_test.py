@@ -65,7 +65,7 @@ int dComIfG_resLoad(request_of_phase_process_class* p,const char*){
     if(!p->held){p->held=true;++references;}return resourceError?cPhs_ERROR_e:waiting?1:cPhs_COMPLEATE_e;}
 void dComIfG_resDelete(request_of_phase_process_class* p,const char*){if(p->held){p->held=false;--references;}}
 void* dComIfG_getObjectRes(const char* arc,int id){
-    if(std::strcmp(arc,"Dalways")==0){if(id==7)return missingLid?nullptr:&lidData;assert(id==12);return &data[0];}
+    if(std::strcmp(arc,"Dalways")==0){if(id==7 || id==8)return missingLid?nullptr:&lidData;assert(id==12 || id==13);return &data[id==12?0:4];}
     if(id==0x13)return &lidData;
     if(id==0x34)return &data[0];
     assert(id==0x1c || id==0x1f || id==0x1e);return &data[id==0x1c?1:id==0x1f?2:3];
@@ -119,7 +119,7 @@ struct Demo {J3DModel* mpModel=&placeholder;bool dead=false,visible=true;struct{
 Demo* treasure_actor(){return &prop;}bool owns_treasure_event(){return true;}
 
 '''
-globals=source[source.index('constexpr unsigned kChestCount'):source.index('void clear_loot()')]
+globals=source[source.index('constexpr unsigned kPaidChestCount'):source.index('void clear_loot()')]
 main=r'''
 int main(){
     waiting=true;assert(!prepare_loot(&player) && references==2 && heapCreates==0);
@@ -129,7 +129,9 @@ int main(){
     failHeap=false;clear_loot();missingLid=true;assert(!prepare_loot(&player) && references==0 && liveModels.empty());
     missingLid=false;clear_loot();failModel=int(modelsMade)+3;
     assert(!prepare_loot(&player) && references==0 && liveModels.empty());
-    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==27);
+    failModel=-1;clear_loot();assert(prepare_loot(&player) && references==2 && liveModels.size()==27+elite_capacity);
+    assert(s_loot.chests[0]->getModelData()==&data[0]);
+    assert(s_loot.chests[kPaidChestCount]->getModelData()==&data[4]);
     assert(currentHeap==&defaultHeap);
     const auto creations=heapCreates;assert(prepare_loot(&player) && heapCreates==creations);
     s_chests[0].active=true;s_chests[1].active=true;s_chests[1].opening=true;s_chests[1].age=45;

@@ -3,10 +3,13 @@
 bool arena_aggro(fopAc_ac_c* actor, ProfileName profile) {
     if (!actor || actor->health <= 0 || s_run.phase != Phase::Running || !playable()) return false;
     const auto* enemy = tracked(fopAcM_GetID(actor));
-    return enemy && enemy->profile == profile && enemy->initialized && !enemy->retiring && !enemy->credited;
+    return enemy && enemy->profile == profile && enemy->initialized && !enemy->retiring && !enemy->credited && !enemy->dormant;
 }
 HookAction before_bokoblin_aggro(ModContext*, void* args, void* result, void*) {
     auto* actor = mods::arg<daE_OC_c*>(args, 0);
+    if (actor && in_arena()) if (const auto* enemy = tracked(fopAcM_GetID(actor)); enemy && enemy->dormant) {
+        *static_cast<bool*>(result) = false; return HOOK_SKIP_ORIGINAL;
+    }
     if (!arena_aggro(actor, fpcNm_E_OC_e)) return HOOK_CONTINUE;
     *static_cast<bool*>(result) = true;
     return HOOK_SKIP_ORIGINAL;

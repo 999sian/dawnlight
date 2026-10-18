@@ -49,7 +49,7 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
         "Arena collision could not be prepared. Please select another map.",nullptr);
     if (result!=MOD_OK) return result;
     result=svc_ui->pane_add_text(mod_ctx,left,
-        "Survive 10 minutes, then defeat the Elite Bokoblin. Weapons attack automatically. "
+        "Survive 20 minutes. Elites appear every 5 minutes and drop free big chests. Weapons attack automatically. "
         "Collect XP, hearts and rupees. Chest prices: 20, 25, 32, 41, 52...",nullptr);
     if (result!=MOD_OK) return result;
     char records[160];

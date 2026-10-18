@@ -7,8 +7,12 @@
 namespace dawnlight::survivors {
 // All durations are simulation ticks (TP runs its gameplay at 30 Hz).
 inline constexpr unsigned ticks_per_second = 30;
-inline constexpr unsigned duration = 10 * 60 * ticks_per_second;
-inline constexpr unsigned enemy_capacity = 24;
+inline constexpr unsigned duration = 20 * 60 * ticks_per_second;
+inline constexpr unsigned elite_interval = 5 * 60 * ticks_per_second;
+inline constexpr unsigned timed_elite_count = duration / elite_interval - 1;
+inline constexpr unsigned guard_capacity = 8;
+inline constexpr unsigned elite_capacity = timed_elite_count + guard_capacity;
+inline constexpr unsigned enemy_capacity = 24 + elite_capacity;
 inline constexpr unsigned projectile_capacity = 24;
 inline constexpr unsigned orb_capacity = 64;
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
@@ -42,7 +46,6 @@ struct Run {
     Phase phase = Phase::Loading;
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
-    bool elite_spawned = false;
     unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
     unsigned dark_clock = 0, dark_remaining = 0;
     std::array<unsigned, unsigned(Upgrade::Rupees)> ranks{};
@@ -166,10 +169,12 @@ struct Run {
     }
     // Apply exactly the selected reward. No reroll, payment or rank change on
     // an invalid/stale selection; presentation commits this preview only once.
-    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common) {
-        if (phase != Phase::Treasure || rupees < chest_cost() || !chest_eligible(reward, bottle_capacity != 0)) return false;
+    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common, bool free = false) {
+        const unsigned price = free ? 0 : chest_cost();
+        if (phase != Phase::Treasure || rupees < price || !chest_eligible(reward, bottle_capacity != 0)) return false;
         const unsigned gain = chest_gain(reward, rarity, bottle_capacity);
-        rupees = rupees - chest_cost() + chest_rupees(reward, rarity, bottle_capacity); ++chests_opened;
+        rupees = rupees - price + chest_rupees(reward, rarity, bottle_capacity);
+        if (!free) ++chests_opened;
         if (reward == ChestReward::MasterSword) master_sword += gain;
         else if (reward == ChestReward::OrdonSword) dual_wield += gain;
         else if (reward == ChestReward::DarkLink) dark_link += gain;
@@ -191,7 +196,7 @@ struct Run {
         }
         return true;
     }
-    unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), enemy_capacity - 1); }
+    unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
     unsigned cooldown(unsigned base) const { return std::max(6u, base * (100 - rank(Upgrade::Haste) * 10) / 100); }
     // At base Luck: 5% heart, 45% rupee, 50% nothing. A second lucky

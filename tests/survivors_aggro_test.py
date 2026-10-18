@@ -40,9 +40,10 @@ struct e_ba_class{fopEn_enemy_c mEnemy;
  bool mIsDying=false;int mAction=ACT_FLY,mMode=7;};
 bool other_bg_check(e_ba_class*,fopAc_ac_c*){return blocked;}
 struct{float plyr_srch_min_radius=300;}l_HIO;
-struct Enemy{unsigned id;ProfileName profile;bool initialized=true,retiring=false,credited=false;};
+struct Enemy{unsigned id;ProfileName profile;bool initialized=true,retiring=false,credited=false,dormant=false;};
 Enemy enemies[]={{1,fpcNm_E_OC_e},{2,fpcNm_E_BA_e},{3,fpcNm_E_MS_e}};
 Enemy* tracked(unsigned id){for(auto& e:enemies)if(e.id==id)return &e;return nullptr;}
+bool in_arena(){return arena;}
 Run s_run;bool playable(){return arena&&!paused;}
 '''
 native=(function(sdk/'src/d/actor/d_a_e_oc.cpp','bool daE_OC_c::searchPlayer()')+'\n'+
@@ -67,6 +68,9 @@ int main(){
    assert(!detect(bat,250)); // Still chase; do not enter hover/attack while far away.
   }
  }
+ enemies[0].dormant=true;bok.distance=10;bok.action=0;
+ assert(!detect(bok));engage_enemy(&bok,enemies[0]);assert(bok.action==0);
+ enemies[0].dormant=false;engage_enemy(&bok,enemies[0]);assert(bok.action==3);bok.distance=100000;
  blocked=false;bat.mPlayerDistanceXZ=200;assert(detect(bat,250));
  blocked=true;assert(!detect(bat,250));blocked=false;
  // Native real distance is untouched. Chase entry never resets active attacks/staggers/death.

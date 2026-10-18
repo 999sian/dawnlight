@@ -18,7 +18,7 @@ fixture = fixture.replace('struct cXyz{float x=0,y=0,z=0;', '''struct cXyz{float
 fixture = fixture.replace('struct fopAc_ac_c{int id=2,health=50;', 'struct fopAc_ac_c{int id=2,health=50;cXyz eyePos{},speed{};')
 fixture = fixture.replace('struct Collider{', '''struct dCcD_Stts{void Init(int,int,fopAc_ac_c*){}};
 constexpr int kAttackSource=0,AT_TYPE_ARROW=1,HIT_TYPE_LINK_HEAVY_ATTACK=9;
-struct Collider{unsigned power=0;
+struct Collider{unsigned power=0;fopAc_ac_c* owner=nullptr;fopAc_ac_c* GetAc(){return owner;}
  void Set(int){}void SetStts(dCcD_Stts*){}void SetAtType(int){}void SetAtAtp(unsigned p){power=p;}
  unsigned GetAtAtp(){return power;}void SetTgHit(Collider* c){attack=c;hit=true;}
  void SetTgHitApid(unsigned){}void SetTgHitPos(cXyz&){}''')
@@ -27,7 +27,7 @@ fixture = fixture.replace('int fopAcM_GetID', 'unsigned fopAcM_GetID')
 fixture = fixture.replace('struct daE_OC_c:fopAc_ac_c{', 'struct daE_OC_c:fopAc_ac_c{dCcU_AtInfo mAtInfo;')
 fixture = fixture.replace('struct e_ba_class:fopAc_ac_c{', 'struct e_ba_class:fopAc_ac_c{dCcU_AtInfo mAtInfo;')
 fixture = fixture.replace('struct e_ms_class:fopAc_ac_c{', 'struct e_ms_class:fopAc_ac_c{dCcU_AtInfo mAtInfo;')
-fixture = fixture.replace('struct Enemy{int profile=1;bool initialized=true,retiring=false,credited=false;}enemy;', '''struct Enemy{ActorId id=kNone;int profile=1;bool initialized=false,retiring=false,credited=false;};
+fixture = fixture.replace('struct Enemy{int profile=1;bool initialized=true,retiring=false,credited=false;}enemy;', '''struct Enemy{ActorId id=kNone;int profile=1;bool initialized=false,retiring=false,credited=false,dormant=false;};
 std::array<Enemy,enemy_capacity>s_enemies;
 std::map<ActorId,fopAc_ac_c*> actors;
 fopAc_ac_c* actor_by_id(ActorId id){auto it=actors.find(id);return it==actors.end()?nullptr:it->second;}''')
@@ -72,7 +72,9 @@ int main(){
  s_run.start(1);s_run.ranks[unsigned(Upgrade::FireArrows)]=1;player.id=1;
  e_ms_class rat;rat.id=2;rat.health=10;actors[2]=&rat;s_enemies[0]={2,fpcNm_E_MS_e,true};
  s_attacks[0].weapon=unsigned(Upgrade::Bow);dCcU_AtInfo arrow{&s_attacks[0].collider,3};
- record_status_hit(&rat,&arrow);auto& burn=s_effects[0];assert(burn.burn==90);
+ s_enemies[0].dormant=true;record_status_hit(&rat,&arrow);assert(s_enemies[0].dormant);
+ s_attacks[0].collider.owner=&player;
+ record_status_hit(&rat,&arrow);assert(!s_enemies[0].dormant);auto& burn=s_effects[0];assert(burn.burn==90);
  for(unsigned t=1;t<=90;++t){update_enemy_effects();hit(rat);assert(rat.health==10-int(t/30));assert(rat.mAction==1);}
  assert(!burn.burn&&burn.pending==0&&!burn.injected&&!rat.mAtInfo.mpCollider);
  for(auto& [key,e]:emitters){(void)key;assert(e.stopped&&e.deleted&&e.scale.x==3&&e.user==reinterpret_cast<uintptr_t>(&burn.velocity));}

@@ -110,6 +110,9 @@ void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
     if (!in_arena() || s_run.phase != Phase::Running || !actor || !info || !info->mAttackPower) return;
     auto* enemy = tracked(fopAcM_GetID(actor));
     if (!enemy || !enemy->initialized || enemy->retiring || enemy->credited) return;
+    // Collisions from enemies/the environment do not provoke a waiting guard.
+    if (info->mpCollider && info->mpCollider->GetAc() == daAlink_getAlinkActorClass())
+        enemy->dormant = false;
     if (s_run.burn_damage() && actor->health > 0) for (const auto& arrow : s_attacks) {
         if (info->mpCollider == &arrow.collider && arrow.weapon == unsigned(Upgrade::Bow)) {
             auto& effect = effect_for(*enemy);

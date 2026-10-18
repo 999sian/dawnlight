@@ -189,6 +189,12 @@ int main() {
     assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Orange)&&effects.melee_targets()==6);
     assert(!effects.chest_eligible(ChestReward::OrdonSword));
     effects.start(7);assert(!effects.dark_active()&&!effects.dark_clock&&!effects.dual_wield&&effects.damage_multiplier()==1);
+    // Free elite chests grant exactly one item with no currency or price change.
+    Run freeRun; freeRun.start(9); freeRun.phase=Phase::Treasure;
+    freeRun.chests_opened=7; unsigned zero=0;
+    assert(freeRun.buy_chest(zero,ChestReward::Bow,0,Rarity::Common,true));
+    assert(zero==0 && freeRun.chests_opened==7 && freeRun.rank(Upgrade::Bow)==1);
+    assert(duration==20*60*30 && elite_interval==5*60*30 && timed_elite_count==3);
     Records records;
     records.finish(run); assert(records.runs == 0); // Live runs cannot become records.
     run.end(false); assert(run.phase == Phase::Defeat && !run.tick(true));

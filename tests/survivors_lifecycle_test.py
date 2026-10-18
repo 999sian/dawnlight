@@ -46,6 +46,7 @@ struct Enemy {
     bool initialized=false, credited=false, retiring=false, elite=false;
     unsigned age=0;
 };
+unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
 Run s_run;
 enum class SwordAction { None, Normal, Spin };
@@ -56,6 +57,7 @@ unsigned s_map=0,s_requestedMap=0;
 const Arena& arena(){return arenas[s_map];}
 void clear_arena_geometry(){}
 void reset_midna_dialog(){}
+void reset_elite_encounters(){}
 bool midna_dialog_busy(){return false;}
 bool s_arenaMeshReady=true;
 unsigned s_chestDelay=0;
@@ -183,7 +185,7 @@ int main() {
     actor.health=0; credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1);
     credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1);
     enemy={8,fpcNm_E_OC_e,true,false,false,true,0}; actor.health=1; actor.action=9;
-    credit_death(enemy,&actor); assert(s_run.phase==Phase::Victory && xp==33 && rewards==1);
+    credit_death(enemy,&actor); assert(s_run.phase==Phase::Running && xp==33 && rewards==1 && eliteChests==1);
     s_run.start(2);
     s_enemies[0]={9,fpcNm_E_OC_e,false,false,true,false,0}; pending.insert(9);
     cleanup_enemies(); assert(s_enemies[0].id==9 && service.attempts==0);
@@ -191,8 +193,8 @@ int main() {
     cleanup_enemies(); assert(service.attempts==1 && s_enemies[0].id==9);
     cleanup_enemies(); assert(service.attempts==2); // Retry refused/asynchronous deletes.
     actors.clear(); cleanup_enemies(); assert(s_enemies[0].id==kNone && s_run.kills==0);
-    s_run.elite_spawned=true; s_enemies[0]={10,fpcNm_E_OC_e,true,false,false,true,0};
-    cleanup_enemies(); assert(!s_run.elite_spawned && s_run.phase==Phase::Running);
+    s_enemies[0]={10,fpcNm_E_OC_e,true,false,false,true,0};
+    cleanup_enemies(); assert(s_enemies[0].id==kNone && s_run.phase==Phase::Running);
     std::any args[]={static_cast<const char*>("F_SP102"),s16(100),s8(0),s8(10)};
     s_active=false;
     assert(before_stage(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);

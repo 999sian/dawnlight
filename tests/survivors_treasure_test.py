@@ -144,7 +144,7 @@ void dMeter2Info_setShield(int item,bool){equippedShield=item;}
 void dMeter2Info_setSword(int item,bool){equippedSword=item;}
 void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
 Run s_run;unsigned rupees=0;int s_player=1;
-struct Chest{bool active=false,opening=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};std::array<Rarity,3> rarities{};};
+struct Chest{bool active=false,opening=false,free=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};std::array<Rarity,3> rarities{};};
 constexpr unsigned kChestCount=2;unsigned s_selectedChest=kChestCount;
 std::array<Chest,2>s_chests;
 struct {bool ready=true;}s_loot;
@@ -223,6 +223,16 @@ int main(){
     fresh();assert(begin_treasure_choice(0,&player));rupees=0;
     unsigned zero=0;select_treasure(nullptr,&zero);update_treasure_choice(&player);
     assert(created==0&&s_run.phase==Phase::Running&&s_run.chests_opened==0);
+    fresh();s_chests[0].free=true;rupees=0;
+    assert(chest_interactable(s_chests[0],&player));
+    assert(begin_treasure_choice(0,&player));
+    assert(s_chosenTreasure!=ChestReward::Count);
+    assert(s_chests[0].offers[1]==ChestReward::Count && s_chests[0].offers[2]==ChestReward::Count);
+    assert(s_chests[0].rarities[0]==Rarity::Common);
+    update_treasure_choice(&player);assert(s_run.phase==Phase::Treasure && s_treasure.price==0);
+    accept();
+    update_treasure_demo(&player);eventEnded=true;update_treasure_demo(&player);
+    assert(!s_chests[0].active && rupees==0 && s_run.chests_opened==0);
     fresh();player.shape_angle.y=0x4000;assert(chest_interactable(s_chests[0],&player));
     fresh();createFails=true;assert(!open_first());
     assert(currentLayer==&rootLayer&&s_run.phase==Phase::Running&&rupees==100);

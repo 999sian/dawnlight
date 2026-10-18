@@ -83,7 +83,7 @@ struct Attack {
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
 };
-constexpr int kAttackSource=0;constexpr unsigned kChestCount=2,kItemBegin=8,kSlotsPerItem=4;
+constexpr int kAttackSource=0;constexpr unsigned kPaidChestCount=2,kChestCount=2,kItemBegin=8,kSlotsPerItem=4;
 std::array<Attack,projectile_capacity>s_attacks;
 void stop_attack(Attack& a){a.active=false;a.collider.OffAtSetBit();a.emitters={};}
 unsigned cleared=0,closed=0;

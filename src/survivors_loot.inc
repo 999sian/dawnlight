@@ -1,8 +1,9 @@
 // Run-local treasure and item projectiles. Included inside Survivors' private
 // namespace; native assets are borrowed/refcounted, never added to the bundle.
-constexpr unsigned kChestCount = 2, kItemBegin = 8, kSlotsPerItem = 4;
+constexpr unsigned kPaidChestCount = 2, kChestCount = kPaidChestCount + elite_capacity, kItemBegin = 8, kSlotsPerItem = 4;
 struct Chest {
     bool active = false, opening = false;
+    bool free = false;
     cXyz position{};
     s16 yaw = 0;
     unsigned age = 0;
@@ -84,18 +85,20 @@ bool prepare_loot(daAlink_c* link) {
     for (auto*& wind : s_loot.wind)
         wind = model(static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive, 0x34)), true);
     auto* chestData = static_cast<J3DModelData*>(dComIfG_getObjectRes("Dalways", 12));
+    auto* bigChestData = static_cast<J3DModelData*>(dComIfG_getObjectRes("Dalways", 13));
+    auto* bigLidData = static_cast<J3DAnmTransform*>(dComIfG_getObjectRes("Dalways", 8));
     auto* lidData = static_cast<J3DAnmTransform*>(dComIfG_getObjectRes("Dalways", 7));
     // Master Sword has only a rupee placeholder in native item_resource.
     // Give its presentation a private model instance, borrowing Link's data.
     s_loot.masterSword = model(link->mpSwMModel ? link->mpSwMModel->getModelData() : nullptr);
-    bool ready = chestData && lidData && s_loot.masterSword && s_loot.bow && s_loot.heldBoomerang &&
+    bool ready = chestData && lidData && bigChestData && bigLidData && s_loot.masterSword && s_loot.bow && s_loot.heldBoomerang &&
         s_loot.bowAnims[0] && s_loot.bowAnims[1] && s_loot.windAnim;
     for (auto* wind : s_loot.wind) ready = ready && wind;
     for (unsigned i = 0; i < kChestCount; ++i) {
-        s_loot.chests[i] = model(chestData);
+        s_loot.chests[i] = model(i < kPaidChestCount ? chestData : bigChestData);
         s_loot.lids[i] = JKR_NEW mDoExt_bckAnm();
         ready = ready && s_loot.chests[i] && s_loot.lids[i] &&
-            s_loot.lids[i]->init(lidData, TRUE, J3DFrameCtrl::EMode_NONE, 0, 0, -1, false);
+            s_loot.lids[i]->init(i < kPaidChestCount ? lidData : bigLidData, TRUE, J3DFrameCtrl::EMode_NONE, 0, 0, -1, false);
     }
     // Read the ball into this heap, not Link's equipment heap. loadAramBmd
     // allocates its own resource buffer and does not equip/change Link's item.
@@ -125,6 +128,18 @@ bool prepare_loot(daAlink_c* link) {
     s_loot.ready = true;
     return true;
 }
+void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
+    if (enemy.eliteSlot<0 || unsigned(enemy.eliteSlot)>=elite_capacity) return;
+    auto& encounter=s_eliteEncounters[enemy.eliteSlot];
+    if (encounter.defeated) return;
+    encounter.defeated=true;
+    auto& chest=s_chests[kPaidChestCount+unsigned(enemy.eliteSlot)];
+    chest={}; chest.active=true; chest.free=true; chest.yaw=actor->shape_angle.y;
+    cXyz pos=actor->current.pos;
+    if (!elite_floor_position(pos)) pos=enemy.lootPosition;
+    chest.position=pos;
+}
+
 bool nearest_item_target(daAlink_c* link, cXyz& target) {
     float nearest = 1400.0f * 1400.0f;
     bool found = false;
@@ -302,8 +317,8 @@ void fire_items(daAlink_c* link) {
     }
 }
 bool spawn_chest(daAlink_c* link) {
-    auto slot = std::find_if(s_chests.begin(), s_chests.end(), [](const auto& c) { return !c.active; });
-    if (slot == s_chests.end()) return false;
+    auto slot = std::find_if(s_chests.begin(), s_chests.begin() + kPaidChestCount, [](const auto& c) { return !c.active; });
+    if (slot == s_chests.begin() + kPaidChestCount) return false;
     for (unsigned attempt = 0; attempt < 12; ++attempt) {
         const auto yaw = static_cast<s16>(s_run.next_random());
         const float radius = 350 + float(s_run.next_random() % 600);
