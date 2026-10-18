@@ -165,7 +165,7 @@ int main(){
  auto& boss=s_enemies[0];boss.id=head.id;boss.profile=head.profile;
  boss.species=unsigned(Species::StallordHead);boss.elite=true;
  s_run.start(7);s_run.ticks=duration;s_run.ranks.fill(30);s_run.master_sword=10;
- s_run.dark_link=10;s_run.dark_remaining=100; // maximal direct-hit upgrade damage
+ s_run.dark_link=29;s_run.dark_remaining=100; // maximal direct-hit upgrade damage
  initialize_extended_enemy(boss,&head);assert(head.health==1200&&head.field_0x560==1200);
  power=s_run.attack_power(unsigned(Upgrade::Spin))*s_run.crit_damage_percent()/100*2;
  assert(power>120&&power<1200);

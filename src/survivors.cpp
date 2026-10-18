@@ -883,18 +883,18 @@ void after_power(ModContext*, void* args, void*, void*) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
         if (auto* hit=bulblin_power_hit(info)) hit->critical=effect.critical;
         mark_damage_critical(info,effect.critical);
-        info->mAttackPower = effect.damage * s_run.damage_multiplier(); return;
+        info->mAttackPower = s_run.dark_power(effect.damage); return;
     }
     auto* link = daAlink_getAlinkActorClass();
     if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Rat stun must not reset elite HP to one.
-        info->mAttackPower = critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack))) * s_run.damage_multiplier(); return;
+        info->mAttackPower = s_run.dark_power(critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack)))); return;
     }
     if (native_sword_collider(info->mpCollider)) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Keep cc_at_check from doubling the linear value for Master Sword.
         const auto base = s_swordAction == SwordAction::Jump && info->mpCollider == &link->mAtSph ?
             s_run.jump_splash_power() : s_swordAction == SwordAction::Spin ? s_run.attack_power(1) : s_run.melee_power();
-        info->mAttackPower = critical_power(base) * s_run.damage_multiplier();
+        info->mAttackPower = s_run.dark_power(critical_power(base));
         return;
     }
     for (const auto& attack : s_attacks) {
@@ -903,7 +903,7 @@ void after_power(ModContext*, void* args, void*, void*) {
             // Keep native collision, defense, damage reactions and death handling,
             // but use a linear power value for our own weapons only.
             info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
-            info->mAttackPower = critical_power(info->mpCollider->GetAtAtp()) * s_run.damage_multiplier();
+            info->mAttackPower = s_run.dark_power(critical_power(info->mpCollider->GetAtAtp()));
             return;
         }
     }

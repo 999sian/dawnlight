@@ -238,7 +238,7 @@ int main(){
         if(reason==4)s_loot.ready=false;
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
-        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=30;s_run.dual_wield=10;s_run.dark_link=11;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
+        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=30;s_run.dual_wield=30;s_run.dark_link=30;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!open_first()&&created==0&&rupees==100);
     }
     // Cancel and reopen retain the same offers and never charge or reroll.
@@ -253,7 +253,7 @@ int main(){
     assert(begin_treasure_choice(0,&player)&&s_chests[0].offers==sparse&&s_run.random==sparseRng);
     dismiss_treasure_choice();assert(begin_treasure_choice(0,&player)&&s_chests[0].offers==sparse);
     // Fully exhausted cached offers refresh, while partially usable ones stay fixed.
-    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=10;s_run.dark_link=11;
+    fresh();s_chests[0].offers.fill(ChestReward::OrdonSword);s_run.dual_wield=30;s_run.dark_link=30;
     assert(begin_treasure_choice(0,&player));
     for(auto offer:s_chests[0].offers)assert(offer!=ChestReward::OrdonSword);
     // Revalidate affordability and chosen eligibility after the UI closes.
@@ -363,7 +363,7 @@ int main(){
         assert(s_run.block_chance()==5*n&&equippedShield==expected);
     }
     assert(!s_run.chest_rewards_left());
-    fresh();s_run.banned_items.fill(true);s_run.banned_items[unsigned(ChestReward::OrdonSword)]=false;s_run.dual_wield=9;
+    fresh();s_run.banned_items.fill(true);s_run.banned_items[unsigned(ChestReward::OrdonSword)]=false;s_run.dual_wield=29;
     assert(open_first()&&prop.itemNo==dItemNo_SWORD_e);
     accept();eventEnded=true;update_treasure_demo(&player);
     assert(s_run.dual_wield&&!s_run.chest_rewards_left());

@@ -101,7 +101,7 @@ int main(){
  record_status_hit(&rat,&arrow);assert(burn.burn==120);
  for(unsigned t=0;t<120;++t){update_enemy_effects();hit(rat);}
  assert(rat.health==0&&rat.mAction==9);update_enemy_effects();assert(!burn.burn&&!burn.pending);
- rat.health=10;rat.mAction=1;s_run.dark_link=1;s_run.dark_remaining=150;
+ rat.health=10;rat.mAction=1;s_run.dark_link=29;s_run.dark_remaining=150;
  record_status_hit(&rat,&arrow);for(int t=0;t<30;++t){update_enemy_effects();hit(rat);}assert(rat.health==2);
  // Deletion, slot reuse and shutdown stop particles and queued damage.
  auto old=burn.emitters;actors.erase(2);update_enemy_effects();assert(!burn.burn&&!burn.pending);
@@ -118,7 +118,7 @@ int main(){
  record_status_hit(&group[0],&sword);assert(s_effects[1].pending==3); // once per swing
  group[1].mSph1.hit=true;group[1].mSph1.attack=&player.mAtCps[1];hit(group[1]);
  assert(group[1].health==47&&!s_effects[1].pending); // natural capsule cannot duplicate multihit
- clear_enemy_effects();++s_meleeSerial;s_run.dual_wield=10;
+ clear_enemy_effects();++s_meleeSerial;s_run.dual_wield=30;
  record_status_hit(&group[0],&sword);
  for(unsigned i=1;i<4;++i){assert(s_effects[i].pending==3);hit(group[i]);}
  for(unsigned i=4;i<7;++i)assert(!s_effects[i].pending);

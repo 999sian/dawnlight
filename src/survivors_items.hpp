@@ -19,6 +19,9 @@ inline std::string crit_chance(const Run& run) {
 inline std::string crit_multiplier(const Run& run) {
     char text[24];std::snprintf(text,sizeof(text),"x%.2f",run.crit_damage_percent()/100.f);return text;
 }
+inline std::string dark_multiplier(const Run& run) {
+    char text[24];std::snprintf(text,sizeof(text),"x%.2f",run.dark_damage_percent()/100.f);return text;
+}
 inline unsigned arrow_count(const Run& run) { return run.bow_shots(); }
 inline unsigned item_damage(const Run& run, Upgrade weapon) {
     return run.attack_power(unsigned(weapon)) + (weapon == Upgrade::Ball ? 3 : 0);
@@ -64,7 +67,7 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
         add("Melee speed", number(before.melee_speed_percent())+"%", number(after.melee_speed_percent())+"%");
     } else if (reward == ChestReward::DarkLink) {
         add("Level", number(before.dark_link), number(after.dark_link));
-        add("Damage multiplier", before.dark_link ? "x2" : "x1", "x2");
+        add("Damage multiplier", dark_multiplier(before), dark_multiplier(after));
         add("Activation interval", before.dark_link ? seconds(before.dark_interval()) : "off",
             after.dark_permanent() ? "always active" : seconds(after.dark_interval()));
         add("Duration", before.dark_link ? seconds(before.dark_duration()) : "off",
@@ -108,10 +111,10 @@ inline std::string item_description(ChestReward reward, const Run& run) {
             "\n" + ("Jump Strike Lv." + number(run.rank(Upgrade::JumpStrike)) +
                 (run.rank(Upgrade::JumpStrike) ? ": " + number(run.jump_splash_percent()) + "% splash; 20%/" + seconds(run.jump_cooldown()) : ": level-up unlock"));
     }
-    if (reward == ChestReward::DarkLink) return "Automatic Dark Link; all damage x2.\nLv." + number(run.dark_link) +
+    if (reward == ChestReward::DarkLink) return "Automatic Dark Link; all damage " + dark_multiplier(run) + ".\nLv." + number(run.dark_link) +
         (run.dark_permanent() ? "; permanently active" : "; every " + seconds(run.dark_interval())) +
         "\nDuration: " + (run.dark_permanent() ? std::string("infinite") : seconds(run.dark_duration())) +
-        "\nUpgrades alternate interval and duration.";
+        "\nUpgrades alternate damage and duration.";
     return "Restores " + potion_healing(run) + " when used.\nHealing Lv." + number(run.rank(Upgrade::PotionHealing)) + "; +0.25 hearts per upgrade.\nOne equipment slot for all four bottles.\nChests add/refill bottles; bind to use.";
 }
 inline std::string upgrade_value(Upgrade upgrade, const Run& run) {

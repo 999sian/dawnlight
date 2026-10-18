@@ -11,12 +11,12 @@ int main() {
     assert(dual.dual_wield==1&&dual.rank(Upgrade::DualWield)==1&&dual.melee_speed_percent()==105);
     assert(dual.eligible(Upgrade::DualWield));
     dual.phase=Phase::Upgrade;dual.offers[0]=Upgrade::DualWield;dual.offer_rarities[0]=Rarity::Legendary;
-    assert(dual.choose(0)&&dual.dual_wield==6&&dual.melee_targets()==4&&dual.melee_speed_percent()==130);
+    assert(dual.choose(0)&&dual.dual_wield==6&&dual.melee_targets()==2&&dual.melee_speed_percent()==130);
     dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::OrdonSword,true)&&dual.rank(Upgrade::DualWield)==7);
-    dual.phase=Phase::Upgrade;assert(dual.upgrade_gain(Upgrade::DualWield,Rarity::Legendary)==3);
+    dual.dual_wield=27;dual.phase=Phase::Upgrade;assert(dual.upgrade_gain(Upgrade::DualWield,Rarity::Legendary)==3);
     assert(dual.upgrade_rupees(Upgrade::DualWield,Rarity::Legendary)==40);
-    assert(dual.choose(0)&&dual.dual_wield==10&&!dual.eligible(Upgrade::DualWield));
-    assert(dual.melee_targets()==5&&dual.melee_speed_percent()==150);
+    assert(dual.choose(0)&&dual.dual_wield==30&&!dual.eligible(Upgrade::DualWield));
+    assert(dual.melee_targets()==5&&dual.melee_speed_percent()==250);
     dual.phase=Phase::Treasure;assert(dual.buy_chest(dualMoney,ChestReward::Shield,true)&&!dual.dual_wield&&!dual.eligible(Upgrade::DualWield));
     assert(dual.melee_speed_percent()==100);
     for(bool chest:{false,true}) {
@@ -283,8 +283,9 @@ int main() {
         assert(effects.burn_damage()==rank&&effects.burn_duration()==(rank<4?90u:120u));}
     effects.dark_link=1;
     for(unsigned i=0;i<599;++i)effects.tick(true);
-    assert(!effects.dark_active()&&effects.damage_multiplier()==1);
-    effects.tick(true);assert(effects.dark_active()&&effects.dark_remaining==150&&effects.damage_multiplier()==2);
+    assert(!effects.dark_active()&&effects.dark_power(100)==100);
+    effects.tick(true);assert(effects.dark_active()&&effects.dark_remaining==150&&effects.dark_power(100)==130);
+    assert(effects.dark_power(0)==0&&effects.dark_power(3)==4&&effects.dark_power(5)==7);
     for(auto phase:{Phase::Upgrade,Phase::TreasureChoice,Phase::Treasure}){
         effects.phase=phase;for(int i=0;i<100;++i)effects.tick(true);
         assert(effects.dark_remaining==150&&effects.dark_clock==0);
@@ -292,20 +293,35 @@ int main() {
     effects.phase=Phase::Running;effects.tick(false);assert(effects.dark_remaining==150);
     for(unsigned i=0;i<150;++i)effects.tick(true);
     assert(!effects.dark_active());
-    for(unsigned rank=2;rank<=11;++rank){effects.dark_link=rank;
-        assert(effects.dark_interval()==(20-2*(rank/2))*30);
-        assert(effects.dark_duration()==(5+(rank-1)/2)*30);
-        assert(effects.chest_eligible(ChestReward::DarkLink)==(rank<11));}
-    assert(effects.dark_permanent()&&effects.dark_active()&&effects.damage_multiplier()==2);
-    effects.dark_link=9;effects.phase=Phase::Treasure;effects.chests_opened=0;unsigned money=100;
+    for(unsigned rank=1;rank<=30;++rank){
+        const auto previousDamage=effects.dark_damage_percent(),previousDuration=effects.dark_duration();
+        effects.dark_link=rank;
+        assert(effects.dark_interval()==600);
+        assert(effects.dark_duration()==(5+std::min(29u,rank)/2)*30);
+        assert(effects.dark_damage_percent()==130+5*((rank-1)/2));
+        assert(effects.dark_permanent()==(rank==30));
+        assert(effects.chest_eligible(ChestReward::DarkLink)==(rank<30));
+        if(rank>1&&rank<30){
+            assert(effects.dark_damage_percent()==previousDamage+(rank%2?5:0));
+            assert(effects.dark_duration()==previousDuration+(rank%2?0:30));
+        }
+        effects.dark_remaining=0;
+        assert(effects.dark_power(100)==(rank==30?200u:100u));
+        effects.dark_remaining=1;
+        assert(effects.dark_power(100)==effects.dark_damage_percent());
+        effects.dark_clock=0;effects.tick(true);
+        assert(effects.dark_active()==(rank==30));
+    }
+    assert(effects.dark_permanent()&&effects.dark_active()&&effects.dark_power(100)==200);
+    effects.dark_link=28;effects.phase=Phase::Treasure;effects.chests_opened=0;unsigned money=100;
     assert(effects.buy_chest(money,ChestReward::DarkLink,false,Rarity::Legendary));
-    assert(effects.dark_link==11&&effects.dark_permanent()&&money==140);
+    assert(effects.dark_link==30&&effects.dark_permanent()&&money==140);
     effects.dual_wield=0;effects.chests_opened=0;
     assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Common)&&effects.melee_targets()==2);
-    assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Legendary)&&effects.melee_targets()==4);
+    assert(effects.buy_chest(money,ChestReward::OrdonSword,false,Rarity::Legendary)&&effects.melee_targets()==2);
     assert(effects.chest_eligible(ChestReward::OrdonSword));
-    effects.dual_wield=10;assert(!effects.chest_eligible(ChestReward::OrdonSword));
-    effects.start(7);assert(!effects.dark_active()&&!effects.dark_clock&&!effects.dual_wield&&effects.damage_multiplier()==1);
+    effects.dual_wield=30;assert(!effects.chest_eligible(ChestReward::OrdonSword));
+    effects.start(7);assert(!effects.dark_active()&&!effects.dark_clock&&!effects.dual_wield&&effects.dark_power(100)==100);
     // Free elite chests grant exactly one item with no currency or price change.
     Run freeRun; freeRun.start(9); freeRun.phase=Phase::Treasure;
     freeRun.chests_opened=7; unsigned zero=0;
@@ -392,7 +408,20 @@ int main() {
         slots.ranks[unsigned(Upgrade::Bow)]=slots.ranks[unsigned(Upgrade::Boomerang)]=rank;
         assert(slots.bow_shots()==1+(rank-1)/3&&slots.boomerang_hops()==1+(rank-1)/3);
     }
-    for(unsigned rank=1;rank<=10;++rank){slots.dual_wield=rank;assert(slots.melee_targets()==std::min(5u,2+rank/3));}
+    for(unsigned rank=1;rank<=30;++rank){slots.dual_wield=rank;
+        assert(slots.melee_targets()==(rank<10?2u:rank<20?3u:rank<30?4u:5u));
+        assert(slots.melee_speed_percent()==100+5*rank);}
+    // Both equipment paths clamp every rarity and compensate only excess levels.
+    for(auto reward:{ChestReward::OrdonSword,ChestReward::DarkLink})
+    for(unsigned rank=0;rank<=30;++rank)for(unsigned tier=0;tier<5;++tier){
+        Run item;item.start(1);item.phase=Phase::Treasure;
+        if(reward==ChestReward::OrdonSword)item.dual_wield=rank;else item.dark_link=rank;
+        const unsigned gain=std::min(30-rank,tier+1);unsigned wallet=0;
+        assert(item.chest_gain(reward,Rarity(tier))==gain);
+        assert(item.buy_chest(wallet,reward,0,Rarity(tier),true)==(rank<30));
+        assert((reward==ChestReward::OrdonSword?item.dual_wield:item.dark_link)==rank+gain);
+        assert(wallet==(rank<30?20*(tier+1-gain):0));
+    }
     slots.shield=0;slots.offhand=ChestReward::OrdonSword;
     assert(!slots.chest_eligible(ChestReward::OrdonSword)&&slots.chest_eligible(ChestReward::Shield));
     // Shared reroll budget, increasing paid costs and reservation of the purchase price.

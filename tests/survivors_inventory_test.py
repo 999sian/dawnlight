@@ -184,12 +184,22 @@ int main(){
   assert(std::count(text.begin(),text.end(),'\n')==3);
   size_t start=0,end;do{end=text.find('\n',start);assert((end==std::string::npos?text.size():end)-start<=54);start=end+1;}while(end!=std::string::npos);
  }
- before=s_run;before.dark_link=10;after=before;after.dark_link=11;
+ // Alternating Dark Link upgrades display the changed stat and fractional multiplier.
+ before=s_run;before.dark_link=1;after=before;after.dark_link=2;
+ assert(prepare_treasure_message(ChestReward::DarkLink,before,after,Rarity::Common));
+ assert(plain(treasure_message_id()).find("Duration: 5.00s -> 6.00s")!=std::string::npos);
+ assert(plain(treasure_message_id()).find("Damage multiplier")==std::string::npos);
+ before=after;after.dark_link=3;
+ assert(prepare_treasure_message(ChestReward::DarkLink,before,after,Rarity::Common));
+ assert(plain(treasure_message_id()).find("Damage multiplier: x1.30 -> x1.35")!=std::string::npos);
+ assert(plain(treasure_message_id()).find("Duration:")==std::string::npos);
+ assert(item_description(ChestReward::DarkLink,after).find("all damage x1.35")!=std::string::npos);
+ before=s_run;before.dark_link=29;after=before;after.dark_link=30;
  assert(prepare_treasure_message(ChestReward::DarkLink,before,after,Rarity::Common));
  assert(native_icon(treasure_message_id())==dItemNo_POU_SPIRIT_e);
- assert(plain(treasure_message_id()).find("Duration: 9.00s -> infinite")!=std::string::npos);
+ assert(plain(treasure_message_id()).find("Duration: 19.00s -> infinite")!=std::string::npos);
  assert(item_description(ChestReward::DarkLink,after).find("permanently active")!=std::string::npos);
- before=s_run;after=before;after.dual_wield=3;
+ before=s_run;before.dual_wield=9;after=before;after.dual_wield=10;
  assert(prepare_treasure_message(ChestReward::OrdonSword,before,after,Rarity::Common));
  assert(plain(treasure_message_id()).find("Melee targets: 2 -> 3")!=std::string::npos);
  assert(messages.size()==18); // Six languages per reward/name/description, never accumulated.

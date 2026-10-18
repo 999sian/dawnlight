@@ -41,7 +41,7 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
 enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Rupees, Count };
-inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::DualWield ? 10 : u == Upgrade::Luck ? 20 : 30; }
+inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::Luck ? 20 : 30; }
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
 inline constexpr std::array rarity_names{"Common", "Uncommon", "Rare", "Epic", "Legendary"};
@@ -69,7 +69,7 @@ inline constexpr std::array descriptions{
     "Direct hits gain +1% base critical chance per level. Luck multiplies this chance.",
     "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
     "Master Sword: occasionally perform a quick Jump Strike. Landing splash starts at 30% melee damage; +5 percentage points per rank.",
-    "Improve equipped Dual Wield: +5% melee attack speed per level and more additional targets, up to five total. Requires Ordon Sword.",
+    "Improve equipped Dual Wield: +5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
     "Receive 20 rupees."};
 
 struct RunOptions {
@@ -222,7 +222,7 @@ struct Run {
     unsigned burn_duration() const { return (3 + (std::max(1u, rank(Upgrade::FireArrows)) - 1) / 3) * ticks_per_second; }
     unsigned bonus_damage() const { return talents.rank(Talent::BonusDamage); }
     unsigned melee_power() const { return 3 + rank(Upgrade::Power) + sword_bonus() + bonus_damage(); }
-    unsigned melee_speed_percent() const { return 100 + 5*std::min(10u,dual_wield) + 5*talents.rank(Talent::MeleeHaste); }
+    unsigned melee_speed_percent() const { return 100 + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield) + 5*talents.rank(Talent::MeleeHaste); }
     float melee_speed() const { return melee_speed_percent()/100.f; }
     unsigned melee_cooldown() const { return std::max(6u, 30*cooldown_percent()/melee_speed_percent()); }
     unsigned auto_rupees() const { return ticks && ticks%(5*ticks_per_second)==0 ? talents.rank(Talent::AutoRupees) : 0; }
@@ -235,7 +235,7 @@ struct Run {
     }
     unsigned jump_cooldown() const { return cooldown(6 * ticks_per_second); }
     bool roll_jump_strike() { return master_sword && rank(Upgrade::JumpStrike) && next_random() % 100 < 20; }
-    unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 3) : 1; }
+    unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 10) : 1; }
     unsigned bow_shots() const { return rank(Upgrade::Bow) ? std::min(10u,1+(rank(Upgrade::Bow)-1)/3) : 0; }
     unsigned boomerang_hops() const { return rank(Upgrade::Boomerang) ? std::min(10u,1+(rank(Upgrade::Boomerang)-1)/3) : 0; }
     bool owns(ChestReward reward) const {
@@ -275,18 +275,22 @@ struct Run {
         return true;
     }
     static constexpr unsigned master_sword_max_rank = 30;
-    static constexpr unsigned dark_max_rank = 11;
-    unsigned dark_interval() const { return (20 - 2 * (std::min(dark_max_rank, dark_link) / 2)) * ticks_per_second; }
-    unsigned dark_duration() const { return (5 + (std::max(1u, dark_link) - 1) / 2) * ticks_per_second; }
+    static constexpr unsigned dark_max_rank = 30;
+    unsigned dark_interval() const { return 20 * ticks_per_second; }
+    // Odd levels increase damage; even levels increase duration. Level 30 is permanent.
+    unsigned dark_duration() const { return (5 + std::min(dark_max_rank - 1, dark_link) / 2) * ticks_per_second; }
+    unsigned dark_damage_percent() const { return dark_link ? 130 + 5 * ((std::min(dark_max_rank, dark_link) - 1) / 2) : 100; }
     bool dark_permanent() const { return dark_link >= dark_max_rank; }
     bool dark_active() const { return dark_link && (dark_permanent() || dark_remaining); }
-    unsigned damage_multiplier() const { return dark_active() ? 2 : 1; }
+    unsigned dark_power(unsigned base) const {
+        return dark_active() ? unsigned((uint64_t(base) * dark_damage_percent() + 50) / 100) : base;
+    }
     bool chest_eligible(ChestReward reward, bool bottle_available = false) const {
         if (reward>=ChestReward::Count || banned_items[unsigned(reward)]) return false;
         if (!owns(reward) && !replaces_offhand(reward) && equipment_count()>=4) return false;
         if (reward <= ChestReward::Ball) return rank(chest_weapon(reward)) < upgrade_cap(chest_weapon(reward));
         if (reward == ChestReward::MasterSword) return master_sword < master_sword_max_rank;
-        if (reward == ChestReward::OrdonSword) return dual_wield < 10;
+        if (reward == ChestReward::OrdonSword) return dual_wield < upgrade_cap(Upgrade::DualWield);
         if (reward == ChestReward::DarkLink) return !dark_permanent();
         if (reward == ChestReward::Shield) return shield < 10;
         return reward == ChestReward::RedPotion && bottle_available;
@@ -316,7 +320,7 @@ struct Run {
         if (reward <= ChestReward::Ball) remaining = upgrade_cap(chest_weapon(reward)) - std::min(upgrade_cap(chest_weapon(reward)), rank(chest_weapon(reward)));
         else if (reward == ChestReward::MasterSword) remaining = master_sword_max_rank - std::min(master_sword_max_rank, master_sword);
         else if (reward == ChestReward::Shield) remaining = 10 - std::min(10u, shield);
-        else if (reward == ChestReward::OrdonSword) remaining = 10 - std::min(10u, dual_wield);
+        else if (reward == ChestReward::OrdonSword) remaining = upgrade_cap(Upgrade::DualWield) - std::min(upgrade_cap(Upgrade::DualWield), dual_wield);
         else if (reward == ChestReward::DarkLink) remaining = dark_max_rank - std::min(dark_max_rank, dark_link);
         else if (reward == ChestReward::RedPotion) remaining = bottle_capacity;
         return std::min(reward_units(rarity), remaining);

@@ -195,7 +195,7 @@ void reset(){player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor
 int main(){
     // Both body tracks and the next-swing cooldown accelerate once per native
     // combo entry. Consecutive swings never compound the speed multiplier.
-    for(unsigned dual:{0u,1u,10u})for(unsigned haste:{0u,1u,5u}) {
+    for(unsigned dual:{0u,1u,10u,30u})for(unsigned haste:{0u,1u,5u}) {
         reset();s_run.dual_wield=dual;s_run.talents.ranks[unsigned(Talent::MeleeHaste)]=haste;
         for(unsigned swing=0;swing<4;++swing) {
             s_meleeCooldown=0;player.mUnderFrameCtrl[0].frame=16;update_sword(&player);
@@ -376,10 +376,10 @@ int main(){
     arena=false;info={&player.mAtCps[0]};after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==200);arena=true;
     // Native sword/spin/shield and every projectile use one critical roll per hit.
     s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::CritDamage)]=30;
-    s_run.dark_link=1;s_run.dark_remaining=150;
+    s_run.dark_link=29;s_run.dark_remaining=150;
     auto checkCritical=[&](cCcD_Obj& collider,unsigned base){
         s_run.random=1;info={&collider};after_power(nullptr,powerArgs,nullptr,nullptr);
-        assert(info.mAttackPower==((base*350+50)/100)*2);
+        assert(info.mAttackPower==s_run.dark_power((base*350+50)/100));
         assert(s_run.random==270369); // one roll, no second Master Sword/Dark multiplier
     };
     s_swordAction=SwordAction::Normal;checkCritical(player.mAtCps[0],s_run.melee_power());
@@ -388,6 +388,14 @@ int main(){
     s_swordAction=SwordAction::Spin;checkCritical(player.mAtSph,s_run.attack_power(1));
     checkCritical(player.mGuardAtCps,s_run.attack_power(unsigned(Upgrade::ShieldAttack)));
     for(unsigned base:{4u,5u,6u,7u,8u}){s_attacks[0].collider.power=base;checkCritical(s_attacks[0].collider,base);}
+    // Fractional Dark Link multipliers reach every native and owned damage path.
+    for(unsigned rank:{1u,2u,3u,28u,29u,30u}){
+        s_run.dark_link=rank;s_run.dark_remaining=150;
+        s_swordAction=SwordAction::Normal;checkCritical(player.mAtCps[0],s_run.melee_power());
+        s_swordAction=SwordAction::Spin;checkCritical(player.mAtSph,s_run.attack_power(1));
+        checkCritical(player.mGuardAtCps,s_run.attack_power(unsigned(Upgrade::ShieldAttack)));
+        checkCritical(s_attacks[0].collider,s_attacks[0].collider.GetAtAtp());
+    }
     info={&unrelated};const auto critRng=s_run.random;after_power(nullptr,powerArgs,nullptr,nullptr);
     assert(info.mAttackPower==200&&s_run.random==critRng);
     s_run.ranks[unsigned(Upgrade::CritChance)]=s_run.ranks[unsigned(Upgrade::CritDamage)]=0;
@@ -454,7 +462,7 @@ int main(){
         assert(info.mAttackPower==s_run.jump_splash_power());
     }
     s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::CritDamage)]=30;
-    s_run.dark_link=1;s_run.dark_remaining=150;checkCritical(player.mAtSph,s_run.jump_splash_power());
+    s_run.dark_link=29;s_run.dark_remaining=150;checkCritical(player.mAtSph,s_run.jump_splash_power());
     for(float radius:{130.f,200.f,300.f}){
         player.field_0x347c=radius;player.mUnderFrameCtrl[0].rate=1;
         after_jump_strike(nullptr,args,nullptr,nullptr);
