@@ -70,7 +70,7 @@ auto* svc_host=&host;void* mod_ctx=nullptr;
 ConfigVar<bool> cheat("cheat",false);ConfigVar<bool>* s_speedrun=nullptr;
 std::array<survivors::CheatGuard<bool>,16> s_bools{};
 survivors::CheatGuard<bool> s_spin,s_armor;
-constexpr std::array<const char*,16> kBoolCheats{};
+// BOOL_CHEATS
 std::array<unsigned,18> s_subscriptions{};
 unsigned registered=0,removed=0;
 auto s_subscribe=[](const char*,auto){return ++registered;};
@@ -94,10 +94,20 @@ void run(){
  begin_survivors_integrity(true,modded);assert(!modded&&cheat.getValue()&&registered==18);
  loader.items.back().active=true;update_survivors_integrity(modded);assert(modded);
  end_survivors_integrity();assert(removed==18);
+ // This setting is deliberately absent from the host's speedrun policy.
+ ConfigVar<bool> speedrun("speedrun",true);s_speedrun=&speedrun;
+ s_bools[0]={};s_bools.back().var=&cheat;
+ begin_survivors_integrity(false,modded);assert(!cheat.getValue());
+ end_survivors_integrity();assert(cheat.getValue());s_speedrun=nullptr;
 }
 }
 int main(){check(true);check(Mode::Cheat);check(Mode::OtherCheat);integrity_test::run();}
 '''
+a=implementation.index('constexpr std::array kBoolCheats')
+fixture=fixture.replace('// BOOL_CHEATS',implementation[a:implementation.index('};',a)+2])
+# Keep restoration consistent with the host's precise speedrun cheat policy.
+policy=(root/'dusklight/src/dusk/speedrun.cpp').read_text()
+assert 'easyQuickSpin.setSpeedrunValue' not in policy
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test';cpp.write_text(fixture)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-DTARGET_PC','-Wall','-Wextra','-Werror',

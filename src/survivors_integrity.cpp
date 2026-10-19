@@ -107,7 +107,11 @@ void update_survivors_integrity(bool& modded) {
 void end_survivors_integrity() {
     s_running=s_locked=false;
     const bool speedrun=s_speedrun && s_speedrun->getValue();
-    for(auto& cheat:s_bools)cheat.release(speedrun);
+    for(size_t i=0;i<s_bools.size();++i) {
+        // Dusklight's native speedrun policy does not override Easy Quick Spin.
+        // Restore that preference normally instead of adding a new host policy.
+        s_bools[i].release(speedrun && std::string_view(kBoolCheats[i])!="game.easyQuickSpin");
+    }
     s_spin.release(speedrun);s_armor.release(speedrun);
     for(auto& token:s_subscriptions) {if(token && s_unsubscribe)s_unsubscribe(token);token=0;}
 }
