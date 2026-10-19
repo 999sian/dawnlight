@@ -42,7 +42,6 @@ bool in_arena(){return active;}bool playable(){return active&&!paused;}bool tran
 bool dComIfGp_event_runCheck(){return event;}
 void* s_menuDocument=nullptr;void remember_menu_document(bool){}
 Records s_records;bool s_storeFailed=false,s_progressSaved=false,s_hubSaveRequested=false;
-constexpr const char* kBlob="test";
 struct Save{ModResult set_blob(ModContext*,const char*,const void*,size_t){return MOD_OK;}}save;auto* svc_save=&save;
 Run s_run;RunOptions s_options;int s_player=1;bool s_restart=false;
 enum class HubMenu{None,Talents,Run};unsigned s_hubClosingWindow=0;HubMenu s_hubMenu=HubMenu::Run;
@@ -81,6 +80,7 @@ struct Service{
  ModResult pane_add_control(ModContext*,UiElementHandle,const UiControlDesc* c,UiElementHandle*){controls.push_back(*c);return MOD_OK;}
  ModResult pane_add_text(ModContext*,UiElementHandle,const char*,UiElementHandle*){return MOD_OK;}
 }service;auto* svc_ui=&service;
+ModResult build_reset_scores(UiElementHandle){return MOD_OK;}
 '''
 main=r'''
 int main(){
@@ -192,7 +192,7 @@ int main(){
  controls.clear();s_options.debug={4,10,1,1,5};s_run.options.debug=s_options.debug;
  assert(build_debug(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
  if(debug_enabled){
-  assert(controls.size()==7&&std::string(controls[0].label)=="Minimum Rarity");
+  assert(controls.size()==6&&std::string(controls[0].label)=="Minimum Rarity");
   for(unsigned i=0;i<5;++i){auto& c=controls[i];UiControlValue value=UI_CONTROL_VALUE_INIT;
    assert(c.kind==(i==1?UI_CONTROL_NUMBER:UI_CONTROL_SELECT));
    value.int_value=0;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==(i==1?1:0));

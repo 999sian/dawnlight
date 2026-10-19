@@ -3,7 +3,59 @@
 #include <iostream>
 using namespace dawnlight;
 using namespace dawnlight::survivors;
+void high_score_tests(){
+    static_assert(Records::byte_count<65536);
+    for(bool cheats:{false,true})for(bool modded:{false,true}) {
+        Records records;Run run;run.start(42);run.phase=Phase::Victory;
+        run.options.allow_cheats=cheats;run.modded=modded;run.ticks=12345;run.kills=321;run.level=42;
+        run.timed_elites=4;run.guard_elites=12;run.chests_opened=7;
+        run.master_sword=3;run.shield=2;run.dual_wield=4;run.dark_link=5;run.red_potion=true;
+        run.options.enemy_hp=10;run.options.enemy_damage=9;run.options.enemy_speed=3;run.options.horde=5;
+        for(unsigned i=0;i<run.ranks.size();++i)run.ranks[i]=i;
+        for(unsigned i=0;i<run.damage.dealt.size();++i)run.damage.dealt[i]=(uint64_t(1)<<35)+i;
+        for(unsigned map=0;map<5;++map)records.finish(run,map);
+        const bool assisted=cheats||modded;
+        for(unsigned map=0;map<5;++map) {
+            const auto& best=records.high_score(map,assisted);
+            assert(best.present()&&best.score==run.score()&&best.run.damage.dealt==run.damage.dealt);
+            assert(!records.high_score(map,!assisted).present());
+        }
+        const auto before=records.high_score(0,assisted).encode();
+        auto worse=run;worse.kills=1;records.finish(worse,0);assert(records.high_score(0,assisted).encode()==before);
+        run.damage.dealt[0]=0;records.finish(run,0);assert(records.high_score(0,assisted).encode()==before); // Ties retain original run.
+        ++run.kills;records.finish(run,0);assert(records.high_score(0,assisted).run.damage.dealt[0]==0);
+        Records restored;const auto bytes=records.encode();assert(restored.decode(bytes)&&restored.encode()==bytes);
+        assert(restored.high_score(0,assisted).run.ranks==run.ranks);
+        const auto preserved=restored;
+        restored.clear_high_scores();
+        assert(restored.cleared_maps==31&&restored.total_xp==preserved.total_xp&&restored.runs==preserved.runs&&restored.wins==preserved.wins);
+        for(unsigned map=0;map<5;++map)assert(!restored.ranked[map].present()&&!restored.cheated[map].present()&&restored.map_unlocked(map));
+        assert(restored.decode(restored.encode()));
+        auto legacy=bytes;legacy[4]=7;
+        assert(restored.decode(std::span(legacy.data(),136))&&restored.cleared_maps==31&&restored.total_xp==preserved.total_xp);
+        for(unsigned map=0;map<5;++map)assert(!restored.ranked[map].present()&&!restored.cheated[map].present());
+        assert(restored.high_scores==preserved.high_scores); // Unknown legacy integrity never becomes Ranked.
+        auto corrupt=bytes;
+        const unsigned start=136+(assisted?5*HighScoreRun::word_count*4:0);
+        corrupt[start+16]^=3; // Move an intact snapshot into the wrong category.
+        if(assisted)corrupt[start+16]=4; // Strip both integrity bits.
+        assert(!restored.decode(corrupt));
+        corrupt=bytes;corrupt[start]=3;assert(!restored.decode(corrupt));
+        corrupt=bytes;corrupt[start+16]=0x80;assert(!restored.decode(corrupt));
+        corrupt=bytes;corrupt[start+60]=0;assert(!restored.decode(corrupt)); // Invalid difficulty.
+        const auto intact=restored.encode();
+        assert(!restored.decode(std::span(bytes.data(),bytes.size()-4))&&restored.encode()==intact);
+    }
+    Records zero;Run run;run.start(1);run.end(false);zero.finish(run,0);
+    assert(zero.ranked[0].present()&&zero.ranked[0].score==0); // A valid zero-score run is still viewable.
+    const auto words=zero.ranked[0].encode();HighScoreRun score;
+    assert(score.decode(words)&&score.present());
+    auto bad=words;const unsigned damageStart=20+unsigned(Upgrade::Rupees);
+    bad[damageStart]=bad[damageStart+1]=UINT32_MAX;bad[damageStart+2]=1;
+    assert(!score.decode(bad)); // Refuse overflowing totals.
+}
 int main(){
+    high_score_tests();
     Records gates;Run finished;finished.start(1);
     assert(gates.map_unlocked(0)&&!gates.map_unlocked(1)&&!gates.map_unlocked(5)&&!gates.map_unlocked(~0u));
     for(unsigned map=0;map<5;++map){

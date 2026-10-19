@@ -277,6 +277,8 @@ UiDialogHandle s_talentDialog=0;
 bool s_powerupsRequested = false;
 dMenu_Collect2D_c* s_powerupsMenu = nullptr;
 void close_powerup_window();
+void close_score_windows();
+void close_high_score(ModContext*,void*);
 ActorId s_player = kNone;
 fpc_ProcID s_savePrompt = kNone;
 bool s_victory=false, s_deathPending=false, s_deathDismiss=false;
@@ -454,6 +456,7 @@ void clear_attacks() {
     for (auto& a : s_attacks) stop_attack(a);
 }
 void close_window() {
+    close_score_windows();
     s_menuDocument = s_talentDocument = nullptr;
     const auto dialog=s_talentDialog;s_talentDialog=0;
     if(dialog)svc_ui->dialog_close(mod_ctx,dialog);
@@ -1365,11 +1368,12 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_chest_ui.inc"
 #include "survivors_powerups.inc"
 #include "survivors_talents.inc"
+#include "survivors_results.inc"
+#include "survivors_scores_ui.inc"
 #include "survivors_maps_ui.inc"
 #include "survivors_debug_ui.inc"
 #include "survivors_settings_config.inc"
 #include "survivors_hub.inc"
-#include "survivors_results.inc"
 
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {

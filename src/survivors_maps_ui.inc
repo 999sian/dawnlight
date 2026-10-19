@@ -34,17 +34,18 @@ void select_arena(ModContext*, void* data) {
     s_refreshChoices=s_window; close_window();
 }
 UiElementHandle s_mapPreview=0,s_mapLockHint=0;
-unsigned s_previewMap=0,s_previewScore=0;
+unsigned s_previewMap=0;
 bool s_previewUnlocked=false;
 std::string arena_preview() {
     return "<div class=\"survivors-map-preview-title\" style=\"color: "+
-        std::string(arenas[s_requestedMap].accent)+";\">"+treasure_rml_escape(arenas[s_requestedMap].name)+"</div><div>High score: "+number(s_records.high_scores[s_requestedMap])+"</div><div>"+treasure_rml_escape(arenas[s_requestedMap].description)+"</div>";
+        std::string(arenas[s_requestedMap].accent)+";\">"+treasure_rml_escape(arenas[s_requestedMap].name)+"</div><div>"+treasure_rml_escape(arenas[s_requestedMap].description)+"</div>";
 }
 ModResult update_arena_tab(ModContext*,void*,ModError*) {
     if(s_requestedMap>=arenas.size())return MOD_OK;
-    const auto score=s_records.high_scores[s_requestedMap];
+    const auto scoreResult=update_score_controls();
+    if(scoreResult!=MOD_OK)return scoreResult;
     const bool unlocked=map_available(s_requestedMap);
-    if(s_mapPreview && (s_previewMap!=s_requestedMap || s_previewScore!=score)) {
+    if(s_mapPreview && (s_previewMap!=s_requestedMap)) {
         auto result=svc_ui->elem_set_rml(mod_ctx,s_mapPreview,arena_preview().c_str());
         if(result!=MOD_OK)return result;
     }
@@ -55,7 +56,7 @@ ModResult update_arena_tab(ModContext*,void*,ModError*) {
         result=svc_ui->elem_set_visible(mod_ctx,s_mapLockHint,!unlocked);
         if(result!=MOD_OK)return result;
     }
-    s_previewMap=s_requestedMap;s_previewScore=score;s_previewUnlocked=unlocked;
+    s_previewMap=s_requestedMap;s_previewUnlocked=unlocked;
     return MOD_OK;
 }
 ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
@@ -95,6 +96,8 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
     result=svc_ui->pane_add_rml(mod_ctx,right,arena_preview().c_str(),&s_mapPreview);
     if(result!=MOD_OK)return result;
     result=svc_ui->elem_set_class(mod_ctx,s_mapPreview,"survivors-map-preview-copy",true);
+    if(result!=MOD_OK)return result;
+    result=build_score_controls(right);
     if(result!=MOD_OK)return result;
     UiRowDesc rowDesc=UI_ROW_DESC_INIT;UiElementHandle launch=0;
     result=svc_ui->pane_add_row(mod_ctx,right,&rowDesc,&launch);
@@ -221,5 +224,7 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
         if(settings_editable()){s_options.allow_cheats=value->bool_value;store_option_config();}
     };
     result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
+    if(result!=MOD_OK)return result;
+    result=build_reset_scores(left);
     return result==MOD_OK?build_manual_aim_settings(right):result;
 }

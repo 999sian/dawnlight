@@ -1,4 +1,4 @@
-// Run-local results; the persisted records continue to store scores/progression.
+// Shared rendering for live results and immutable saved high-score snapshots.
 constexpr const char* kResultsStyle=R"(
 window { background-color: #0c1210f5; }
 window content pane.survivors-results-main { flex: 1 1 69%; padding: 20dp; gap: 12dp; overflow: hidden auto; }
@@ -50,27 +50,27 @@ std::string result_decimal(double value,int places=1) {
 std::string result_time(unsigned ticks) {
     char text[32];std::snprintf(text,sizeof(text),"%02u:%02u",ticks/1800,ticks/30%60);return text;
 }
-unsigned result_source_level(DamageSource source) {
+unsigned result_source_level(DamageSource source,const Run& run=s_run) {
     switch(source) {
-    case DamageSource::DarkLink:return s_run.dark_link;
-    case DamageSource::Sword:return s_run.master_sword? s_run.master_sword:1;
-    case DamageSource::DualWield:return s_run.dual_wield;
-    case DamageSource::FireArrows:return s_run.rank(Upgrade::FireArrows);
-    case DamageSource::FireBomb:return s_run.rank(Upgrade::FireBomb);
-    case DamageSource::FireEdge:return s_run.rank(Upgrade::FireEdge);
-    case DamageSource::DarkAura:return s_run.rank(Upgrade::DarkAura);
+    case DamageSource::DarkLink:return run.dark_link;
+    case DamageSource::Sword:return run.master_sword? run.master_sword:1;
+    case DamageSource::DualWield:return run.dual_wield;
+    case DamageSource::FireArrows:return run.rank(Upgrade::FireArrows);
+    case DamageSource::FireBomb:return run.rank(Upgrade::FireBomb);
+    case DamageSource::FireEdge:return run.rank(Upgrade::FireEdge);
+    case DamageSource::DarkAura:return run.rank(Upgrade::DarkAura);
     default:
         for(unsigned i=0;i<unsigned(Upgrade::Rupees);++i)
-            if(weapon_damage_source(i)==source && source!=DamageSource::Other)return s_run.rank(Upgrade(i));
+            if(weapon_damage_source(i)==source && source!=DamageSource::Other)return run.rank(Upgrade(i));
         return 0;
     }
 }
-std::string result_source_name(DamageSource source) {
-    if(source==DamageSource::Spin)return s_run.upgrade_name(Upgrade::Spin);
+std::string result_source_name(DamageSource source,const Run& run=s_run) {
+    if(source==DamageSource::Spin)return run.upgrade_name(Upgrade::Spin);
     return damage_source_names[unsigned(source)];
 }
-DamageAmounts result_damage() {
-    auto damage=s_run.damage.dealt;
+DamageAmounts result_damage(const Run& run=s_run) {
+    auto damage=run.damage.dealt;
     for(auto pair:std::array{std::pair{DamageSource::DualWield,DamageSource::Sword},
         std::pair{DamageSource::FireArrows,DamageSource::Bow},std::pair{DamageSource::FireBomb,DamageSource::Bombs},
         std::pair{DamageSource::BombArrow,DamageSource::Bow},std::pair{DamageSource::FireEdge,DamageSource::Sword},
@@ -79,32 +79,32 @@ DamageAmounts result_damage() {
     }
     return damage;
 }
-std::string results_damage_rml() {
-    const auto damageBySource=result_damage();
-    const auto total=s_run.damage.total();
-    const double seconds=std::max(1u,s_run.ticks)/double(ticks_per_second);
-    std::string rml="<div class=\"sr-heading\">"+std::string(s_run.phase==Phase::Victory?"VICTORY":"DEFEAT")+"</div>";
-    if(s_run.options.allow_cheats || s_run.modded) {
-        const std::string labels=std::string(s_run.options.allow_cheats?"Cheated":"")+
-            (s_run.options.allow_cheats && s_run.modded?" &bull; ":"")+(s_run.modded?"Modded":"");
+std::string results_damage_rml(const Run& run=s_run,unsigned map=s_map) {
+    const auto damageBySource=result_damage(run);
+    const auto total=run.damage.total();
+    const double seconds=std::max(1u,run.ticks)/double(ticks_per_second);
+    std::string rml="<div class=\"sr-heading\">"+std::string(run.phase==Phase::Victory?"VICTORY":"DEFEAT")+"</div>";
+    if(run.options.allow_cheats || run.modded) {
+        const std::string labels=std::string(run.options.allow_cheats?"Cheated":"")+
+            (run.options.allow_cheats && run.modded?" &bull; ":"")+(run.modded?"Modded":"");
         rml="<div class=\"sr-integrity\">"+labels+"</div>"+rml;
     }
-    rml+="<div class=\"sr-subtitle\">"+treasure_rml_escape(arenas[s_map].name)+" &bull; "+result_time(s_run.ticks)+"</div>";
+    rml+="<div class=\"sr-subtitle\">"+treasure_rml_escape(arenas[map].name)+" &bull; "+result_time(run.ticks)+"</div>";
     rml+="<div class=\"sr-metrics\">";
     const auto metric=[&](const char* label,const std::string& value){
         rml+="<div class=\"sr-metric\"><span class=\"sr-value\">"+value+"</span><span class=\"sr-label\">"+label+"</span></div>";
     };
-    metric("Total damage",result_number(total));metric("Run DPS",result_decimal(total/seconds));metric("Enemies defeated",result_number(s_run.kills));
+    metric("Total damage",result_number(total));metric("Run DPS",result_decimal(total/seconds));metric("Enemies defeated",result_number(run.kills));
     rml+="</div><div class=\"sr-section\">Damage breakdown</div>";
     rml+="<div class=\"sr-row sr-columns\"><div class=\"sr-skill\">Ability</div><div class=\"sr-level\">Lv.</div><div class=\"sr-damage\">Damage</div><div class=\"sr-dps\">DPS</div><div class=\"sr-share\">Share</div></div>";
     std::array<unsigned,damage_source_count> order{};std::iota(order.begin(),order.end(),0u);
     std::stable_sort(order.begin(),order.end(),[&](unsigned a,unsigned b){return damageBySource[a]>damageBySource[b];});
     for(unsigned i:order) {
         const auto source=DamageSource(i);const auto damage=damageBySource[i];
-        const unsigned rank=result_source_level(source);
+        const unsigned rank=result_source_level(source,run);
         if(!damage)continue;
         const double share=total?100.0*damage/total:0;
-        rml+="<div class=\"sr-row\"><div class=\"sr-skill\">"+treasure_rml_escape(result_source_name(source))+
+        rml+="<div class=\"sr-row\"><div class=\"sr-skill\">"+treasure_rml_escape(result_source_name(source,run))+
             "<div class=\"sr-track\"><div class=\"sr-bar\" style=\"width: "+result_decimal(share)+"%;\"></div></div></div>";
         rml+="<div class=\"sr-level\">"+(rank?number(rank):"-")+"</div><div class=\"sr-damage\">"+result_number(damage)+
             "</div><div class=\"sr-dps\">"+result_decimal(damage/seconds)+"</div><div class=\"sr-share\">"+result_decimal(share)+"%</div></div>";
@@ -115,32 +115,37 @@ std::string results_damage_rml() {
     rml+="<div class=\"sr-note\">Damage is enemy HP actually removed; blocked hits and overkill are excluded. DPS uses the full run time, excluding pauses. Simultaneous hits share damage proportionally. Passive effects count toward their ability. Dark Link shows its extra multiplier damage and Dark Aura; this damage is excluded from the other rows.</div>";
     return rml;
 }
-std::string results_loadout_rml() {
+std::string results_loadout_rml(const HighScoreRun* archived=nullptr,unsigned map=s_map) {
+    const Run& run=archived?archived->run:s_run;
+    const auto score=archived?archived->score:run.score();
+    const bool assisted=run.options.allow_cheats || run.modded;
+    const auto best=archived?score:s_records.high_score(map,assisted).score;
     std::string rml="<div class=\"sr-section\">Run summary</div>";
     const auto stat=[&](const char* label,const std::string& value){rml+="<div class=\"sr-stat\"><span>"+std::string(label)+"</span><span>"+value+"</span></div>";};
-    stat("Score",result_number(s_run.score()));stat("Map high score",result_number(s_records.high_scores[s_map]));
-    stat("Difficulty","x"+result_decimal(s_run.options.score_percent()/100.0,2));
-    stat("Level reached",number(s_run.level));stat("Timed elites",number(s_run.timed_elites)+" / 4");
-    stat("Other elites",number(s_run.guard_elites));stat("Chests opened",number(s_run.chests_opened));
-    stat("XP earned",result_number(s_run.score()));stat("Meta level",number(s_records.level()));
-    stat("Unlock points",number(s_records.available_points()));
+    stat("Score",result_number(score));stat(assisted?"Cheated high score":"Ranked high score",result_number(best));
+    stat("Difficulty","x"+result_decimal(run.options.score_percent()/100.0,2));
+    stat("Level reached",number(run.level));stat("Timed elites",number(run.timed_elites)+" / 4");
+    stat("Other elites",number(run.guard_elites));stat("Chests opened",number(run.chests_opened));
+    stat("XP earned",result_number(score));stat("Meta level",number(archived?archived->meta_level:s_records.level()));
+    stat("Unlock points",number(archived?archived->unlock_points:s_records.available_points()));
     rml+="<div class=\"sr-section\">Equipment</div>";
     for(unsigned i=0;i<unsigned(ChestReward::Count);++i) {
-        const auto item=ChestReward(i);if(!s_run.owns(item))continue;
-        char icon[48];std::snprintf(icon,sizeof(icon),"item://item/%02x",unsigned(treasure_item(item,s_run)));
-        const auto name=item==ChestReward::OrdonSword?"Dual Wield":reward_name(item,s_run);
+        const auto item=ChestReward(i);if(!run.owns(item))continue;
+        char icon[48];std::snprintf(icon,sizeof(icon),"item://item/%02x",unsigned(treasure_item(item,run)));
+        const auto name=item==ChestReward::OrdonSword?"Dual Wield":reward_name(item,run);
         rml+="<div class=\"sr-equipment\"><img src=\""+std::string(icon)+"\"/><span>"+treasure_rml_escape(name)+"</span></div>";
     }
     return rml;
 }
-ModResult build_results(UiElementHandle left,UiElementHandle right) {
+ModResult build_results(UiElementHandle left,UiElementHandle right,const HighScoreRun* archived=nullptr,unsigned map=s_map) {
     auto result=svc_ui->elem_set_class(mod_ctx,left,"survivors-results-main",true);if(result!=MOD_OK)return result;
     result=svc_ui->elem_set_class(mod_ctx,right,"survivors-results-side",true);if(result!=MOD_OK)return result;
     UiElementHandle mainBody=0,sideBody=0;
-    result=svc_ui->pane_add_rml(mod_ctx,left,results_damage_rml().c_str(),&mainBody);if(result!=MOD_OK)return result;
+    result=svc_ui->pane_add_rml(mod_ctx,left,results_damage_rml(archived?archived->run:s_run,map).c_str(),&mainBody);if(result!=MOD_OK)return result;
     result=svc_ui->elem_set_class(mod_ctx,mainBody,"sr-body",true);if(result!=MOD_OK)return result;
-    result=svc_ui->pane_add_rml(mod_ctx,right,results_loadout_rml().c_str(),&sideBody);if(result!=MOD_OK)return result;
+    result=svc_ui->pane_add_rml(mod_ctx,right,results_loadout_rml(archived,map).c_str(),&sideBody);if(result!=MOD_OK)return result;
     result=svc_ui->elem_set_class(mod_ctx,sideBody,"sr-body",true);if(result!=MOD_OK)return result;
+    if(archived)return button(left,"Back to maps",close_high_score);
     result=svc_ui->pane_add_text(mod_ctx,left,s_storeFailed?
         "Records could not be stored. Retry Save records before leaving.":
         "Save records before quitting. Return to hub keeps your progress and lets you prepare another run.",nullptr);

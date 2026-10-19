@@ -29,8 +29,8 @@ have no separate rows: extra Dual Wield hits count as Sword Attack, Fire Arrows
 and Bomb Arrow as Bow, Fire Bomb as Bombs, and Fire Edge as the ability that
 ignited it. **Dark Link** separately shows its extra multiplier damage (including
 boosted burns) and its Dark Aura damage; those points are excluded from the other
-rows. Damage details belong to the completed run and reset for the next run;
-existing saved scores and talent progression keep their current format.
+rows. Each new high score keeps its damage details for later viewing; live
+damage counters reset for the next run. Older saves retain their progression.
 
 ## Playing a run
 
@@ -80,7 +80,8 @@ Turning Allow Cheats on marks the result **Cheated** in small red text at the to
 even if no individual cheat was used. A second red **Modded** label appears if
 any other mod was active during the run, including cosmetic or asset-only mods;
 disabling it later does not remove the label. Installed but inactive mods do not
-count. These labels do not change scores or progression.
+count. These labels select the Cheated high-score list without reducing the
+awarded score, XP or progression.
 
 Survivors also suppresses Dawnlight's ordinary gameplay overrides and Enemy
 Spawner regardless of Allow Cheats. Its own talents, weapons and balancing
@@ -99,7 +100,22 @@ rewards are unchanged. Camera 100% is native distance; event cameras stay native
 
 ## Score and permanent talents
 
-Each map has its own high score, shown in the map description panel and the result screen. Final score:
+Each map has two independent high scores: **Ranked** for runs without Allow
+Cheats or other active mods, and **Cheated** for runs with either condition.
+Select a score in the Maps tab to reopen that run's result screen, including its
+damage breakdown, equipment, integrity flags and awarded score. This view is
+read-only; it does not restart the run or award XP again. Ties keep the original
+record. Empty lists show a dash; even a completed zero-score run can be opened.
+
+**Reset High Scores** is in the normal Survivors Settings tab (also mirrored in
+Dawnlight Settings). It is available in a loaded Survivors hub and asks for
+**Yes / No** confirmation, defaulting to No. It clears both lists and their saved
+summaries for the current save, while preserving unlocked maps, talents, XP and
+lifetime statistics. A failed write keeps the original records and offers retry.
+Old saves retain their progression, but their unclassified scores cannot populate
+the new lists because they did not store integrity flags or result snapshots.
+
+Final score:
 
 | Source | Points before difficulty bonus |
 | --- | ---: |

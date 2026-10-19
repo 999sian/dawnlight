@@ -592,10 +592,68 @@ struct Run {
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };
 
+// A presentation snapshot, never used to resume gameplay. Store the awarded
+// score explicitly so future balance changes cannot rewrite historical scores.
+struct HighScoreRun {
+    Run run;
+    uint32_t score=0, meta_level=1, unlock_points=0;
+    bool present() const { return run.phase==Phase::Victory || run.phase==Phase::Defeat; }
+    bool cheated() const { return run.options.allow_cheats || run.modded; }
+    static constexpr unsigned word_count=20+unsigned(Upgrade::Rupees)+2*damage_source_count;
+    using Words=std::array<uint32_t,word_count>;
+    Words encode() const {
+        Words words{};
+        if(!present())return words;
+        unsigned i=0;const auto put=[&](uint32_t n){words[i++]=n;};
+        put(run.phase==Phase::Victory?2:1);put(score);put(meta_level);put(unlock_points);
+        put(unsigned(run.options.allow_cheats)|(unsigned(run.modded)<<1)|(unsigned(run.red_potion)<<2));
+        put(run.ticks);put(run.kills);put(run.level);put(run.timed_elites);put(run.guard_elites);put(run.chests_opened);
+        put(run.master_sword);put(run.shield);put(run.dual_wield);put(run.dark_link);
+        put(run.options.enemy_hp);put(run.options.enemy_damage);put(run.options.enemy_speed);put(run.options.horde);
+        put(run.debug_options().run_minutes);
+        for(auto rank:run.ranks)put(rank);
+        for(auto damage:run.damage.dealt){put(uint32_t(damage));put(uint32_t(damage>>32));}
+        return words;
+    }
+    bool decode(std::span<const uint32_t,word_count> words) {
+        if(!words[0]) {
+            if(std::any_of(words.begin(),words.end(),[](auto word){return word!=0;}))return false;
+            *this={};return true;
+        }
+        if(words[0]>2 || !words[2] || words[3]>=words[2] || (words[4]&~7u))return false;
+        HighScoreRun next;auto& r=next.run;
+        unsigned i=0;const auto get=[&](){return words[i++];};
+        r.phase=get()==2?Phase::Victory:Phase::Defeat;next.score=get();next.meta_level=get();next.unlock_points=get();
+        const auto flags=get();r.options.allow_cheats=flags&1;r.modded=flags&2;r.red_potion=flags&4;
+        r.ticks=get();r.kills=get();r.level=get();r.timed_elites=get();r.guard_elites=get();r.chests_opened=get();
+        r.master_sword=get();r.shield=get();r.dual_wield=get();r.dark_link=get();
+        r.options.enemy_hp=get();r.options.enemy_damage=get();r.options.enemy_speed=get();r.options.horde=get();
+        r.options.debug.run_minutes=get();
+        if(r.options.enemy_hp<1 || r.options.enemy_hp>10 || r.options.enemy_damage<1 || r.options.enemy_damage>10 ||
+           r.options.enemy_speed<1 || r.options.enemy_speed>3 || r.options.horde<1 || r.options.horde>5 ||
+           (r.options.debug.run_minutes!=5 && r.options.debug.run_minutes!=10 && r.options.debug.run_minutes!=20))return false;
+        for(auto& rank:r.ranks)rank=get();
+        uint64_t total=0;
+        for(auto& damage:r.damage.dealt) {
+            const uint64_t lo=get(),hi=get();damage=lo|(hi<<32);
+            if(damage>UINT64_MAX-total)return false;
+            total+=damage;
+        }
+        *this=next;return true;
+    }
+};
+
 // Explicit little-endian encoding, independent of ABI padding and game version.
 struct Records {
     uint32_t runs = 0, wins = 0, best_ticks = 0, best_kills = 0, best_level = 0;
+    // Retain the unclassified legacy aggregate for migration; never promote it
+    // into Ranked without an integrity-tagged result snapshot.
     std::array<uint32_t,5> high_scores{};
+    std::array<HighScoreRun,5> ranked{}, cheated{};
+    const HighScoreRun& high_score(unsigned map,bool assisted) const { return (assisted?cheated:ranked)[map]; }
+    void clear_high_scores() { high_scores={};ranked={};cheated={}; }
+    static constexpr unsigned word_count=34+10*HighScoreRun::word_count;
+    static constexpr unsigned byte_count=4*word_count;
     uint32_t cleared_maps=0;
     bool map_unlocked(unsigned map) const {
         return map<high_scores.size() && (map==0 || (cleared_maps & (1u<<(map-1))));
@@ -617,23 +675,30 @@ struct Records {
         best_ticks = std::max(best_ticks, run.ticks);
         best_kills = std::max(best_kills, run.kills);
         best_level = std::max(best_level, run.level);
+        auto& best=(run.options.allow_cheats || run.modded?cheated:ranked)[map];
+        if(!best.present() || run.score()>best.score)best={run,run.score(),level(),available_points()};
     }
-    std::array<uint8_t,136> encode() const {
-        std::array<uint32_t,34> words{0x56525348,7,runs,wins,best_ticks,best_kills,best_level};
+    std::array<uint8_t,byte_count> encode() const {
+        std::array<uint32_t,word_count> words{0x56525348,8,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
         words[33]=cleared_maps;
-        std::array<uint8_t,136> bytes{};
+        unsigned offset=34;
+        for(const auto* category:{&ranked,&cheated})for(const auto& best:*category) {
+            const auto record=best.encode();
+            std::copy(record.begin(),record.end(),words.begin()+offset);offset+=record.size();
+        }
+        std::array<uint8_t,byte_count> bytes{};
         for(unsigned i=0;i<words.size();++i)for(unsigned b=0;b<4;++b)bytes[i*4+b]=uint8_t(words[i]>>(8*b));
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136)return false;
-        std::array<uint32_t,34> words{};
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=byte_count)return false;
+        std::array<uint32_t,word_count> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==byte_count)))return false;
         Records next;
         // Legacy saves have aggregate wins only; scores also include defeats.
         if(words[1]>=7){
@@ -646,6 +711,14 @@ struct Records {
             next.total_xp=uint64_t(words[12])|(uint64_t(words[13])<<32);
             for(unsigned i=0;i<next.talents.ranks.size();++i)next.talents.ranks[i]=words[14+i];
             if(next.total_xp>max_meta_xp || !next.talents.valid() || next.talents.spent()>meta_levels(next.total_xp))return false;
+        }
+        if(words[1]>=8) {
+            unsigned offset=34;
+            for(unsigned category=0;category<2;++category)for(auto& best:category?next.cheated:next.ranked) {
+                if(!best.decode(std::span<const uint32_t,HighScoreRun::word_count>(words.data()+offset,HighScoreRun::word_count)) ||
+                   (best.present() && best.cheated()!=bool(category)))return false;
+                offset+=HighScoreRun::word_count;
+            }
         }
         *this=next;return true;
     }
