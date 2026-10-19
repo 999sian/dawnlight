@@ -1,4 +1,5 @@
 #include "platform_compat.hpp"
+#include "Z2AudioLib/Z2AudioMgr.h"
 #include "survivors.hpp"
 #include "survivors_integrity.hpp"
 #include "d/d_door_param2.h"
@@ -156,6 +157,7 @@ DEFINE_HOOK(&daAlink_c::checkRestartRoom, SurvivorsArenaRestart);
 DEFINE_HOOK_SYMBOL("src/d/d_stage.cpp#dStage_actorCreate", void(stage_actor_data_class*, fopAcM_prm_class*, size_t), SurvivorsArenaActor);
 DEFINE_HOOK(&daAlink_c::checkDamageAction, SurvivorsBlock);
 DEFINE_HOOK(&daAlink_c::setShieldGuard, SurvivorsGuard);
+DEFINE_HOOK_SYMBOL("cCcS::SetCoCommonHitInf",void(cCcS*,cCcD_Obj*,cXyz*,cCcD_Obj*,cXyz*,f32),SurvivorsEnemyContact);
 DEFINE_HOOK(&daE_OC_c::damage_check, SurvivorsBokoblinHit);
 DEFINE_HOOK_SYMBOL("cCcS::SetAtTgCommonHitInf",void(cCcS*,cCcD_Obj*,cCcD_Obj*,cXyz*),SurvivorsConcurrentHit);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rd.cpp#damage_check", void(e_rd_class*), SurvivorsBulblinHit);
@@ -344,6 +346,8 @@ bool queue_ranged(daAlink_c*, Upgrade);
 struct Enemy;
 void queue_knockback(Enemy&, fopAc_ac_c*, bool);
 bool ranged_pose_active();
+bool boss_blocks_from(const Enemy&,fopAc_ac_c*,const cXyz&);
+void stop_survivors_music();
 bool loot_floor_position(cXyz&);
 void update_knockback(Enemy&, fopAc_ac_c*);
 void initialize_extended_enemy(Enemy&,fopAc_ac_c*);
@@ -436,6 +440,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_enemy_types.inc"
 #include "survivors_enemy_balance.inc"
 #include "survivors_enemy_arrows.inc"
+#include "survivors_collision.inc"
 #include "survivors_elite_positions.inc"
 #include "survivors_maps.inc"
 #include "survivors_extended_ai.inc"
@@ -547,6 +552,7 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    stop_survivors_music();
     end_survivors_integrity();
     reset_ending();
     s_hubMenu=HubMenu::None; s_hubSaveRequested=false; s_hubClosingWindow=0;
@@ -1009,6 +1015,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 void new_melee_swing() { ++s_meleeSerial; }
 #include "survivors_combat_pause.inc"
 #include "survivors_defense.inc"
+#include "survivors_boss_guard.inc"
 #include "survivors_concurrent_hits.inc"
 #include "survivors_bulblin.inc"
 #include "survivors_movement.inc"
@@ -1478,6 +1485,7 @@ ModResult loaded(void*, ModError*) {
     reset_runtime(); prepare_save(); s_saveReady = true; return MOD_OK;
 }
 ModResult reset(void*, ModError*) { reset_runtime(); return MOD_OK; }
+#include "survivors_music.inc"
 } // namespace
 
 ModResult build_survivors_settings(ModContext* ctx,UiWindowHandle window,UiElementHandle left,UiElementHandle right,void* data,ModError* error) {
@@ -1507,6 +1515,7 @@ bool survivors_dark_link_active() {
         s_run.phase == Phase::Upgrade || s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Treasure);
 }
 void update_survivors() {
+    update_survivors_music();
     update_survivors_integrity(s_run.modded);
     cleanup_enemies();
     cleanup_pots(); cleanup_pickups();
@@ -1572,6 +1581,10 @@ void update_survivors() {
         dComIfGs_getSaveData()->getPlayer().getPlayerReturnPlace().set(arena().stage, arena().room, arena().point);
         s_savePrompt = d_GameOver_Create(1);
         s_saveRequested = s_savePrompt == kNone;
+        // Scripted Game Over saves normally inherit the event's gameplay pause.
+        // Our results window has already closed, so supply it for this native
+        // modal too; saveClose_proc releases it on either completed choice.
+        if(s_savePrompt!=kNone)dComIfGp_onPauseFlag();
         return;
     }
     if ((s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count) ||
@@ -1611,6 +1624,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsPlayer, before_midna_call);
     PRE(SurvivorsMidnaOrder, before_midna_order);
     PRE(SurvivorsMidnaFlow, before_midna_flow);
+    PRE(SurvivorsEnemyContact,before_enemy_contact);
     PRE(SurvivorsBlock, before_shield_block); POST(SurvivorsBlock, after_player_damage); PRE(SurvivorsGuard, before_survivors_guard);
     PRE(SurvivorsBulblinHit, before_bulblin_hit); POST(SurvivorsBulblinHit, after_bulblin_hit);
     PRE(SurvivorsBulblinAggro, before_bulblin_aggro);
@@ -1689,6 +1703,7 @@ ModResult initialize_survivors(ModError* error) {
     return MOD_OK;
 }
 void shutdown_survivors() {
+    stop_survivors_music();
     shutdown_survivors_integrity();
     before_survivors_pad(nullptr,nullptr,nullptr,nullptr);
     s_active = false; reset_runtime(); cleanup_enemies(); cleanup_pots(); cleanup_pickups();

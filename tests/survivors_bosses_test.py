@@ -23,7 +23,9 @@ struct fopAc_ac_c {ActorId id=1;int profile=0,health=200,field_0x560=200;
  struct{cXyz pos;}current,old;csXyz shape_angle;float speedF=0,gravity=0;cXyz speed;
  struct{unsigned flags=0;int distances[1]{};}attention_info;};
 constexpr unsigned fopAc_AttnFlag_BATTLE_e=1,fopAc_attn_BATTLE_e=0;
+struct Morf{float rate=1;void setPlaySpeed(float v){rate=v;}};
 struct Native:fopAc_ac_c {
+ Morf morf;Morf* mpModelMorf=&morf;
  fopAc_ac_c& enemy=*this;
  enum{ACTION_OPACI_CHASE_e=15,ACTION_OPACI_FLY_e=12,ACTION_WAIT_e=2,ACT_CHANGEDEMO=8};
  int mAction=0,mMode=0,mDemoMode=0,mNoDraw=1,mDemoCamMode=0,mNoDrawTimer=0,mActionMode=0,mMoveMode=0,mGakeChkType=0;
@@ -50,7 +52,7 @@ using e_rdb_class=Native;using e_th_class=Native;using b_gnd_class=Native;using 
 using daE_VA_c=Native;using daE_YMB_c=Native;using daE_PZ_c=Native;using e_hzelda_class=Native;using daB_TN_c=Native;
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* a,unsigned n){return std::any_cast<T>(static_cast<std::any*>(a)[n]);}}
-struct Enemy{ActorId id=kNone;int profile=0;bool encounterReady=false,initialized=true,retiring=false,credited=false;unsigned age=0,specialCooldown=0,summonCooldown=240,encounterTick=0;
+struct Enemy{ActorId id=kNone;int profile=0;bool encounterReady=false,initialized=true,retiring=false,credited=false;unsigned stagger=0,age=0,specialCooldown=0,summonCooldown=240,encounterTick=0;
  cXyz lootPosition,spawnPosition,encounterTarget;};
 std::array<Enemy,32>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id&&id!=kNone)return &e;return nullptr;}
@@ -129,6 +131,13 @@ int main(){
  boss.mMoveMode=12;before_boss_gnd_execute(nullptr,args,&result,nullptr);assert(boss.mMoveMode==12&&summons==1);
  s_run.phase=Phase::Upgrade;boss.mActionMode=10;owner.summonCooldown=0;
  before_boss_gnd_execute(nullptr,args,&result,nullptr);assert(boss.mActionMode==10&&summons==1);s_run.phase=Phase::Running;
+ // Zelda attack clocks and animations run at an absolute 2x, without compounding.
+ owner.encounterReady=true;boss.mAction=1;boss.mTimers[0]=10;
+ before_boss_hzelda(nullptr,args,nullptr,nullptr);assert(boss.mTimers[0]==9);
+ after_boss_hzelda(nullptr,args,nullptr,nullptr);after_boss_hzelda(nullptr,args,nullptr,nullptr);assert(boss.morf.rate==2);
+ boss.mAction=0;after_boss_hzelda(nullptr,args,nullptr,nullptr);assert(boss.morf.rate==1);
+ s_run.phase=Phase::Upgrade;before_boss_hzelda(nullptr,args,nullptr,nullptr);assert(boss.mTimers[0]==9);
+ s_run.phase=Phase::Running;owner.stagger=1;before_boss_hzelda(nullptr,args,nullptr,nullptr);assert(boss.mTimers[0]==9);owner.stagger=0;
  // Native teleport selection receives only valid points; no empty point table.
  owner.encounterReady=false;before_boss_pz(nullptr,args,nullptr,nullptr);assert(boss.mPointNum==9);
  floorValid=false;before_boss_pz(nullptr,args,nullptr,nullptr);assert(boss.mPointNum==1);floorValid=true;

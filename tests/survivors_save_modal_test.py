@@ -14,13 +14,14 @@ enum HookAction {HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 struct dMenu_save_c {int status=0;int getSaveStatus(){return status;}};
 namespace mods {template<class T>T arg(void* p,int){return static_cast<T>(p);}}
 constexpr int kNone=-1;
-int s_savePrompt=kNone;
+int s_savePrompt=kNone,s_window=0;bool s_saveRequested=false;
 bool arena=true,s_progressSaving=false;
 bool in_arena(){return arena;}
 // PRODUCTION
 int main(){
  dMenu_save_c first,second;
  auto active=[] {return before_save_gameplay_menu(nullptr,nullptr,nullptr,nullptr)==HOOK_SKIP_ORIGINAL;};
+ s_window=1;assert(active());s_window=0;s_saveRequested=true;assert(active());s_saveRequested=false;
  assert(!active());
  assert(before_save_screen_open(nullptr,&first,nullptr,nullptr)==HOOK_CONTINUE);
  before_save_screen_open(nullptr,&first,nullptr,nullptr);

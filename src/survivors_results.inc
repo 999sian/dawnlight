@@ -27,7 +27,8 @@ window content pane.survivors-results-side { flex: 0 0 31%; padding: 20dp; gap: 
 .sr-stat { display: flex; justify-content: space-between; gap: 8dp; margin-bottom: 7dp; font-size: 15dp; }
 .sr-equipment { display: flex; align-items: center; gap: 10dp; padding: 7dp 0dp; }
 .sr-equipment img { width: 36dp; height: 36dp; object-fit: contain; }
-.sr-actions { margin-top: auto; gap: 12dp; }
+.sr-actions { gap: 12dp; }
+.sr-actions-first { margin-top: auto; }
 .sr-actions button { flex: 1 1 0; padding: 14dp; }
 @media (max-width: 800dp) {
  window content pane.survivors-results-main { padding: 10dp; flex-basis: 68%; }
@@ -153,6 +154,11 @@ ModResult build_results(UiElementHandle left,UiElementHandle right,const HighSco
     UiRowDesc rowDesc=UI_ROW_DESC_INIT;UiElementHandle row=0;
     result=svc_ui->pane_add_row(mod_ctx,left,&rowDesc,&row);if(result!=MOD_OK)return result;
     result=svc_ui->elem_set_class(mod_ctx,row,"sr-actions",true);if(result!=MOD_OK)return result;
-    result=button(row,"Save records",save_results);
-    return result==MOD_OK?button(row,"Return to hub",replay):result;
+    result=svc_ui->elem_set_class(mod_ctx,row,"sr-actions-first",true);if(result!=MOD_OK)return result;
+    result=button(row,"Save records",save_results);if(result!=MOD_OK)return result;
+    // Native UI rows navigate horizontally. Separate rows make Down/Up move
+    // between these actions through Pane's existing vertical navigator.
+    result=svc_ui->pane_add_row(mod_ctx,left,&rowDesc,&row);if(result!=MOD_OK)return result;
+    result=svc_ui->elem_set_class(mod_ctx,row,"sr-actions",true);if(result!=MOD_OK)return result;
+    return button(row,"Return to hub",replay);
 }

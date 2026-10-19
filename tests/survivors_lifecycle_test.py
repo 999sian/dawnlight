@@ -17,6 +17,7 @@ def extract(name):
             return source[match.start():end + 1]
     raise AssertionError(name)
 stubs = r'''
+void stop_survivors_music(){}
 bool s_victory=false;void reset_ending(){s_victory=false;}void begin_victory(int){s_victory=true;}
 
 #include <cassert>

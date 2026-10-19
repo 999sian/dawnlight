@@ -279,6 +279,8 @@ jobs:
       - name: Test Survivors combat and native combo selection
         if: matrix.platform == 'linux-x86_64'
         run: |
+          python3 tests/survivors_arena_behavior_test.py
+          CXX=clang++ python3 tests/survivors_arena_behavior_test.py
           python3 tests/survivors_save_modal_test.py
           CXX=clang++ python3 tests/survivors_save_modal_test.py
           python3 tests/survivors_ending_test.py

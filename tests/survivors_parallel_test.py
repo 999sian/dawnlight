@@ -27,11 +27,13 @@ struct Collider {Actor* owner=nullptr;unsigned power=0,hits=0,hitActorId=kNone;A
  Collider* GetGObjInf(){return this;}void SetAtHitApid(unsigned id){hitActorId=id;}
  bool ChkAtHit(){return hits && actor_by_id(hitActorId)!=nullptr;}
  void SetAtHit(Collider*){++hits;}unsigned GetAtAtp(){return power;}void SetAtAtp(unsigned n){power=n;}
- void Set(int){}void SetStts(Status*){}void SetAtType(int){}void SetAtMtrl(int){}void OnAtNoConHit(){}
+ float radius=0;void SetR(float r){radius=r;}void Set(int){}void SetStts(Status*){}void SetAtType(int){}void SetAtMtrl(int){}void OnAtNoConHit(){}
  void ResetAtHit(){}void OnAtSetBit(){}};
 using cCcD_Obj=Collider;
 using dCcD_GObjInf=Collider;
-struct daAlink_c:Actor {Collider mAtSph,mAtCps[3];int tevStr=0;
+struct daAlink_c:Actor {Collider mAtSph,mAtCps[3],mGuardAtCps;int tevStr=0;unsigned shields=0;
+ struct{short y=0;}shape_angle;struct{bool ChkGroundHit(){return true;}}mLinkAcch;
+ bool checkEquipAnime(){return false;}int procGuardAttackInit(){++shields;return 1;}
  struct HIO{struct{struct{struct{float mAttackRadius=260,mLightAttackRadius=400,mLargeAttackRadius=400;}m;}mCutTurn;}mCut;} hio,*mpHIO=&hio;
 }player;
 struct Enemy{unsigned id=2;bool initialized=true,retiring=false,credited=false;};std::array<Enemy,12>enemies;
@@ -72,6 +74,12 @@ cXyz target_direction(daAlink_c*){return{0,0,1};}
 std::array<unsigned,unsigned(Upgrade::Rupees)>s_cooldowns{};unsigned waves=0;
 unsigned spins=0;bool spinReady=true;bool begin_spin_attack(daAlink_c*){if(!spinReady)return false;++spins;s_swordAction=SwordAction::Spin;return true;}
 bool waveReady=true;
+ bool poseReady=true;bool ranged_pose_active(){return false;}bool ranged_pose_available(daAlink_c*){return poseReady;}
+ short cM_atan2s(float x,float z){return short(std::atan2(x,z)*32768/3.14159265);}
+ bool s_wavePending=false,s_trackMelee=false;unsigned s_meleeTarget=kNone,s_comboStep=0,s_comboTimeout=0;
+ void new_melee_swing(){++s_meleeSerial;}
+ bool guardBlocked=false;bool block_boss_contact(const Enemy&,Actor*,Collider*,Collider*){return guardBlocked;}
+
 void update_sword_wave(daAlink_c*){if(waveReady&&s_run.ranks[0]&&!s_cooldowns[0]){++waves;s_cooldowns[0]=s_run.cooldown(60);}}
 '''
 manual_source=(root/'src/survivors_manual_attack.inc').read_text()
@@ -123,42 +131,34 @@ int main(){
  arena=false;assert(hit(&s_attacks[0].collider,&target)==HOOK_CONTINUE);arena=true;
  s_run.phase=Phase::Upgrade;assert(hit(&s_attacks[0].collider,&target)==HOOK_CONTINUE);s_run.phase=Phase::Running;
  enemies[0].credited=true;assert(hit(&s_attacks[0].collider,&target)==HOOK_CONTINUE);enemies[0].credited=false;
- // Wave, spin and shield become active together, without changing Link's sword action.
- s_run.ranks[0]=s_run.ranks[1]=s_run.ranks[2]=1;s_run.shield=1;s_swordAction=SwordAction::Normal;
- update_parallel_skills(&player);assert(waves==1&&spins==1&&s_attacks[kShieldSlot].active);
- assert(s_swordAction==SwordAction::Spin&&s_cooldowns[0]&&s_cooldowns[1]&&s_cooldowns[2]);
- update_parallel_skills(&player);assert(waves==1);
- waveReady=false;s_cooldowns={};update_parallel_skills(&player);
- assert(waves==1&&!s_cooldowns[0]&&s_cooldowns[1]&&s_cooldowns[2]);waveReady=true;
- // Native spin start failure leaves the cooldown ready for a later animation window.
- spinReady=false;const auto previousSpins=spins;s_cooldowns[1]=0;
- update_parallel_skills(&player);assert(spins==previousSpins&&!s_cooldowns[1]);spinReady=true;
- // Disabling Shield/Shockwave restores their automatic gates; Shield/Shockwave keep their automatic gate/aim.
- s_run.options.manual_aim[unsigned(ManualAbility::ShieldAttack)]=false;
- s_run.options.manual_aim[unsigned(ManualAbility::Shockwave)]=false;
- distance=100000;manual=false;assert(!launch_parallel_pulse(&player,Upgrade::Spin));
- s_attacks[kShieldSlot].active=false;manual=true;s_cooldowns={};s_run.ranks[1]=s_run.ranks[2]=1;s_run.shield=1;
- update_parallel_skills(&player);assert(spins>0&&!s_attacks[kShieldSlot].active&&!s_cooldowns[2]);
- const auto spinLife=s_cooldowns[1];update_parallel_skills(&player);assert(s_cooldowns[1]==spinLife);
- distance=100;update_parallel_skills(&player);assert(s_attacks[kShieldSlot].active&&s_cooldowns[2]);
- update_parallel_pulse(s_attacks[kShieldSlot],&player);
- assert(s_attacks[kShieldSlot].position.z==player.current.pos.z+100&&s_attacks[kShieldSlot].position.x==player.current.pos.x);
- // Shield and its dependent Shockwave have independent direction/gate choices.
- for(bool shieldManual:{false,true})for(bool waveManual:{false,true})for(bool target:{false,true}){
+
+ // Native shield owns its animation and damage capsule, no independent pulse.
+ s_run.ranks[0]=s_run.ranks[2]=1;s_run.ranks[1]=0;s_run.shield=1;s_cooldowns={};
+ const auto shields=player.shields;update_parallel_skills(&player);
+ assert(waves==1&&player.shields==shields+1&&s_swordAction==SwordAction::None);
+ assert(player.mGuardAtCps.radius==s_run.shield_radius()&&s_cooldowns[2]);
+ effects={};target.owner=&actors[0];
+ hit(&player.mGuardAtCps,&target);hit(&player.mGuardAtCps,&target);
+ assert(effects[0].pending==s_run.attack_power(2)&&effects[0].pendingStagger);
+ guardBlocked=true;++s_meleeSerial;hit(&player.mGuardAtCps,&target);
+ assert(effects[0].pending==s_run.attack_power(2));guardBlocked=false;
+ // Busy body animation leaves Shield ready instead of spending its cooldown
+ // through a manual Shockwave fallback.
+ poseReady=false;s_cooldowns={};s_run.ranks[unsigned(Upgrade::Shockwave)]=1;manual=true;
+ const auto count=player.shields;update_parallel_skills(&player);assert(player.shields==count&&!s_cooldowns[2]);
+ poseReady=true;update_parallel_skills(&player);assert(player.shields==count+1&&s_cooldowns[2]);
+ for(bool shieldManual:{false,true})for(bool waveManual:{false,true})for(bool targetPresent:{false,true}) {
   s_run.start(123);s_run.shield=1;s_run.ranks[2]=s_run.ranks[unsigned(Upgrade::Shockwave)]=1;
   s_run.options.manual_aim[unsigned(ManualAbility::ShieldAttack)]=shieldManual;
   s_run.options.manual_aim[unsigned(ManualAbility::Shockwave)]=waveManual;
-  s_cooldowns={};s_attacks=std::deque<Attack>(initial_projectile_slots);distance=target?100:100000;manual=true;
-  update_parallel_skills(&player);
-  assert(s_attacks[kShieldSlot].active==(shieldManual||target));
-  if(s_attacks[kShieldSlot].active){update_parallel_pulse(s_attacks[kShieldSlot],&player);assert(s_attacks[kShieldSlot].position.x==player.current.pos.x+(shieldManual?100:0));}
+  s_cooldowns={};s_attacks=std::deque<Attack>(initial_projectile_slots);distance=targetPresent?100:100000;manual=true;
+  const auto before=player.shields;update_parallel_skills(&player);
+  assert((player.shields>before)==(shieldManual||targetPresent));
   const auto wave=std::find_if(s_attacks.begin(),s_attacks.end(),[](const auto&a){return a.active&&a.weapon==unsigned(Upgrade::Shockwave);});
-  assert((wave!=s_attacks.end())==(waveManual||target));
+  assert((wave!=s_attacks.end())==(waveManual||targetPresent));
   if(wave!=s_attacks.end())assert(wave->velocity.x==(waveManual?45:0)&&wave->aimPending==waveManual);
-  assert(bool(s_cooldowns[2])==(shieldManual||waveManual||target));
  }
- s_run.start(123);manual=true;distance=100000;s_run.options.manual_aim[unsigned(ManualAbility::Spin)]=false;
- assert(!launch_parallel_pulse(&player,Upgrade::Spin));manual=false;
+ manual=false;
  // Same-volley extra hits are quarter damage; separate/overlapping volleys
  // and different targets retain full first-hit damage, even on one frame.
  effects={};s_attacks=std::deque<Attack>(initial_projectile_slots);target.owner=&actors[0];s_run.ranks[unsigned(Upgrade::CritChance)]=0;

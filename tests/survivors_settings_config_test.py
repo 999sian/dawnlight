@@ -27,9 +27,10 @@ main=r'''
 int main(){
  service.get_int=[](ModContext*,ConfigVarHandle h,int64_t* out){*out=persisted.at(h);return MOD_OK;};
  service.set_int=[](ModContext*,ConfigVarHandle h,int64_t value){persisted[h]=value;return MOD_OK;};
- assert(initialize_option_config()==MOD_OK&&configNames.size()==10);
+ assert(initialize_option_config()==MOD_OK&&configNames.size()==11);
  assert(s_options.camera_distance==200&&s_options.gyro_aim&&!s_options.switch_attack_lock);
  for(bool enabled:s_options.manual_aim)assert(enabled);
+ assert(!s_options.enemy_collision);s_options.enemy_collision=true;
  assert(!s_options.allow_cheats);s_options.allow_cheats=true;
  assert(settings_editable()); // Mirrored tab is editable in ordinary Dawnlight saves.
  s_options.camera_distance=375;s_options.reticle_y=-17;s_options.switch_attack_lock=true;s_options.gyro_aim=false;
@@ -38,6 +39,9 @@ int main(){
  store_option_config();s_run.start(123,s_options);
  s_options={};load_option_config();
  assert(s_options.allow_cheats&&s_run.options.allow_cheats);
+ assert(s_options.enemy_collision&&s_run.options.enemy_collision);
+ persisted[configNames.at("survivors-enemy-collision")]=0;load_option_config();
+ assert(!s_options.enemy_collision&&s_run.options.enemy_collision);
  persisted[configNames.at("survivors-allow-cheats")]=0;load_option_config();
  assert(!s_options.allow_cheats&&s_run.options.allow_cheats);
  assert(s_options.camera_distance==375&&s_options.reticle_y==-17&&s_options.switch_attack_lock&&!s_options.gyro_aim);

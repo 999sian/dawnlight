@@ -36,7 +36,7 @@
     PRE(RosterYC,before_roster_native_damage); PRE(RosterHeadDamage,before_roster_native_damage);
     PRE(BossRDBAction,before_boss_rdb); PRE(BossTHAction,before_boss_th);
     PRE(BossGNDExecute,before_boss_gnd_execute); PRE(BossVAAction,before_boss_va);
-    PRE(BossYMBAction,before_boss_ymb); PRE(BossZeldaAction,before_boss_hzelda);
+    PRE(BossYMBAction,before_boss_ymb); PRE(BossZeldaAction,before_boss_hzelda); POST(BossZeldaAction,after_boss_hzelda);
     POST(BossZeldaTriangle,after_boss_hzelda_triangle);
     PRE(BossPZAction,before_boss_pz); POST(BossPZAttack,after_boss_pz_attack);
     PRE(BossYMBWater,before_boss_camera); PRE(BossYMBGround,before_boss_camera); PRE(BossYMBCamera,before_boss_camera);

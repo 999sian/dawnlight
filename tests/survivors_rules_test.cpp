@@ -430,7 +430,7 @@ int main() {
         powers.ranks[unsigned(Upgrade::Knockback)]=rank;
         assert(powers.knockback_distance(false,false)==40*rank);
         assert(powers.knockback_distance(true,false)==240+40*rank);
-        assert(powers.knockback_distance(true,true)==120+20*rank);
+        assert(powers.knockback_distance(true,true)==0);
     }
     assert(upgrade_cap(Upgrade::Knockback)==10&&upgrade_cap(Upgrade::Piercing)==10);
     assert(upgrade_cap(Upgrade::Multishot)==3&&upgrade_cap(Upgrade::LifeRegen)==5&&upgrade_cap(Upgrade::LifeSteal)==1);

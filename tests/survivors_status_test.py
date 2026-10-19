@@ -86,6 +86,9 @@ struct BulblinHit{bool critical=false;unsigned basePower=0,scaledPower=0;};Bulbl
 bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
+fixture += r'''
+bool boss_blocks_from(const Enemy&,fopAc_ac_c*,const cXyz&){return false;}
+'''
 main = r'''
 void hit(e_ms_class& rat){
  Args args{&rat,nullptr};before_enemy_hit(nullptr,&args,nullptr,nullptr);

@@ -22,7 +22,7 @@ fixture=r'''
 using namespace dawnlight::survivors;
 using u16=unsigned short;using s16=short;
 constexpr int dItemNo_NONE_e=255;
-constexpr u16 dRes_ID_ALANM_BCK_ASHOOT_e=2,dRes_ID_ALANM_BCK_BOOMTHROW_e=3,dRes_ID_ALANM_BCK_BOMBTHROW_e=4,dRes_ID_ALANM_BCK_IBTHROW_e=5;
+constexpr u16 dRes_ID_ALANM_BCK_ARELORD_e=1,dRes_ID_ALANM_BCK_ASHOOT_e=2,dRes_ID_ALANM_BCK_BOOMTHROW_e=3,dRes_ID_ALANM_BCK_BOMBTHROW_e=4,dRes_ID_ALANM_BCK_IBTHROW_e=5;
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-p.z};}float absXZ()const{return std::sqrt(x*x+z*z);}};
 s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.14159265);}
@@ -81,7 +81,7 @@ manual_source=(root/'src/survivors_manual_attack.inc').read_text()
 start=manual_source.index('bool manual_skill(')
 fixture+=manual_source[start:manual_source.index('\n}',start)+2]
 main=r'''
-void fresh(){targetCount=1;shotTargets.clear();targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
+void fresh(){targetCount=1;shotTargets.clear();targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=1;
  s_attacks=std::deque<Attack>(initial_projectile_slots);shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;
  for(unsigned i=8;i<=11;++i)s_run.ranks[i]=1;}
 int main(){
@@ -116,14 +116,14 @@ int main(){
  }
  swordHeld=false;fresh();player.proc=1; // an active native sword swing does not block any item
  for(unsigned i=8;i<=11;++i)assert(queue_ranged(&player,Upgrade(i)));
- assert(shots.size()==4 && player.proc==1 && player.mEquipItem==0x103 && s_ranged.active);
+ assert(shots.size()==4 && player.proc==1 && player.mEquipItem==0x103 && !s_ranged.active);
  for(unsigned i=8;i<=11;++i)assert(!queue_ranged(&player,Upgrade(i)));
  fresh();s_run.ranks[8]=10;
  assert(queue_ranged(&player,Upgrade::Bow));assert(shots.size()==3);
  assert(queue_ranged(&player,Upgrade::Boomerang));assert(queue_ranged(&player,Upgrade::Bombs));
  assert(queue_ranged(&player,Upgrade::Ball));assert(shots.size()==6);
- assert(player.mEquipItem==0x103 && s_ranged.active);
- player.proc=1;update_ranged(&player);assert(s_ranged.active && player.proc==1);
+ assert(player.mEquipItem==0x103 && !s_ranged.active);
+ player.proc=1;update_ranged(&player);assert(!s_ranged.active && player.proc==1);
  player.proc=2;update_ranged(&player);assert(!s_ranged.active && player.proc==2);
  assert(shots.size()==6); // cosmetic cancellation never duplicates/cancels releases
  fresh();targetDistance=2300;s_run.ranks[unsigned(Upgrade::Reach)]=10;
@@ -151,9 +151,29 @@ int main(){
  assert(queue_ranged(&player,Upgrade::Bow)&&!s_ranged.active&&shots.size()==1);s_wavePending=false;
  fresh();player.proc=2; // Jump Strike body pose remains untouched.
  assert(queue_ranged(&player,Upgrade::Bow)&&player.proc==2&&shots.size()==1);
- fresh();assert(queue_ranged(&player,Upgrade::Ball));int result=1;
+ fresh();s_rangedRest=0;s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=0;assert(queue_ranged(&player,Upgrade::Ball));int result=1;
  assert(before_ranged_native(nullptr,&player,&result,nullptr)==HOOK_SKIP_ORIGINAL&&result==0);
  player.animation=99;update_ranged(&player);assert(!s_ranged.active&&player.animation==99);
+ // Presented casts retain the held model until their native release cue.
+ for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}) {
+  fresh();s_rangedRest=0;s_run.ranks.fill(0);s_run.ranks[unsigned(weapon)]=1;
+  assert(queue_ranged(&player,weapon)&&s_ranged.active&&!s_ranged.released&&shots.empty());
+  assert(!queue_ranged(&player,weapon));
+  update_ranged(&player);assert(shots.empty());
+  player.mUpperFrameCtrl[2].frame=weapon==Upgrade::Bow?12:weapon==Upgrade::Bombs?4:6;
+  update_ranged(&player);assert(s_ranged.released&&shots.size()==1);
+  if(weapon==Upgrade::Bow)assert(player.animation==dRes_ID_ALANM_BCK_ASHOOT_e);
+  update_ranged(&player);assert(shots.size()==1);
+  player.mUpperFrameCtrl[2].frame=18;update_ranged(&player);assert(!s_ranged.active&&shots.size()==1);
+ }
+ fresh();s_rangedRest=0;s_lastRanged=Upgrade::Ball;
+ assert(queue_ranged(&player,Upgrade::Bow)&&shots.empty());
+ assert(queue_ranged(&player,Upgrade::Bombs)&&shots.size()==1); // concurrent cast stays independent
+ cancel_ranged();assert(s_cooldowns[8]==0&&shots.size()==1); // interruption does not charge an unshot arrow
+ fresh();s_rangedRest=0;s_lastRanged=Upgrade::Bow;
+ assert(queue_ranged(&player,Upgrade::Bow)&&!s_ranged.active);
+ assert(queue_ranged(&player,Upgrade::Boomerang)&&s_ranged.active);
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

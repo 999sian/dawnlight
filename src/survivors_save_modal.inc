@@ -22,5 +22,5 @@ HookAction before_save_screen_delete(ModContext*,void* args,void*,void*) {
 HookAction before_save_gameplay_menu(ModContext*,void*,void*,void*) {
     // Only gameplay entry points: the save window retains its complete input
     // for slot selection, confirmation, cancellation and retry.
-    return save_modal_active()?HOOK_SKIP_ORIGINAL:HOOK_CONTINUE;
+    return (save_modal_active() || (in_arena() && (s_window || s_saveRequested)))?HOOK_SKIP_ORIGINAL:HOOK_CONTINUE;
 }

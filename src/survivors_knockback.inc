@@ -1,7 +1,7 @@
 // Six short horizontal steps, at most one push every twelve active ticks.
 // Simultaneous pellets refresh only to the strongest push, never add impulses.
 void queue_knockback(Enemy& enemy, fopAc_ac_c* actor, bool heavy) {
-    if (!actor || actor->health<=0) return;
+    if (!actor || actor->health<=0 || enemy.elite || native_boss_profile(enemy.profile)) return;
     const float distance=s_run.knockback_distance(heavy,enemy.elite);
     if (distance<=0) return;
     auto& effect=effect_for(enemy);
@@ -20,6 +20,7 @@ void queue_knockback(Enemy& enemy, fopAc_ac_c* actor, bool heavy) {
 
 void update_knockback(Enemy& enemy, fopAc_ac_c* actor) {
     auto& effect=effect_for(enemy);
+    if(enemy.elite || native_boss_profile(enemy.profile)) {effect.knockFrames=effect.knockCooldown=0;return;}
     if (effect.knockCooldown) --effect.knockCooldown;
     if (!effect.knockFrames) return;
     --effect.knockFrames;

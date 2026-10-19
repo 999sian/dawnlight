@@ -130,7 +130,7 @@ void spread_melee_hit(fopAc_ac_c* primary) {
         const cXyz from = link->current.pos + cXyz(0, 70, 0);
         for (auto& e : s_enemies) {
             if (!e.initialized || e.retiring || e.credited || effect_for(e).meleeSerial == s_meleeSerial) continue;
-            auto* actor = actor_by_id(e.id); if (!actor || actor->health <= 0 || actor == primary) continue;
+            auto* actor = actor_by_id(e.id); if (!actor || actor->health <= 0 || actor == primary || boss_blocks_from(e,actor,link->current.pos)) continue;
             const auto delta = actor->current.pos - link->current.pos;
             const float d = delta.x * delta.x + delta.z * delta.z;
             if (d >= distance || std::abs(delta.y) > 180) continue;

@@ -20,21 +20,21 @@ unsigned treasure_item(ChestReward,const Run&){return 0x43;}
 const char* reward_name(ChestReward,const Run&){return "Ball & Chain";}
 void close_high_score(ModContext*,void*){}
 void save_results(ModContext*,void*){}void replay(ModContext*,void*){}
-std::vector<std::string> texts,classes,labels;std::vector<UiPressedFn> callbacks;
+std::vector<std::string> texts,classes,labels;std::vector<UiPressedFn> callbacks;std::vector<UiElementHandle> parents;unsigned rows=2;
 struct Service{
  ModResult elem_set_class(ModContext*,UiElementHandle,const char* s,bool){classes.emplace_back(s);return MOD_OK;}
  ModResult pane_add_rml(ModContext*,UiElementHandle,const char* s,UiElementHandle* h){if(h)*h=4;texts.emplace_back(s);return MOD_OK;}
  ModResult pane_add_text(ModContext*,UiElementHandle,const char* s,UiElementHandle* h){if(h)*h=4;texts.emplace_back(s);return MOD_OK;}
- ModResult pane_add_row(ModContext*,UiElementHandle,const UiRowDesc*,UiElementHandle* row){*row=3;return MOD_OK;}
+ ModResult pane_add_row(ModContext*,UiElementHandle,const UiRowDesc*,UiElementHandle* row){*row=++rows;return MOD_OK;}
 }ui;auto* svc_ui=&ui;
-ModResult button(UiElementHandle,const char* label,UiPressedFn callback){labels.emplace_back(label);callbacks.push_back(callback);return MOD_OK;}
+ModResult button(UiElementHandle parent,const char* label,UiPressedFn callback){parents.push_back(parent);labels.emplace_back(label);callbacks.push_back(callback);return MOD_OK;}
 '''
 main=r'''
 int main(){
  s_run.start(1);s_run.phase=Phase::Victory;s_run.ticks=3600;s_run.kills=200;
  s_run.ranks[unsigned(Upgrade::Bow)]=12;s_run.ranks[unsigned(Upgrade::FireEdge)]=1;
  s_run.damage.dealt[unsigned(DamageSource::Bow)]=900;s_run.damage.dealt[unsigned(DamageSource::FireEdge)]=100;
- assert(build_results(1,2)==MOD_OK&&texts.size()==3&&classes.size()==5);
+ assert(build_results(1,2)==MOD_OK&&texts.size()==3&&classes.size()==7);
  // The real window installs this stylesheet outside build_results. Exercise
  // that dependency here too: every assigned class must have a style rule.
  const std::string stylesheet=kResultsStyle;
@@ -45,7 +45,7 @@ int main(){
  assert(table.find("Fire Edge")==std::string::npos&&texts[1].find("Power-ups")==std::string::npos);
  assert(texts[1].find("Ball &amp; Chain")!=std::string::npos);
  assert((labels==std::vector<std::string>{"Save records","Return to hub"}));
- assert(callbacks[0]==save_results&&callbacks[1]==replay);
+ assert(callbacks[0]==save_results&&callbacks[1]==replay);assert(parents[0]!=parents[1]);
  s_run.dark_link=4;s_run.damage.dealt[unsigned(DamageSource::DarkLink)]=250;
  table=results_damage_rml();assert(table.find("Dark Link")!=std::string::npos&&table.find("1,250")!=std::string::npos);
  s_run.start(2);s_run.phase=Phase::Defeat;table=results_damage_rml();

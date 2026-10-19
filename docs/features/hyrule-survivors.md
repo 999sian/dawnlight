@@ -166,7 +166,7 @@ is retained and multiple earned levels are offered consecutively.
 | Magnet | Attract XP, rupees, hearts and heart pieces from farther away |
 | Heart Container | Add one maximum heart; level-up healing fills the new capacity |
 | Luck | 20 ranks; rarity weights +5% and crit multiplier +2.5% per rank; drop bonuses +10% per rank capped at +50% |
-| Knockback | 10 ranks; +40 units horizontal push/rank on direct attacks; fixed 240-unit Ball/Shield base; elites take half |
+| Knockback | 10 ranks; +40 units horizontal push/rank on direct attacks; fixed 240-unit Ball/Shield base; bosses and elites are immune |
 | Piercing | Requires Bow; 10 ranks, +1 distinct damaged target per arrow/rank, including Multishot arrows |
 | Multishot | Epic +1 rank, Legendary +2, cap 3; +1 projectile/rank for all five ranged abilities; arrows retain the existing fan angle |
 | Life Regen | Rare or better; cap 5; -1 second/rank from passive regeneration; stacks with the talent |
@@ -1199,3 +1199,32 @@ spawn floor, never flight altitude; the separate original spawn position preserv
 boss initialization, including Stallord's airborne entry. Golden EXP pickups
 use the same floor projection. Missing/unsafe current ground falls back to the
 cached landing.
+
+
+### Arena controls, music and animation follow-up
+
+The shared Survivors settings include **Enemy Collision**, off by default.
+Off removes only Link/enemy physical contact (including owned enemy children).
+Terrain, chests, pots and attack damage remain active. The choice is captured
+when starting the run, like the other Survivors settings.
+
+Throne Room starts the native final Ganondorf combat music. It stops on death,
+leaving the arena, returning to the hub, or unloading the mode; cleanup checks
+ownership so it does not stop the next area's music.
+
+Puppet Zelda has a doubled attack cadence and attack-animation playback. All
+bosses and elites are immune to Survivors knockback. Darknut's high/low guard
+and Ganondorf's defence now block incoming frontal direct attacks before their
+damage or on-hit effects are recorded. Attacks from behind remain effective.
+
+Native Shield Attack is restored. Presented Bow casts include draw/reload and
+shoot, and Boomerang/Bombs retain their hand model until their native release
+cue. Other simultaneous projectiles continue independently. Ready ranged
+weapons rotate access to the single visible pose slot; ordinary sword attacks
+remain lowest priority. See the animation audit for remaining Ball pull/catch
+and visual concurrency limitations.
+
+Post-run **Save records** and **Return to hub** are separate navigation rows,
+so D-pad Down/Up moves between them. Gameplay map/menu input is blocked through
+the results-to-save handoff, and native save dialogs receive the gameplay pause
+normally supplied by their original event.

@@ -23,6 +23,7 @@ void cancel_ranged() {
         link->resetUpperAnime(daAlink_c::UPPER_2, 3);
         link->mBodyAngle.x = link->mBodyAngle.y = 0;
     }
+    if(s_ranged.active && !s_ranged.released)s_cooldowns[unsigned(s_ranged.weapon)]=0;
     s_rangedRest = s_ranged.active ? 6 : 0;
     s_ranged = {};
 }
@@ -32,8 +33,8 @@ void ranged_anime(daAlink_c* link, u16 animation, unsigned ticks) {
     auto& frame = link->mUpperFrameCtrl[2];
     frame.setRate(std::max(1.0f, float(frame.getEnd()) / std::max(3u, ticks)));
 }
-bool queue_ranged(daAlink_c* link, Upgrade weapon) {
-    if (!s_loot.ready || !playable() || !s_run.rank(weapon) || s_cooldowns[unsigned(weapon)]) return false;
+bool release_ranged_projectiles(daAlink_c* link, Upgrade weapon) {
+    if (!s_loot.ready || !playable() || !s_run.rank(weapon)) return false;
     cXyz target;
     const bool manual=manual_skill(link,weapon);
     if(manual) {
@@ -66,25 +67,60 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
             chosen[i]=id;
         }
     }
-    s_cooldowns[unsigned(weapon)] = s_run.item_cooldown(weapon);
-    // One native upper-body pose can be displayed at a time. It is cosmetic:
-    // Other projectiles continue; ordinary cuts yield until this pose finishes.
-    if (!s_ranged.active && !s_rangedRest && ranged_pose_available(link) && !link->checkEquipAnime()) {
-        s_lastRanged = weapon;
-        s_ranged.active = true; s_ranged.released = true;
-        s_ranged.weapon = weapon; s_ranged.target = target;
-        const u16 animation = weapon == Upgrade::Bow ? dRes_ID_ALANM_BCK_ASHOOT_e :
-            weapon == Upgrade::Boomerang ? dRes_ID_ALANM_BCK_BOOMTHROW_e :
-            weapon == Upgrade::Bombs ? dRes_ID_ALANM_BCK_BOMBTHROW_e : dRes_ID_ALANM_BCK_IBTHROW_e;
-        ranged_anime(link, animation, std::max(3u,s_run.item_cooldown(weapon)/3));
+    return true;
+}
+// Rotate the visible slot among ready weapons. A presented cast releases at its
+// native cue; other due weapons keep independent projectile/cooldown handling.
+bool preferred_ranged_pose(daAlink_c* link,Upgrade weapon) {
+    for(unsigned n=1;n<=4;++n) {
+        const auto next=Upgrade(unsigned(Upgrade::Bow)+(unsigned(s_lastRanged)-unsigned(Upgrade::Bow)+n)%4);
+        if(!s_run.rank(next)||s_cooldowns[unsigned(next)])continue;
+        cXyz target,forward;
+        const bool ready=manual_skill(link,next)?sword_aim_target(link,target,forward):
+            nearest_item_target(link,target,s_run.item_range(next));
+        if(ready)return next==weapon;
     }
+    return false;
+}
+bool queue_ranged(daAlink_c* link, Upgrade weapon) {
+    if(!s_loot.ready || !playable() || !s_run.rank(weapon) || s_cooldowns[unsigned(weapon)] ||
+       (s_ranged.active && !s_ranged.released && s_ranged.weapon==weapon))return false;
+    cXyz target,forward;
+    if(manual_skill(link,weapon)) {if(!sword_aim_target(link,target,forward))return false;}
+    else if(!nearest_item_target(link,target,s_run.item_range(weapon)))return false;
+    if(!s_ranged.active && !s_rangedRest && ranged_pose_available(link) && !link->checkEquipAnime() &&
+       preferred_ranged_pose(link,weapon)) {
+        s_lastRanged=weapon;s_ranged.active=true;s_ranged.released=false;
+        s_ranged.weapon=weapon;s_ranged.target=target;
+        const u16 animation=weapon==Upgrade::Bow?dRes_ID_ALANM_BCK_ARELORD_e:
+            weapon==Upgrade::Boomerang?dRes_ID_ALANM_BCK_BOOMTHROW_e:
+            weapon==Upgrade::Bombs?dRes_ID_ALANM_BCK_BOMBTHROW_e:dRes_ID_ALANM_BCK_IBTHROW_e;
+        ranged_anime(link,animation,std::max(3u,s_run.item_cooldown(weapon)/3));
+    } else if(!release_ranged_projectiles(link,weapon))return false;
+    s_cooldowns[unsigned(weapon)]=s_run.item_cooldown(weapon);
     return true;
 }
 void update_ranged(daAlink_c* link) {
-    if (s_rangedRest) --s_rangedRest;
-    if (!s_ranged.active) return;
-    if (!ranged_pose_available(link) || !link->checkUpperAnime(s_ranged.animation) ||
-        link->checkAnmEnd(&link->mUpperFrameCtrl[2])) cancel_ranged();
+    if(s_rangedRest)--s_rangedRest;
+    if(!s_ranged.active)return;
+    if(!ranged_pose_available(link) || !link->checkUpperAnime(s_ranged.animation)) {
+        if(!s_ranged.released)s_cooldowns[unsigned(s_ranged.weapon)]=0;
+        cancel_ranged();return;
+    }
+    auto& frame=link->mUpperFrameCtrl[2];
+    if(s_ranged.weapon==Upgrade::Bow && !s_ranged.released) {
+        if(!link->checkAnmEnd(&frame))return;
+        ranged_anime(link,dRes_ID_ALANM_BCK_ASHOOT_e,std::max(3u,s_run.item_cooldown(Upgrade::Bow)/3));
+        s_ranged.released=true;
+        if(!release_ranged_projectiles(link,s_ranged.weapon))s_cooldowns[unsigned(s_ranged.weapon)]=0;
+    } else {
+        const float cue=s_ranged.weapon==Upgrade::Bombs?4.f:s_ranged.weapon==Upgrade::Ball?6.f:5.5f;
+        if(!s_ranged.released && frame.getFrame()>=cue) {
+            s_ranged.released=true;
+            if(!release_ranged_projectiles(link,s_ranged.weapon))s_cooldowns[unsigned(s_ranged.weapon)]=0;
+        }
+        if(link->checkAnmEnd(&frame))cancel_ranged();
+    }
 }
 HookAction before_ranged_native(ModContext*, void* args, void* result, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
@@ -101,7 +137,10 @@ HookAction before_ranged_aim(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!s_ranged.active || !link || fopAcM_GetID(link) != s_player || !playable() ||
         !ranged_pose_available(link) || !link->checkUpperAnime(s_ranged.animation)) return HOOK_CONTINUE;
-    if (!s_ranged.released) nearest_item_target(link, s_ranged.target, s_run.item_range(s_ranged.weapon));
+    if (!s_ranged.released) {
+        if(manual_skill(link,s_ranged.weapon)) {cXyz forward;sword_aim_target(link,s_ranged.target,forward);}
+        else nearest_item_target(link,s_ranged.target,s_run.item_range(s_ranged.weapon));
+    }
     const cXyz delta = s_ranged.target - link->current.pos - cXyz(0, 70, 0);
     link->shape_angle.y = cM_atan2s(delta.x, delta.z);
     link->mBodyAngle.y = 0;

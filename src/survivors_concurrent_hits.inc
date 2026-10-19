@@ -13,6 +13,7 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
     if(!enemy || !enemy->initialized || enemy->retiring || enemy->credited || actor->health<=0) return HOOK_CONTINUE;
     auto* link=daAlink_getAlinkActorClass();
     if(!link || fopAcM_GetID(link)!=s_player) return HOOK_CONTINUE;
+    if(block_boss_contact(*enemy,actor,attack,target))return HOOK_SKIP_ORIGINAL;
     auto& effect=effect_for(*enemy);
     DamageSource source=DamageSource::Other;
     unsigned base=0;bool owned=false,duplicate=false,stagger=false;
@@ -44,6 +45,11 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
         auto& serial=splash?effect.jumpSerial:effect.meleeSerial;
         duplicate=serial==s_meleeSerial;serial=s_meleeSerial;
         base=splash?s_run.jump_splash_power():s_swordAction==SwordAction::Spin?s_run.attack_power(unsigned(Upgrade::Spin)):s_run.melee_power();
+    }
+    if(!owned && attack==&link->mGuardAtCps) {
+        owned=true;source=DamageSource::Shield;stagger=true;
+        duplicate=effect.meleeSerial==s_meleeSerial;effect.meleeSerial=s_meleeSerial;
+        base=s_run.attack_power(unsigned(Upgrade::ShieldAttack));
     }
     if(!owned) return HOOK_CONTINUE;
     if(!duplicate) {

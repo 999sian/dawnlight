@@ -21,7 +21,8 @@ struct cXyz {float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a)
 struct fopAc_ac_c {int health=100;struct{cXyz pos;}current,old;cXyz eyePos;};
 fopAc_ac_c player,actor;
 auto* daAlink_getAlinkActorClass(){return &player;}
-struct Enemy{bool elite=false;}enemy;
+bool native_boss_profile(int p){return p==99;}
+struct Enemy{bool elite=false;int profile=0;}enemy;
 struct Effect{cXyz knockStep;unsigned knockFrames=0,knockCooldown=0;}effect;
 Effect& effect_for(Enemy&){return effect;}
 Run s_run;
@@ -42,7 +43,7 @@ int main(){
   s_run.ranks[unsigned(Upgrade::Ball)]=s_run.ranks[unsigned(Upgrade::ShieldAttack)]=30;
   s_run.ranks[unsigned(Upgrade::Power)]=s_run.ranks[unsigned(Upgrade::Reach)]=30;s_run.ticks=duration;
   for(unsigned n=0;n<100;++n)queue_knockback(enemy,&actor,heavy);
-  const float distance=((heavy?240.f:0.f)+40.f*rank)*(elite?.5f:1.f);
+  const float distance=((heavy?240.f:0.f)+40.f*rank)*(elite?0.f:1.f);
   for(unsigned frame=0;frame<6;++frame){update_knockback(enemy,&actor);queue_knockback(enemy,&actor,heavy);}
   assert(std::abs(actor.current.pos.z-100-distance)<.001f&&actor.current.pos.y==0);
   assert(actor.current.pos.z==actor.old.pos.z&&actor.current.pos.z==actor.eyePos.z);
@@ -61,6 +62,8 @@ int main(){
  reset();actor.current.pos.y=actor.old.pos.y=actor.eyePos.y=600;
  queue_knockback(enemy,&actor,true);for(unsigned n=0;n<6;++n)update_knockback(enemy,&actor);
  assert(actor.current.pos.y==600&&std::abs(actor.current.pos.z-340)<.001f);
+ reset();enemy.profile=99;queue_knockback(enemy,&actor,true);assert(!effect.knockFrames);
+ effect.knockFrames=6;effect.knockCooldown=12;update_knockback(enemy,&actor);assert(!effect.knockFrames&&!effect.knockCooldown&&actor.current.pos.z==100);
  reset();actor.health=0;queue_knockback(enemy,&actor,true);assert(!effect.knockFrames);
  std::cout<<"Survivors knockback: fixed heavy push, capped upgrades, elites, simultaneous/rapid hits, walls/ledges and flight passed\n";
 }
