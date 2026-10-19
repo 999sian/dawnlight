@@ -71,6 +71,7 @@ bool s_hub=false,s_hubDeparture=false,s_hubDoorStarted=false;Run s_run;bool aren
 unsigned s_map=0,s_requestedMap=0,closed=0;bool s_restart=false;
 void close_window(){++closed;}
 unsigned map=0;std::string stage=arenas[0].stage;int room=51;
+bool save_modal_active(){return false;}
 bool in_arena(){return arena&&arena_matches(map,stage,room);}
 bool transitioning(){return transition;}
 bool dComIfGp_isPauseFlag(){return pause;}struct dScnPly_c{static bool isPause(){return false;}};

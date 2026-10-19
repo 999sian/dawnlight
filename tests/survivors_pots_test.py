@@ -45,6 +45,7 @@ bool eventRunning=false,windowOpen=false;
 bool ui_visible(){return windowOpen;}bool midna_dialog_busy(){return false;}
 bool dComIfGp_event_runCheck(){return eventRunning;}bool dComIfGp_isPauseFlag(){return paused;}
 float s_eliteFloorArea=12000000;bool badFloor=false,nearGuard=false,failCreate=false;unsigned sequence=0,creates=0;
+bool save_modal_active(){return false;}
 bool in_arena(){return active;}bool transitioning(){return transition;}bool playable(){return active&&!paused&&!transition;}
 struct Arena{int room=51;}arenaData;const Arena& arena(){return arenaData;}
 bool random_arena_floor(cXyz& p){p={1000.f+500.f*(sequence%12),0,1000.f+500.f*(sequence/12)};++sequence;return !badFloor;}

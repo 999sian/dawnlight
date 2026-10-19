@@ -157,6 +157,7 @@ struct dBgS_LinChk {void Set(const cXyz*,const cXyz*,daAlink_c*){}};
 struct Background {bool LineCross(dBgS_LinChk*){return blocked;}}background;
 Background& dComIfG_Bgsp(){return background;}
 Actor* actor_by_id(int id){return !creating?fopAcM_SearchByID(id):nullptr;}
+bool save_modal_active(){return false;}
 bool in_arena(){return mode;}bool transitioning(){return stageChange;}
 bool ui_visible(){return window!=0;}
 bool midna_dialog_busy(){return false;}
