@@ -38,6 +38,9 @@ fixture = fixture.replace('struct dCcU_AtInfo{Collider* mpCollider;};', '')
 fixture = re.sub(r'void (?:prepare_effect_hit|finish_effect_hit|record_status_hit)\([^\n]+\n', '', fixture)
 fixture=fixture.replace('bool effect_staggers(const cCcD_Obj*){return false;}','')
 fixture += r'''
+unsigned knockRequests=0;
+void queue_knockback(Enemy&,fopAc_ac_c*,bool){++knockRequests;}
+void update_knockback(Enemy&,fopAc_ac_c*){}
 bool jump_strike_pose(const daAlink_c*){return false;}
 struct dBgS_LinChk{cXyz target;void Set(const cXyz*,cXyz* to,daAlink_c*){target=*to;}};
 struct Background{bool LineCross(dBgS_LinChk* line){return line->target.x==999;}} bg;

@@ -86,22 +86,22 @@ int main(){
  hit(enemy);assert(enemy.enemy.health==hp-1&&!effect.injected&&!enemy.at_info.mpCollider);
  clear_combat_feedback();effect.pending=2;effect.pendingCritical=true;
  hit(enemy);assert(s_combatTexts[0].remaining==30&&!effect.critical&&!effect.pendingCritical);
- // Ball hits retain stagger, with one outbound and one fresh returning hit.
+ // Ball hits use bounded movement instead of native launches, with one outbound and one fresh returning hit.
  auto& ball=s_attacks[1];ball.weapon=unsigned(Upgrade::Ball);ball.collider.power=2;
  enemy.cc_sph[1].SetTgHit(&ball.collider);enemy.damage_timer=10;hit(enemy);
- assert(enemy.action==20&&enemy.damage_timer==10&&ball.ballVictimCount==1);
+ assert(enemy.action!=20&&enemy.damage_timer==10&&ball.ballVictimCount==1);
  const auto afterBall=enemy.enemy.health;enemy.cc_sph[1].SetTgHit(&ball.collider);hit(enemy);assert(enemy.enemy.health==afterBall);
  ball.ballVictimCount=0;enemy.cc_sph[1].SetTgHit(&ball.collider);hit(enemy);assert(enemy.enemy.health==afterBall-2);
  // Ordinary hits still damage a prone/airborne enemy without removing its recovery state.
  enemy.action=21;enemy.mode=2;enemy.jump_z=-4;enemy.enemy.speed.y=3;enemy.damage_timer=0;
  enemy.cc_sph[1].ResetTgHit();enemy.cc_sph[0].SetTgHit(&arrow);hit(enemy);
  assert(enemy.action==21&&enemy.mode==2&&enemy.jump_z==-4&&enemy.enemy.speed.y==3);
- // Shield attacks preserve their native stagger and use linear upgrade damage.
+ // Shield attacks suppress native launches and keep linear upgrade damage.
  for(auto& sphere:enemy.cc_sph)sphere.ResetTgHit();
  enemy.enemy.health=40;enemy.damage_timer=0;
  s_run.ranks[unsigned(Upgrade::ShieldAttack)]=1;enemy.cc_sph[0].SetTgHit(&player.mGuardAtCps);
  const auto shieldDamage=s_run.attack_power(unsigned(Upgrade::ShieldAttack));hit(enemy);
- assert(enemy.action==20&&enemy.enemy.health==40-int(shieldDamage));
+ assert(enemy.action==21&&enemy.enemy.health==40-int(shieldDamage));
  enemy.cc_sph[0].SetTgHit(&arrow);
  // Native lethal state is retained; only tracked ordinary Bulblins lose the one-shot rule.
  enemy.enemy.health=2;enemy.damage_timer=0;hit(enemy);assert(enemy.enemy.health==0&&enemy.action==21);

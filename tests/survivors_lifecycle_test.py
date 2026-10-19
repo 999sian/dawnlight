@@ -111,7 +111,9 @@ void dComIfGs_setSelectEquipClothes(int){} void dComIfGs_setCollectSword(int){}
 void dComIfGs_setSelectEquipSword(int){} void dComIfGs_setSelectEquipShield(int){}
 void dComIfGs_setBButtonItemKey(int){} void dComIfGs_setMaxLife(int){}
 void dComIfGs_setWalletSize(int){}
-void dComIfGs_setLife(int){} void dComIfGs_setRupee(int){}
+int life=12;int dComIfGs_getLife(){return life;}
+int dComIfGs_getMaxLifeGauge(){return 12;}
+void dComIfGs_setLife(int n){life=n;} void dComIfGs_setRupee(int){}
 // A live third-slot hook can dereference the absent Link actor during file
 // select. Any live slot setter is forbidden in this pre-game fixture.
 constexpr int COLLECT_LIGHT_SWORD=12,dItemNo_LIGHT_SWORD_e=13,COLLECT_WOODEN_SHIELD=0,COLLECT_HYLIAN_SHIELD=2;
@@ -202,6 +204,14 @@ int main() {
     assert(s_run.guard_elites==1&&s_run.timed_elites==0);
     enemy.credited=false;enemy.eliteSlot=0;credit_death(enemy,&actor);
     assert(s_run.timed_elites==1);credit_death(enemy,&actor);assert(s_run.timed_elites==1);
+    // Life Steal heals once per credited death, independent of reward drops.
+    s_run.ranks[unsigned(Upgrade::LifeSteal)]=1;life=4;
+    enemy.credited=false;credit_death(enemy,&actor);assert(life==5);
+    credit_death(enemy,&actor);assert(life==5);
+    enemy.credited=false;enemy.retiring=true;credit_death(enemy,&actor);assert(life==5);
+    enemy.retiring=false;life=12;credit_death(enemy,&actor);assert(life==12);
+    enemy.credited=false;life=0;credit_death(enemy,&actor);assert(life==0);
+    s_run.ranks[unsigned(Upgrade::LifeSteal)]=0;life=12;
     // Horde throttles only normal kill rewards; elites never consume the counter.
     s_run.options.horde=5;s_run.drop_progress=0;xp=rewards=0;
     for(unsigned n=1;n<=10;++n){enemy.credited=false;enemy.elite=false;credit_death(enemy,&actor);

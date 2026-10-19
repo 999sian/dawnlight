@@ -121,12 +121,12 @@ int main(){
  bok.mSphs_cc[0].tg=false;
  after_enemy_hit(nullptr,&args,nullptr,nullptr);
  assert(bok.health==40&&bok.mActionMode==3&&bok.mOcState==7&&bok.field_0x6c0==12&&bok.mSphs_cc[0].tg);
- // Both exception weapons retain native stagger; lethal ordinary hits retain death state.
+ // Heavy weapons also suppress native launches; lethal ordinary hits retain death state.
  s_attacks[0].weapon=unsigned(Upgrade::Ball);
  for(auto* collider:{&player.mGuardAtCps,&s_attacks[0].collider}){
   bok.mActionMode=3;bok.mSphs_cc[0].attack=collider;
   before_enemy_hit(nullptr,&args,nullptr,nullptr);bok.mActionMode=5;after_enemy_hit(nullptr,&args,nullptr,nullptr);
-  assert(bok.mActionMode==5);
+  assert(bok.mActionMode==3);
  }
  bok.mSphs_cc[0].attack=&hit;before_enemy_hit(nullptr,&args,nullptr,nullptr);bok.health=0;bok.mActionMode=9;
  after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(bok.mActionMode==9);
@@ -139,7 +139,7 @@ int main(){
  after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(bat.mIsDying&&bat.mKnockbackSpeed==80);
  bat.health=20;bat.mIsDying=false;bat.mKnockbackSpeed=0;
  before_enemy_hit(nullptr,&args,nullptr,nullptr);bat.health=15;bat.mKnockbackSpeed=70;
- after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(!bat.mIsDying&&bat.mKnockbackSpeed==70);
+ after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(!bat.mIsDying&&bat.mKnockbackSpeed==0);
  e_ms_class rat;args={&rat,nullptr};enemy.profile=fpcNm_E_MS_e;rat.mSph1.hit=true;rat.mSph1.attack=&hit;
  before_enemy_hit(nullptr,&args,nullptr,nullptr);rat.health=10;rat.mAction=4;rat.current.angle.y=300;
  after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(rat.health==10&&rat.mAction==1&&rat.current.angle.y==0);

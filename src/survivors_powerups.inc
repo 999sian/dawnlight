@@ -43,7 +43,7 @@ ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
         if (!preview.choose(i)) continue;
         const auto upgrade = s_run.offers[i];
         const auto rarity = s_run.offer_rarities[i];
-        std::string rml = choice_rml_start(powerup_icon(upgrade, rarity), preview.upgrade_name(upgrade), rarity);
+        std::string rml = choice_rml_start(powerup_icon(upgrade, rarity), preview.upgrade_name(upgrade), rarity, "", upgrade_units(upgrade,rarity));
         rml += "<div class=\"survivors-treasure-effect\">" + treasure_rml_escape(descriptions[unsigned(upgrade)]) + "</div>";
         for (const auto& change : upgrade_changes(upgrade, s_run, preview, rarity))
             rml += "<div class=\"survivors-treasure-change\">" + treasure_rml_escape(change.label) +

@@ -55,12 +55,12 @@ std::string treasure_rml_escape(const std::string& text) {
     }
     return escaped;
 }
-std::string choice_rml_start(const char* icon, const char* name, Rarity rarity, const char* replacement = "") {
+std::string choice_rml_start(const char* icon, const char* name, Rarity rarity, const char* replacement = "", unsigned units = 0) {
     const std::string color = rarity_colors[unsigned(rarity)];
     return "<div class=\"survivors-treasure-copy\"><img src=\"" + treasure_rml_escape(icon) +
         "\" style=\"border-color: " + color + ";\"/><div class=\"survivors-treasure-name\" style=\"color: " + color +
         ";\">" + treasure_rml_escape(name) + "</div>" + (*replacement ? "<div class=\"survivors-replaces\">" + treasure_rml_escape(replacement) + "</div>" : "") + "<div class=\"survivors-treasure-effect\">" +
-        rarity_names[unsigned(rarity)] + " x" + number(reward_units(rarity)) + "</div>";
+        rarity_names[unsigned(rarity)] + " x" + number(units ? units : reward_units(rarity)) + "</div>";
 }
 ModResult add_choice_header(UiElementHandle pane);
 void banish_choice(ModContext*,void*);

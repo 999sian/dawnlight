@@ -134,8 +134,8 @@ bool blocked=false;
 struct World{bool LineCross(dBgS_LinChk*){return blocked;}}world;
 World& dComIfG_Bgsp(){return world;}
 cXyz target_direction(daAlink_c*){return {0,0,1};}
-unsigned waves=0;
-void launch(daAlink_c*,unsigned weapon,cXyz){assert(weapon==0);++waves;}
+unsigned waves=0;std::vector<cXyz> waveDirections;
+void launch(daAlink_c*,unsigned weapon,cXyz direction){assert(weapon==0);++waves;waveDirections.push_back(direction);}
 struct Emitter {
     int mMaxFrame=5,age=0;bool stopped=false,quit=false,invalid=false;cXyz position,scale{1,1,1};
     void setGlobalScale(const cXyz& value){scale=value;}
@@ -444,7 +444,12 @@ int main(){
     player.equipping=false;player.mEquipItem=0x103;update_sword_wave(&player);assert(s_wavePending);
     // Expired and missing emitters restart; all surviving emitters are invalidated on cleanup.
     for(unsigned level:{1u,3u,5u,14u,15u,20u,30u}) {
-        s_run.ranks[0]=level;waves=0;release_sword_wave(&player);assert(waves==1);
+        for(unsigned multi=0;multi<=3;++multi){
+            s_run.ranks[unsigned(Upgrade::Multishot)]=multi;
+            s_run.ranks[0]=level;waves=0;waveDirections.clear();release_sword_wave(&player);assert(waves==1+multi);
+            for(unsigned i=0;i<waves;++i)for(unsigned j=0;j<i;++j)assert(waveDirections[i].abs(waveDirections[j])>.01f);
+        }
+        s_run.ranks[unsigned(Upgrade::Multishot)]=0;
     }
     for(bool great:{false,true})for(unsigned reach:{0u,30u}) {
         Attack wave;wave.greatSpin=great;wave.effectBaseRadius=great?400:260;

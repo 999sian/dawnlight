@@ -168,8 +168,10 @@ int main() {
             // Weapons must be chest-unlocked first.
             if(!initial && ((u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)) || Upgrade(u)==Upgrade::DualWield))continue;
             r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);
-            const auto random=r.random;const unsigned gain=std::min(upgrade_cap(Upgrade(u))-initial,rarity+1);
-            assert(r.upgrade_rupees(Upgrade(u),Rarity(rarity))==20*(rarity+1-gain));
+            if (initial>=upgrade_cap(Upgrade(u)) || Rarity(rarity)<upgrade_min_rarity(Upgrade(u))) {assert(!r.choose(0));continue;}
+            const unsigned units=upgrade_units(Upgrade(u),Rarity(rarity));
+            const auto random=r.random;const unsigned gain=std::min(upgrade_cap(Upgrade(u))-initial,units);
+            assert(r.upgrade_rupees(Upgrade(u),Rarity(rarity))==20*(units-gain));
             assert(r.choose(0)&&r.rank(Upgrade(u))==initial+gain&&r.random==random);
             assert(!r.choose(0));
         }
@@ -379,7 +381,7 @@ int main() {
     for (unsigned rank=0;rank<=30;++rank) {
         Run high;high.start(1);high.shield=1;high.red_potion=true;high.master_sword=1;high.ranks.fill(rank);
         for (unsigned u=0;u<unsigned(Upgrade::Rupees);++u) {
-            if (Upgrade(u)==Upgrade::Luck || Upgrade(u)==Upgrade::DualWield) continue;
+            if (Upgrade(u)==Upgrade::Luck || Upgrade(u)==Upgrade::DualWield || Upgrade(u)>=Upgrade::Knockback) continue;
             assert(upgrade_cap(Upgrade(u))==30);
             if (rank) assert(high.eligible(Upgrade(u))==(rank<30));
         }
@@ -390,6 +392,48 @@ int main() {
             assert(high.cooldown(100)<=previous.cooldown(100));
             assert(interval<=previous.item_cooldown(Upgrade::Bow));}
     }
+    // Restricted offers respect the rolled rarity instead of upgrading rarity
+    // for free. Multishot has its own reward units, caps and overflow payment.
+    Run powers;powers.start(91);powers.ranks[unsigned(Upgrade::Bow)]=1;
+    unsigned specialSeen[3]{};
+    for(unsigned n=0;n<30000;++n){
+        powers.roll_upgrades();
+        for(unsigned i=0;i<3;++i){auto u=powers.offers[i];
+            assert(powers.offer_rarities[i]>=upgrade_min_rarity(u));
+            if(u==Upgrade::Multishot)++specialSeen[0];
+            if(u==Upgrade::LifeRegen)++specialSeen[1];
+            if(u==Upgrade::LifeSteal)++specialSeen[2];
+        }
+    }
+    for(auto seen:specialSeen)assert(seen);
+    for(unsigned rank=0;rank<3;++rank)for(auto rarity:{Rarity::Epic,Rarity::Legendary}){
+        powers.ranks[unsigned(Upgrade::Multishot)]=rank;
+        const unsigned units=rarity==Rarity::Epic?1:2;
+        assert(powers.upgrade_gain(Upgrade::Multishot,rarity)==std::min(3-rank,units));
+        assert(powers.upgrade_rupees(Upgrade::Multishot,rarity)==20*(units-std::min(3-rank,units)));
+    }
+    for(unsigned rank=0;rank<=3;++rank)for(unsigned bow:{1u,10u,20u,30u}){
+        powers.ranks[unsigned(Upgrade::Multishot)]=rank;powers.ranks[unsigned(Upgrade::Bow)]=bow;
+        const unsigned base=bow>=20?5:bow>=10?3:1;
+        assert(powers.bow_shots()==base+rank&&powers.ranged_shots()==1+rank);
+        assert(powers.bow_fan_degrees()==float(base-1)*11.25f);
+        float sum=0,extent=0;
+        for(unsigned i=0;i<powers.bow_shots();++i){const float angle=powers.arrow_spread(i);sum+=angle;extent=std::max(extent,std::abs(angle));}
+        assert(std::abs(sum)<.0001f&&std::abs(extent-powers.bow_fan_degrees()*3.14159265f/360)<.0001f);
+    }
+    for(unsigned perk=0;perk<=5;++perk)for(unsigned rank=0;rank<=5;++rank){
+        powers.talents.ranks[unsigned(Talent::LifeRegen)]=perk;powers.ranks[unsigned(Upgrade::LifeRegen)]=rank;
+        assert(powers.life_regen_interval()==(20-perk-rank)*30);
+    }
+    for(unsigned rank=0;rank<=10;++rank){
+        powers.ranks[unsigned(Upgrade::Piercing)]=rank;assert(powers.arrow_targets()==1+rank);
+        powers.ranks[unsigned(Upgrade::Knockback)]=rank;
+        assert(powers.knockback_distance(false,false)==4*rank);
+        assert(powers.knockback_distance(true,false)==24+4*rank);
+        assert(powers.knockback_distance(true,true)==12+2*rank);
+    }
+    assert(upgrade_cap(Upgrade::Knockback)==10&&upgrade_cap(Upgrade::Piercing)==10);
+    assert(upgrade_cap(Upgrade::Multishot)==3&&upgrade_cap(Upgrade::LifeRegen)==5&&upgrade_cap(Upgrade::LifeSteal)==1);
     Run heart;heart.start(2);heart.ranks[3]=heart.ranks[4]=heart.ranks[5]=heart.ranks[6]=30;
     assert(heart.eligible(Upgrade::Heart));heart.maximum_hearts=19;
     assert(heart.upgrade_gain(Upgrade::Heart,Rarity::Legendary)==1);

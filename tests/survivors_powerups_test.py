@@ -167,6 +167,16 @@ int main(){
    s_run.offers.fill(Upgrade(i));assert(build_upgrade_choices(1,2)==MOD_OK);
    assert(s_run.phase==Phase::Upgrade&&s_run.rank(Upgrade::Heart)==0&&money==100);
  }
+ // Special rewards show their actual unit counts and filter invalid rarity.
+ for(auto u:{Upgrade::Multishot,Upgrade::LifeRegen,Upgrade::LifeSteal})for(unsigned r=0;r<5;++r){
+   fresh();s_run.phase=Phase::Upgrade;s_run.ranks[unsigned(Upgrade::Bow)]=1;
+   s_run.offers={u,Upgrade::Count,Upgrade::Count};s_run.offer_rarities[0]=Rarity(r);
+   assert(build_upgrade_choices(1,2)==MOD_OK);unsigned copies=0;
+   for(const auto& [id,e]:elements)if(e.kind=="rml"){
+     ++copies;assert(e.text.find(std::string(rarity_names[r])+" x"+number(upgrade_units(u,Rarity(r))))!=std::string::npos);
+   }
+   assert(copies==unsigned(Rarity(r)>=upgrade_min_rarity(u)));
+ }
  // Dual Wield cards preview and commit the same rank as equipment chests.
  fresh();s_run.dual_wield=9;s_run.phase=Phase::Upgrade;
  s_run.offers={Upgrade::DualWield,Upgrade::Count,Upgrade::Count};
@@ -251,7 +261,7 @@ int main(){
    ++count;assert(e.pressed&&!e.help.empty());
    assert(e.help.find("</span><br/>")!=std::string::npos);
    e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);
-   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("1 arrows, 0.0 degrees; extra hits 25%")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
+   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("1 arrows, 0.0 deg; 1 targets; extra hits 25%")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
    if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);
    if(e.text.find("Crit Chance")!=std::string::npos)assert(e.help.find("22.50% with Luck")!=std::string::npos);
    if(e.text.find("Crit Damage")!=std::string::npos)assert(e.help.find("x3.50 critical damage")!=std::string::npos);

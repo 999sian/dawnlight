@@ -41,8 +41,18 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
         })) ++group;
         const uint64_t volley=++s_bowVolleySerial;
         for(unsigned i=0;i<count;++i)
-            if(!launch_item(link,weapon,target,Run::bow_spread(i,count),group,volley))return false;
-    } else if(!launch_item(link,weapon,target))return false;
+            if(!launch_item(link,weapon,target,s_run.arrow_spread(i),group,volley))return false;
+    } else {
+        std::array<ActorId,4> chosen{};
+        const float range=weapon==Upgrade::Ball ? std::min(s_run.item_range(weapon),s_run.radius(900.f)) : s_run.item_range(weapon);
+        for (unsigned i=0; i<s_run.ranged_shots(); ++i) {
+            cXyz destination; ActorId id=kNone;
+            if (!nearest_item_target(link,destination,range,std::span<const ActorId>(chosen.data(),i),&id) &&
+                !nearest_item_target(link,destination,range,{},&id)) return false;
+            if (!launch_item(link,weapon,destination,0,20,0,id)) return false;
+            chosen[i]=id;
+        }
+    }
     s_cooldowns[unsigned(weapon)] = s_run.item_cooldown(weapon);
     // One native upper-body pose can be displayed at a time. It is cosmetic:
     // other weapons and the normal sword combo do not wait for it to finish.

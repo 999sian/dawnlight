@@ -149,7 +149,9 @@ HookAction before_enemy_hit(ModContext*, void* args, void*, void*) {
         if (ball == 0) e->mSph1.ResetTgHit();
         if (e->mCooldown1) attack = nullptr;
     }
-    state.suppress = attack && !causes_stagger(attack);
+    // All owned impacts use the bounded run knockback, not species-specific
+    // native launches whose distance can dwarf the small heavy-weapon push.
+    state.suppress = attack != nullptr;
     s_hitStates.push_back(state);
     return HOOK_CONTINUE;
 }

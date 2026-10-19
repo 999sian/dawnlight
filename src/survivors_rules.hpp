@@ -42,10 +42,28 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
     return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Rupees, Count };
-inline constexpr unsigned upgrade_cap(Upgrade u) { return u == Upgrade::Luck ? 20 : 30; }
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Rupees, Count };
+inline constexpr unsigned upgrade_cap(Upgrade u) {
+    switch (u) {
+    case Upgrade::Knockback: case Upgrade::Piercing: return 10;
+    case Upgrade::Multishot: return 3;
+    case Upgrade::LifeRegen: return 5;
+    case Upgrade::LifeSteal: return 1;
+    case Upgrade::Luck: return 20;
+    default: return 30;
+    }
+}
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
+inline constexpr Rarity upgrade_min_rarity(Upgrade u) {
+    return u == Upgrade::LifeSteal ? Rarity::Legendary : u == Upgrade::Multishot ? Rarity::Epic :
+        u == Upgrade::LifeRegen ? Rarity::Rare : Rarity::Common;
+}
+inline constexpr unsigned upgrade_units(Upgrade u, Rarity rarity) {
+    if (rarity < upgrade_min_rarity(u)) return 0;
+    return u == Upgrade::LifeSteal ? 1 : u == Upgrade::Multishot ?
+        (rarity == Rarity::Legendary ? 2 : 1) : reward_units(rarity);
+}
 inline constexpr std::array rarity_names{"Common", "Uncommon", "Rare", "Epic", "Legendary"};
 inline constexpr std::array rarity_colors{"#f4d78b", "#7bdd83", "#72b7ff", "#cb91ff", "#ffad54"};
 enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, OrdonSword, Shield, DarkLink, Count };
@@ -53,9 +71,9 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Rupees"};
+    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Rupees"};
 inline constexpr std::array descriptions{
-    "One piercing sword wave per cast. Great Spin projectile with a larger radius from level 15.",
+    "Piercing sword waves. Great Spin projectile with a larger radius from level 15.",
     "Automatic spin attack. Great Spin with a larger radius from level 15.",
     "Unlock or improve an automatic shield bash that staggers enemies.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
@@ -72,6 +90,11 @@ inline constexpr std::array descriptions{
     "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
     "Master Sword: occasionally perform a quick Jump Strike. Landing splash starts at 30% melee damage; +5 percentage points per rank.",
     "Improve equipped Dual Wield: +2.5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
+    "Add a small, bounded push to all direct attacks. +4 distance per level; maximum level 10. Heavy weapons start with a fixed small push. Elites resist knockback.",
+    "Arrows pass through one additional enemy per level, damaging every target. Applies to every arrow, including Multishot; maximum level 10.",
+    "Add one projectile per level to Bow, Boomerang, Bombs, Ball and Chain and Sword Wave. Epic grants 1 level; Legendary grants 2; maximum level 3.",
+    "Reduce passive regeneration interval by 1 second per level; maximum level 5. Rare or better. Stacks with the Life Regen talent.",
+    "Restore a quarter heart for each defeated enemy. Legendary only; one level.",
     "Receive 20 rupees."};
 
 struct RunOptions {
@@ -175,10 +198,10 @@ struct Run {
     unsigned upgrade_gain(Upgrade u, Rarity rarity) const {
         unsigned remaining = u < Upgrade::Rupees ? upgrade_cap(u) - std::min(upgrade_cap(u), rank(u)) : 0;
         if (u == Upgrade::Heart) remaining = std::min(remaining, 20 - std::min(20u, maximum_hearts));
-        return std::min(reward_units(rarity), remaining);
+        return std::min(upgrade_units(u, rarity), remaining);
     }
     unsigned upgrade_rupees(Upgrade u, Rarity rarity) const {
-        return 20 * (reward_units(rarity) - upgrade_gain(u, rarity));
+        return 20 * (upgrade_units(u, rarity) - upgrade_gain(u, rarity));
     }
     bool eligible(Upgrade u) const {
         if (u >= Upgrade::Count || banned_upgrades[unsigned(u)]) return false;
@@ -189,7 +212,9 @@ struct Run {
         if (u == Upgrade::DualWield && (!owns(ChestReward::OrdonSword) || banned_items[unsigned(ChestReward::OrdonSword)])) return false;
         if (u == Upgrade::PotionHealing && !red_potion) return false;
         if (u == Upgrade::JumpStrike && !master_sword) return false;
-        if (u == Upgrade::FireArrows && !rank(Upgrade::Bow)) return false;
+        if ((u == Upgrade::FireArrows || u == Upgrade::Piercing) && !rank(Upgrade::Bow)) return false;
+        if (u == Upgrade::Multishot && !rank(Upgrade::Wave) && !rank(Upgrade::Bow) &&
+            !rank(Upgrade::Boomerang) && !rank(Upgrade::Bombs) && !rank(Upgrade::Ball)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
         if (u == Upgrade::Heart && maximum_hearts >= 20) return false;
         return true;
@@ -199,13 +224,20 @@ struct Run {
         unsigned count = 0;
         for (unsigned i = 0; i < static_cast<unsigned>(Upgrade::Count); ++i)
             if (eligible(static_cast<Upgrade>(i))) pool[count++] = static_cast<Upgrade>(i);
-        for (auto& offer : offers) {
-            if (!count) { offer = eligible(Upgrade::Rupees) ? Upgrade::Rupees : Upgrade::Count; continue; }
-            const unsigned choice = next_random() % count;
-            offer = pool[choice]; pool[choice] = pool[--count];
+        // Roll rarity first. Restricted upgrades never turn a common offer
+        // into a free Epic/Legendary; Luck retains its normal rarity weights.
+        for (unsigned slot = 0; slot < offers.size(); ++slot) {
+            const auto rarity = offer_rarities[slot] = roll_rarity();
+            std::array<unsigned, unsigned(Upgrade::Count)> candidates{};
+            unsigned available = 0;
+            for (unsigned i = 0; i < count; ++i)
+                if (rarity >= upgrade_min_rarity(pool[i])) candidates[available++] = i;
+            if (!available) { offers[slot] = eligible(Upgrade::Rupees) ? Upgrade::Rupees : Upgrade::Count; continue; }
+            const unsigned choice = candidates[next_random() % available];
+            offers[slot] = pool[choice]; pool[choice] = pool[--count];
         }
-        for (auto& rarity : offer_rarities) rarity = roll_rarity();
     }
+
     bool level_up() {
         if (phase != Phase::Running || xp < required_xp()) return false;
         xp -= required_xp(); ++level; roll_upgrades(); phase = Phase::Upgrade; return true;
@@ -213,7 +245,7 @@ struct Run {
     bool choose(unsigned choice) {
         if (phase != Phase::Upgrade || choice >= offers.size()) return false;
         const auto u = offers[choice];
-        if (!eligible(u)) return false;
+        if (!eligible(u) || offer_rarities[choice] < upgrade_min_rarity(u)) return false;
         const unsigned gain = upgrade_gain(u, offer_rarities[choice]);
         if (u == Upgrade::DualWield) dual_wield += gain;
         else if (u != Upgrade::Rupees) ranks[static_cast<unsigned>(u)] += gain;
@@ -230,7 +262,7 @@ struct Run {
     unsigned melee_speed_percent() const { return 100 + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield)/2 + 5*talents.rank(Talent::MeleeHaste); }
     float melee_speed() const { return melee_speed_percent()/100.f; }
     unsigned melee_cooldown() const { return std::max(6u, 30*cooldown_percent()/melee_speed_percent()); }
-    unsigned life_regen_interval() const { return (20-std::min(5u,talents.rank(Talent::LifeRegen)))*ticks_per_second; }
+    unsigned life_regen_interval() const { return (20-std::min(5u,talents.rank(Talent::LifeRegen))-std::min(5u,rank(Upgrade::LifeRegen)))*ticks_per_second; }
     bool life_regen_due() const { return phase==Phase::Running && ticks && ticks%life_regen_interval()==0; }
     unsigned auto_rupees() const { return ticks && ticks%(5*ticks_per_second)==0 ? talents.rank(Talent::AutoRupees) : 0; }
     unsigned jump_splash_percent() const {
@@ -243,8 +275,23 @@ struct Run {
     unsigned jump_cooldown() const { return cooldown(6 * ticks_per_second); }
     bool roll_jump_strike() { return master_sword && rank(Upgrade::JumpStrike) && next_random() % 100 < 20; }
     unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 10) : 1; }
-    unsigned bow_shots() const { const auto level=rank(Upgrade::Bow); return !level ? 0 : level>=20 ? 5 : level>=10 ? 3 : 1; }
-    float bow_fan_degrees() const { return bow_shots() ? (bow_shots()-1)*11.25f : 0.f; }
+    unsigned extra_projectiles() const { return std::min(3u,rank(Upgrade::Multishot)); }
+    unsigned ranged_shots() const { return 1 + extra_projectiles(); }
+    unsigned arrow_targets() const { return 1 + std::min(10u,rank(Upgrade::Piercing)); }
+    float knockback_distance(bool heavy, bool elite) const {
+        return ((heavy ? 24.f : 0.f) + 4.f*std::min(10u,rank(Upgrade::Knockback))) * (elite ? 0.5f : 1.f);
+    }
+    unsigned bow_base_shots() const { const auto level=rank(Upgrade::Bow); return !level ? 0 : level>=20 ? 5 : level>=10 ? 3 : 1; }
+    unsigned bow_shots() const { return bow_base_shots() ? bow_base_shots()+extra_projectiles() : 0; }
+    float bow_fan_degrees() const { return bow_base_shots() ? (bow_base_shots()-1)*11.25f : 0.f; }
+    static float projectile_spread(unsigned index, unsigned count, float degrees) {
+        if (count < 2 || index >= count) return 0;
+        const int halfSteps=count%2 ? (index%2 ? int(index+1) : -int(index)) :
+            (index%2 ? -int(index) : int(index+1));
+        return float(halfSteps)*degrees*3.14159265358979323846f/(180.f*2.f*(count-1));
+    }
+    float arrow_spread(unsigned index) const { return projectile_spread(index,bow_shots(),bow_fan_degrees()); }
+    float wave_spread(unsigned index) const { return projectile_spread(index,ranged_shots(),12.f*extra_projectiles()); }
     bool great_spin(Upgrade weapon) const { return (weapon==Upgrade::Wave || weapon==Upgrade::Spin) && rank(weapon)>=15; }
     const char* upgrade_name(Upgrade u) const { return u==Upgrade::Spin && great_spin(u) ? "Great Spin Attack" : names[unsigned(u)]; }
     float wave_radius() const { return radius(great_spin(Upgrade::Wave) ? 100.f : 65.f); }

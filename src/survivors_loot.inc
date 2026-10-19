@@ -164,12 +164,12 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
     chest.position=pos;
 }
 
-bool nearest_item_target(daAlink_c* link, cXyz& target, float range=item_target_range) {
+bool nearest_item_target(daAlink_c* link, cXyz& target, float range=item_target_range, std::span<const ActorId> excluded={}, ActorId* chosen=nullptr) {
     float nearest = range * range;
     bool found = false;
     const cXyz origin = link->current.pos + cXyz(0, 70, 0);
     for (const auto& e : s_enemies) {
-        if (!e.initialized || e.credited || e.retiring) continue;
+        if (!e.initialized || e.credited || e.retiring || std::find(excluded.begin(),excluded.end(),e.id)!=excluded.end()) continue;
         auto* actor = actor_by_id(e.id);
         if (!actor || actor->health <= 0) continue;
         const float distance = (actor->eyePos - origin).abs2();
@@ -177,7 +177,7 @@ bool nearest_item_target(daAlink_c* link, cXyz& target, float range=item_target_
         cXyz to = actor->eyePos;
         dBgS_LinChk wall; wall.Set(&origin, &to, link);
         if (dComIfG_Bgsp().LineCross(&wall)) continue;
-        target = to; nearest = distance; found = true;
+        target = to; nearest = distance; found = true; if (chosen) *chosen=e.id;
     }
     return found;
 }
@@ -235,12 +235,12 @@ bool prepare_projectile_model(Attack& a, unsigned type) {
     mDoExt_adjustSolidHeap(a.modelHeap);
     return true;
 }
-bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0, unsigned volleySlot = 20, uint64_t volley = 0) {
+bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0, unsigned volleySlot = 20, uint64_t volley = 0, ActorId initialTarget = kNone) {
     const unsigned index = unsigned(weapon), type = index - unsigned(Upgrade::Bow);
     auto& a = acquire_projectile(s_attacks, index, item_projectile_begin(type), item_initial_slots(type));
     if (!prepare_projectile_model(a, type)) return false;
     a.weapon = index; a.age = 0; a.life = 100;
-    a.bowVolleySlot=volleySlot;a.bowVolley=volley;
+    a.bowVolleySlot=volleySlot;a.bowVolley=volley;a.arrowTargets=s_run.arrow_targets();
     a.returning = a.exploding = false; a.travel = 0;
     a.target = kNone; a.visitedCount = 0; a.hops = 0; a.ballVictimCount = 0;
     a.position = link->current.pos + cXyz(0, 70, 0);
@@ -264,7 +264,9 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
         a.hops = s_run.boomerang_hops();
         // Keep enough flight time for the longer first leg, every hop and return.
         a.life = unsigned(std::ceil(s_run.radius(float(120 + 40 * a.hops))));
-        if (!next_boom_target(a, link, s_run.item_range(weapon))) return false;
+        if (initialTarget != kNone) {
+            a.target=initialTarget; a.visited[a.visitedCount++]=initialTarget;
+        } else if (!next_boom_target(a, link, s_run.item_range(weapon))) return false;
     }
     if (weapon == Upgrade::Ball) {
         // Reach must not expire the projectile before its outbound/return legs.
@@ -314,7 +316,13 @@ void update_item_attack(Attack& a, daAlink_c* link) {
         const bool shield = a.collider.ChkAtShieldHit();
         // Keep the impact even if the enemy dies or native hit metadata is
         // cleared before this update. A spent arrow must never move again.
-        if (weapon == Upgrade::Bow && (a.ballVictimCount || shield || a.collider.ChkAtHit())) { stop_attack(a); return; }
+        if (weapon == Upgrade::Bow) {
+            if (a.ballVictimCount >= a.arrowTargets || shield ||
+                (!a.ballVictimCount && a.collider.ChkAtHit())) { stop_attack(a); return; }
+            // Each pierced actor is remembered independently of native hit
+            // metadata. Reset only contact metadata, never the victim list.
+            a.collider.ResetAtHit();
+        }
         if (weapon == Upgrade::Boomerang && !a.returning) {
             auto* target = actor_by_id(a.target);
             if (shield) a.returning = true;

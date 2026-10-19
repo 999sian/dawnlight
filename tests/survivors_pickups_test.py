@@ -85,7 +85,7 @@ int main(){
  path=true;update_exp_magnets(&player);assert(!s_expMagnets[0].pending&&s_expMagnets[0].active&&creates==0);
  const auto pos=s_expMagnets[0].position;update_exp_magnets(&player);
  colors.clear();sizes.clear();after_draw(nullptr,nullptr,nullptr,nullptr);
- assert(colors.size()==1&&colors[0].r==255&&colors[0].g==210&&colors[0].b==45&&sizes[0].x==50&&sizes[0].y==80);
+ assert(colors.size()==1&&colors[0].r==255&&colors[0].g==210&&colors[0].b==45&&sizes[0].x==25&&sizes[0].y==40&&sizes[0].z==25);
  assert(std::abs((pos-player.current.pos).abs()-167.6f)<2);
  s_orbs[0]={{50000,30,0},8,false};s_orbs[1]={{-50000,30,0},9,false};
  player.current.pos=pos;playing=false;update_exp_magnets(&player);assert(s_expMagnets[0].active&&!s_orbs[0].summoned);

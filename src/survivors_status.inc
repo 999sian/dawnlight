@@ -7,7 +7,8 @@ struct EnemyEffect {
     std::vector<uint64_t> bowVolleys;
     bool pendingStagger = false, stagger = false;
     bool injected = false, pendingCritical = false, critical = false;
-    cXyz velocity{};
+    cXyz velocity{}, knockStep{};
+    unsigned knockFrames=0, knockCooldown=0;
     std::array<u32, 2> emitters{};
     dCcD_Stts status;
     dCcD_Sph collider;
@@ -28,6 +29,7 @@ void clear_enemy_effects() {
     for (auto& effect : s_effects) {
         stop_burn(effect); effect.id = kNone; effect.pending = effect.damage = effect.meleeSerial = 0;
         effect.injected = false; effect.pendingCritical = effect.critical = false;
+        effect.knockStep=cXyz(0,0,0);effect.knockFrames=effect.knockCooldown=0;
         effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;effect.bowVolleys={};
     }
 }
@@ -44,6 +46,7 @@ EnemyEffect& effect_for(Enemy& enemy) {
     if (effect.id != enemy.id) {
         stop_burn(effect); effect.id = enemy.id;
         effect.pending = effect.damage = effect.meleeSerial = 0; effect.injected = false; effect.pendingCritical = effect.critical = false;
+        effect.knockStep=cXyz(0,0,0);effect.knockFrames=effect.knockCooldown=0;
         effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;effect.bowVolleys={};
     }
     return effect;
@@ -122,6 +125,7 @@ void spread_melee_hit(fopAc_ac_c* primary) {
         bool critical=false;
         effect.pending += s_run.critical_power(s_run.melee_power(),&critical);
         effect.pendingCritical = effect.pendingCritical || critical;
+        if (auto* actor=actor_by_id(best->id)) queue_knockback(*best,actor,false);
     }
 }
 void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
@@ -131,6 +135,17 @@ void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
     // Collisions from enemies/the environment do not provoke a waiting guard.
     if (info->mpCollider && info->mpCollider->GetAc() == daAlink_getAlinkActorClass())
         enemy->dormant = false;
+    // Synthetic aggregate/burn colliders were already accounted for at their
+    // original contacts. They must not create a second push when consumed.
+    if (info->mpCollider && info->mpCollider->GetAc() == daAlink_getAlinkActorClass() &&
+        !effect_collider(info->mpCollider)) {
+        bool heavy=false;
+        auto* link=daAlink_getAlinkActorClass();
+        if (link && info->mpCollider==&link->mGuardAtCps) heavy=true;
+        for (const auto& attack:s_attacks) if (info->mpCollider==&attack.collider)
+            heavy=attack.weapon==unsigned(Upgrade::Ball) || attack.weapon==unsigned(Upgrade::ShieldAttack);
+        queue_knockback(*enemy,actor,heavy);
+    }
     if (s_run.burn_damage() && actor->health > 0) for (const auto& arrow : s_attacks) {
         if (info->mpCollider == &arrow.collider && arrow.weapon == unsigned(Upgrade::Bow)) {
             auto& effect = effect_for(*enemy);
@@ -147,8 +162,10 @@ void update_enemy_effects() {
         auto* actor = actor_by_id(enemy.id);
         if (!in_arena() || !enemy.initialized || enemy.retiring || enemy.credited || !actor ||
             actor->health <= 0 || effect.id != enemy.id) {
-            stop_burn(effect); effect.pending = 0; effect.pendingCritical=effect.critical=false; continue;
+            stop_burn(effect); effect.pending = 0; effect.pendingCritical=effect.critical=false;
+            effect.knockFrames=effect.knockCooldown=0;effect.knockStep=cXyz(0,0,0);continue;
         }
+        update_knockback(enemy,actor);
         if (!effect.burn) continue;
         if (!--effect.pulse) { effect.pending += s_run.burn_damage(); effect.pulse = ticks_per_second; }
         if (!--effect.burn) { stop_burn(effect); continue; }

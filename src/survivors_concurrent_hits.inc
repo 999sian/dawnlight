@@ -20,7 +20,7 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
         const auto end=projectile.ballVictims.begin()+projectile.ballVictimCount;
         duplicate=std::find(projectile.ballVictims.begin(),end,enemy->id)!=end ||
             projectile.ballVictimCount==projectile.ballVictims.size() ||
-            (projectile.weapon==unsigned(Upgrade::Bow) && projectile.ballVictimCount!=0);
+            (projectile.weapon==unsigned(Upgrade::Bow) && projectile.ballVictimCount>=projectile.arrowTargets);
         if(!duplicate) {
             projectile.ballVictims[projectile.ballVictimCount++]=enemy->id;
             if(projectile.weapon==unsigned(Upgrade::Bow) && projectile.bowVolley) {

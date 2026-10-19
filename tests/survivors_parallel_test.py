@@ -33,16 +33,16 @@ using dCcD_GObjInf=Collider;
 struct daAlink_c:Actor {Collider mAtSph,mAtCps[3];int tevStr=0;
  struct HIO{struct{struct{struct{float mAttackRadius=260,mLightAttackRadius=400,mLargeAttackRadius=400;}m;}mCutTurn;}mCut;} hio,*mpHIO=&hio;
 }player;
-struct Enemy{unsigned id=2;bool initialized=true,retiring=false,credited=false;};std::array<Enemy,2>enemies;
-std::array<Actor,2>actors;
+struct Enemy{unsigned id=2;bool initialized=true,retiring=false,credited=false;};std::array<Enemy,12>enemies;
+std::array<Actor,12>actors;
 Enemy* tracked(unsigned id){for(auto&e:enemies)if(e.id==id)return &e;return nullptr;}
 Actor* actor_by_id(unsigned id){for(auto&a:actors)if(a.id==id)return &a;return nullptr;}
 unsigned fopAcM_GetID(Actor*a){return a->id;}int fopAcM_GetName(Actor*a){return a->name;}
 constexpr int fpcNm_E_MM_MT_e=77;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
-struct Effect{std::vector<uint64_t>bowVolleys;unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,2>effects;
+struct Effect{std::vector<uint64_t>bowVolleys;unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,12>effects;
 Effect& effect_for(Enemy&e){return effects[&e-enemies.data()];}
-struct Attack{unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0;std::array<unsigned,enemy_capacity>ballVictims{};
+struct Attack{unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0,arrowTargets=1;std::array<unsigned,enemy_capacity>ballVictims{};
  Collider collider;Status status;std::array<unsigned,9>emitters{};float radius=0;cXyz position,velocity;};
 std::array<Attack,initial_projectile_slots>s_attacks;
 Run s_run;unsigned s_player=1,s_meleeSerial=1;
@@ -137,6 +137,22 @@ int main(){
  hit(&s_attacks[4].collider,&target);assert(effects[1].pending==20);
  s_attacks[5]=s_attacks[0];s_attacks[5].ballVictimCount=0;s_attacks[5].bowVolley=102;
  target.owner=&actors[0];hit(&s_attacks[5].collider,&target);assert(effects[0].pending==70);
+ // Every piercing rank applies independently to every arrow in a volley.
+ // Duplicated target geometry consumes neither an extra target nor extra damage.
+ s_run.start(123);
+ for(unsigned rank=0;rank<=10;++rank){
+  effects={};s_attacks={};s_run.ranks[unsigned(Upgrade::Piercing)]=rank;
+  for(unsigned i=0;i<actors.size();++i){actors[i].id=enemies[i].id=100+i;actors[i].health=100;}
+  for(unsigned shot=0;shot<8;++shot){auto& arrow=s_attacks[shot];
+   arrow.active=true;arrow.weapon=unsigned(Upgrade::Bow);arrow.collider.power=20;
+   arrow.arrowTargets=s_run.arrow_targets();arrow.bowVolley=500;arrow.bowVolleySlot=0;
+   for(unsigned i=0;i<actors.size();++i){target.owner=&actors[i];
+    hit(&arrow.collider,&target);hit(&arrow.collider,&target);
+    assert(effects[i].pending==(i<=rank?20+5*shot:0));
+   }
+   assert(arrow.ballVictimCount==rank+1);
+  }
+ }
  distance=1e6;assert(!launch_parallel_pulse(&player,Upgrade::Spin));
 }
 '''

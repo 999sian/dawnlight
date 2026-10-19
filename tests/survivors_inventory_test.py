@@ -179,7 +179,7 @@ int main(){
  const auto oldDescription=explain.field_0xc8;s_run.ranks[12]=5;s_run.ranks[8]=5;
  after_item_explain(nullptr,explainArgs,&opened,nullptr);
  assert(explain.field_0xc8==oldDescription&&explain.field_0xd0==~0u);
- assert(plain(explain.field_0xc8).find("1 arrows, 0.0 degrees; extra hits 25%")!=std::string::npos&&plain(explain.field_0xc8).find("Fire Lv.5 (5/s, 4.00s)")!=std::string::npos);
+ assert(plain(explain.field_0xc8).find("1 arrows, 0.0 deg; 1 targets; extra hits 25%")!=std::string::npos&&plain(explain.field_0xc8).find("Fire Lv.5 (5/s, 4.00s)")!=std::string::npos);
  opened=0;const auto id=explain.field_0xc8;after_item_explain(nullptr,explainArgs,&opened,nullptr);assert(explain.field_0xc8==id);
  for(unsigned rank=0;rank<=5;++rank){
   Run run;run.ranks.fill(rank);run.master_sword=rank;run.shield=rank*2;

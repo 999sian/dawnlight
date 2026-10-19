@@ -323,11 +323,41 @@ Burn ticks cannot crit. Critical damage rounds to native integer health before
 Dark Link doubles it. Both power-ups support rarities, rerolls and banishment;
 the menu shows the effective chance including current Luck.
 
+## Additional run power-ups
+
+| Power-up | Cap | Rarity / effect |
+| --- | ---: | --- |
+| Knockback | 10 | Any rarity. +4 units of horizontal push per rank on direct attacks. Ball and Shield Attack have a fixed 24-unit base independent of their weapon ranks, Power and Reach. |
+| Piercing | 10 | Requires Bow. Each rank lets every arrow damage one additional distinct enemy (up to 11 total). Includes every Multishot arrow. |
+| Multishot | 3 | Epic grants 1 rank; Legendary grants 2. Each rank adds one projectile to Bow, Boomerang, Bombs, Ball and Chain and Sword Wave. |
+| Life Regen | 5 | Rare or better. Each rank removes 1 second from passive quarter-heart regeneration; stacks with the talent (20 → 15 seconds, or 10 seconds with both maxed). |
+| Life Steal | 1 | Legendary only. Each credited enemy death restores a quarter heart, capped at maximum health. |
+
+Knockback runs over six simulation ticks, with twelve ticks between pushes.
+Simultaneous hits take the strongest push instead of adding them. Elites and
+bosses receive half distance; the maximum heavy push is 64 units (32 for elites).
+Walls, arena barriers and unsafe ledges stop displacement. Native heavy launches
+on living ordinary enemies are suppressed in favor of this bounded movement.
+Burn ticks do not apply a second push. Damage still has no shared iFrame gate.
+
+Multishot chooses different visible targets in range for Boomerang, Bombs and
+Ball before reusing the nearest target when fewer enemies exist than shots.
+Boomerangs retain their assigned first targets. Arrows distribute their extra
+shots within the Bow rank's existing 0°/22.5°/45° fan; at rank 20+ and Multishot 3,
+eight arrows still cover only 45°. Same-volley extra hits on one target retain
+25% damage, also when piercing. Waves fan out symmetrically, up to four waves
+across 36°, with each wave retaining its normal/Great Spin tier and hit deduplication.
+
+Rarity is rolled before selecting an eligible upgrade: restricted power-ups do
+not promote common rolls to rare ones. Life Regen follows normal rarity units
+(Rare +3 ranks, Epic +4, Legendary +5); Multishot and Life Steal are the explicit
+unit exceptions. Cap overflow pays 20 rupees per unused unit. All reset per run.
+
 ## Rarities and Luck
 
 Each offered card rolls independently, including **free elite chests**. Rarity
 controls ranks/units of the chosen reward: **Common ×1, Uncommon ×2, Rare ×3,
-Epic ×4, Legendary ×5**. Names and icon borders show the rarity. Units exceeding
+Epic ×4, Legendary ×5**, except Multishot (Epic ×1 / Legendary ×2) and Life Steal (Legendary ×1). Names and icon borders show the rarity. Units exceeding
 a reward's cap become 20 rupees each, subject to wallet capacity.
 
 Luck has **20 ranks** and resets each run. Rarity weighting gains +5% per rank;

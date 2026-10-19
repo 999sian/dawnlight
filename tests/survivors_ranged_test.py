@@ -58,20 +58,38 @@ struct{bool ready=true;}s_loot;
 Run s_run;std::array<unsigned,12>s_cooldowns{};int s_player=1;
 enum class SwordAction{None,Normal};SwordAction s_swordAction=SwordAction::Normal;
 bool s_wavePending=false;unsigned s_comboStep=0,s_comboTimeout=0;
-bool nearest_item_target(daAlink_c*,cXyz& target,float range){target={targetDistance,100,0};return targetExists&&targetDistance<range;}
+using ActorId=unsigned;constexpr ActorId kNone=~0u;
+unsigned targetCount=1;
+bool nearest_item_target(daAlink_c*,cXyz& target,float range,std::span<const ActorId> excluded={},ActorId* chosen=nullptr){
+ for(unsigned i=0;i<targetCount;++i)if(std::find(excluded.begin(),excluded.end(),i)==excluded.end()){
+  target={targetDistance+float(i*10),100,0};if(chosen)*chosen=i;return targetExists&&target.x<range;}
+ return false;}
+std::vector<ActorId> shotTargets;
 constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
 struct Attack{bool active=false,returning=false;unsigned weapon=0,age=0,bowVolleySlot=20;uint64_t bowVolley=0;};std::deque<Attack>s_attacks(initial_projectile_slots);
 std::vector<Upgrade>shots;std::vector<float>spread;
-bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0,unsigned group=20,uint64_t volley=0){
+bool launch_item(daAlink_c*,Upgrade weapon,cXyz,float angle=0,unsigned group=20,uint64_t volley=0,ActorId target=kNone){
+ shotTargets.push_back(target);
  unsigned type=unsigned(weapon)-unsigned(Upgrade::Bow);
  auto& a=acquire_projectile(s_attacks,unsigned(weapon),item_projectile_begin(type),item_initial_slots(type));
  a.active=true;a.weapon=unsigned(weapon);a.bowVolleySlot=group;a.bowVolley=volley;shots.push_back(weapon);spread.push_back(angle);return true;}
 '''
 main=r'''
-void fresh(){targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
+void fresh(){targetCount=1;shotTargets.clear();targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
  s_attacks=std::deque<Attack>(initial_projectile_slots);shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;
  for(unsigned i=8;i<=11;++i)s_run.ranks[i]=1;}
 int main(){
+ for(auto weapon:{Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball})for(unsigned targets:{1u,2u,4u}){
+  fresh();targetCount=targets;s_run.ranks[unsigned(Upgrade::Multishot)]=3;
+  assert(queue_ranged(&player,weapon)&&shots.size()==4);
+  for(unsigned i=0;i<targets;++i)assert(shotTargets[i]==i);
+  for(unsigned i=targets;i<4;++i)assert(shotTargets[i]==0);
+ }
+ for(unsigned rank=0;rank<=3;++rank)for(unsigned bow:{1u,10u,20u}){
+  fresh();s_run.ranks[unsigned(Upgrade::Multishot)]=rank;s_run.ranks[unsigned(Upgrade::Bow)]=bow;
+  assert(queue_ranged(&player,Upgrade::Bow)&&shots.size()==s_run.bow_shots());
+  for(auto angle:spread)assert(std::abs(angle)<=s_run.bow_fan_degrees()*3.14159265f/360+.0001f);
+ }
  fresh();player.proc=1; // an active native sword swing does not block any item
  for(unsigned i=8;i<=11;++i)assert(queue_ranged(&player,Upgrade(i)));
  assert(shots.size()==4 && player.proc==1 && player.mEquipItem==0x103 && !s_ranged.active);

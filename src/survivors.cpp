@@ -269,6 +269,8 @@ unsigned treasure_message_id();
 void sync_survivors_inventory();
 bool queue_ranged(daAlink_c*, Upgrade);
 struct Enemy;
+void queue_knockback(Enemy&, fopAc_ac_c*, bool);
+void update_knockback(Enemy&, fopAc_ac_c*);
 void initialize_extended_enemy(Enemy&,fopAc_ac_c*);
 void drop_elite_chest(Enemy&, fopAc_ac_c*);
 std::array<unsigned, 3> s_choices{0, 1, 2};
@@ -301,7 +303,7 @@ struct Attack {
     unsigned hops = 0, visitedCount = 0;
     std::array<ActorId, 11> visited{};
     std::array<ActorId, enemy_capacity> ballVictims{};
-    unsigned ballVictimCount = 0;
+    unsigned ballVictimCount = 0, arrowTargets = 1;
     JKRSolidHeap* modelHeap = nullptr;
     J3DModel* model = nullptr;
     J3DModel* wind = nullptr;
@@ -568,6 +570,8 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
+    if (s_run.rank(Upgrade::LifeSteal) && dComIfGs_getLife() > 0)
+        dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if(e.elite) {
         if(e.eliteSlot>=0 && unsigned(e.eliteSlot)<timed_elite_count)++s_run.timed_elites;
         else ++s_run.guard_elites;
@@ -743,7 +747,12 @@ bool enemy_in_range(daAlink_c* link, float range) {
     return false;
 }
 void release_sword_wave(daAlink_c* link) {
-    launch(link, 0, target_direction(link));
+    const auto direction = target_direction(link);
+    for (unsigned i=0; i<s_run.ranged_shots(); ++i) {
+        const float angle=s_run.wave_spread(i), sine=std::sin(angle), cosine=std::cos(angle);
+        launch(link,0,cXyz(direction.x*cosine+direction.z*sine,direction.y,
+                          direction.z*cosine-direction.x*sine));
+    }
 }
 bool normal_sword_proc(daAlink_c* link) {
     return link->mProcID == daAlink_c::PROC_CUT_NORMAL || link->mProcID == daAlink_c::PROC_CUT_FINISH;
@@ -857,6 +866,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 #include "survivors_treasure.inc"
 #include "survivors_inventory.inc"
 #include "survivors_status.inc"
+#include "survivors_knockback.inc"
 void new_melee_swing() { ++s_meleeSerial; }
 #include "survivors_combat_pause.inc"
 #include "survivors_defense.inc"

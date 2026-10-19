@@ -11,7 +11,7 @@ source = (root/'src/survivors_loot.inc').read_text()
 def extract(name, source=source):
     match = re.search(r'^(?:bool|void) ' + name + r'\(', source, re.M)
     assert match, name
-    start = source.index('{', match.start())
+    start = match.start() + re.search(r'\)\s*\{', source[match.start():]).end() - 1
     depth = 0
     for end in range(start, len(source)):
         depth += (source[end] == '{') - (source[end] == '}')
@@ -81,7 +81,7 @@ struct Collider {
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
 struct Attack {
-    unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
+    unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0,arrowTargets=1;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
     bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
@@ -254,6 +254,25 @@ int main(){
         assert(s_attacks[8].ballVictimCount==0&&s_attacks[8].active); // Reused slot is a fresh arrow.
         s_attacks[8].collider.hit=true;update_item_attack(s_attacks[8],&player);assert(!s_attacks[8].active);
     }
+    // Piercing is snapshotted on launch; hit metadata resets between victims,
+    // while the remembered victim count stops at the exact penetration budget.
+    for(unsigned rank=1;rank<=10;++rank){
+        reset();s_run.ranks[8]=1;s_run.ranks[unsigned(Upgrade::Piercing)]=rank;
+        assert(launch_item(&player,Upgrade::Bow,{0,70,600}));auto& arrow=s_attacks[8];
+        s_run.ranks[unsigned(Upgrade::Piercing)]=0;assert(arrow.arrowTargets==rank+1);
+        for(unsigned victims=1;victims<=rank;++victims){
+            arrow.ballVictimCount=victims;arrow.collider.hit=true;
+            update_item_attack(arrow,&player);assert(arrow.active&&!arrow.collider.hit);
+        }
+        arrow.ballVictimCount=rank+1;const auto end=arrow.position;
+        update_item_attack(arrow,&player);assert(!arrow.active&&arrow.position.abs(end)==0);
+    }
+    // An explicitly assigned boomerang target must not be replaced by the nearest enemy.
+    reset();s_run.ranks[9]=1;actors.clear();s_enemies={};
+    near.id=2;near.health=10;near.eyePos={0,70,100};actors[2]=&near;s_enemies[0]={2,true,false,false};
+    far.id=3;far.health=10;far.eyePos={0,70,600};actors[3]=&far;s_enemies[1]={3,true,false,false};
+    assert(launch_item(&player,Upgrade::Boomerang,far.eyePos,0,20,0,3));
+    assert(s_attacks[28].target==3&&s_attacks[28].visited[0]==3);
     // Item rank never grows the boomerang collider; Reach keeps its size bonus.
     for(unsigned rank:{1u,4u,30u}) {
         reset();s_run.ranks[9]=rank;actors.clear();s_enemies={};

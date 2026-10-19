@@ -91,36 +91,41 @@ Weapon ranks and power-up details are available in the item wheel and Collection
 overview; they are not repeated during combat.
 
 Leveling up pauses Link and the encounter and offers three upgrades in the same
-side-by-side card layout as chests. Every card uses the native Hidden Skills scroll
-icon, its power-up name/description and red before/after changes. Controller,
+side-by-side card layout as chests. Cards use the native Hidden Skills scroll, full Heart Container, or rarity-colored
+rupee icon, its power-up name/description and red before/after changes. Controller,
 keyboard and direct touch/click navigation use Dusklight's native mod window controls. Closing
 the choice window does not resume combat or reroll its offers. Excess experience
 is retained and multiple earned levels are offered consecutively.
 
 | Upgrade | Effect |
 | --- | --- |
-| Sword Wave | One aimed, piercing projectile per cast; becomes a larger Great Spin projectile at rank 15 |
+| Sword Wave | One aimed, piercing projectile per cast plus Multishot; becomes a larger Great Spin projectile at rank 15 |
 | Spin Attack | Automatic Spin Attack while moving; becomes Great Spin Attack at rank 15 with a larger radius |
-| Shield Attack | Requires a chest shield; automatic native shield bash, with damage, range and cooldown upgrades; retains stagger |
+| Shield Attack | Requires a chest shield; automatic native shield bash, with damage, range and cooldown upgrades; fixed small knockback |
 | Fire Arrows | Requires Hero's Bow; ignite enemies for 1 damage/second over 3 seconds; +1 periodic damage per rank and +1 second after every three further upgrades (rank 4) |
 | Hero's Bow | Chest unlock; one arrow at ranks 1–9, three at 10–19, five at 20–30; symmetric fan up to 45°; same-volley extra hits per target deal 25% damage |
 | Boomerang | Chest unlock; Gale wind effect and one extra target at rank 1; each upgrade adds another hop and improves damage/size/cooldown |
 | Bombs | Chest unlock; aimed ballistic throws with larger, stronger blasts and shorter cooldowns |
-| Ball and Chain | Native throw/pull/catch animation and chain links; pierces to full range, damages each enemy once per leg and retains stagger |
+| Ball and Chain | Native throw/pull/catch animation and chain links; pierces to full range, damages each enemy once per leg and fixed small knockback |
 | Power | Increase automatic weapon damage |
 | Haste | Reduce automatic weapon cooldowns |
 | Reach | +7.5% linear reach/range per rank; Spin/Bomb/Shield radii use the square root of that factor |
 | Magnet | Attract XP, rupees, hearts and heart pieces from farther away |
 | Heart Container | Add one maximum heart; level-up healing fills the new capacity |
 | Luck | 20 ranks; rarity weights +5% and crit multiplier +2.5% per rank; drop bonuses +10% per rank capped at +50% |
-| Rupees | Receive 20 rupees per reward unit without healing |
+| Knockback | 10 ranks; +4 units horizontal push/rank on direct attacks; fixed 24-unit Ball/Shield base; elites take half |
+| Piercing | Requires Bow; 10 ranks, +1 distinct damaged target per arrow/rank, including Multishot arrows |
+| Multishot | Epic +1 rank, Legendary +2, cap 3; +1 projectile/rank for all five ranged abilities; arrows retain the existing fan angle |
+| Life Regen | Rare or better; cap 5; -1 second/rank from passive regeneration; stacks with the talent |
+| Life Steal | Legendary only, cap 1; +¼ heart per credited enemy death |
+| Rupees | Receive 20 rupees per reward unit |
 
 All passive upgrades are independently available, including Heart Container
 until the native maximum of 20 hearts. Weapons, Fire Arrows, Shield Attack and
-passives have up to 30 levels; Luck retains its 20-rank cap. Rupees remain available after the
+ordinary passives have up to 30 levels; Luck retains its 20-rank cap and the new power-ups use the caps above. Rupees remain available after the
 other upgrades reach their caps. Native enemy defense and death reactions still apply. Ordinary nonlethal hits
 keep their hit effects and damage but do not interrupt enemy movement or attacks.
-Shield Attack and Ball and Chain retain native stagger. Living knocked-down
+Shield Attack and Ball and Chain use a bounded horizontal push instead of native launches. Its base never grows with weapon ranks, damage or Reach; only Knockback adds distance. Six short steps, a twelve-tick repeat delay, non-additive simultaneous hits and terrain checks limit movement. Living knocked-down
 Bokoblins keep their target spheres enabled before collision registration, so
 normal attacks and abilities can still hit during knockback, prone and get-up
 animations. Rats keep their real hit cooldown instead of resetting it each frame
@@ -132,7 +137,7 @@ a visible normal sword cut. An existing normal cut can carry the wave; at ranged
 distance it starts a new first cut, drawing the sword if needed. Interrupted
 wind-ups cancel, finishers are left intact, and items/spin/shield keep their own
 independent schedulers.
-It emits one piercing projectile at every rank. At rank 15, both Sword Wave and
+It emits one piercing projectile plus one per Multishot rank, up to four in a symmetric 36-degree fan. At rank 15, both Sword Wave and
 Spin Attack switch from the two normal-spin particles to the six Great Spin
 particles. The wave base radius increases from 65 to 100; Spin Attack uses the
 native normal radius (260) before rank 15 and Great Spin radius (400) thereafter,
@@ -580,7 +585,7 @@ Before merging/releasing, test on Android and desktop:
    on death in every map and with Twilight HD HUD.
    Complete a run using all weapons and both dependent upgrades; check native enemy death, elite drops and automatic 20-minute victory
    and no HP scaling leakage. Verify jump, dodge, controller and touch controls.
-3. Level up while surrounded; check three scroll cards, names/descriptions and
+3. Level up while surrounded; check three upgrade cards with the correct native icons, names/descriptions and
    red upgrade values with controller and touch. Close/reopen the choice window, and earn several
    levels at once. Verify Link/enemies and the timer stay paused during selection.
 4. Die, save the result, restart, reload the slot, and decline the save prompt.

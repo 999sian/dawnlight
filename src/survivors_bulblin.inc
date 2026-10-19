@@ -49,7 +49,7 @@ HookAction before_bulblin_hit(ModContext*, void* args, void*, void*) {
     if (ball==0) for (auto& sphere:bulblin->cc_sph) if (sphere.GetTgHitObj()==attack) sphere.ResetTgHit();
     if (!attack || ball==0 || bulblin->damage_timer) return HOOK_CONTINUE;
     BulblinHit hit;
-    hit.args=args; hit.actor=bulblin; hit.collider=attack; hit.suppress=!causes_stagger(attack);
+    hit.args=args; hit.actor=bulblin; hit.collider=attack; hit.suppress=true;
     if (hit.suppress) {
         hit.action=bulblin->action; hit.mode=bulblin->mode; hit.oldAction=bulblin->old_action;
         std::copy(std::begin(bulblin->timer),std::end(bulblin->timer),hit.timers);
@@ -69,7 +69,7 @@ void after_bulblin_hit(ModContext*, void* args, void*, void*) {
     finish_effect_hit(actor,fpcNm_E_RD_e);
     if (actor->health<=0) return; // Preserve all native lethal state and effects.
     bulblin->damage_timer=std::min<s16>(bulblin->damage_timer,10);
-    if (!hit.suppress) return; // Ball and shield retain native knockdown/stagger.
+    if (!hit.suppress) return; // Living actors use the bounded run knockback.
     bulblin->action=hit.action; bulblin->mode=hit.mode; bulblin->old_action=hit.oldAction;
     std::copy(std::begin(hit.timers),std::end(hit.timers),bulblin->timer);
     bulblin->anm=hit.animation; actor->speedF=hit.speedF; actor->speed=hit.speed;
