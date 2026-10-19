@@ -1242,3 +1242,48 @@ model. Both variants and normal/elite sizes use the same fix. Terrain handling,
 normal target acquisition, damage and no-normal-hit-invulnerability rules remain
 unchanged. Regression coverage checks heading preservation on both sides of
 Link and complete traversal of his position.
+
+
+### Committed enemy movement audit (PR #140)
+
+Close-range facing runs before Execute and again after floor correction. Native
+AI often stops tracking during a leap or fly-through; overriding its heading or
+saved target turns that intended pass into repeated overlap with a stationary
+Link. Keep pursuit and wind-up tracking, but yield the following committed
+movement to native AI for normal enemies and elites:
+
+| Enemy | Protected movement |
+| --- | --- |
+| Bokoblin | Attack root-motion lunge after the initial setup state |
+| Rat | Airborne attack and landing (attack modes 4–5) |
+| Keese | Committed dive and braking; preserve the saved target as well as heading |
+| Shadow Keese | Committed dive and braking |
+| Tektite | Airborne chase hop, attack jump, first-attack jump and landing |
+| Guay | Dive and fly-out (attack modes 2–3) |
+| Kargarok | Native attack flight/orbit sequence, including dive and recovery |
+| Stalhound | Launched attack leap and landing |
+| Black Chu | Attack jump and landing |
+| Lizalfos | Moving weapon/tail attacks, jump and gap jump |
+| Dynalfos | Moving weapon/tail attacks, jump and gap jump |
+| Darknut | Native unarmored footwork/side/back jumps, attacks and armor-break jump; retain extra armored pursuit/guard facing |
+
+Helmasaur/Helmasaurus already retain their native dash heading from the previous
+fix. Dedicated boss profiles already excluded from this extra facing layer
+(Stallord, Zant's Hand, Carrier and later dedicated bosses) retain that exclusion.
+Stationary melee attacks such as Stalfos, Shadow Beast and Bulblin do not share
+these committed movement paths and are not changed by this audit. Damage,
+invulnerability, attack timing, terrain and the Enemy Collision toggle are
+unchanged. Regression fixtures test both sides of Link at the pre/post-movement
+boundaries, native target retention, elite sizes and return to normal tracking.
+
+### iOS prepatch report artifact
+
+`ios-prepatch-reports` was added with the platform compatibility checks, starting
+with build 1079. It is diagnostic JSON, not a mod or a file to install. The CI
+extracts a temporary copy of the official Dusklight v2.0.3 iOS executable and the
+newly built module, validates the hook declarations, prepares the copy with
+symgen, then validates its hook gateways again. `before.json`, `prepare.json`
+and `after.json` preserve these three results, including diagnostics on failure.
+The original IPA and downloadable mod bundle remain unchanged. The reports
+catch iOS hook preparation problems that a successful C++ build alone would not
+find; they do not replace a signed-app installation or in-game test.

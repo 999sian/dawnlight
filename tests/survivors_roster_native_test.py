@@ -60,7 +60,7 @@ struct NativeActor:fopAc_ac_c {
  dCcU_AtInfo mAtColliderInfo;dCcD_Stts mCollisionStatus;
  mDoExt_McaMorfSO* mAnm_p=&morph;
  float field_0x6bc=0,mPlayerCheckDist=0,mSearchRange=0,mPlayerTrigger=0;
- int field_0x68c=0,field_0x676=0,mWeaponType=1,mGroupID=0;dCcD_Cyl mCcCyl;
+ int field_0x68c=0,field_0x676=0,field_0x678=0,mWeaponType=1,mGroupID=0;dCcD_Cyl mCcCyl;
  dCcU_AtInfo mAtInfo,at_info,atInfo;dCcD_Stts mStts,stts,ccStts,mCcStts,mStts1;
  mDoExt_McaMorfSO morph; mDoExt_McaMorfSO* mpMorfSO=&morph,*mpMorf=&morph,*anm_p=&morph,*modelMorf=&morph,*mpModelMorf=&morph,*mpModelMorf1=&morph;
  void setActionMode(int a,int m=0){mAction=mActionMode=mActionMode1=a;mMode=mMoveMode=m;}
@@ -73,7 +73,7 @@ using daE_TT_c=NativeActor;using daE_GE_c=NativeActor;using e_kr_class=NativeAct
 using e_mm_class=NativeActor;using e_mm_mt_class=NativeActor;using e_cr_class=NativeActor;using e_bs_class=NativeActor;
 using daE_GI_c=NativeActor;using e_sf_class=NativeActor;using e_fs_class=NativeActor;using e_bu_class=NativeActor;
 using e_sm2_class=NativeActor;using e_mf_class=NativeActor;using daB_GG_c=NativeActor;using daB_TN_c=NativeActor;
-constexpr int ACTION_COMBINE=2,ACTION_ATTACK=1;
+constexpr int ACTION_COMBINE=2,ACTION_ATTACK=1,ACT_ATTACK=3;
 unsigned s_map=0;
 struct Enemy {int eliteSlot=-1;ActorId id=kNone;ProfileName profile=0;unsigned species=0,stagger=0,hitCooldown=0,age=1;
  cCcD_Obj* childHit=nullptr;bool elite=false,credited=false,retiring=false,initialized=true,dormant=false;};
@@ -304,10 +304,52 @@ int main(){
   assert(runner.current.angle.y==-0x4000); // Normal acquisition still turns toward Link.
  }
  player.current.pos={100,0,0};e.species=0;e.elite=false;
+ // Every additional committed-motion exclusion preserves travel and visual
+ // headings, plus native target fields, before/after crossing the player.
+ struct MotionCase{int profile;unsigned species;int NativeActor::*action;int active;int NativeActor::*phase;int first,last;};
+ const MotionCase motions[]={
+  {fpcNm_E_TT_e,unsigned(Species::Tektite),&NativeActor::mAction,1,&NativeActor::mMode,6,8},
+  {fpcNm_E_TT_e,unsigned(Species::Tektite),&NativeActor::mAction,2,&NativeActor::mMode,2,4},
+  {fpcNm_E_TT_e,unsigned(Species::Tektite),&NativeActor::mAction,6,&NativeActor::mMode,12,14},
+  {fpcNm_E_GE_e,unsigned(Species::Guay),&NativeActor::mActionMode,2,&NativeActor::mMode,2,3},
+  {fpcNm_E_KR_e,unsigned(Species::Kargarok),&NativeActor::mCurAction,3,&NativeActor::field_0x672,0,11},
+  {fpcNm_E_YK_e,unsigned(Species::ShadowKeese),&NativeActor::mAction,ACT_ATTACK,&NativeActor::mActionPhase,2,3},
+  {fpcNm_E_SH_e,unsigned(Species::Stalhound),&NativeActor::field_0x676,3,&NativeActor::field_0x678,3,4},
+  {fpcNm_E_SM2_e,unsigned(Species::BlackChu),&NativeActor::action,ACTION_ATTACK,&NativeActor::mode,0,2},
+  {fpcNm_E_DN_e,unsigned(Species::Lizalfos),&NativeActor::action,5,&NativeActor::mode,0,1},
+  {fpcNm_E_DN_e,unsigned(Species::Lizalfos),&NativeActor::action,6,&NativeActor::mode,0,1},
+  {fpcNm_E_DN_e,unsigned(Species::Lizalfos),&NativeActor::action,8,&NativeActor::mode,0,4},
+  {fpcNm_E_DN_e,unsigned(Species::Lizalfos),&NativeActor::action,25,&NativeActor::mode,0,4},
+  {fpcNm_E_MF_e,unsigned(Species::Dynalfos),&NativeActor::mAction,5,&NativeActor::field_0x5b4,0,1},
+  {fpcNm_E_MF_e,unsigned(Species::Dynalfos),&NativeActor::mAction,6,&NativeActor::field_0x5b4,0,1},
+  {fpcNm_E_MF_e,unsigned(Species::Dynalfos),&NativeActor::mAction,8,&NativeActor::field_0x5b4,0,4},
+  {fpcNm_E_MF_e,unsigned(Species::Dynalfos),&NativeActor::mAction,25,&NativeActor::field_0x5b4,0,4},
+  {fpcNm_B_TN_e,unsigned(Species::Darknut),&NativeActor::mActionMode1,9,&NativeActor::mMode,0,17},
+  {fpcNm_B_TN_e,unsigned(Species::Darknut),&NativeActor::mActionMode1,4,&NativeActor::mMode,0,3},
+  {fpcNm_B_TN_e,unsigned(Species::Darknut),&NativeActor::mActionMode1,10,&NativeActor::mMode,0,3}
+ };
+ for(const auto& test:motions)for(bool elite:{false,true})for(int phase=test.first;phase<=test.last;++phase) {
+  NativeActor runner;runner.profile=test.profile;runner.*test.action=test.active;runner.*test.phase=phase;
+  e.profile=test.profile;e.species=test.species;e.stagger=0;e.elite=elite;
+  const float size=elite?2.f:1.f;runner.scale={size,size,size};
+  runner.current.angle.y=0;runner.shape_angle.y=77;runner.current.pos={0,0,-100*size};
+  runner.angle_target=111;runner.mCurrentAngleYTarget=222;runner.field_0x6c0=333;
+  player.current.pos={0,0,0};
+  for(int frame=0;frame<30;++frame) {
+   face_extended_enemy(&runner,e);assert(runner.current.angle.y==0&&runner.shape_angle.y==77);
+   runner.current.pos.z+=20*size;face_extended_enemy(&runner,e);
+   assert(runner.current.angle.y==0&&runner.shape_angle.y==77);
+   assert(runner.angle_target==111&&runner.mCurrentAngleYTarget==222&&runner.field_0x6c0==333);
+  }
+  assert(runner.current.pos.z>100*size);
+  runner.*test.action=0;runner.*test.phase=0;if(test.profile==fpcNm_B_TN_e)runner.mActionMode1=3;
+  runner.current.pos={100,0,0};face_extended_enemy(&runner,e);assert(runner.current.angle.y==-0x4000);
+ }
+ player.current.pos={100,0,0};e.species=0;e.elite=false;
  // Acquisition changes no real player distances and excludes heavy-hit stagger.
  NativeActor liz;e.profile=fpcNm_E_DN_e;e.stagger=0;engage_extended_enemy(&liz,e);assert(liz.action==3&&liz.pl_range>100000);
  assert(extended_locomotion(&liz,e.profile));liz.action=5;assert(!extended_locomotion(&liz,e.profile));
- face_extended_enemy(&liz,e);assert(liz.shape_angle.y==0x4000);e.stagger=1;liz.shape_angle.y=7;face_extended_enemy(&liz,e);assert(liz.shape_angle.y==7);
+ liz.action=3;face_extended_enemy(&liz,e);assert(liz.shape_angle.y==0x4000);e.stagger=1;liz.shape_angle.y=7;face_extended_enemy(&liz,e);assert(liz.shape_angle.y==7);
  NativeActor chu;e.stagger=0;e.profile=fpcNm_E_SM2_e;chu.action=ACTION_COMBINE;engage_extended_enemy(&chu,e);
  assert(chu.combine_off_timer==30000&&chu.action==ACTION_ATTACK);
  // The doubled Lizalfos must enter native battle spacing before body contact

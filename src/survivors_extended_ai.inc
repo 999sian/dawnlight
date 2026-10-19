@@ -125,15 +125,48 @@ bool extended_locomotion(fopAc_ac_c* actor,ProfileName p) {
     default:return false;
     }
 }
+// Native lunges and jumps may deliberately use a heading different from the
+// current player direction (including Darknut's backwards/sideways movement).
+// Let their own steering/target-lock windows run before and after floor correction.
+bool committed_enemy_motion(fopAc_ac_c* actor,ProfileName profile) {
+    switch(profile) {
+    case fpcNm_E_MM_e:return reinterpret_cast<e_mm_class*>(actor)->action==1;
+    case fpcNm_E_TT_e: {
+        const auto* e=reinterpret_cast<daE_TT_c*>(actor);
+        return (e->mAction==1 && e->mMode>=6 && e->mMode<=8) ||
+            (e->mAction==2 && e->mMode>=2) || (e->mAction==6 && e->mMode>=12);
+    }
+    case fpcNm_E_GE_e: {
+        const auto* e=reinterpret_cast<daE_GE_c*>(actor);return e->mActionMode==2 && e->mMode>=2;
+    }
+    case fpcNm_E_KR_e:return reinterpret_cast<e_kr_class*>(actor)->mCurAction==3;
+    case fpcNm_E_YK_e: {
+        const auto* e=reinterpret_cast<e_yk_class*>(actor);return e->mAction==ACT_ATTACK && e->mActionPhase>=2;
+    }
+    case fpcNm_E_SH_e: {
+        const auto* e=reinterpret_cast<e_sh_class*>(actor);return e->field_0x676==3 && e->field_0x678>=3;
+    }
+    case fpcNm_E_SM2_e:return reinterpret_cast<e_sm2_class*>(actor)->action==ACTION_ATTACK;
+    case fpcNm_E_DN_e: {
+        const auto action=reinterpret_cast<e_dn_class*>(actor)->action;
+        return action==5 || action==6 || action==8 || action==25;
+    }
+    case fpcNm_E_MF_e: {
+        const auto action=reinterpret_cast<e_mf_class*>(actor)->mAction;
+        return action==5 || action==6 || action==8 || action==25;
+    }
+    case fpcNm_B_TN_e: {
+        const auto action=reinterpret_cast<daB_TN_c*>(actor)->mActionMode1;
+        return action!=3 && action!=6 && action!=12; // Preserve unarmored footwork, lunges and armor-break jump.
+    }
+    default:return false;
+    }
+}
 void face_extended_enemy(fopAc_ac_c* actor,const Enemy& enemy) {
     if(!extended_enemy(enemy.profile)||enemy.stagger || enemy.profile==fpcNm_B_DS_e ||
        enemy.profile==fpcNm_E_ZH_e || enemy.profile==fpcNm_E_YC_e ||
        enemy.species>=unsigned(Species::KingBulblin))return;
-    // Both Helmasaur variants lock target_ya during native ACTION_DASH (1).
-    // Preserve that heading through wind-up, rush and braking: close-range
-    // facing runs before and after movement and would otherwise turn the rush
-    // back into Link every frame after crossing him, trapping its hit volume.
-    if(enemy.profile==fpcNm_E_MM_e && reinterpret_cast<e_mm_class*>(actor)->action==1)return;
+    if(committed_enemy_motion(actor,enemy.profile))return;
     auto* link=daAlink_getAlinkActorClass();if(!link)return;
     const cXyz delta=link->current.pos-actor->current.pos;
     if(delta.absXZ()<1||delta.absXZ()>400*std::max(1.f,actor->scale.x)||std::abs(delta.y)>250*std::max(1.f,actor->scale.y))return;

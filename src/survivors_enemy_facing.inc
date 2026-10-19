@@ -10,13 +10,15 @@ void track_enemy_facing(fopAc_ac_c* actor) {
     bool combat=false;
     if (enemy->profile==fpcNm_E_OC_e) {
         const auto* e=static_cast<daE_OC_c*>(actor);
-        combat=e->mActionMode==3 || e->mActionMode==4;
+        combat=e->mActionMode==3 || (e->mActionMode==4 && e->mOcState==0);
     } else if (enemy->profile==fpcNm_E_MS_e) {
-        combat=static_cast<e_ms_class*>(actor)->mAction==1;
+        const auto* e=static_cast<e_ms_class*>(actor);
+        combat=e->mAction==1 && e->mMode<4; // Native leap/landing retain their committed heading.
     } else if (enemy->profile==fpcNm_E_BA_e) {
         const auto* e=reinterpret_cast<e_ba_class*>(actor);
         combat=!e->mIsDying && e->mKnockbackSpeed<=0.1f &&
-            (e->mAction==e_ba_class::ACT_FIGHT_FLY || e->mAction==e_ba_class::ACT_FIGHT || e->mAction==e_ba_class::ACT_ATTACK);
+            (e->mAction==e_ba_class::ACT_FIGHT_FLY || e->mAction==e_ba_class::ACT_FIGHT ||
+             (e->mAction==e_ba_class::ACT_ATTACK && e->mMode<2));
     } else if (enemy->profile==fpcNm_E_RD_e) {
         const auto* e=reinterpret_cast<e_rd_class*>(actor);
         combat=!e->actor_set && !e->ride_mode && e->field_0x9f0<=0.1f &&
@@ -29,7 +31,7 @@ void track_enemy_facing(fopAc_ac_c* actor) {
     actor->current.angle.y=actor->shape_angle.y=yaw;
     if (enemy->profile==fpcNm_E_MS_e) {
         auto* e=static_cast<e_ms_class*>(actor);
-        e->field_0x5c8=e->mPlayerAngleY=yaw; // Native leap otherwise keeps its windup heading.
+        e->field_0x5c8=e->mPlayerAngleY=yaw; // Wind-up only; never rewrite an airborne leap.
     } else if (enemy->profile==fpcNm_E_BA_e) {
         auto* e=reinterpret_cast<e_ba_class*>(actor);
         e->mPlayerAngleY=yaw;

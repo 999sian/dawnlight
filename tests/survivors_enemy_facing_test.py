@@ -17,10 +17,10 @@ struct daAlink_c:fopAc_ac_c{}player;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}unsigned s_player=9;
 constexpr int fpcNm_E_OC_e=1,fpcNm_E_MS_e=2,fpcNm_E_BA_e=3,fpcNm_E_RD_e=4;
-struct daE_OC_c:fopAc_ac_c{int mActionMode=4;};
-struct e_ms_class:fopAc_ac_c{int mAction=1;s16 field_0x5c8=0,mPlayerAngleY=0;};
+struct daE_OC_c:fopAc_ac_c{int mActionMode=4,mOcState=0;};
+struct e_ms_class:fopAc_ac_c{int mAction=1,mMode=0;s16 field_0x5c8=0,mPlayerAngleY=0;};
 struct e_ba_class{fopAc_ac_c enemy;enum{ACT_FIGHT_FLY,ACT_FIGHT,ACT_ATTACK,ACT_CHANCE};
- bool mIsDying=false;float mKnockbackSpeed=0;int mAction=ACT_ATTACK;s16 mPlayerAngleY=0;cXyz mTargetPos;};
+ bool mIsDying=false;float mKnockbackSpeed=0;int mAction=ACT_ATTACK,mMode=0;s16 mPlayerAngleY=0;cXyz mTargetPos;};
 struct e_rd_class{fopAc_ac_c enemy;int actor_set=0,ride_mode=0,action=4;float field_0x9f0=0;s16 angleY=0;};
 struct Enemy{bool initialized=true,retiring=false,credited=false,dormant=false;int profile=1;}enemy;
 bool owned=true,playing=true;Enemy* tracked(unsigned id){return owned&&id==1?&enemy:nullptr;}
@@ -51,6 +51,28 @@ int main(){
  player.current.pos={100,0,0};
  bok.mActionMode=6;rat.mAction=4;bat.mAction=e_ba_class::ACT_CHANCE;bulblin.action=20;
  for(unsigned i=0;i<4;++i){enemy.profile=i+1;actors[i]->shape_angle.y=123;track_enemy_facing(actors[i]);assert(actors[i]->shape_angle.y==123);}
+ // Committed root-motion attacks, airborne leaps and bat fly-throughs must
+ // not acquire a new heading/target after crossing Link, at either boundary.
+ bok.mActionMode=4;rat.mAction=1;bat.mAction=e_ba_class::ACT_ATTACK;
+ for(unsigned i=0;i<3;++i)for(float size:{1.f,2.f}) {
+  enemy.profile=i+1;auto* actor=actors[i];actor->scale={size,size,size};
+  bok.mOcState=1;rat.mMode=4;bat.mMode=2;
+  actor->current.angle.y=0;actor->shape_angle.y=77;
+  rat.field_0x5c8=123;bat.mPlayerAngleY=234;bat.mTargetPos={0,120,0};
+  actor->current.pos={0,0,-100*size};player.current.pos={0,0,0};
+  for(int frame=0;frame<30;++frame) {
+   track_enemy_facing(actor);assert(actor->current.angle.y==0&&actor->shape_angle.y==77);
+   actor->current.pos.z+=20*size;
+   dBgS_Acch acch{actor};std::any args[]={&acch};after_enemy_facing(nullptr,args,nullptr,nullptr);
+   assert(actor->current.angle.y==0&&actor->shape_angle.y==77);
+   assert(rat.field_0x5c8==123&&bat.mPlayerAngleY==234&&bat.mTargetPos.z==0);
+  }
+  assert(actor->current.pos.z>100*size);
+  bok.mOcState=0;rat.mMode=3;bat.mMode=1;
+  actor->current.pos={0,0,0};player.current.pos={100,0,0};track_enemy_facing(actor);
+  assert(actor->current.angle.y==0x4000); // Wind-up/approach still tracks normally.
+ }
+ bok.current.pos={0,0,0};bok.mOcState=0;
  enemy.profile=1;bok.mActionMode=4;bok.scale={2,2,2};player.current.pos={700,0,0};track_enemy_facing(&bok);assert(bok.shape_angle.y==0x4000);
 }
 '''
