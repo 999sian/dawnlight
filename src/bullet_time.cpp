@@ -1,3 +1,4 @@
+#include "platform_compat.hpp"
 #include "bullet_time.hpp"
 
 #include "aim_hooks.hpp"
@@ -103,7 +104,12 @@ DEFINE_HOOK(&dMeter2Draw_c::getActionString, FlurryActionStringHook);
 DEFINE_HOOK(&J3DModel::calc, CombatModelCalcHook);
 DEFINE_HOOK(&J3DModel::viewCalc, CombatModelViewCalcHook);
 DEFINE_HOOK(&fpcM_DrawIterater, DrawIteraterHook);
+#if DAWNLIGHT_IOS
+// No hook metadata: an optional runtime check cannot hide an invalid prepatch target.
+struct DspRenderHook {static inline void (*g_orig)(void*)=nullptr;};
+#else
 DEFINE_HOOK_SYMBOL("dusk::audio::DspRender", void(void*), DspRenderHook);
+#endif
 
 struct ColliderCacheEntry {
     fopAc_ac_c* actor = nullptr;
@@ -2177,8 +2183,13 @@ ModResult initialize_bullet_time(ModError* error) {
             svc_hook, before_draw_iterater);
     }
     if (result == MOD_OK) {
+#if DAWNLIGHT_IOS
+        if(svc_log)svc_log->warn(mod_ctx,
+            "Dawnlight iOS: native audio rate retained; host DSP entry has no prepatch support");
+#else
         result = mods::hook::replace<DspRenderHook>(
             svc_hook, replace_dsp_render);
+#endif
     }
     if (result == MOD_OK) {
 #if defined(__APPLE__)

@@ -1,3 +1,4 @@
+#include "survivors.hpp"
 #include "combat_meter.hpp"
 
 #include "hud_layout.hpp"
@@ -212,6 +213,7 @@ ScreenBounds position_combat_meter(dMeter2Draw_c* meter, int row, const DuskModH
 }  // namespace
 
 bool combat_meter_hud_visible() {
+    if(survivors_save_screen_active())return false;
     return dMeter2Info_getWindowStatus() == 0 && dMeter2Info_getPauseStatus() == 0 &&
            !dComIfGp_isPauseFlag() && !dComIfGp_event_runCheck() &&
            !dMeter2Info_isShopTalkFlag() && !dMsgObject_isTalkNowCheck();

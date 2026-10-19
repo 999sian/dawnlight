@@ -8,7 +8,7 @@ on:
   pull_request:
 
 env:
-  SYMGEN_VERSION: v1.2.4
+  SYMGEN_VERSION: v1.3.6
 
 jobs:
   build:
@@ -279,6 +279,8 @@ jobs:
       - name: Test Survivors combat and native combo selection
         if: matrix.platform == 'linux-x86_64'
         run: |
+          python3 tests/survivors_save_modal_test.py
+          CXX=clang++ python3 tests/survivors_save_modal_test.py
           python3 tests/survivors_ending_test.py
           CXX=clang++ python3 tests/survivors_ending_test.py
           python3 tests/survivors_options_test.py
@@ -440,6 +442,22 @@ jobs:
           curl -fsSL -o symgen \
             "https://github.com/encounter/symgen/releases/download/${SYMGEN_VERSION}/symgen-linux-x86_64"
           chmod +x symgen
+
+      - name: Validate iOS hook preparation against Dusklight v2.0.3
+        run: |
+          curl -fL --retry 3 -o "$RUNNER_TEMP/dusklight.ipa" \
+            "https://github.com/TwilitRealm/dusklight/releases/download/v2.0.3/Dusklight-v2.0.3-ios-arm64.ipa"
+          python3 tools/check_ios_prepatch.py --symgen ./symgen \
+            --ipa "$RUNNER_TEMP/dusklight.ipa" --bundle dist/mod-ios-arm64/*.dusk \
+            --output "$RUNNER_TEMP/ios-prepatch"
+
+      - name: Upload iOS preparation reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ios-prepatch-reports
+          path: ${{runner.temp}}/ios-prepatch/*.json
+          if-no-files-found: ignore
 
       - name: Merge bundles
         run: |

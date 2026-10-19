@@ -1,3 +1,4 @@
+#include "platform_compat.hpp"
 #include "survivors.hpp"
 #include "survivors_integrity.hpp"
 #include "d/d_door_param2.h"
@@ -27,6 +28,9 @@
 #include "mods/service.hpp"
 #include "mods/svc/flow.hpp"
 #include "dusk/ui/nav_types.hpp"
+#include "d/d_menu_save.h"
+#include "d/d_menu_window.h"
+#include "d/d_meter_map.h"
 #include "d/d_menu_ring.h"
 #include "d/d_menu_collect.h"
 #include "d/d_menu_item_explain.h"
@@ -228,7 +232,12 @@ DEFINE_HOOK(&daAlink_c::checkLightSwordMtrl, SurvivorsLightSword);
 DEFINE_HOOK(&dMeter2Draw_c::draw, SurvivorsHud);
 DEFINE_HOOK(&dComIfGs_gameStart, SurvivorsGameStart);
 DEFINE_HOOK(&mDoCPd_c::read, SurvivorsPad);
-DEFINE_HOOK(&dCamera_c::GetCameraTypeFromToolData, SurvivorsCameraType);
+DEFINE_HOOK(&dCamera_c::setMapToolData, SurvivorsCameraType);
+DEFINE_HOOK(&dMenu_save_c::_open, SurvivorsSaveOpen);
+DEFINE_HOOK(&dMenu_save_c::_delete, SurvivorsSaveDelete);
+DEFINE_HOOK(&dMeterMap_c::meter_map_move, SurvivorsSaveMapMove);
+DEFINE_HOOK(&dMeterMap_c::keyCheck, SurvivorsSaveMapKeys);
+DEFINE_HOOK(&dMw_c::key_wait_proc, SurvivorsSaveMenuKeys);
 DEFINE_HOOK(&dComIfG_changeOpeningScene, SurvivorsOpening);
 DEFINE_HOOK(&fpcMtd_Method, SurvivorsProcess);
 DEFINE_HOOK(&fopAcM_createItemFromTable, SurvivorsDrops);
@@ -266,10 +275,12 @@ bool map_available(unsigned map) {
 bool s_progressSaving=false, s_progressSaved=false;
 UiWindowHandle s_refreshChoices=0;
 // Opaque host documents: no private RmlUi/Window layouts are copied.
+#if !DAWNLIGHT_IOS
 DEFINE_HOOK_SYMBOL("dusk::ui::Window::handle_nav_command",
                    bool(void*, void*, dusk::ui::NavCommand), SurvivorsMenuWindow);
 DEFINE_HOOK_SYMBOL("dusk::ui::Modal::handle_nav_command",
                    bool(void*, void*, dusk::ui::NavCommand), SurvivorsMenuModal);
+#endif
 void* s_menuDocument = nullptr;
 void* s_talentDocument = nullptr;
 void remember_menu_document(bool talent);
@@ -398,7 +409,9 @@ const dCcD_SrcSph kAttackSource = {
 bool in_arena() {
     return s_active && s_gameStarted && arena_matches(s_map, dComIfGp_getStartStageName(), dComIfGp_getStartStageRoomNo());
 }
+#include "survivors_save_modal.inc"
 bool ui_visible() {
+    if(save_modal_active())return true;
     bool value = false;
     svc_ui->is_any_document_visible(mod_ctx, &value);
     return value;
@@ -1116,6 +1129,7 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
 #include "survivors_elite_scale.inc"
 #include "survivors_bosses.inc"
 bool pause_run_actor(bool enemy) {
+    if(save_modal_active())return true;
     if (!in_arena() || s_run.phase == Phase::Loading) return false;
     if (enemy && (s_victory || s_deathPending || midna_dialog_busy() || dComIfGp_event_runCheck())) return true;
     if (s_deathPending && !enemy) return false; // Link must finish PROC_DEAD.
@@ -1276,6 +1290,7 @@ void label(const char* text, float x, float y, float size) {
 #include "survivors_feedback_draw.inc"
 #include "survivors_boss_hud.inc"
 void draw_hud(ModContext*, void* args, void*, void*) {
+    if(save_modal_active())return;
     if(survivors_hub_active()) {draw_hub_labels();return;}
     if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
@@ -1459,6 +1474,7 @@ bool survivors_dual_wield() {
     return in_arena() && s_run.owns(ChestReward::OrdonSword) && !shield_pose(daAlink_getAlinkActorClass());
 }
 bool survivors_arena_active() { return in_arena(); }
+bool survivors_save_screen_active() { return save_modal_active(); }
 bool survivors_dark_link_active() {
     return in_arena() && s_run.dark_active() && (s_run.phase == Phase::Running ||
         s_run.phase == Phase::Upgrade || s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Treasure);
@@ -1554,7 +1570,10 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsPotionDrink, before_potion_drink); POST(SurvivorsPotionDrink, after_potion_drink);
     PRE(SurvivorsPotionHeal, before_potion_heal);
     PRE(SurvivorsPad, before_survivors_pad); POST(SurvivorsPad, after_survivors_pad);
-    POST(SurvivorsCameraType, after_survivors_camera_type);
+    POST(SurvivorsCameraType, after_survivors_camera_tools);
+    PRE(SurvivorsSaveOpen,before_save_screen_open); PRE(SurvivorsSaveDelete,before_save_screen_delete);
+    PRE(SurvivorsSaveMapMove,before_save_gameplay_menu); PRE(SurvivorsSaveMapKeys,before_save_gameplay_menu);
+    PRE(SurvivorsSaveMenuKeys,before_save_gameplay_menu);
     PRE(SurvivorsCamera, before_run_camera); POST(SurvivorsCamera, after_run_camera);
     PRE(SurvivorsArenaExit, before_arena_exit);
     PRE(SurvivorsArenaRestart, before_arena_restart);
@@ -1651,6 +1670,7 @@ void shutdown_survivors() {
     if (s_savePrompt != kNone) { d_GameOver_Delete(s_savePrompt); s_savePrompt = kNone; }
     if (s_registered) svc_game_mode->unregister_game_mode(mod_ctx, kMode);
     s_registered = false;
+    s_nativeSaveScreens.clear();
     // Loader removes callbacks after shutdown. No native actor profile points at
     // this module; outstanding deletes belong to the scene and remain safe.
 }

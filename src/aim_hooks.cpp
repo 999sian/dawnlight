@@ -1,3 +1,4 @@
+#include "platform_compat.hpp"
 #include "aim_hooks.hpp"
 #include "bullet_time.hpp"
 #include "config.hpp"
@@ -18,7 +19,7 @@
 #include "mods/svc/hook.h"
 #include "SSystem/SComponent/c_math.h"
 
-#if __has_include(<RmlUi/Core.h>) && __has_include(<SDL3/SDL_touch.h>) && \
+#if !DAWNLIGHT_IOS && __has_include(<RmlUi/Core.h>) && __has_include(<SDL3/SDL_touch.h>) && \
     __has_include("dusk/ui/touch_controls.hpp")
 #define DAWNLIGHT_HAS_PRIVATE_TOUCH_UI 1
 #include <RmlUi/Core.h>
@@ -1529,6 +1530,10 @@ bool update_bullet_time_bow_aim(daAlink_c* link) {
 }
 
 ModResult install_aim_hooks(ModError* error) {
+#if DAWNLIGHT_IOS
+    if(svc_log)svc_log->warn(mod_ctx,
+        "Dawnlight iOS: native touch aiming retained; private touch entries have no prepatch support");
+#endif
     return add_aim_hooks(error, mods::hook_add_pre<BowSubjectHook>(svc_hook, replace_bow_subject));
 }
 

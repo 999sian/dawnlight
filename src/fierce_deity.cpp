@@ -1,3 +1,4 @@
+#include "platform_compat.hpp"
 #include "fierce_deity.hpp"
 #include "survivors.hpp"
 #include "fierce_deity_eye_bloom.hpp"
@@ -57,7 +58,11 @@ DEFINE_HOOK(&daAlink_c::setDamagePoint, FierceReceivedDamageHook);
 DEFINE_HOOK(&cc_at_check, FierceDamageCheckHook);
 DEFINE_HOOK(&dMeter2Draw_c::draw, FierceMeterDrawHook);
 DEFINE_HOOK(&fpcLf_Delete, FiercePlayerDeleteHook);
+#if DAWNLIGHT_IOS
+DEFINE_HOOK(&mDoCPd_c::read, FierceGameCombosHook);
+#else
 DEFINE_HOOK_SYMBOL("dusk::processGameCombos", void(), FierceGameCombosHook);
+#endif
 DEFINE_HOOK(&daAlink_c::midnaTalkTrigger, FierceMidnaTriggerHook);
 
 float maximum_gauge() { return static_cast<float>(dark_link_setting(DarkLinkSetting::Gauge)); }
@@ -178,6 +183,7 @@ bool is_sword_attack(const dCcU_AtInfo* attack) {
 }
 
 bool menu_or_pause_active() {
+    if(survivors_save_screen_active())return true;
     return dMeter2Info_getWindowStatus() != 0 || dMeter2Info_getPauseStatus() != 0 ||
            dComIfGp_isPauseFlag() || dComIfGp_event_runCheck() ||
            dMeter2Info_isShopTalkFlag() || dMsgObject_isTalkNowCheck();
@@ -726,7 +732,12 @@ ModResult initialize_fierce_deity(ModError* error) {
         return mods::set_error(error, result,
             "failed to install Dawnlight Fierce Deity player pre-hook");
     }
+#if DAWNLIGHT_IOS
+    result = mods::hook::add_post<FierceGameCombosHook>(svc_hook,
+        [](ModContext* c,void* a,void* r,void* u){before_fierce_game_combos(c,a,r,u);});
+#else
     result = mods::hook::add_pre<FierceGameCombosHook>(svc_hook, before_fierce_game_combos);
+#endif
     if (result != MOD_OK) {
         return mods::set_error(error, result,
             "failed to install Dawnlight Dark Link input hook");

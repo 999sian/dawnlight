@@ -128,6 +128,7 @@ bool draw_boss_health_meter(dMeter2Draw_c*,float percentage,float x,float y,floa
 struct ModContext {};
 int potion_slot(){return -1;}
 Run s_run; unsigned s_spawnFailures=0;
+bool saving=false;bool save_modal_active(){return saving;}
 bool in_arena(){return arena;} bool transitioning(){return transition;} bool ui_visible(){return window;}
 J2DGrafContext* dComIfGp_getCurrentGrafPort(){return hasGraf?&context:nullptr;}
 struct mDoGph_gInf_c {static float getMinXF(){return 0;} static float getWidthF(){return 608;}};
@@ -158,6 +159,8 @@ int main(){
     }
     s_victory=false;s_deathPending=true;s_run.phase=Phase::Defeat;boxes=labels=0;
     draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels);s_deathPending=false;
+    s_run.phase=Phase::Running;saving=true;boxes=labels=rubyLabels=0;
+    draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels&&!rubyLabels);saving=false;
     // Only live, initialized elites appear. Prefer the nearest initially and
     // keep it stable as another elite walks closer; timed bosses take priority.
     assert(!boss_hud_target());

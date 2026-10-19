@@ -1133,3 +1133,38 @@ distance hook's entry passed v2.0.3 trampoline preparation on all seven dynamic
 hook platforms; the iOS entry has the required patchable NOP. This does not
 resolve the separately tracked Linux ARM64 camera and iOS prepatch TODOs, and
 does not replace an in-game combat test.
+
+### Platform compatibility and native save dialogs (PR #140 follow-up)
+
+Palace camera normalization now runs after `dCamera_c::setMapToolData`, on
+camera-local gameplay tool copies and their cached type. This avoids the
+unrelocatable Linux ARM64 v2.0.3 entry of `GetCameraTypeFromToolData`; authored
+stage records, actor-owned/tag cameras and event/subject selection stay native.
+The replacement camera hook and five save-dialog/input hooks resolve in the
+v2.0.3 binaries for all eight platform variants and pass offline Funchook
+preparation on the seven dynamic-hook platforms. iOS entries have patchable
+NOPs; that alone is not an app preparation test.
+
+On iOS, jump/Dark Link input handling runs immediately after native pad sampling,
+before host combo processing. The mod no longer declares hooks on the six
+private v2.0.3 host targets that lack prepatch support. The optional touch adapter,
+DSP time stretching and automatic Survivors-to-host-menu handoff use explicit,
+logged fallbacks: native touch aiming, native audio rate, and closing the
+Survivors window before opening the host menu. This resolves their load blockers
+without claiming feature parity or altering the host binary's prologues.
+
+CI uses symgen 1.3.6 and the official v2.0.3 IPA with the freshly built iOS module:
+`tools/check_ios_prepatch.py` checks declarations, prepares a temporary app copy,
+and rechecks every gateway. Failures block the combined bundle. JSON reports
+are retained; the modified app is discarded and no IPA is distributed. Device
+launch, touch/gyro operation and audio remain manual validation requirements.
+
+Native save dialogs are tracked from opening through slot selection, prompts,
+errors and closing, then removed before destruction. Survivors' own pending
+save prompt and progress writes also suppress gameplay. During that interval,
+Link/enemies pause, gameplay HUD and the floating Talents/Start Run labels hide,
+and the gameplay map/menu entry points ignore input. The save dialog retains
+its own A/B/D-pad handling, so confirmation, cancellation and retry still work.
+HUD render scopes restore afterward and ordinary gameplay outside Survivors
+is unaffected. Regression tests exercise native save lifetime, nested windows,
+HUD suppression/restoration and the existing hub/ending flows.

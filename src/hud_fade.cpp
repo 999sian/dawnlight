@@ -1,3 +1,4 @@
+#include "survivors.hpp"
 #include "hud_fade.hpp"
 
 #include "combat_meter.hpp"
@@ -109,6 +110,10 @@ void restore_alpha(std::vector<DrawAlphaFrame>& stack, void* call) {
 HookAction before_hud(ModContext*, void* args, void*, void*) {
     s_hudCalls.push_back(args);
     if (s_hudDepth++ == 0) update_idle();
+    if(survivors_save_screen_active()) {
+        s_hudAlpha=0; // Also suppress nested HUD draws from post callbacks.
+        return HOOK_SKIP_ORIGINAL;
+    }
     return HOOK_CONTINUE;
 }
 void after_hud(ModContext*, void* args, void*, void*) {

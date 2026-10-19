@@ -1,3 +1,4 @@
+#include "platform_compat.hpp"
 #include "bullet_time.hpp"
 #include "config.hpp"
 #include "fierce_deity.hpp"
@@ -48,7 +49,9 @@ DEFINE_HOOK(&daAlink_c::procWolfAutoJumpInit, WolfSprintJump);
 DEFINE_HOOK(&daAlink_c::getMainBckData, GetMainBckDataSprint);
 DEFINE_HOOK(&daAlink_c::setDoubleAnime, SetDoubleAnimeSprint);
 DEFINE_HOOK(&daAlink_c::execute, JumpAbilitiesExecute);
+#if !DAWNLIGHT_IOS
 DEFINE_HOOK_SYMBOL("dusk::processGameCombos", void(), JumpGameCombos);
+#endif
 DEFINE_HOOK(&daAlink_c::draw, JumpAbilitiesDraw);
 DEFINE_HOOK(&daAlink_c::setDrawHand, GliderDrawHand);
 DEFINE_HOOK(&fpcLf_Delete, JumpAbilitiesDelete);
@@ -609,7 +612,13 @@ ModResult install_jump_hooks(ModError* error) {
         result = mods::hook_add_pre<SetBodyAngleXReadyAnime>(
             svc_hook, before_set_body_angle_x_ready_anime);
     }
+#if DAWNLIGHT_IOS
+    // Pad sampling completes before host combos in both simulation loops.
+    if (result == MOD_OK) result = mods::hook_add_post<JumpPadRead>(svc_hook,
+        [](ModContext* c,void* a,void* r,void* u){before_jump_game_combos(c,a,r,u);});
+#else
     if (result == MOD_OK) result = mods::hook_add_pre<JumpGameCombos>(svc_hook, before_jump_game_combos);
+#endif
     if (result == MOD_OK) result = mods::hook_add_pre<JumpAbilitiesExecute>(svc_hook, before_jump_abilities_execute);
     if (result == MOD_OK) result = mods::hook_add_post<JumpAbilitiesExecute>(svc_hook, after_jump_abilities_execute);
     if (result == MOD_OK) result = mods::hook_add_post<JumpAbilitiesDraw>(svc_hook, after_jump_abilities_draw);

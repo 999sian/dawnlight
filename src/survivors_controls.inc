@@ -22,16 +22,21 @@ void after_survivors_pad(ModContext*,void*,void*,void*) {
     pad.mTriggerLeft=attack?1.f:0.f;
     pad.mHoldLockL=attack;pad.mTrigLockL=attackPressed;
 }
-// Normalize authored Palace gameplay cameras at type selection, before native
-// orbit smoothing, collision and our distance multiplier. Event/subject/tag
-// cameras retain their own types and the stage's cached records stay untouched.
-void after_survivors_camera_type(ModContext*,void* args,void* result,void*) {
+// Normalize only the camera's local gameplay tool copies, before nextType()
+// selects its style. GetCameraTypeFromToolData's ARM64 entry cannot be relocated
+// by Funchook on Linux v2.0.3; the enclosing setMapToolData has a stable entry.
+// Authored stage records, tag cameras and event/subject selection stay native.
+void after_survivors_camera_tools(ModContext*,void* args,void*,void*) {
     auto* camera=mods::arg<dCamera_c*>(args,0);
-    auto* data=mods::arg<stage_camera2_data_class*>(args,1);
-    if(!result||!camera||camera->mPadID!=0||!in_arena()||
+    if(!camera||camera->mPadID!=0||!in_arena()||
        std::string_view(arena().stage)!="D_MN08"||dComIfGp_event_runCheck())return;
-    if(data!=&camera->mStageCamTool.mCamData&&data!=&camera->mRoomMapTool.mCamData&&
-       data!=&camera->mDefRoomCamTool.mCamData)return;
     const int type=camera->GetCameraTypeFromCameraName("DungeonS");
-    if(type>=0&&type<camera->mCamTypeNum)*static_cast<int*>(result)=type;
+    if(type<0||type>=camera->mCamTypeNum)return;
+    for(auto* tool:{&camera->mStageCamTool,&camera->mRoomMapTool,&camera->mDefRoomCamTool}) {
+        if(tool->mCameraIndex!=0xff && tool->mCameraIndex!=0x1ff && !tool->mpActor)
+            tool->mCamData.field_0x16=type;
+    }
+    if(camera->mStageCamTool.mCameraIndex!=0xff && camera->mStageCamTool.mCameraIndex!=0x1ff &&
+       !camera->mStageCamTool.mpActor)
+        camera->mMapToolType=type;
 }

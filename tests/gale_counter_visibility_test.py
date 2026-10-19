@@ -31,6 +31,7 @@ struct Pane {
 struct CPaneMgr {Pane pane;Pane* getPanePtr(){return &pane;}};
 struct dMeter2Draw_c {Pane* mpKanteraScreen;CPaneMgr* mpMagicParent;};
 struct daAlink_c {bool wolf=false;bool checkWolf(){return wolf;}} link;
+bool saving=false;bool survivors_save_screen_active(){return saving;}
 bool window=false,pauseStatus=false,pause=false,event=false,shop=false,talk=false;
 bool nextStage=false,gale=true,counterVisible=true,staminaVisible=true,custom=false;
 bool dMeter2Info_getWindowStatus(){return window;}
@@ -42,6 +43,7 @@ bool dMsgObject_isTalkNowCheck(){return talk;}
 bool dComIfGp_isEnableNextStage(){return nextStage;}
 bool revalis_gale_enabled(){return gale;}
 bool gale_counter_visible(){return counterVisible;}
+float maximum_stamina(){return 100;}
 bool stamina_meter_visible(){return staminaVisible;}
 bool custom_hud_layout_enabled(){return custom;}
 daAlink_c* daAlink_getAlinkActorClass(){return &link;}
@@ -64,7 +66,7 @@ int main(){
     Pane screen;CPaneMgr magic;magic.pane.parent=&screen;
     dMeter2Draw_c meter{&screen,&magic};
     auto draw=[&]{barAlpha=counterAlpha=0;after_meter_draw(nullptr,&meter,nullptr,nullptr);after_draw(nullptr,&meter,nullptr,nullptr);};
-    for(bool* blocked:{&window,&pauseStatus,&pause,&event,&shop,&talk}){
+    for(bool* blocked:{&saving,&window,&pauseStatus,&pause,&event,&shop,&talk}){
         *blocked=true;draw();near(barAlpha,0);near(counterAlpha,0);
         *blocked=false;draw();near(barAlpha,1);near(counterAlpha,1);
     }

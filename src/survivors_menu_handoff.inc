@@ -41,6 +41,11 @@ void initialize_menu_handoff() {
             "; continuing without menu handoff";
         svc_log->warn(mod_ctx, message.c_str());
     };
+#if DAWNLIGHT_IOS
+    // These optional private UI entries have no iOS prepatch gateways. Omit
+    // their declarations too; users can close our window before the host menu.
+    unavailable("iOS host UI has no prepatch support; close the Survivors window before opening the host menu");
+#else
     const auto resolve = [&](const char* name, auto& function) {
         void* address = nullptr;
         if (svc_hook->resolve(mod_ctx, name, &address, nullptr) != MOD_OK || !address) {
@@ -66,4 +71,5 @@ void initialize_menu_handoff() {
         return;
     }
     s_menuHost.enabled = true;
+#endif
 }

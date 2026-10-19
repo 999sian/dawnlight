@@ -25,7 +25,8 @@ fixture = r'''
 using namespace dawnlight;
 using u8=uint8_t;using s16=int16_t;
 struct ModContext {};
-enum HookAction {HOOK_CONTINUE};
+enum HookAction {HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
+bool saving=false;bool survivors_save_screen_active(){return saving;}
 struct cXyz {float x=0,y=0,z=0; cXyz operator-(cXyz p){return {x-p.x,y-p.y,z-p.z};}
     float abs2() const {return x*x+y*y+z*z;}};
 struct daAlink_c {
@@ -190,6 +191,21 @@ int main(){
     after_screen(nullptr,&screen,nullptr,nullptr);
     before_picture(nullptr,&picture,nullptr,nullptr);assert(picture.alpha==128);
     after_picture(nullptr,&picture,nullptr,nullptr);
+
+    // Native save draws stay visible outside HUD scope; nested HUD callbacks
+    // and post-hook overlays remain hidden even with automatic fading disabled.
+    shutdown_hud_fade();autoFade=false;saving=true;
+    assert(before_hud(nullptr,&screen,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+    assert(before_hud(nullptr,&picture,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+    before_picture(nullptr,&picture,nullptr,nullptr);assert(picture.alpha==0);
+    after_picture(nullptr,&picture,nullptr,nullptr);assert(picture.alpha==128);
+    after_hud(nullptr,&picture,nullptr,nullptr);
+    before_screen(nullptr,&screen,nullptr,nullptr);assert(screen.alpha==0);
+    after_screen(nullptr,&screen,nullptr,nullptr);
+    after_hud(nullptr,&screen,nullptr,nullptr);assert(s_hudDepth==0);
+    before_screen(nullptr,&screen,nullptr,nullptr);assert(screen.alpha==200);
+    after_screen(nullptr,&screen,nullptr,nullptr);
+    saving=false;tick(100.2);near(s_hudAlpha,1);autoFade=true;
 
     // Same screen reused for both bars: local fading must not leak between draws.
     screen.alpha=255;screen.child=nullptr;shutdown_hud_fade();

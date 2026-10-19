@@ -38,6 +38,7 @@ bool s_active=true,s_victory=false,s_deathPending=false,s_deathDismiss=false,s_r
 bool s_progressSaved=false,s_storeFailed=false,s_hub=false;
 unsigned s_victoryTicks=0,s_player=42;fpc_ProcID s_deathGameOver=kNone;
 bool arena=true,paused=false,event=false,ui=false,transition=false;unsigned life=12;
+bool saving=false;bool save_modal_active(){return saving;}
 bool in_arena(){return arena;}bool transitioning(){return transition;}bool ui_visible(){return ui;}
 bool playable(){return arena&&!paused&&!event&&!ui&&!transition;}
 bool midna_dialog_busy(){return false;}bool dComIfGp_event_runCheck(){return event;}
@@ -106,6 +107,7 @@ int main(){
  assert(s_victoryWave.origin.x==200&&s_victoryWave.origin.y==80&&s_victoryWave.origin.z==300);
  assert(!pickupsRetired&&!save.writes&&s_run.phase==Phase::Running);
  assert(pause_run_actor(true)&&!pause_run_actor(false));
+ saving=true;assert(pause_run_actor(true)&&pause_run_actor(false));saving=false;
  Pickup loot;int pickupResult=0;
  assert(run_pickup(&loot,&actors[0],&pickupResult)==HOOK_CONTINUE&&pickupMoves==1);
  s_run.phase=Phase::Upgrade;assert(run_pickup(&loot,&actors[0],&pickupResult)==HOOK_SKIP_ORIGINAL&&pickupMoves==1);

@@ -50,6 +50,7 @@ enum class HubMenu{None,Talents,Run};HubMenu s_hubMenu=HubMenu::None;
 unsigned s_hubClosingWindow=0,s_hubDoor=kNone,s_hubDoorTicks=0,s_player=1,s_map=0,s_requestedMap=0;
 u16 s_hubDoorPriority=0,s_hubDoorFlags=0;
 bool visible=false,event=false,arenaPresent=true,transition=false,resetting=false;
+bool save_modal_active(){return false;}
 bool in_arena(){return s_active&&s_gameStarted&&arenaPresent;}
 bool ui_visible(){return visible;}bool transitioning(){return transition;}
 bool dComIfGp_event_runCheck(){return event;}bool dComIfGp_isPauseFlag(){return false;}

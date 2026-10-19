@@ -23,9 +23,9 @@ Run s_run;bool playing=true,arenaActive=true,event=false;
 bool playable(){return playing;}bool in_arena(){return arenaActive;}bool dComIfGp_event_runCheck(){return event;}
 struct Arena{const char* stage="D_MN08";}map;
 const Arena& arena(){return map;}
-struct stage_camera2_data_class{int cachedType=13;};
-struct dCamera_c{unsigned mPadID=0;int mCamTypeNum=20,normalType=4;
- struct Tool{stage_camera2_data_class mCamData;}mStageCamTool,mRoomMapTool,mDefRoomCamTool,mTagCamTool;
+struct stage_camera2_data_class{int field_0x16=13;};
+struct dCamera_c{unsigned mPadID=0;int mCamTypeNum=20,normalType=4,mMapToolType=13;
+ struct Tool{stage_camera2_data_class mCamData;int mCameraIndex=1;void* mpActor=nullptr;}mStageCamTool,mRoomMapTool,mDefRoomCamTool,mTagCamTool;
  int GetCameraTypeFromCameraName(const char* name){assert(std::string_view(name)=="DungeonS");return normalType;}
 };
 namespace dusk::ui{enum class Control{B,L};}
@@ -78,13 +78,21 @@ int main(){
   pad={PAD_BUTTON_B,PAD_BUTTON_B,0,0,0};after_survivors_pad(nullptr,nullptr,nullptr,nullptr);assert(pad.mButtonFlags==PAD_BUTTON_B&&!pad.mHoldLockL);}
  playing=true;s_run.phase=Phase::Running;s_run.options.switch_attack_lock=true;
  dCamera_c camera;
- for(auto* data:{&camera.mStageCamTool.mCamData,&camera.mRoomMapTool.mCamData,&camera.mDefRoomCamTool.mCamData}){
-  std::any args[]={&camera,data};int type=13;after_survivors_camera_type(nullptr,args,&type,nullptr);assert(type==4&&data->cachedType==13);
-  for(int gate=0;gate<5;++gate){type=13;event=gate==0;arenaActive=gate!=1;map.stage=gate==2?"D_DLBR0":"D_MN08";camera.mPadID=gate==3?1:0;camera.normalType=gate==4?255:4;
-   after_survivors_camera_type(nullptr,args,&type,nullptr);assert(type==13);}
-  event=false;arenaActive=true;map.stage="D_MN08";camera.mPadID=0;camera.normalType=4;
+ std::any cameraArgs[]={&camera};
+ for(int gate=0;gate<6;++gate){
+  camera={};event=gate==0;arenaActive=gate!=1;map.stage=gate==2?"D_DLBR0":"D_MN08";
+  camera.mPadID=gate==3?1:0;camera.normalType=gate==4?255:4;
+  after_survivors_camera_tools(nullptr,cameraArgs,nullptr,nullptr);
+  const int expected=gate==5?4:13;
+  assert(camera.mStageCamTool.mCamData.field_0x16==expected && camera.mMapToolType==expected);
+  assert(camera.mRoomMapTool.mCamData.field_0x16==expected && camera.mDefRoomCamTool.mCamData.field_0x16==expected);
+  assert(camera.mTagCamTool.mCamData.field_0x16==13);
  }
- std::any tag[]={&camera,&camera.mTagCamTool.mCamData};int type=13;after_survivors_camera_type(nullptr,tag,&type,nullptr);assert(type==13);
+ camera={};camera.mRoomMapTool.mpActor=&camera;camera.mDefRoomCamTool.mCameraIndex=0xff;
+ after_survivors_camera_tools(nullptr,cameraArgs,nullptr,nullptr);
+ assert(camera.mRoomMapTool.mCamData.field_0x16==13 && camera.mDefRoomCamTool.mCamData.field_0x16==13);
+ camera.mRoomMapTool.mpActor=nullptr;camera.mRoomMapTool.mCameraIndex=0x1ff;
+ after_survivors_camera_tools(nullptr,cameraArgs,nullptr,nullptr);assert(camera.mRoomMapTool.mCamData.field_0x16==13);
  Element b,l;auto* icon=append(&b,std::make_unique<Element>(),true);auto* label=append(&l,std::make_unique<Element>(),true);
  icon->visible=true;b.hasItem=true;NativeTouch touch;touch.mControlElements={NativeTouch::Elements{&b,icon},NativeTouch::Elements{&l,nullptr}};
  for(int frame=0;frame<100;++frame){

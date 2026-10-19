@@ -166,8 +166,22 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- declarations=core[core.index('DEFINE_HOOK_SYMBOL("dusk::ui::Window::handle_nav_command"'):core.index('void* s_menuDocument')]
+ declarations='\n'.join(re.findall(r'^DEFINE_HOOK_SYMBOL\("dusk::ui::(?:Window|Modal)::handle_nav_command"[^;]*;',core,re.M))+'\n'
  cpp.write_text(fixture+native_map+native_command+boundaries+declarations+extract(core,'close_window')+(root/'src/survivors_menu_handoff.inc').read_text()+extract(core,'open_window')+main)
+ subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes','-Wno-unused-parameter','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),'-I',str(root/'dusklight/src'),str(cpp),'-o',str(exe)],check=True)
+ subprocess.run([str(exe)],check=True)
+ # iOS deliberately emits no unsupported private metadata and never resolves
+ # or installs these optional hooks; the ordinary window still opens/closes.
+ ios_main=r'''
+ int main(){
+  hook.resolve=resolve_symbol;hook.install=install_hook;hook.add_pre=add_callback;
+  initialize_menu_handoff();assert(!s_menuHost.enabled&&warnings==1&&!installs&&!adds);
+  remember_menu_document(false);remember_menu_document(true);assert(!s_menuDocument&&!s_talentDocument);
+  s_run.phase=Phase::Ready;s_hubMenu=HubMenu::Run;open_window();assert(s_window);
+  close_window();assert(!s_window);
+ }
+ '''
+ cpp.write_text('#define DAWNLIGHT_IOS 1\n'+fixture+native_map+native_command+boundaries+extract(core,'close_window')+(root/'src/survivors_menu_handoff.inc').read_text()+extract(core,'open_window')+ios_main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-attributes','-Wno-unused-parameter','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),'-I',str(root/'dusklight/src'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors menu: absent event symbol, missing APIs/targets, install failures, native Menu/Shift-F1 mapping, host subwindows, talent popup, restoration, state and delayed callbacks passed')
