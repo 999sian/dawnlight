@@ -577,6 +577,10 @@ struct Run {
 struct Records {
     uint32_t runs = 0, wins = 0, best_ticks = 0, best_kills = 0, best_level = 0;
     std::array<uint32_t,5> high_scores{};
+    uint32_t cleared_maps=0;
+    bool map_unlocked(unsigned map) const {
+        return map<high_scores.size() && (map==0 || (cleared_maps & (1u<<(map-1))));
+    }
     uint64_t total_xp=0;
     Talents talents;
     unsigned level() const { return 1+meta_levels(total_xp); }
@@ -590,26 +594,33 @@ struct Records {
         high_scores[map]=std::max(high_scores[map],run.score());
         total_xp=std::min(max_meta_xp,total_xp+run.score());
         ++runs; wins += run.phase == Phase::Victory;
+        if(run.phase==Phase::Victory)cleared_maps|=1u<<map;
         best_ticks = std::max(best_ticks, run.ticks);
         best_kills = std::max(best_kills, run.kills);
         best_level = std::max(best_level, run.level);
     }
-    std::array<uint8_t,132> encode() const {
-        std::array<uint32_t,33> words{0x56525348,6,runs,wins,best_ticks,best_kills,best_level};
+    std::array<uint8_t,136> encode() const {
+        std::array<uint32_t,34> words{0x56525348,7,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
-        std::array<uint8_t,132> bytes{};
+        words[33]=cleared_maps;
+        std::array<uint8_t,136> bytes{};
         for(unsigned i=0;i<words.size();++i)for(unsigned b=0;b<4;++b)bytes[i*4+b]=uint8_t(words[i]>>(8*b));
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132)return false;
-        std::array<uint32_t,33> words{};
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136)return false;
+        std::array<uint32_t,34> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)))return false;
         Records next;
+        // Legacy saves have aggregate wins only; scores also include defeats.
+        if(words[1]>=7){
+            if(words[33] & ~((1u<<high_scores.size())-1))return false;
+            next.cleared_maps=words[33];
+        }
         next.runs=words[2];next.wins=words[3];next.best_ticks=words[4];next.best_kills=words[5];next.best_level=words[6];
         if(words[1]>=2){
             for(unsigned i=0;i<5;++i)next.high_scores[i]=words[7+i];

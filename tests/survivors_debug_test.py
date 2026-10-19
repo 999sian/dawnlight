@@ -7,7 +7,9 @@ source=r'''
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
 int main(){
- RunOptions options;options.debug={4,10,1,1,5};Run run;run.start(71,options);
+ RunOptions options;assert(!options.debug.unlock_all_maps);
+ options.debug.unlock_all_maps=true;options.debug.clamp();assert(options.debug.unlock_all_maps==debug_enabled);
+ options.debug={4,10,1,1,5};Run run;run.start(71,options);
  assert(run.run_duration()==(debug_enabled?5u:20u)*60*30);
  assert(run.boss_interval()==run.run_duration()/4);
  assert(run.player_damage(123)==(debug_enabled?1230u:123u));

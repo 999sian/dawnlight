@@ -255,6 +255,8 @@ jobs:
       - name: Test shared Survivors settings against SDK
         if: matrix.platform == 'linux-x86_64'
         run: |
+          python3 tests/survivors_map_unlock_test.py
+          CXX=clang++ python3 tests/survivors_map_unlock_test.py
           python3 tests/survivors_settings_config_test.py
           CXX=clang++ python3 tests/survivors_settings_config_test.py
           CXX=clang++ python3 tests/survivors_hub_test.py

@@ -1,4 +1,11 @@
-// Development-only, last tab in the Ready menu. No debug values enter saves.
+// Development-only, last tab in the Ready menu. No debug options enter saves.
+void clear_high_scores(ModContext*,void*) {
+    if(!debug_enabled || !settings_editable())return;
+    auto next=s_records;next.high_scores.fill(0);
+    const auto bytes=next.encode();
+    s_storeFailed=svc_save->set_blob(mod_ctx,kBlob,bytes.data(),bytes.size())!=MOD_OK;
+    if(!s_storeFailed){s_records=next;s_progressSaved=false;s_hubSaveRequested=true;}
+}
 struct DebugControl { const char* label; unsigned DebugOptions::*field; const char* const* choices; unsigned count; };
 constexpr const char* kDebugRarities[]{"Common","Uncommon","Rare","Epic","Legendary"};
 constexpr const char* kDebugSwitch[]{"Off","On"};
@@ -40,6 +47,22 @@ ModResult build_debug(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
         const auto result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
         if (result!=MOD_OK) return result;
     }
+    UiControlDesc unlock=UI_CONTROL_DESC_INIT;
+    unlock.kind=UI_CONTROL_TOGGLE;unlock.label="Unlock all maps";
+    unlock.help_rml="Temporarily bypass map locks. Does not change saved clears. Default: off.";
+    unlock.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=debug_enabled && s_options.debug.unlock_all_maps;};
+    unlock.set=[](ModContext*,void*,const UiControlValue* value){
+        if(debug_enabled && settings_editable())s_options.debug.unlock_all_maps=value->bool_value;
+    };
+    unlock.is_disabled=[](ModContext*,void*){return !debug_enabled || !settings_editable();};
+    auto result=svc_ui->pane_add_control(mod_ctx,left,&unlock,nullptr);
+    if(result!=MOD_OK)return result;
+    UiControlDesc clear=UI_CONTROL_DESC_INIT;
+    clear.label="Clear High-Scores";clear.on_pressed=clear_high_scores;
+    clear.help_rml="Clear all five map high scores and save automatically. Keeps map clears, talents, XP and lifetime statistics.";
+    clear.is_disabled=unlock.is_disabled;
+    result=svc_ui->pane_add_control(mod_ctx,left,&clear,nullptr);
+    if(result!=MOD_OK)return result;
     return svc_ui->pane_add_text(mod_ctx,right,
         "Debug options apply to the next run. Minimum Rarity covers level-ups and treasures. Player damage includes all attacks and burns. Infinite rerolls are free; chest prices still apply. Four bosses arrive at 25%, 50%, 75% and 100% of the run timer. Other progression uses real elapsed time.",nullptr);
 }

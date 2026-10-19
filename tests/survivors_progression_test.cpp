@@ -4,6 +4,19 @@
 using namespace dawnlight;
 using namespace dawnlight::survivors;
 int main(){
+    Records gates;Run finished;finished.start(1);
+    assert(gates.map_unlocked(0)&&!gates.map_unlocked(1)&&!gates.map_unlocked(5)&&!gates.map_unlocked(~0u));
+    for(unsigned map=0;map<5;++map){
+        assert(gates.map_unlocked(map));
+        finished.phase=Phase::Defeat;gates.finish(finished,map);
+        assert(!(gates.cleared_maps&(1u<<map))&&!gates.map_unlocked(map+1));
+        finished.phase=Phase::Victory;gates.finish(finished,map);
+        assert(gates.cleared_maps&(1u<<map));
+        if(map<4)assert(gates.map_unlocked(map+1));
+        Records roundtrip;assert(roundtrip.decode(gates.encode())&&roundtrip.cleared_maps==gates.cleared_maps);
+    }
+    auto badMask=gates.encode();badMask[132]=32;
+    assert(!gates.decode(badMask)&&gates.cleared_maps==31);
     Run r;r.start(1);assert(r.score()==0);
     for(unsigned level=0;level<=5;++level) {
         Talents perks;
@@ -115,6 +128,8 @@ int main(){
         auto invalid=bytes;invalid[56+4*unsigned(talent)]=talent_caps[unsigned(talent)]+1;assert(!loaded.decode(invalid));
     }
     assert(loaded.total_xp==records.total_xp&&loaded.high_scores==records.high_scores);
+    auto v6=legacyBytes;v6[4]=6;assert(loaded.decode(std::span(v6.data(),132)));
+    assert(loaded.cleared_maps==0&&loaded.high_scores==records.high_scores&&loaded.talents.ranks==legacyRecords.talents.ranks);
     auto v5=legacyBytes;v5[4]=5;assert(loaded.decode(std::span(v5.data(),124)));
     assert(loaded.talents.ranks==legacyRecords.talents.ranks&&loaded.available_points()==20);
     assert(!loaded.talents.rank(Talent::LegendaryChance)&&!loaded.talents.rank(Talent::LifeRegen));

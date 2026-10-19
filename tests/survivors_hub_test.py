@@ -26,7 +26,7 @@ struct fopAc_ac_c{unsigned id;};struct daAlink_c:fopAc_ac_c{};
 daAlink_c link{{1}};fopAc_ac_c door{2};
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}
 bool doorAlive=true;fopAc_ac_c* actor_by_id(unsigned id){return doorAlive&&id==2?&door:nullptr;}
-Run s_run;RunOptions s_options;
+Records s_records;Run s_run;RunOptions s_options;
 bool s_active=true,s_gameStarted=true,s_saveReady=true,s_restart=false,s_progressSaving=false,s_arenaMeshReady=true;
 bool s_hub=true,s_hubDeparture=false,s_hubDoorStarted=false,s_arrivingRun=false,s_allowHubDoor=false,s_hubSaveRequested=false;
 enum class HubMenu{None,Talents,Run};HubMenu s_hubMenu=HubMenu::None;
@@ -65,6 +65,11 @@ int main(){
  std::any request[]={static_cast<fopAc_ac_c*>(&link),&door,u16(7),u16(9)};int result=4;
  assert(before_hub_door(nullptr,request,&result,nullptr)==HOOK_SKIP_ORIGINAL);
  assert(!result&&visible&&opened==1&&s_hubMenu==HubMenu::Run&&s_hubDoor==2&&orders==0);
+ // A locked destination cannot bypass the disabled UI by calling Start directly.
+ s_requestedMap=1;start_run(nullptr,nullptr);assert(!s_hubDeparture&&visible);
+ s_options.debug.unlock_all_maps=true;assert(map_available(1)==debug_enabled);
+ s_options.debug.unlock_all_maps=false;s_records.cleared_maps=1;assert(map_available(1));
+ s_records.cleared_maps=0;s_requestedMap=0;
  // Back/cancel saves automatically but does not open the door or start a run.
  close_window();assert(s_hubSaveRequested&&s_hubMenu==HubMenu::None);
  update_hub(&link);assert(!orders&&!s_hubDeparture&&s_run.phase==Phase::Ready);
@@ -112,7 +117,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+'\n'+'\n'.join(extract(core,n) for n in ['hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','update_hub'])+main)
+ cpp.write_text(fixture+'\n'+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','update_hub'])+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),'-I',str(root/'include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors hub: free movement, native door gating, save/close, cancellation, routing and recovery passed')

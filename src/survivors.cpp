@@ -255,6 +255,9 @@ void hub_menu_closed() {
     if(s_active&&s_gameStarted&&s_hub&&s_run.phase==Phase::Ready)s_hubSaveRequested=true;
 }
 Records s_records;
+bool map_available(unsigned map) {
+    return map<arenas.size() && (s_records.map_unlocked(map) || (debug_enabled && s_options.debug.unlock_all_maps));
+}
 bool s_progressSaving=false, s_progressSaved=false;
 UiWindowHandle s_refreshChoices=0;
 // Opaque host documents: no private RmlUi/Window layouts are copied.
@@ -1289,7 +1292,7 @@ void begin_run() {
 }
 void start_run(ModContext*, void*) {
     if(!s_hub || s_run.phase!=Phase::Ready || s_hubDeparture || s_progressSaving ||
-       s_restart || !s_arenaMeshReady || !actor_by_id(s_hubDoor))return;
+       s_restart || !s_arenaMeshReady || !map_available(s_requestedMap) || !actor_by_id(s_hubDoor))return;
     s_hubDeparture=true;
     close_window(); // Save and fully hide the UI before ordering the native door event.
 }
@@ -1363,7 +1366,7 @@ void open_window() {
             tabs[1].title="Settings";tabs[1].build=build_run_settings;
             desc.tab_count=2;
         } else {
-            tab.title="Maps";
+            tab.title="Maps";tab.update=update_arena_tab;
             tabs[1].title="Difficulty";tabs[1].build=build_difficulty;
             tabs[2].title="Settings";tabs[2].build=build_run_settings;
             desc.tab_count=3;

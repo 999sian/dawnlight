@@ -11,6 +11,7 @@ namespace dawnlight::survivors {
 inline constexpr bool debug_enabled = DAWNLIGHT_SURVIVORS_DEBUG != 0;
 struct DebugOptions {
     unsigned minimum_rarity=0, player_damage=1, infinite_rerolls=0, infinite_banishes=0, run_minutes=20;
+    bool unlock_all_maps=false;
     void clamp() {
         if (!debug_enabled) { *this={}; return; }
         minimum_rarity=std::min(4u,minimum_rarity);

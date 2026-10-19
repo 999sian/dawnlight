@@ -13,7 +13,9 @@ window content pane.survivors-map-list { flex: 0 0 35%; background-color: #171d1
 window content pane.survivors-map-preview { flex: 1 1 0; padding: 0dp 16dp 16dp; justify-content: flex-start; }
 .survivors-map-preview-copy { display: block; background-color: #171d19e8; border-radius: 8dp; padding: 0dp 16dp 16dp; font-size: 16dp; }
 .survivors-map-preview-title { display: block; font-family: var(--font-family-heading); font-size: 24dp; }
-button.survivors-map-start { margin-top: auto; align-self: flex-end; padding: 12dp 28dp; font-size: 18dp; background-color: #171d19ee; }
+.survivors-map-launch { margin-top: auto; flex-direction: column; align-items: flex-end; gap: 8dp; }
+.survivors-map-lock { font-size: 14dp; color: #ffdc75; background-color: #171d19ee; padding: 8dp; }
+button.survivors-map-start { margin-top: 0dp; align-self: flex-end; padding: 12dp 28dp; font-size: 18dp; background-color: #171d19ee; }
 button.survivors-map-option { padding: 12dp; font-size: 16dp; }
 button.survivors-map-selected { background-color: #e5bc3b28; border-color: #ffdc75; }
 @media (max-width: 640dp) {
@@ -31,7 +33,34 @@ void select_arena(ModContext*, void* data) {
     s_requestedMap=choice;
     s_refreshChoices=s_window; close_window();
 }
+UiElementHandle s_mapPreview=0,s_mapLockHint=0;
+unsigned s_previewMap=0,s_previewScore=0;
+bool s_previewUnlocked=false;
+std::string arena_preview() {
+    return "<div class=\"survivors-map-preview-title\" style=\"color: "+
+        std::string(arenas[s_requestedMap].accent)+";\">"+treasure_rml_escape(arenas[s_requestedMap].name)+"</div><div>High score: "+number(s_records.high_scores[s_requestedMap])+"</div><div>"+treasure_rml_escape(arenas[s_requestedMap].description)+"</div>";
+}
+ModResult update_arena_tab(ModContext*,void*,ModError*) {
+    if(s_requestedMap>=arenas.size())return MOD_OK;
+    const auto score=s_records.high_scores[s_requestedMap];
+    const bool unlocked=map_available(s_requestedMap);
+    if(s_mapPreview && (s_previewMap!=s_requestedMap || s_previewScore!=score)) {
+        auto result=svc_ui->elem_set_rml(mod_ctx,s_mapPreview,arena_preview().c_str());
+        if(result!=MOD_OK)return result;
+    }
+    if(s_mapLockHint && (s_previewMap!=s_requestedMap || s_previewUnlocked!=unlocked)) {
+        const std::string hint=unlocked?"":"Clear "+std::string(arenas[s_requestedMap-1].name)+" to unlock this map.";
+        auto result=svc_ui->elem_set_text(mod_ctx,s_mapLockHint,hint.c_str());
+        if(result!=MOD_OK)return result;
+        result=svc_ui->elem_set_visible(mod_ctx,s_mapLockHint,!unlocked);
+        if(result!=MOD_OK)return result;
+    }
+    s_previewMap=s_requestedMap;s_previewScore=score;s_previewUnlocked=unlocked;
+    return MOD_OK;
+}
 ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
+    s_mapPreview=s_mapLockHint=0;
+    s_previewMap=unsigned(arenas.size());
     auto result=svc_ui->elem_set_class(mod_ctx,left,"survivors-map-list",true);
     if (result!=MOD_OK) return result;
     result=svc_ui->elem_set_class(mod_ctx,right,"survivors-map-preview",true);
@@ -63,20 +92,26 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
         s_records.runs,s_records.wins,s_records.level());
     result=svc_ui->pane_add_text(mod_ctx,left,records,nullptr);
     if (result!=MOD_OK) return result;
-    const std::string copy="<div class=\"survivors-map-preview-title\" style=\"color: "+
-        std::string(arenas[s_requestedMap].accent)+";\">"+treasure_rml_escape(arenas[s_requestedMap].name)+"</div><div>High score: "+number(s_records.high_scores[s_requestedMap])+"</div><div>"+treasure_rml_escape(arenas[s_requestedMap].description)+"</div>";
-    // Style the block created by pane_add_rml itself, avoiding an inline box
-    // split around the title (the empty dark pill above the map name).
-    UiElementHandle previewCopy=0;
-    result=svc_ui->pane_add_rml(mod_ctx,right,copy.c_str(),&previewCopy);
-    if (result!=MOD_OK) return result;
-    result=svc_ui->elem_set_class(mod_ctx,previewCopy,"survivors-map-preview-copy",true);
-    if (result!=MOD_OK) return result;
+    result=svc_ui->pane_add_rml(mod_ctx,right,arena_preview().c_str(),&s_mapPreview);
+    if(result!=MOD_OK)return result;
+    result=svc_ui->elem_set_class(mod_ctx,s_mapPreview,"survivors-map-preview-copy",true);
+    if(result!=MOD_OK)return result;
+    UiRowDesc rowDesc=UI_ROW_DESC_INIT;UiElementHandle launch=0;
+    result=svc_ui->pane_add_row(mod_ctx,right,&rowDesc,&launch);
+    if(result!=MOD_OK)return result;
+    result=svc_ui->elem_set_class(mod_ctx,launch,"survivors-map-launch",true);
+    if(result!=MOD_OK)return result;
+    result=svc_ui->pane_add_text(mod_ctx,launch,"",&s_mapLockHint);
+    if(result!=MOD_OK)return result;
+    result=svc_ui->elem_set_class(mod_ctx,s_mapLockHint,"survivors-map-lock",true);
+    if(result!=MOD_OK)return result;
+    result=update_arena_tab(nullptr,nullptr,nullptr);
+    if(result!=MOD_OK)return result;
     UiControlDesc start=UI_CONTROL_DESC_INIT;
     start.label="Start run"; start.on_pressed=start_run;
-    start.is_disabled=[](ModContext*,void*) { return !s_arenaMeshReady || s_restart || s_progressSaving || s_hubDeparture; };
+    start.is_disabled=[](ModContext*,void*) { return !map_available(s_requestedMap) || !s_arenaMeshReady || s_restart || s_progressSaving || s_hubDeparture; };
     UiElementHandle startButton=0;
-    result=svc_ui->pane_add_control(mod_ctx,right,&start,&startButton);
+    result=svc_ui->pane_add_control(mod_ctx,launch,&start,&startButton);
     if (result!=MOD_OK) return result;
     return svc_ui->elem_set_class(mod_ctx,startButton,"survivors-map-start",true);
 }
