@@ -270,6 +270,8 @@ jobs:
       - name: Test Survivors combat and native combo selection
         if: matrix.platform == 'linux-x86_64'
         run: |
+          python3 tests/survivors_ending_test.py
+          CXX=clang++ python3 tests/survivors_ending_test.py
           python3 tests/survivors_options_test.py
           CXX=clang++ python3 tests/survivors_options_test.py
           python3 tests/survivors_controls_test.py

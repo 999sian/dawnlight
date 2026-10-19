@@ -1037,3 +1037,31 @@ Static 20-minute capacity bounds remain sufficient. HP/XP/cooldown progression
 is not accelerated. Regression tests exercise enabled and disabled builds,
 stale-value reset, UI ordering/callbacks, all five controls, rarity floor,
 resource consumption, damage application and real 5/10/20-minute boss scheduling.
+
+
+### Final boss victory and native defeat presentation
+
+Defeating the final scheduled boss settles victory immediately. That boss still
+awards its normal kill, XP, chest and magnet. A native Fyrus fire wave expands
+from its death position and removes every surviving enemy, including guards and
+pending spawns. The sweep uses no attack collider or HP damage and awards no
+kills, score, XP, drops or damage-stat entries. Existing loot remains available.
+
+The HUD shows **Victory** in the boss-name Ruby font with a red ten-second
+countdown. Link remains controllable while combat and run time stop. The timer
+advances only during playable simulation ticks; pause, upgrade selection and
+native chest/Get Item events hold it. No new enemies, attacks or chests spawn.
+Results and records are finalized once the grace period and any in-progress
+reward selection finish, preserving rewards collected from the final boss.
+
+On lethal damage, Link retains his normal death procedure and camera. The native
+Game Over screen runs through its animation/fades, remains visible for two
+seconds including its fade-in, and is deleted before its save/retry menu opens.
+After its shared UI heap is released, Survivors opens the defeat results. A
+voluntary Midna End Run still opens results immediately.
+
+`tests/survivors_ending_test.py` exercises production callbacks alongside the
+SDK's native Game Over transition methods: final-boss reward ordering, unscored
+cleanup, live pickups, frozen combat time, countdown pauses, expiry during a
+level-up, deferred UI deletion and exactly-once records. The HUD test also checks
+Ruby-font victory text, red countdown rounding and restored GX vertex state.

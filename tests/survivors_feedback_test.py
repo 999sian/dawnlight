@@ -3,6 +3,8 @@ from pathlib import Path
 import os, subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
 fixture=r'''
+bool s_victory=false;
+
 #include <cassert>
 #include <cmath>
 #include <string>
@@ -64,6 +66,9 @@ int main(){
  assert(s_run.damage.total()==100);
  s_run.phase=Phase::Victory;enemy.health=100;begin_damage_feedback(&args,&enemy,&info);enemy.health=0;end_damage_feedback(&args);
  assert(s_run.damage.total()==100);s_run.phase=Phase::Running;
+ // Late callbacks during the free-movement victory grace cannot add damage.
+ s_victory=true;enemy.health=100;begin_damage_feedback(&args,&enemy,&info);enemy.health=0;end_damage_feedback(&args);
+ assert(s_run.damage.total()==100&&s_damageFeedback.empty());s_victory=false;
  // Scope the native no-reaction flag to checkDamageAction; damage still occurs.
  for(bool original:{false,true}){link.flags=original?0x4000000:0;link.mDamageTimer=0;
   begin_player_damage(&args,&link);suppress_player_reaction(&link);

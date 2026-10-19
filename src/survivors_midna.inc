@@ -70,7 +70,7 @@ HookAction before_midna_call(ModContext*, void* args, void*, void*) {
     auto* link=mods::arg<daAlink_c*>(args,0);
     auto* midna=daPy_py_c::getMidnaActor();
     if (!link || !midna || !s_midnaStart || fopAcM_GetID(link)!=s_player ||
-        s_run.phase!=Phase::Running || !playable() || link->checkDeadHP() ||
+        s_run.phase!=Phase::Running || s_victory || !playable() || link->checkDeadHP() ||
         !link->mLinkAcch.ChkGroundHit() || !link->checkMidnaRide()) return HOOK_CONTINUE;
     dMeter2Info_onUseButton(METER2_USEBUTTON_Z);
     // Preserve custom controller bindings and Dawnlight's separate touch button.

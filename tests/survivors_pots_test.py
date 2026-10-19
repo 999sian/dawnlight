@@ -9,6 +9,8 @@ core = (root / 'src/survivors.cpp').read_text()
 start = core.index('bool pause_run_actor(')
 pause = core[start:core.index('\nHookAction before_process', start)]
 fixture = r'''
+bool s_victory=false,s_deathPending=false;
+
 #include <any>
 #include <array>
 #include <cassert>

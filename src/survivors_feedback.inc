@@ -44,7 +44,7 @@ void mark_damage_split(dCcU_AtInfo* info,unsigned base,unsigned scaled) {
 void end_damage_feedback(void* args) {
     if (s_damageFeedback.empty() || s_damageFeedback.back().args!=args) return;
     const auto hit=s_damageFeedback.back();s_damageFeedback.pop_back();
-    if(in_arena() && s_run.phase==Phase::Running)
+    if(in_arena() && !s_victory && s_run.phase==Phase::Running)
         s_run.damage.record(hit.sources,hit.health,hit.actor->health);
     if (hit.critical && hit.info->mAttackPower && hit.actor->health<hit.health)
         combat_feedback(hit.actor,CombatText::Crit);

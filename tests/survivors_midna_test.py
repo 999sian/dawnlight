@@ -17,6 +17,8 @@ def extract(name):
         if not depth:return core[match.start():end+1]
     raise AssertionError(name)
 fixture=r'''
+bool s_victory=false,s_deathPending=false;
+
 #include <any>
 #include <cassert>
 #include <map>

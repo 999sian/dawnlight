@@ -6,6 +6,8 @@ import tempfile
 root=Path(__file__).resolve().parents[1]
 source=(root/'src/survivors_defense.inc').read_text()
 fixture=r'''
+bool s_victory=false;
+
 #include <cassert>
 #include <cmath>
 #include <vector>
@@ -95,6 +97,10 @@ int main(){
   }
   const int expected=int(rank*500);assert(std::abs(int(blocks)-expected)<180);
  }
+ // Residual enemy colliders during victory cannot damage or interrupt Link.
+ s_victory=true;player.mTgCyls[0].hit=true;
+ assert(before_shield_block(nullptr,&args,&result,nullptr)==HOOK_SKIP_ORIGINAL&&result==1&&!player.mTgCyls[0].hit);
+ s_victory=false;
  // Dodge does not require a shield and must preserve current attacks/movement.
  s_run.shield=0;
  for(unsigned rank=0;rank<=5;++rank){

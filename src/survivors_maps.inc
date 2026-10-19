@@ -161,7 +161,7 @@ bool arena_grounded(daAlink_c* link) {
 void update_arena_safety(daAlink_c* link) {
     // Native ground contact is available before our derived barrier mesh. Keep
     // the first safe position during Loading as well, not just after warmup.
-    if (fpcM_IsCreating(fopAcM_GetID(link)) || (s_hub&&s_hubDoorStarted)) return;
+    if (s_deathPending || fpcM_IsCreating(fopAcM_GetID(link)) || (s_hub&&s_hubDoorStarted)) return;
     const int room=fopAcM_GetRoomNo(link);
     const bool palace=s_map==3 && s_arenaSpawn && s_run.phase==Phase::Running;
     const bool fallen=s_arenaSafe && (link->current.pos.y<s_arenaSafePosition.y-500 ||
@@ -180,9 +180,9 @@ void update_arena_safety(daAlink_c* link) {
         s_arenaSafePosition=s_arenaSpawnPosition;
         // Life is stored in quarter hearts; this environmental cost ignores
         // enemy damage scaling, shields, Dodge and ordinary hit invulnerability.
-        const int life=std::max(0,int(dComIfGs_getLife())-4);
+        const int life=std::max(s_victory ? 1 : 0,int(dComIfGs_getLife())-4);
         dComIfGs_setLife(life);
-        if (!life) finish(false);
+        if (!life) begin_defeat();
     } else if (s_arenaSafe && (room!=arena().room || fallen)) {
         // Last safe floor position, not a scene reload that would discard a run.
         link->current.pos=link->old.pos=s_arenaSafePosition;

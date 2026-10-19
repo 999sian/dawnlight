@@ -11,6 +11,10 @@ void interrupt_auto_actions(daAlink_c* link) {
 }
 HookAction before_shield_block(ModContext*, void* args, void* result, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
+    if (s_victory && in_arena() && link && fopAcM_GetID(link)==s_player) {
+        for (auto& collider : link->mTgCyls) collider.ResetTgHit();
+        *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
+    }
     begin_player_damage(args,link);
     if (!link || fopAcM_GetID(link) != s_player || !playable() || s_run.phase != Phase::Running ||
         link->checkWolf() || link->mDamageTimer) return HOOK_CONTINUE;

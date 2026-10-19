@@ -8,6 +8,8 @@ core=(root/'src/survivors.cpp').read_text()
 start=core.index('bool pause_run_actor(')
 source+=core[start:core.index('\nHookAction before_process', start)]
 fixture=r'''
+bool s_victory=false,s_deathPending=false;
+
 constexpr int dItemNo_POU_SPIRIT_e=0xe0;
 
 #include <cassert>

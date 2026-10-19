@@ -15,6 +15,8 @@ def extract(source,name):
         depth+=(source[end]=='{')-(source[end]=='}')
         if not depth:return source[m.start():end+1]
 fixture=r'''
+bool s_victory=false;unsigned s_victoryTicks=0;void update_victory(){++s_victoryTicks;}
+
 #include <algorithm>
 #include <any>
 #include <array>
@@ -98,7 +100,7 @@ bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
 int dComIfGs_getMaxLifeGauge(){return 12;}
 void dComIfGs_setLife(unsigned value){life=int(value);++lifeWrites;}
-void finish(bool victory){++finishes;s_run.end(victory);}
+void finish(bool victory){++finishes;s_run.end(victory);s_victory=false;}void begin_defeat(){s_run.end(false);}
 unsigned rupees=0,rupeeWrites=0;
 unsigned dComIfGs_getRupee(){return rupees;}unsigned dComIfGs_getRupeeMax(){return 300;}
 void dComIfGs_setRupee(unsigned value){rupees=value;++rupeeWrites;}
@@ -108,7 +110,7 @@ void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c
 
 '''
 main=r'''
-void fresh(unsigned map){s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};clear_elite_sites();player.current.pos={};reset_elite_encounters();
+void fresh(unsigned map){s_victory=false;s_victoryTicks=0;s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};clear_elite_sites();player.current.pos={};reset_elite_encounters();
  groundMissing=wallBlocked=barrierBlocked=failCreate=false;groundRoom=-2;groundCode=0;s_spawnCooldown=s_spawnFailures=ordinarySpawns=0;}
 unsigned guards(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.dormant;return n;}
 unsigned waves(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.elite&&!e.dormant;return n;}
@@ -287,7 +289,10 @@ int main(){
  assert(ordinarySpawns==0); // No new horde after the final milestone.
  s_run.timed_elites=3;after_player(nullptr,playerArgs,nullptr,nullptr);assert(finishes==0);
  s_run.timed_elites=4;after_player(nullptr,playerArgs,nullptr,nullptr);
- assert(s_run.phase==Phase::Victory&&finishes==1);
+ assert(s_run.phase==Phase::Running&&finishes==0); // Kill callback, not kill-count polling, starts victory.
+ s_victory=true;s_victoryTicks=10*ticks_per_second-1;
+ const auto elapsed=s_run.ticks;after_player(nullptr,playerArgs,nullptr,nullptr);
+ assert(s_run.phase==Phase::Victory&&finishes==1&&s_run.ticks==elapsed);
  after_player(nullptr,playerArgs,nullptr,nullptr);assert(finishes==1);
  fresh(0);life=0;after_player(nullptr,playerArgs,nullptr,nullptr);assert(s_run.phase==Phase::Defeat&&s_run.ticks==0);
  reset_elite_encounters();for(const auto& e:s_eliteEncounters)assert(!e.placed&&!e.defeated);

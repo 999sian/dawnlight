@@ -57,3 +57,20 @@ bool draw_boss_hud(dMeter2Draw_c* meter, float x) {
     }
     return true;
 }
+
+void draw_victory_hud(float x) {
+    auto* font=mDoExt_getRubyFont();
+    if (!font) return;
+    J2DPrint shadow(font,JUtility::TColor(0,0,0,230),JUtility::TColor(0,0,0,230));
+    shadow.setFontSize(34,34);
+    shadow.printReturn("Victory",550,44,HBIND_CENTER,VBIND_TOP,x-274,85,255);
+    J2DPrint title(font,JUtility::TColor(255,240,210,255),JUtility::TColor(230,190,150,255));
+    title.setFontSize(34,34);
+    title.printReturn("Victory",550,44,HBIND_CENTER,VBIND_TOP,x-275,84,255);
+    const unsigned remaining=s_victoryTicks>=10*ticks_per_second ? 0 :
+        (10*ticks_per_second-s_victoryTicks+ticks_per_second-1)/ticks_per_second;
+    char text[16]; std::snprintf(text,sizeof(text),"%u",remaining);
+    J2DPrint timer(font,JUtility::TColor(255,65,55,255),JUtility::TColor(220,25,20,255));
+    timer.setFontSize(25,25);
+    timer.printReturn(text,550,34,HBIND_CENTER,VBIND_TOP,x-275,128,255);
+}

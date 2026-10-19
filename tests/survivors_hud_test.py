@@ -36,12 +36,16 @@ tracked = {'GXClearVtxDesc', 'GXSetVtxDesc', 'GXBegin', 'GXEnd',
            'GXPosition3f32', 'GXColor1u32', 'GXSetNumTexGens'}
 noops = sorted(set(re.findall(r'\b(GX\w+)\(', native)) - tracked)
 prefix = r'''
+bool s_victory=false,s_deathPending=false;unsigned s_victoryTicks=0;
+
 #include <algorithm>
 #include <array>
 #include <cassert>
 #include <cstdio>
 #include <iostream>
 #include <cstring>
+#include <string>
+#include <vector>
 #include "survivors_roster.hpp"
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
@@ -91,16 +95,16 @@ struct J2DGrafContext {
     }
 } context;
 struct JUTResFont {void setGX();} font,ruby;
-unsigned rubyLabels=0;
+unsigned rubyLabels=0;std::vector<std::string> printed;unsigned textColor=0;
 bool hasFont=true, arena=true, transition=false, window=false, hasGraf=true;
 JUTResFont* mDoExt_getMesgFont(){return hasFont?&font:nullptr;}
 JUTResFont* mDoExt_getRubyFont(){return hasFont?&ruby:nullptr;}
 enum {HBIND_CENTER,VBIND_TOP};
 struct J2DPrint {
     JUTResFont* face;
-    J2DPrint(JUTResFont* f,JUtility::TColor,JUtility::TColor):face(f){f->setGX();}
+    J2DPrint(JUTResFont* f,JUtility::TColor c,JUtility::TColor):face(f){textColor=c;f->setGX();}
     void setFontSize(float,float){}
-    void printReturn(const char*,float,float,int,int,float,float,int){++labels;if(face==&ruby)++rubyLabels;}
+    void printReturn(const char* t,float,float,int,int,float,float,int){printed.emplace_back(t);++labels;if(face==&ruby)++rubyLabels;}
 };
 
 using ActorId=unsigned;constexpr ActorId kNone=~0u;
@@ -131,7 +135,7 @@ struct mDoGph_gInf_c {static float getMinXF(){return 0;} static float getWidthF(
 main = r'''
 int main(){
     // First visible HUD after the entrance, ordinary runs, and both messages.
-    for(auto phase:{Phase::Running,Phase::Upgrade,Phase::Treasure,Phase::Victory,Phase::Defeat}){
+    for(auto phase:{Phase::Running,Phase::Upgrade,Phase::Treasure,Phase::Victory}){
         for(bool availableFont:{false,true})for(unsigned ticks:{0u,duration})for(unsigned failures:{0u,10u})for(unsigned horde:{0u,450u}){
             s_run.phase=phase;s_run.ticks=ticks;s_run.horde_remaining=horde;s_run.xp=4;s_spawnFailures=failures;hasFont=availableFont;
             boxes=labels=0;textureCoordinates=true;
@@ -142,6 +146,18 @@ int main(){
         }
     }
 
+    // Victory uses the boss font, a red ceiling-rounded 10-second timer,
+    // and restores GX vertex descriptors for the next native HUD element.
+    s_run.phase=Phase::Running;s_victory=true;hasFont=true;
+    for(unsigned tick:{0u,1u,29u,30u,270u,299u,300u}) {
+        printed.clear();rubyLabels=boxes=0;s_victoryTicks=tick;
+        draw_hud(nullptr,nullptr,nullptr,nullptr);
+        assert(rubyLabels==3&&printed[0]=="Victory"&&printed[1]=="Victory");
+        assert(printed.back()==std::to_string(tick>=300?0:(300-tick+29)/30));
+        assert(textColor==0xff4137ffu&&!boxes&&!textureCoordinates&&texGens==0);
+    }
+    s_victory=false;s_deathPending=true;s_run.phase=Phase::Defeat;boxes=labels=0;
+    draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels);s_deathPending=false;
     // Only live, initialized elites appear. Prefer the nearest initially and
     // keep it stable as another elite walks closer; timed bosses take priority.
     assert(!boss_hud_target());

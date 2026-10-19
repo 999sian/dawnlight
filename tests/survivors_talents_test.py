@@ -3,6 +3,8 @@ from pathlib import Path
 import os, re, subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
 fixture=r'''
+bool s_victory=false,s_deathPending=false,s_deathDismiss=false;
+
 void* s_talentDocument=nullptr;void remember_menu_document(bool){}
 #include <cassert>
 #include <string>
@@ -95,7 +97,7 @@ int main(){
 }
 '''
 core=(root/'src/survivors.cpp').read_text()
-finish=core[core.index('void finish(bool won) {'):core.index('#include "survivors_midna.inc"')]
+finish=core[core.index('void finish(bool won) {'):core.index('#include "survivors_ending.inc"')]
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
  cpp.write_text(fixture+finish+(root/'src/survivors_talents.inc').read_text()+main)

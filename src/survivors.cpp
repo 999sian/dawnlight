@@ -86,6 +86,7 @@
 #include "d/d_com_inf_game.h"
 #include "d/d_debug_viewer.h"
 #include "d/d_gameover.h"
+#include "res/Object/E_fm.h"
 #include "d/d_item.h"
 #include "d/d_meter2_draw.h"
 #include "d/d_meter2_info.h"
@@ -188,6 +189,7 @@ DEFINE_HOOK(&daAlink_c::procCoGetItemInit, SurvivorsGetItem);
 DEFINE_HOOK(&fpcLf_Draw, SurvivorsTreasureDraw);
 DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
 DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
+DEFINE_HOOK(&dGameover_c::_execute, SurvivorsGameOver);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
 // Select the non-const overload explicitly. MSVC crashes while materializing
 // its cast member pointer; the qualified display name also matches the const
@@ -276,6 +278,16 @@ dMenu_Collect2D_c* s_powerupsMenu = nullptr;
 void close_powerup_window();
 ActorId s_player = kNone;
 fpc_ProcID s_savePrompt = kNone;
+bool s_victory=false, s_deathPending=false, s_deathDismiss=false;
+unsigned s_victoryTicks=0;
+fpc_ProcID s_deathGameOver=kNone;
+void begin_victory(const cXyz&);
+void begin_defeat();
+void reset_ending();
+bool update_ending(daAlink_c*);
+void update_victory();
+void draw_victory_wave();
+void prepare_victory_wave();
 unsigned s_spawnCooldown = 0, s_spawnFailures = 0, s_warmup = 0;
 unsigned s_midnaRequestFrames = 0;
 bool s_midnaTalking = false, s_midnaEndPending = false, s_midnaRestartPending = false;
@@ -515,6 +527,7 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    reset_ending();
     s_hubMenu=HubMenu::None; s_hubSaveRequested=false; s_hubClosingWindow=0;
     s_hub=true; s_hubDeparture=s_hubDoorStarted=s_arrivingRun=s_allowHubDoor=false;
     s_hubDoor=kNone; s_hubDoorTicks=0;
@@ -587,18 +600,20 @@ void load_records() {
 }
 #include "survivors_progress_save.inc"
 void finish(bool won) {
-    if (s_run.phase != Phase::Running && s_run.phase != Phase::Upgrade) return;
+    if (s_resultsStored || (s_run.phase != Phase::Running && s_run.phase != Phase::Upgrade &&
+        s_run.phase != Phase::TreasureChoice && s_run.phase != Phase::Treasure &&
+        !(s_deathPending && s_run.phase==Phase::Defeat))) return;
     s_run.end(won); clear_attacks(); retire_enemies();
-    // Keep native Game Over from stealing the result screen. A replay reloads the
-    // scene, so no dead Link action or temporary combat state survives it.
+    s_victory=s_deathPending=s_deathDismiss=false;
+    // Only restore health after the native death presentation (or a voluntary
+    // end). The scene reload owns recovery of Link's dead action and camera.
     dComIfGs_setLife(dComIfGs_getMaxLifeGauge());
-    if (!s_resultsStored) {
-        load_records(); s_records.finish(s_run,s_map); s_progressSaved=false;
-        const auto bytes = s_records.encode();
-        s_storeFailed = svc_save->set_blob(mod_ctx, kBlob, bytes.data(), bytes.size()) != MOD_OK;
-        s_resultsStored = true;
-    }
+    load_records(); s_records.finish(s_run,s_map); s_progressSaved=false;
+    const auto bytes = s_records.encode();
+    s_storeFailed = svc_save->set_blob(mod_ctx, kBlob, bytes.data(), bytes.size()) != MOD_OK;
+    s_resultsStored = true;
 }
+#include "survivors_ending.inc"
 #include "survivors_midna.inc"
 void add_orb(cXyz position, unsigned value) {
     position.y -= 20;
@@ -628,7 +643,7 @@ void drop_reward(fopAc_ac_c* actor) {
     create_run_pickup(actor->current.pos, item);
 }
 void credit_death(Enemy& e, fopAc_ac_c* actor) {
-    if (e.credited || e.retiring || !e.initialized || s_run.phase != Phase::Running ||
+    if (s_victory || e.credited || e.retiring || !e.initialized || s_run.phase != Phase::Running ||
         !in_arena() || transitioning()) return;
     bool dead = actor->health <= 0;
     if (e.profile == fpcNm_E_BA_e)
@@ -651,6 +666,9 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         add_orb(actor->current.pos, e.elite ? 30 : (e.profile == fpcNm_E_OC_e || e.profile == fpcNm_E_RD_e) ? 3 : 1);
     }
     if (e.elite) { drop_elite_chest(e, actor); queue_exp_magnet(e, actor); }
+    // The scheduled final boss ends combat even if an earlier elite survived.
+    // Its own kill, damage and loot have already been credited exactly once.
+    if (e.elite && e.eliteSlot==int(timed_elite_count)-1) begin_victory(actor->current.pos);
 }
 void update_orbs(daAlink_c* link) {
     const float range = magnet_range();
@@ -1041,14 +1059,23 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (!s_active || s_run.phase != Phase::Running || !playable()) return;
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!link || fopAcM_GetID(link) != s_player) return;
-    if (dComIfGs_getLife() == 0) { finish(false); return; }
+    if (dComIfGs_getLife() == 0 && !s_victory) { begin_defeat(); return; }
     update_combat_feedback();
+    if (s_victory) {
+        update_victory();
+        update_exp_magnets(link); update_orbs(link);
+        s_run.maximum_hearts = dComIfGs_getMaxLife() / 5;
+        if (s_run.level_up()) { dComIfGs_setLife(dComIfGs_getMaxLifeGauge()); clear_attacks(); }
+        // Existing chests remain interactable; do not spawn new ones after victory.
+        // Do not interrupt a final chest/level-up on the expiration frame.
+        if (s_victoryTicks>=10*ticks_per_second && s_run.phase==Phase::Running) finish(true);
+        return;
+    }
     s_run.tick(true);
     if (s_run.life_regen_due() && dComIfGs_getLife()<dComIfGs_getMaxLifeGauge())
         dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if (const unsigned rupees=s_run.auto_rupees())
         dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(),dComIfGs_getRupee()+rupees));
-    if (s_run.ticks >= s_run.run_duration() && s_run.timed_elites == timed_elite_count) { finish(true); return; }
     update_enemy_effects();
     update_spawns(link); update_pots(link); update_exp_magnets(link); update_weapons(link); update_orbs(link);
     s_run.maximum_hearts = dComIfGs_getMaxLife() / 5;
@@ -1059,10 +1086,13 @@ void after_player(ModContext*, void* args, void*, void*) {
     else update_chests(link);
 }
 HookAction before_death(ModContext*, void*, void* result, void*) {
-    if (!in_arena() || (s_run.phase != Phase::Running && s_run.phase != Phase::Upgrade)) return HOOK_CONTINUE;
-    finish(false);
-    *static_cast<int*>(result) = 1;
-    return HOOK_SKIP_ORIGINAL;
+    if (!in_arena()) return HOOK_CONTINUE;
+    if (s_victory) { // Victory is settled; environmental damage cannot revoke it.
+        dComIfGs_setLife(std::max<unsigned>(1,dComIfGs_getLife()));
+        *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
+    }
+    begin_defeat();
+    return HOOK_CONTINUE; // Link creates and animates the native Game Over screen.
 }
 HookAction before_cut(ModContext*, void*, void* result, void*) {
     if (!in_arena()) return HOOK_CONTINUE;
@@ -1078,7 +1108,8 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
 #include "survivors_bosses.inc"
 bool pause_run_actor(bool enemy) {
     if (!in_arena() || s_run.phase == Phase::Loading) return false;
-    if (enemy && (midna_dialog_busy() || dComIfGp_event_runCheck())) return true;
+    if (enemy && (s_victory || s_deathPending || midna_dialog_busy() || dComIfGp_event_runCheck())) return true;
+    if (s_deathPending && !enemy) return false; // Link must finish PROC_DEAD.
     if (ui_visible() || dComIfGp_isPauseFlag()) return true;
     // Native Get Item and the hub door handshake need Link's Execute. In the
     // hub, beforeProc clears CANDOOR every frame; Link must rebuild it even
@@ -1122,7 +1153,10 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
         *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
     }
     if (pickup) {
-        if (pickup->retiring || pause_run_actor(pickup_waiting(*pickup,actor))) {
+        // Waiting pickups normally freeze with enemies during menus. The
+        // victory sweep freezes enemies only; existing loot must still execute.
+        const bool waiting=pickup_waiting(*pickup,actor) && !(s_victory && s_run.phase==Phase::Running);
+        if (pickup->retiring || pause_run_actor(waiting)) {
             *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
         }
         move_pickup(*pickup,actor);
@@ -1156,7 +1190,7 @@ void after_process(ModContext*, void* args, void*, void*) {
     // return after freeing it, and nested methods must not consume another frame.
     if (s_processFrames.empty() || s_processFrames.back().args != args) return;
     const auto frame = s_processFrames.back(); s_processFrames.pop_back();
-    if (!in_arena() || s_run.phase != Phase::Running || transitioning()) return;
+    if (!in_arena() || s_victory || s_run.phase != Phase::Running || transitioning()) return;
     auto* enemy = tracked(frame.id);
     auto* actor = actor_by_id(frame.id);
     scale_elite_colliders(enemy,actor);
@@ -1215,6 +1249,7 @@ void after_draw(ModContext*, void*, void*, void*) {
         dDbVw_drawCubeOpa(pos,size,angle,GXColor{255,210,45,255});
     }
     draw_loot();
+    draw_victory_wave();
     draw_ranged();
     draw_arena_barriers();
 
@@ -1236,9 +1271,11 @@ void draw_hud(ModContext*, void* args, void*, void*) {
     if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
     graf->setup2D();
+    if (s_deathPending || s_run.phase==Phase::Defeat) return;
     draw_chest_prices();
     draw_combat_feedback();
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
+    if (s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
     char text[180];
     std::snprintf(text, sizeof(text), "%02u:%02u / %02u:00   Level %u   Score %u",
         s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.run_duration()/1800, s_run.level, s_run.score());
@@ -1288,6 +1325,7 @@ void select_upgrade(ModContext*, void* data) {
 }
 void begin_run() {
     if (s_run.phase != Phase::Ready || !s_arenaMeshReady || s_restart || s_progressSaving) return;
+    reset_ending();
     load_option_config();
     close_window(); clear_attacks(); clear_loot(); prepare_save();
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
@@ -1427,10 +1465,11 @@ void update_survivors() {
         }
         return;
     }
-    if (!in_arena() || transitioning()) { reset_midna_dialog(); close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
+    if (!in_arena() || transitioning()) { reset_ending(); reset_midna_dialog(); close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
     if (s_restart) {
+        reset_ending();
         // Always use a scene reload: destroys old actors, pending spawns, collision,
         // damage animations and native drop actors before another run starts.
         retire_enemies(); clear_attacks(); clear_loot(); clear_arena_geometry();
@@ -1449,6 +1488,8 @@ void update_survivors() {
         s_arenaSafe = s_arenaSpawn = false;
     }
     if (fpcM_IsCreating(s_player)) return;
+    if (update_ending(link)) return;
+    if (!s_hub && !s_resultsStored) prepare_victory_wave();
     update_midna_dialog();
     if (s_restart) return; // Reload next tick without briefly opening the results UI.
     update_arena_safety(link);
@@ -1548,6 +1589,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsRangedCancel, before_ranged_native);
     PRE(SurvivorsTreasureDraw, before_treasure_draw);
     PRE(SurvivorsGetItem, before_treasure_get); POST(SurvivorsGetItem, after_treasure_get);
+    PRE(SurvivorsGameOver, before_game_over);
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
     PRE(SurvivorsManualCharge, before_manual_charge);
     PRE(SurvivorsChargeInit, before_cut); PRE(SurvivorsChargeMoveInit, before_cut);

@@ -6,6 +6,8 @@ core=(root/'src/survivors.cpp').read_text()
 start=core.index('void update_orbs(')
 orbs=core[start:core.index('\nbool create_enemy_at',start)]
 fixture=r'''
+void draw_victory_wave(){}
+
 #include <any>
 #include <cassert>
 #include <cmath>

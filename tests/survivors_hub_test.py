@@ -11,6 +11,8 @@ def extract(source,name):
   depth+=(source[i]=='{')-(source[i]=='}')
   if not depth:return source[m.start():i+1]
 fixture=r'''
+bool s_victory=false,s_deathPending=false;
+
 #include <any>
 #include <cassert>
 #include <string>

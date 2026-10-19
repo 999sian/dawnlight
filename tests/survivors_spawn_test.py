@@ -30,6 +30,8 @@ end = runtime.index('    open_powerup_window();', start)
 loading = 'void load_frame(daAlink_c* link) {\n'+runtime[start:end]+'}\n'
 names = sorted(set(re.findall(r'fpcNm_\w+', source)))
 fixture = r'''
+bool s_victory=false,s_deathPending=false,s_resultsStored=false;void prepare_victory_wave(){}
+
 #include <any>
 #include <cassert>
 #include <cmath>
@@ -55,7 +57,7 @@ BG& dComIfG_Bgsp(){return background;}int dComIfGs_getLife(){return life;}
 void dComIfGs_setLife(int n){life=n;++damageWrites;}
 void clear_attacks(){++cleared;}void interrupt_auto_actions(daAlink_c*){++interrupted;}
 void cancel_jump_abilities_for(daAlink_c*){++cancelled;}
-void finish(bool won){assert(!won);++finished;}
+void begin_defeat(){++finished;}
 
 struct fopAcM_prm_class {struct{unsigned parameters=0;cXyz position;csXyz angle;}base;int room_no=51;struct{int x=10,z=10;}scale;};
 struct stage_actor_data_class {char name[8]{};};
@@ -81,6 +83,7 @@ struct{int procname=0;}info;
 const auto* dStage_searchName(const char*){return &info;}
 unsigned freed=0;void JKRFree(void*){++freed;}
 float cM_ssin(short a){return std::sin(a*3.14159265f/32768);}float cM_scos(short a){return std::cos(a*3.14159265f/32768);}
+bool update_ending(daAlink_c*){return false;}
 '''
 main = r'''
 int main(){
@@ -171,9 +174,12 @@ int main(){
  // The last heart is lethal; never underflow, refund or restart the run.
  life=3;link.current.pos.y=-501;link.mLinkAcch.hit=false;update_arena_safety(&link);
  assert(!life&&finished==1&&damageWrites==3);
+ // Victory remains settled if Link falls while collecting the boss rewards.
+ s_victory=true;life=1;link.current.pos.y=-501;link.mLinkAcch.hit=false;update_arena_safety(&link);
+ assert(life==1&&finished==1&&damageWrites==4);s_victory=false;
  // Other arenas retain their existing free return to the last safe floor.
  s_map=0;link.room=arena().room;life=12;link.current.pos.y=-501;update_arena_safety(&link);
- assert(life==12&&damageWrites==3);
+ assert(life==12&&damageWrites==4);
  clear_arena_geometry();assert(!s_arenaSpawn&&!s_arenaSafe);
  std::cout<<"Survivors spawn: native entry, barrier timing, grounding, recovery and actor replacement passed\n";
 }
