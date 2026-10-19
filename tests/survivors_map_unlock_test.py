@@ -70,6 +70,8 @@ int main(){
  for(unsigned map=0;map<arenas.size();++map){
   controls.clear();classes.clear();s_requestedMap=map;
   assert(build_arena_choices(1,2)==MOD_OK);
+  assert(text[s_mapPreview].find(arenas[map].name)!=std::string::npos);
+  assert(text[s_mapPreview].find(arenas[map].description)==std::string::npos);
   // The real window installs this stylesheet outside the isolated builder.
   // Verify that all classes assigned to map controls have matching rules.
   const std::string stylesheet=kArenaStyle;

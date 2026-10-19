@@ -58,6 +58,8 @@ void restore_sword_aim_camera(dCamera_c*){}bool update_sword_aim_camera(dCamera_
 void resolve_manual_projectiles(dCamera_c*){}
 ModContext* mod_ctx=nullptr;
 std::vector<UiControlDesc> controls;
+std::vector<UiElementHandle> controlPanes;
+UiTabDesc pushedTab{};UiWindowClosedFn windowClosed=nullptr;
 UiWindowHandle s_window=0,s_refreshChoices=0;
 bool ui_visible(){return false;}
 std::vector<std::string> tabNames;
@@ -72,12 +74,13 @@ void dismiss_treasure_choice(){}
 struct Log{void warn(ModContext*,const char*){assert(false);}}logger;auto* svc_log=&logger;
 struct Service{
  ModResult window_push(ModContext*,const UiWindowDesc* desc,UiWindowHandle* handle){
+  pushedTab=desc->tabs[0];windowClosed=desc->on_closed;
   tabNames.clear();for(size_t i=0;i<desc->tab_count;++i){assert(desc->tabs[i].build);tabNames.push_back(desc->tabs[i].title);}
   *handle=1;return MOD_OK;
  }
 
  ModResult elem_set_class(ModContext*,UiElementHandle,const char*,bool){return MOD_OK;}
- ModResult pane_add_control(ModContext*,UiElementHandle,const UiControlDesc* c,UiElementHandle*){controls.push_back(*c);return MOD_OK;}
+ ModResult pane_add_control(ModContext*,UiElementHandle pane,const UiControlDesc* c,UiElementHandle*){controls.push_back(*c);controlPanes.push_back(pane);return MOD_OK;}
  ModResult pane_add_text(ModContext*,UiElementHandle,const char*,UiElementHandle*){return MOD_OK;}
 }service;auto* svc_ui=&service;
 ModResult build_reset_scores(UiElementHandle){return MOD_OK;}
@@ -163,7 +166,12 @@ int main(){
  s_run.phase=Phase::Ready;s_options.camera_distance=300;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==300);
  before_run_camera(nullptr,cam,nullptr,nullptr);active=false;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==100);active=true;
  assert(build_difficulty(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
- assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK&&controls.size()==19);
+ assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK&&controls.size()==10);
+ const auto manual=controls.back();
+ assert(manual.kind==UI_CONTROL_GROUP&&std::string(manual.label)=="Manual aiming abilities"&&controlPanes.back()==1);
+ manual.on_pressed(nullptr,nullptr);assert(s_manualAimSettingsWindow&&std::string(pushedTab.title)==manual.label);
+ assert(pushedTab.build(nullptr,s_manualAimSettingsWindow,3,4,nullptr,nullptr)==MOD_OK&&controls.size()==20);
+ for(unsigned i=10;i<20;++i)assert(controlPanes[i]==3); // Never put toggles in the replaceable help pane.
  assert(controls[2].max==3);
  assert(std::string(controls[8].label)=="Allow Cheats");
  for(unsigned i=0;i<6;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_NUMBER&&c.get&&c.set);
@@ -177,13 +185,18 @@ int main(){
   s_run.phase=Phase::Running;value.bool_value=(i==7);c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.bool_value==!(i==7));
   s_run.phase=Phase::Ready;s_restart=true;value.bool_value=(i==7);c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.bool_value==!(i==7));s_restart=false;
  }
- for(unsigned i=9;i<19;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_TOGGLE&&c.user_data);
+ for(unsigned i=10;i<20;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_TOGGLE&&c.user_data);
   UiControlValue value=UI_CONTROL_VALUE_INIT;c.get(nullptr,c.user_data,&value);assert(value.bool_value);
   value.bool_value=false;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);
-  assert(!s_options.manual_aim[i-9]);for(unsigned j=i-8;j<10;++j)assert(s_options.manual_aim[j]);
+  assert(!s_options.manual_aim[i-10]);for(unsigned j=i-9;j<10;++j)assert(s_options.manual_aim[j]);
   value.bool_value=true;s_run.phase=Phase::Running;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);
   s_run.phase=Phase::Ready;s_restart=true;value.bool_value=true;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);s_restart=false;
  }
+ windowClosed(nullptr,s_manualAimSettingsWindow,nullptr);assert(!s_manualAimSettingsWindow);
+ manual.on_pressed(nullptr,nullptr);assert(s_manualAimSettingsWindow);
+ assert(pushedTab.build(nullptr,s_manualAimSettingsWindow,3,4,nullptr,nullptr)==MOD_OK&&controls.size()==30);
+ for(unsigned i=20;i<30;++i){UiControlValue value=UI_CONTROL_VALUE_INIT;controls[i].get(nullptr,controls[i].user_data,&value);assert(!value.bool_value);}
+ windowClosed(nullptr,s_manualAimSettingsWindow,nullptr);
  s_run.start(1,s_options);for(bool enabled:s_run.options.manual_aim)assert(!enabled);
  s_options.manual_aim.fill(true);for(bool enabled:s_run.options.manual_aim)assert(!enabled);
  assert(!s_run.options.manual_enabled(Upgrade::Power)&&!s_run.options.manual_enabled(ManualAbility::Count));

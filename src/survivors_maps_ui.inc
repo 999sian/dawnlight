@@ -38,7 +38,7 @@ unsigned s_previewMap=0;
 bool s_previewUnlocked=false;
 std::string arena_preview() {
     return "<div class=\"survivors-map-preview-title\" style=\"color: "+
-        std::string(arenas[s_requestedMap].accent)+";\">"+treasure_rml_escape(arenas[s_requestedMap].name)+"</div><div>"+treasure_rml_escape(arenas[s_requestedMap].description)+"</div>";
+        std::string(arenas[s_requestedMap].accent)+";\">"+treasure_rml_escape(arenas[s_requestedMap].name)+"</div>";
 }
 ModResult update_arena_tab(ModContext*,void*,ModError*) {
     if(s_requestedMap>=arenas.size())return MOD_OK;
@@ -185,6 +185,21 @@ ModResult build_manual_aim_settings(UiElementHandle pane) {
     }
     return MOD_OK;
 }
+UiWindowHandle s_manualAimSettingsWindow=0;
+void open_manual_aim_settings(ModContext*,void*) {
+    if(s_manualAimSettingsWindow)return;
+    UiTabDesc tab=UI_TAB_DESC_INIT;
+    tab.title="Manual aiming abilities";
+    tab.build=[](ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle,void*,ModError*) {
+        // Interactive controls belong in the navigation pane. The host replaces
+        // the right pane whenever a setting's contextual help receives focus.
+        return build_manual_aim_settings(left);
+    };
+    UiWindowDesc window=UI_WINDOW_DESC_INIT;
+    window.tabs=&tab;window.tab_count=1;
+    window.on_closed=[](ModContext*,UiWindowHandle,void*){s_manualAimSettingsWindow=0;};
+    if(svc_ui->window_push(mod_ctx,&window,&s_manualAimSettingsWindow)!=MOD_OK)s_manualAimSettingsWindow=0;
+}
 ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     auto result=build_run_controls(left,right,4,5);
     if(result!=MOD_OK)return result;
@@ -226,5 +241,10 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
     result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
     if(result!=MOD_OK)return result;
     result=build_reset_scores(left);
-    return result==MOD_OK?build_manual_aim_settings(right):result;
+    if(result!=MOD_OK)return result;
+    control=UI_CONTROL_DESC_INIT;
+    control.kind=UI_CONTROL_GROUP;control.label="Manual aiming abilities";
+    control.help_rml="Choose which abilities follow the reticle during manual aiming. Disabled abilities keep their automatic targeting.";
+    control.on_pressed=open_manual_aim_settings;
+    return svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
 }
