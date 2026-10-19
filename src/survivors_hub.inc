@@ -27,24 +27,39 @@ void update_hub(daAlink_c* link) {
         }
         return;
     }
-    if(!playable())return;
     auto* door=actor_by_id(s_hubDoor);
-    if(!door) {s_hubDeparture=false;return;}
-    s_allowHubDoor=true;
-    const auto ordered=fopAcM_orderDoorEvent(link,door,s_hubDoorPriority,s_hubDoorFlags);
-    s_allowHubDoor=false;
-    if(ordered) {s_hubDoorStarted=true;s_hubDoorTicks=0;}
-    else if(++s_hubDoorTicks>60) {
-        s_hubDeparture=false;s_hubDoorTicks=0;
-        svc_log->warn(mod_ctx,"Survivors: door event could not start; please retry");
+    if(!door) {s_hubDeparture=false;s_hubDoorTicks=0;return;}
+    // orderDoorEvent only enqueues a request. commonCheck can reject it later
+    // if either actor has lost CANDOOR while the menu was open.
+    if(link->eventInfo.checkCommandDoor() && door->eventInfo.checkCommandDoor()) {
+        s_hubDoorStarted=true;s_hubDoorTicks=0;return;
     }
+    if(!playable())return;
+    if(++s_hubDoorTicks>90) {
+        s_hubDeparture=false;s_hubDoorTicks=0;
+        svc_log->warn(mod_ctx,"Survivors: door event was not accepted; please retry");
+        return;
+    }
+    // Let native actor updates rebuild eligibility; never fabricate conditions
+    // or mark an enqueued request as an accepted door animation.
+    if(!link->eventInfo.chkCondition(dEvtCnd_CANDOOR_e) ||
+       !door->eventInfo.chkCondition(dEvtCnd_CANDOOR_e))return;
+    s_allowHubDoor=true;
+    fopAcM_orderDoorEvent(link,door,s_hubDoorPriority,s_hubDoorFlags);
+    s_allowHubDoor=false;
 }
 void* hub_exit_actor(void* ptr,void*) {
     if(!fopAcM_IsActor(ptr))return nullptr;
     auto* actor=static_cast<fopAc_ac_c*>(ptr);
-    if(fopAcM_GetRoomNo(actor)!=arenas[0].room && fopAcM_GetRoomNo(actor)!=-1)return nullptr;
+    // Remembered interaction targets are authoritative, including modded doors.
+    if(fopAcM_GetID(actor)==s_hubDoor)return ptr;
     const auto name=fopAcM_GetName(actor);
-    return name==fpcNm_DOOR20_e || name==fpcNm_DBDOOR_e || name==fpcNm_BOSS_DOOR_e ? ptr : nullptr;
+    if(name!=fpcNm_DOOR20_e && name!=fpcNm_KNOB20_e && name!=fpcNm_DBDOOR_e &&
+       name!=fpcNm_BOSS_DOOR_e && name!=fpcNm_L1BOSS_DOOR_e &&
+       name!=fpcNm_L1MBOSS_DOOR_e && name!=fpcNm_L5BOSS_DOOR_e && name!=fpcNm_SPIRAL_DOOR_e)return nullptr;
+    const auto room=arenas[0].room;
+    return fopAcM_GetRoomNo(actor)==room || fopAcM_GetRoomNo(actor)==-1 ||
+        door_param2_c::getFRoomNo(actor)==room || door_param2_c::getBRoomNo(actor)==room ? ptr : nullptr;
 }
 void hub_label(const char* text,cXyz world) {
     auto* font=mDoExt_getRubyFont();
@@ -63,14 +78,18 @@ void hub_label(const char* text,cXyz world) {
     print.setFontSize(size,size);
     print.printReturn(text,550,size+8,HBIND_CENTER,VBIND_TOP,screen.x-275,screen.y,255);
 }
+void* draw_hub_exit_label(void* ptr,void*) {
+    if(auto* door=static_cast<fopAc_ac_c*>(hub_exit_actor(ptr,nullptr)))
+        hub_label("Start Run",door->current.pos+cXyz(0,400,0));
+    return nullptr; // Visit every exit; the first actor may be off camera.
+}
 void draw_hub_labels() {
     if(!survivors_hub_active()||transitioning()||ui_visible()||dComIfGp_event_runCheck())return;
     auto* graf=dComIfGp_getCurrentGrafPort();if(!graf)return;
     graf->setup2D();
     cXyz anchor;
     if(survivors_pedestal_anchor(anchor))hub_label("Talents",anchor+cXyz(0,230,0));
-    if(auto* door=static_cast<fopAc_ac_c*>(fpcM_Search(hub_exit_actor,nullptr)))
-        hub_label("Start Run",door->current.pos+cXyz(0,400,0));
+    fpcM_Search(draw_hub_exit_label,nullptr);
     graf->setup2D();
     if(s_storeFailed)label("Progress save failed. Retry Save progress at the sword.",
         mDoGph_gInf_c::getMinXF()+mDoGph_gInf_c::getWidthF()*.5f,40,16);

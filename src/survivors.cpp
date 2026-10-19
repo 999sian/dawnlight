@@ -1,4 +1,5 @@
 #include "survivors.hpp"
+#include "d/d_door_param2.h"
 #include "config.hpp"
 #include "heroes_shade_encounter.hpp"
 #include "aim_hooks.hpp"
@@ -1079,8 +1080,10 @@ bool pause_run_actor(bool enemy) {
     if (!in_arena() || s_run.phase == Phase::Loading) return false;
     if (enemy && (midna_dialog_busy() || dComIfGp_event_runCheck())) return true;
     if (ui_visible() || dComIfGp_isPauseFlag()) return true;
-    // Native Get Item needs Link's Execute; enemies and the run clock stay paused.
-    return s_run.phase != Phase::Running && (enemy || (s_run.phase != Phase::Treasure && !(s_hub && s_run.phase==Phase::Ready && (!s_hubDeparture || s_hubDoorStarted))));
+    // Native Get Item and the hub door handshake need Link's Execute. In the
+    // hub, beforeProc clears CANDOOR every frame; Link must rebuild it even
+    // while a requested departure waits for the native event manager.
+    return s_run.phase != Phase::Running && (enemy || (s_run.phase != Phase::Treasure && !(s_hub && s_run.phase==Phase::Ready)));
 }
 HookAction before_process(ModContext*, void* args, void* result, void*) {
     auto* process = mods::arg<void*>(args, 1);
@@ -1303,7 +1306,7 @@ void begin_run() {
 void start_run(ModContext*, void*) {
     if(!s_hub || s_run.phase!=Phase::Ready || s_hubDeparture || s_progressSaving ||
        s_restart || !s_arenaMeshReady || !map_available(s_requestedMap) || !actor_by_id(s_hubDoor))return;
-    s_hubDeparture=true;
+    s_hubDeparture=true;s_hubDoorStarted=false;s_hubDoorTicks=0;
     close_window(); // Save and fully hide the UI before ordering the native door event.
 }
 void replay(ModContext*, void*) { close_window(); s_requestedMap = s_map; s_restart = true; }

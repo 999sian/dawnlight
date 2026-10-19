@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[1]
 core=(root/'src/survivors.cpp').read_text()
 hub=(root/'src/survivors_hub.inc').read_text()
 def extract(source,name):
- m=re.search(r'^(?:void|bool|HookAction) '+name+r'\([^;{}]*\)\s*\{',source,re.M);assert m,name
+ m=re.search(r'^(?:void\*?|bool|HookAction) '+name+r'\([^;{}]*\)\s*\{',source,re.M);assert m,name
  start=source.index('{',m.start());depth=0
  for i in range(start,len(source)):
   depth+=(source[i]=='{')-(source[i]=='}')
@@ -14,6 +14,7 @@ fixture=r'''
 #include <any>
 #include <cassert>
 #include <string>
+#include <vector>
 #include "survivors_rules.hpp"
 #include "survivors_maps.hpp"
 using namespace dawnlight::survivors;
@@ -22,7 +23,21 @@ constexpr unsigned kNone=~0u;
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* a,int i){return std::any_cast<T>(static_cast<std::any*>(a)[i]);}
  template<class T>T& arg_ref(void* a,int i){return *std::any_cast<T>(&static_cast<std::any*>(a)[i]);}}
-struct fopAc_ac_c{unsigned id;};struct daAlink_c:fopAc_ac_c{};
+constexpr unsigned dEvtCnd_CANDOOR_e=4;
+struct EventInfo{bool eligible=false,doorCommand=false;
+ bool chkCondition(unsigned)const{return eligible;}bool checkCommandDoor()const{return doorCommand;}};
+struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
+ cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}};
+struct fopAc_ac_c{unsigned id;EventInfo eventInfo{};int room=51,frontRoom=51,backRoom=0,name=1;bool isActor=true;struct{cXyz pos{};}current{};};
+constexpr int fpcNm_DOOR20_e=1,fpcNm_KNOB20_e=2,fpcNm_DBDOOR_e=3,fpcNm_BOSS_DOOR_e=4,
+ fpcNm_L1BOSS_DOOR_e=5,fpcNm_L1MBOSS_DOOR_e=6,fpcNm_L5BOSS_DOOR_e=7,fpcNm_SPIRAL_DOOR_e=8;
+bool fopAcM_IsActor(void* p){return p&&static_cast<fopAc_ac_c*>(p)->isActor;}
+int fopAcM_GetRoomNo(fopAc_ac_c* a){return a->room;}int fopAcM_GetName(fopAc_ac_c* a){return a->name;}
+struct door_param2_c{static int getFRoomNo(fopAc_ac_c* a){return a->frontRoom;}
+ static int getBRoomNo(fopAc_ac_c* a){return a->backRoom;}};
+std::vector<cXyz> labels;
+void hub_label(const char* text,cXyz position){assert(std::string(text)=="Start Run");labels.push_back(position);}
+struct daAlink_c:fopAc_ac_c{};
 daAlink_c link{{1}};fopAc_ac_c door{2};
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}
 bool doorAlive=true;fopAc_ac_c* actor_by_id(unsigned id){return doorAlive&&id==2?&door:nullptr;}
@@ -75,16 +90,26 @@ int main(){
  update_hub(&link);assert(!orders&&!s_hubDeparture&&s_run.phase==Phase::Ready);
  s_hubSaveRequested=false;
  before_hub_door(nullptr,request,&result,nullptr);
- start_run(nullptr,nullptr);assert(!visible&&s_hubDeparture&&s_hubSaveRequested&&s_run.phase==Phase::Ready);
+ s_hubDoorTicks=599;
+ start_run(nullptr,nullptr);assert(s_hubDoorTicks==0);assert(!visible&&s_hubDeparture&&s_hubSaveRequested&&s_run.phase==Phase::Ready);
  update_hub(&link);assert(!orders); // save queued
  s_hubSaveRequested=false;s_progressSaving=true;update_hub(&link);assert(!orders);
  s_progressSaving=false;s_hubClosingWindow=17;update_hub(&link);assert(!orders);s_hubClosingWindow=0;
- assert(pause_run_actor(false)); // Waiting at the door cannot move Link away.
+ assert(!pause_run_actor(false)); // Link must rebuild CANDOOR after the menu/save.
  visible=true;update_hub(&link);assert(!orders);visible=false;
  event=true;update_hub(&link);assert(!orders);event=false;
- update_hub(&link);assert(orders==1&&s_hubDoorStarted&&!s_allowHubDoor&&s_run.phase==Phase::Ready);
- assert(!pause_run_actor(false)); // Native door animation retains player execution.
- update_hub(&link);assert(orders==1); // Never replay an accepted event each tick.
+ // Actor beforeProc cleared eligibility while the menu paused Link's Execute.
+ link.eventInfo.eligible=false;door.eventInfo.eligible=true;
+ update_hub(&link);assert(!orders&&!s_hubDoorStarted);
+ assert(!pause_run_actor(false));link.eventInfo.eligible=true; // Native Link update.
+ update_hub(&link);assert(orders==1&&!s_hubDoorStarted&&!s_allowHubDoor);
+ // An enqueued request can be rejected at entry; retry instead of waiting forever.
+ update_hub(&link);assert(orders==2&&!s_hubDoorStarted);
+ link.eventInfo.doorCommand=door.eventInfo.doorCommand=true;event=true;
+ update_hub(&link);assert(s_hubDoorStarted&&s_hubDoorTicks==0&&s_run.phase==Phase::Ready);
+ assert(!pause_run_actor(false));
+ update_hub(&link);assert(orders==2); // An accepted event is not replayed.
+ link.eventInfo.doorCommand=door.eventInfo.doorCommand=false;event=false;
  for(unsigned map=0;map<arenas.size();++map){
   s_hub=s_hubDoorStarted=s_hubDeparture=true;s_map=0;s_requestedMap=map;
   std::any stage[]={static_cast<const char*>("D_MN06"),s16(8),s8(9),s8(2)};
@@ -104,10 +129,35 @@ int main(){
  assert(before_hub_door(nullptr,request,&result,nullptr)==HOOK_SKIP_ORIGINAL&&!visible);
  // A failed native order remains retryable without teleporting.
  s_hub=true;s_run.phase=Phase::Ready;s_hubDoor=2;s_hubDeparture=true;acceptOrder=false;s_hubDoorTicks=0;
- for(int i=0;i<61;++i)update_hub(&link);
+ for(int i=0;i<91;++i)update_hub(&link);
  assert(!s_hubDeparture&&!s_hubDoorStarted);
  s_hubDeparture=s_hubDoorStarted=true;s_hubDoorTicks=600;event=false;update_hub(&link);
  assert(!s_hubDeparture&&!s_hubDoorStarted);
+ // A queued-but-never-accepted order and missing eligibility must both recover.
+ acceptOrder=true;s_hubDeparture=true;
+ for(int i=0;i<91;++i)update_hub(&link);
+ assert(!s_hubDeparture&&!s_hubDoorStarted);
+ s_hubDeparture=true;link.eventInfo.eligible=false;
+ for(int i=0;i<91;++i)update_hub(&link);
+ assert(!s_hubDeparture&&!s_hubDoorStarted);
+ const auto previousOpened=opened;
+ before_hub_door(nullptr,request,&result,nullptr);assert(opened==previousOpened+1);
+ close_window();s_hubSaveRequested=false;
+ // Label recognition includes knob/midboss doors and the opposite room assignment.
+ s_hubDoor=kNone;
+ for(int profile=1;profile<=8;++profile){
+  door.name=profile;door.room=50;door.frontRoom=0;door.backRoom=51;
+  assert(hub_exit_actor(&door,nullptr)==&door);
+  door.backRoom=0;assert(!hub_exit_actor(&door,nullptr));
+  door.frontRoom=51;assert(hub_exit_actor(&door,nullptr)==&door);
+  door.name=99;assert(!hub_exit_actor(&door,nullptr));
+ }
+ door.name=fpcNm_L1MBOSS_DOOR_e;door.current.pos={10,20,30};
+ assert(!draw_hub_exit_label(&door,nullptr)&&labels.size()==1&&labels[0].y==420);
+ door.current.pos={40,50,60};assert(!draw_hub_exit_label(&door,nullptr)&&labels.size()==2);
+ door.name=99;door.room=0;door.frontRoom=0;s_hubDoor=door.id;
+ assert(hub_exit_actor(&door,nullptr)==&door); // Captured custom door.
+ door.isActor=false;assert(!hub_exit_actor(&door,nullptr));door.isActor=true;
  // Missing door and settings/talent close cannot accidentally authorize departure.
  doorAlive=false;s_hubDeparture=true;update_hub(&link);assert(!s_hubDeparture);
  s_hubMenu=HubMenu::Talents;hub_menu_closed();assert(s_hubSaveRequested&&s_hubMenu==HubMenu::None);
@@ -117,7 +167,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+'\n'+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','update_hub'])+main)
+ cpp.write_text(fixture+'\n'+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),'-I',str(root/'include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors hub: free movement, native door gating, save/close, cancellation, routing and recovery passed')
