@@ -413,14 +413,16 @@ int main(){
     BOOL large=1;assert(before_large_spin(nullptr,nullptr,&large,nullptr)==HOOK_SKIP_ORIGINAL && large==0);
     arena=false;assert(before_large_spin(nullptr,nullptr,&large,nullptr)==HOOK_CONTINUE);arena=true;
     // Apply the debug multiplier once at the final owned damage boundary,
-    // including combined fixed burns. Foreign/native attacks remain untouched.
+    // including combined fixed burns. Release builds must ignore stale debug
+    // values. Foreign/native attacks remain untouched.
     reset();s_swordAction=SwordAction::Normal;
     for(unsigned multiplier=1;multiplier<=10;++multiplier){
         s_run.options.debug.player_damage=multiplier;
+        const auto effectiveMultiplier=debug_enabled?multiplier:1u;
         dCcU_AtInfo hit{&player.mAtCps[0]};std::any debugArgs[]={&hit};
-        after_power(nullptr,debugArgs,nullptr,nullptr);assert(hit.mAttackPower==s_run.melee_power()*multiplier);
+        after_power(nullptr,debugArgs,nullptr,nullptr);assert(hit.mAttackPower==s_run.melee_power()*effectiveMultiplier);
         s_effects[0].damage=7;s_effects[0].fixedDamage=13;hit={&s_effects[0].collider};
-        after_power(nullptr,debugArgs,nullptr,nullptr);assert(hit.mAttackPower==20*multiplier);
+        after_power(nullptr,debugArgs,nullptr,nullptr);assert(hit.mAttackPower==20*effectiveMultiplier);
     }
     s_run.options.debug.player_damage=1;s_effects[0].fixedDamage=0;
     // Only this Link's active native sword colliders receive linear Survivors damage.
