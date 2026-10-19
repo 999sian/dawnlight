@@ -154,19 +154,19 @@ is retained and multiple earned levels are offered consecutively.
 | --- | --- |
 | Sword Wave | One aimed, piercing projectile per cast plus Multishot; becomes a larger Great Spin projectile at rank 15 |
 | Spin Attack | Automatic Spin Attack while moving; becomes Great Spin Attack at rank 15 with a larger radius |
-| Shield Attack | Requires a chest shield; automatic native shield bash, with damage, range and cooldown upgrades; fixed small knockback |
+| Shield Attack | Requires a chest shield; automatic frontal shield hit, with damage, range and cooldown upgrades; 240-unit base knockback (native bash animation is currently missing) |
 | Fire Arrows | Requires Hero's Bow; ignite enemies for 1 damage/second over 3 seconds; +1 periodic damage per rank and +1 second after every three further upgrades (rank 4) |
 | Hero's Bow | Chest unlock; one arrow at ranks 1–9, three at 10–19, five at 20–30; symmetric fan up to 45°; same-volley extra hits per target deal 25% damage |
 | Boomerang | Chest unlock; Gale wind effect and one extra target at rank 1; each upgrade adds another hop and improves damage/size/cooldown |
 | Bombs | Chest unlock; aimed ballistic throws with larger, stronger blasts and shorter cooldowns |
-| Ball and Chain | Native throw/pull/catch animation and chain links; pierces to full range, damages each enemy once per leg and fixed small knockback |
+| Ball and Chain | Independent chain projectile and optional throw pose; pierces to full range, damages each enemy once per leg and has 240-unit base knockback |
 | Power | Increase automatic weapon damage |
 | Haste | Reduce automatic weapon cooldowns |
 | Reach | +7.5% linear reach/range per rank; Spin/Bomb/Shield radii use the square root of that factor |
 | Magnet | Attract XP, rupees, hearts and heart pieces from farther away |
 | Heart Container | Add one maximum heart; level-up healing fills the new capacity |
 | Luck | 20 ranks; rarity weights +5% and crit multiplier +2.5% per rank; drop bonuses +10% per rank capped at +50% |
-| Knockback | 10 ranks; +4 units horizontal push/rank on direct attacks; fixed 24-unit Ball/Shield base; elites take half |
+| Knockback | 10 ranks; +40 units horizontal push/rank on direct attacks; fixed 240-unit Ball/Shield base; elites take half |
 | Piercing | Requires Bow; 10 ranks, +1 distinct damaged target per arrow/rank, including Multishot arrows |
 | Multishot | Epic +1 rank, Legendary +2, cap 3; +1 projectile/rank for all five ranged abilities; arrows retain the existing fan angle |
 | Life Regen | Rare or better; cap 5; -1 second/rank from passive regeneration; stacks with the talent |
@@ -546,10 +546,13 @@ Survivors inventory, sword/shield ranks, Dual Wield unlock, chest prices and wea
 a giant wallet (at least 1000 capacity) and zero rupees.
 
 All four weapons attack automatically alongside the sword without assigning
-item slots or consuming ammunition. All four use Link's native upper-body animations while retaining movement: bow
-draw/shoot, boomerang throw, bomb throw and ball throw/pull/catch. Link faces the target
-and releases each projectile at its animation cue; higher fire rates accelerate
-the animation. During ground locomotion and automatic sword, spin, shield and item actions, the stick
+item slots or consuming ammunition. Projectiles release independently of Link's pose.
+At most one native upper-body presentation can run at a time: bow shoot, boomerang
+throw, bomb throw or ball throw. Ordinary sword cuts yield to that presentation;
+Spin and Jump Strike own their native body actions, and Sword Wave retains its
+visible casting swing until release. The missing draw/pull/catch stages and
+release-cue mismatch are documented in the [animation audit](hyrule-survivors-animation-audit.md).
+During ground locomotion and automatic sword, spin, shield and item actions, the stick
 controls horizontal movement independently of animation lunges and slowdown;
 releasing the stick stops that travel. The correction also spans the return from
 a sword swing to locomotion and the remaining animation blend, avoiding a
@@ -1168,3 +1171,31 @@ its own A/B/D-pad handling, so confirmation, cancellation and retry still work.
 HUD render scopes restore afterward and ordinary gameplay outside Survivors
 is unaffected. Regression tests exercise native save lifetime, nested windows,
 HUD suppression/restoration and the existing hub/ending flows.
+
+
+### Combat presentation and airborne loot correction (PR #140)
+
+Spin Attack again calls the native Spin/Great Spin procedure, with native hit
+windows and particles. It can interrupt an ordinary sword cut, while active
+ability poses and Sword Wave wind-up finish first. Its old extra pulse collider
+is removed, so each activation still damages each enemy once. Normal sword
+scheduling and facing yield to item presentation; independent projectiles continue.
+
+Stallord head fireballs/mouth effects and Death Sword magic-orb effects are
+imported from the game's particle archives into private common-bank resources.
+They are remapped only inside owned actor execution, retain native emitter
+callbacks, and share the existing cleanup path. Fire Edge uses the native
+Bulblin flame effect at three points on the current sword model instead of
+Link's burn/smoke effect. No game assets are embedded in the mod.
+
+Knockback distance is ten times the previous value, retaining the same duration,
+elite reduction, non-additive hit handling and wall/cliff checks. Phantom Zant
+cannot enter heavy-hit stagger during attack modes 0–2: health damage and lethal
+hits still work normally.
+
+Elite loot checks the floor up to 20,000 units below a flying corpse before
+validating the landing footprint. Its fallback cache starts at the validated
+spawn floor, never flight altitude; the separate original spawn position preserves
+boss initialization, including Stallord's airborne entry. Golden EXP pickups
+use the same floor projection. Missing/unsafe current ground falls back to the
+cached landing.

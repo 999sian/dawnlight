@@ -77,7 +77,7 @@ void queue_exp_magnet(const Enemy& enemy, fopAc_ac_c* actor) {
     auto& drop=s_expMagnets[slot];
     if (drop.pending || drop.active || drop.collected) return;
     cXyz position=actor->current.pos;
-    if (!dry_arena_floor(position,250,240)) position=enemy.lootPosition;
+    if (!loot_floor_position(position)) position=enemy.lootPosition;
     drop.position=position; drop.pending=true;
 }
 void update_exp_magnets(daAlink_c* link) {

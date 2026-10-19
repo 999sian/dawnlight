@@ -428,9 +428,9 @@ int main() {
     for(unsigned rank=0;rank<=10;++rank){
         powers.ranks[unsigned(Upgrade::Piercing)]=rank;assert(powers.arrow_targets()==1+rank);
         powers.ranks[unsigned(Upgrade::Knockback)]=rank;
-        assert(powers.knockback_distance(false,false)==4*rank);
-        assert(powers.knockback_distance(true,false)==24+4*rank);
-        assert(powers.knockback_distance(true,true)==12+2*rank);
+        assert(powers.knockback_distance(false,false)==40*rank);
+        assert(powers.knockback_distance(true,false)==240+40*rank);
+        assert(powers.knockback_distance(true,true)==120+20*rank);
     }
     assert(upgrade_cap(Upgrade::Knockback)==10&&upgrade_cap(Upgrade::Piercing)==10);
     assert(upgrade_cap(Upgrade::Multishot)==3&&upgrade_cap(Upgrade::LifeRegen)==5&&upgrade_cap(Upgrade::LifeSteal)==1);

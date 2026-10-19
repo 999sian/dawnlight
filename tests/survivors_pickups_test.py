@@ -48,6 +48,7 @@ ActorId fopAcM_createItem(const cXyz* pos,int item,int bit,int room,void*,void*,
  const auto id=nextId++;actors[id].id=id;actors[id].current.pos=*pos;return id;
 }
 struct Service{void delete_actor(ModContext*,ActorId id){actors.erase(id);}}service;auto* svc_actor=&service;
+bool loot_floor_position(cXyz& p){if(!dry)return false;p.y=0;return true;}
 bool dry_arena_floor(cXyz& pos,float,float){pos.y=0;return dry;}
 bool walkable_spawn_path(cXyz,cXyz& pos,float){pos.y=0;return path;}
 float cM_ssin(s16 a){return std::sin(float(a)*3.14159265f/32768);}float cM_scos(s16 a){return std::cos(float(a)*3.14159265f/32768);}

@@ -79,7 +79,7 @@ struct daAlink_c : fopAc_ac_c {
     int field_0x3198=2;
     int procCutLargeJumpInit(){mProcID=PROC_CUT_LARGE_JUMP;return 1;}
     float field_0x3478=0,field_0x347c=10,field_0x3484=15,mNormalSpeed=0,mStickValue=0;short mMoveAngle=0;csXyz shape_angle;
-    struct HIO {struct {struct {float mMaxSpeed=20;}m;}mMove;}hio;
+    struct HIO {struct {struct {float mMaxSpeed=20;}m;}mMove;struct{struct{struct{float mAttackRadius=260,mLargeAttackRadius=400;}m;}mCutTurn;}mCut;}hio;
     HIO* mpHIO=&hio;
     cCcD_Obj mAtCps[3],mAtSph,mGuardAtCps;int tevStr=0;
     u32 field_0x3204[6]{};
@@ -174,6 +174,7 @@ struct Attack {bool active=true,greatSpin=false;float radius=65,effectBaseRadius
 std::array<Attack,initial_projectile_slots>s_attacks;
 struct Effect{cCcD_Obj collider;unsigned damage=0,fixedDamage=0;bool critical=false;};std::array<Effect,24>s_effects;
 void new_melee_swing(){}
+bool rangedActive=false;bool ranged_pose_active(){return rangedActive;}
 void cancel_ranged(){}
 constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
 struct dCcU_AtInfo {cCcD_Obj* mpCollider;unsigned mAttackPower=200;int mHitType=0;};
@@ -327,6 +328,21 @@ int main(){
     for(unsigned i=0;i<2*ticks_per_second;++i)update_sword(&player);
     enemy.current.pos.z=150;update_sword(&player);assert(player.mComboCutCount==1);
     auto count=player.normals;assert(!player.checkCutAction() && player.normals==count);
+    // A due Spin replaces an ordinary cut and keeps ownership until native
+    // recovery. Normal cuts and wave casts must yield to active item poses.
+    reset();update_sword(&player);s_run.ranks[1]=1;
+    s_wavePending=true;assert(!begin_spin_attack(&player));s_wavePending=false;
+    assert(begin_spin_attack(&player)&&player.spins==1&&s_swordAction==SwordAction::Spin);
+    const auto normalCount=player.normals;update_sword(&player);assert(player.normals==normalCount);
+    assert(!begin_spin_attack(&player)); // No animation restart while spinning.
+    reset();update_sword(&player);rangedActive=true;player.shape_angle.y=123;
+    track_melee_facing(&player);assert(player.shape_angle.y==123);
+    reset();rangedActive=true;update_sword(&player);assert(!player.normals);
+    s_run.ranks[0]=1;update_sword_wave(&player);assert(!player.normals);
+    assert(!begin_spin_attack(&player));rangedActive=false;
+    for(int proc:{daAlink_c::PROC_DAMAGE,daAlink_c::PROC_DODGE,daAlink_c::PROC_JUMP}) {
+        reset();player.mProcID=proc;assert(!begin_spin_attack(&player));
+    }
     // Ordinary sword combo targets nearby unbroken pots when no enemy is reachable.
     reset();s_enemies={};potActor.current.pos={0,0,150};s_pots[0]={99,true,false,false};
     update_sword(&player);assert(player.normals==1&&s_meleeTarget==99);
@@ -647,7 +663,7 @@ int main(){
 '''
 functions = ['stop_attack', 'update_wave_effects', 'sword_action_available', 'enemy_in_range',
              'before_cut', 'before_sword_attack', 'normal_sword_proc', 'melee', 'targeting', 'begin_sword_combo',
-             'release_sword_wave', 'wave_cast', 'jump_strike', 'sync_spin_radius', 'after_spin_effect', 'update_sword', 'after_sword_move', 'before_large_spin',
+             'release_sword_wave', 'wave_cast', 'jump_strike', 'sync_spin_radius', 'after_spin_effect', 'begin_spin_attack', 'update_sword', 'after_sword_move', 'before_large_spin',
              'native_sword_collider', 'after_power', 'before_drop', 'drop_reward', 'select_upgrade']
 # Execute Dusklight's actual combo counter/selector, not a reimplementation of
 # the sequence. Animation setup remains an observable boundary above.

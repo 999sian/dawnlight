@@ -55,6 +55,7 @@ int main(){
  assert(effect_for(s_enemies[1]).legendaryBurns[1].tenths==melee);
  assert(effect_for(s_enemies[2]).legendaryBurns[1].tenths==melee);
  update_enemy_effects();assert(s_fireEdgeEmitters[0]&&s_fireEdgeEmitters[1]&&s_fireEdgeEmitters[2]);
+ for(auto key:s_fireEdgeEmitters)assert(emitters[key].effect==bow_fire_effect());
  // Sheathed sword keeps burning at its model, independent of combat endpoints.
  player.drawn=false;swordModel.origin={10,20,30};update_fire_edge();
  assert(emitters[s_fireEdgeEmitters[2]].position.x==110);

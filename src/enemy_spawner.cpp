@@ -238,9 +238,14 @@ ModResult create_test_actor_in_player_layer(daAlink_c* player, ProfileName profi
 HookAction before_dodongo_fire(ModContext*,void* args,void*,void*) {
     if(!enemy_spawner_process_active())return HOOK_CONTINUE;
     auto* actor=static_cast<fopAc_ac_c*>(mods::arg<void*>(s_testProcessStack.back().first,1));
-    if(!actor||fopAcM_GetName(actor)!=fpcNm_E_DD_e)return HOOK_CONTINUE;
+    if(!actor)return HOOK_CONTINUE;
     auto& effect=mods::arg_ref<u16>(args,3);
-    if(const u16 imported=dodongo_fire_effect(effect))effect=imported;
+    const auto profile=fopAcM_GetName(actor);
+    u16 imported=0;
+    if(profile==fpcNm_E_DD_e)imported=dodongo_fire_effect(effect);
+    else if(profile==fpcNm_B_DS_e || profile==fpcNm_E_VT_e)
+        imported=boss_attack_effect(effect,profile==fpcNm_B_DS_e);
+    if(imported)effect=imported;
     return HOOK_CONTINUE;
 }
 

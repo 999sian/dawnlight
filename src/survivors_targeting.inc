@@ -35,7 +35,7 @@ fopAc_ac_c* melee_target(daAlink_c* link) {
     return nearest;
 }
 void track_melee_facing(daAlink_c* link) {
-    if (!s_trackMelee || s_swordAction != SwordAction::Normal || !normal_sword_proc(link) ||
+    if (ranged_pose_active() || !s_trackMelee || s_swordAction != SwordAction::Normal || !normal_sword_proc(link) ||
         !link->mLinkAcch.ChkGroundHit() || !playable() || s_run.phase != Phase::Running ||
         fopAcM_GetID(link) != s_player) return;
     if(s_run.options.manual_enabled(ManualAbility::Sword)&&(manual_sword(link)||s_manualSwing)) {

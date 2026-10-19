@@ -23,6 +23,13 @@ bool elite_floor_position(cXyz& pos) {
     }
     return true;
 }
+// Flying enemies can die thousands of units above their landing. Project first,
+// then apply the same dry-floor, footprint, wall and arena-exit checks as ground loot.
+bool loot_floor_position(cXyz& pos) {
+    cXyz floor=pos;
+    if (!dry_arena_floor(floor,250,20000) || !elite_floor_position(floor)) return false;
+    pos=floor;return true;
+}
 bool separated_guard(cXyz pos, float distance) {
     for (unsigned i=timed_elite_count; i<s_eliteEncounters.size(); ++i)
         if (s_eliteEncounters[i].placed && s_eliteEncounters[i].position.absXZ(pos) < distance) return false;

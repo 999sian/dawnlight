@@ -36,13 +36,14 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
         break;
     }
     if(!owned && native_sword_collider(attack) &&
-       (s_swordAction==SwordAction::Normal || s_swordAction==SwordAction::Jump)) {
-        source=s_swordAction==SwordAction::Jump?DamageSource::Jump:DamageSource::Sword;
+       (s_swordAction==SwordAction::Normal || s_swordAction==SwordAction::Jump || s_swordAction==SwordAction::Spin)) {
+        source=s_swordAction==SwordAction::Jump?DamageSource::Jump:
+            s_swordAction==SwordAction::Spin?DamageSource::Spin:DamageSource::Sword;
         owned=true;
         const bool splash=s_swordAction==SwordAction::Jump && attack==&link->mAtSph;
         auto& serial=splash?effect.jumpSerial:effect.meleeSerial;
         duplicate=serial==s_meleeSerial;serial=s_meleeSerial;
-        base=splash?s_run.jump_splash_power():s_run.melee_power();
+        base=splash?s_run.jump_splash_power():s_swordAction==SwordAction::Spin?s_run.attack_power(unsigned(Upgrade::Spin)):s_run.melee_power();
     }
     if(!owned) return HOOK_CONTINUE;
     if(!duplicate) {

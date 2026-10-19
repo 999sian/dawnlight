@@ -47,7 +47,7 @@ struct daE_ZH_c:fopAc_ac_c {void* mS_Ball=nullptr;int mActionMode=0,mMoveMode=0,
 struct e_rdy_class {fopAc_ac_c actor;float mPlayerCheckDist=1000,field_0xabc=0,mKnockback=0;int mAction=0,mMode=0,mAnm=0,field_0xa7b=0;mDoExt_McaMorfSO morph;mDoExt_McaMorfSO* mpMorf=&morph;};
 struct e_yk_class:fopAc_ac_c {float mPlayerTrigger=1000;};using e_s1_class=fopAc_ac_c;
 struct Enemy {ActorId id=kNone;int profile=0;bool elite=true,initialized=true,retiring=false,credited=false,dormant=false,idleAnimation=false,encounterReady=false;
- unsigned encounterTick=0,stagger=0;cXyz lootPosition,encounterTarget;};
+ unsigned encounterTick=0,stagger=0;cXyz lootPosition,spawnPosition,encounterTarget;};
 std::array<Enemy,4> s_enemies;Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id&&id!=kNone)return &e;return nullptr;}
 bool arena=true;bool in_arena(){return arena;}bool roster_owned(fopAc_ac_c* a){return arena&&a&&tracked(a->id);}
 enum class Phase {Running,Upgrade};struct Run {Phase phase=Phase::Running;}s_run;
@@ -68,7 +68,7 @@ main=r'''
 int main(){
  player.id=100;player.current.pos={1000,0,1000};
  daB_DS_c head;head.id=1;head.profile=fpcNm_B_DS_e;head.current.pos={345,-1375,-1040};
- auto& e=s_enemies[0];e.id=1;e.profile=head.profile;e.initialized=false;e.lootPosition={1000,300,1600};
+ auto& e=s_enemies[0];e.id=1;e.profile=head.profile;e.initialized=false;e.spawnPosition={1000,300,1600};e.lootPosition={1000,0,1600};
  std::any headArgs[]={&head};
  assert(before_roster_head_action(nullptr,headArgs,nullptr,nullptr)==HOOK_CONTINUE);
  assert(head.current.pos.x==1000&&head.current.pos.y==300&&head.current.pos.z==1600);

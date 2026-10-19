@@ -78,7 +78,7 @@ HookAction before_roster_head_action(ModContext*,void* args,void*,void*) {
     auto* actor=mods::arg<daB_DS_c*>(args,0);auto* enemy=encounter_owner(actor);
     if(!enemy)return HOOK_CONTINUE;
     if(!enemy->encounterReady) {
-        actor->current.pos=actor->old.pos=enemy->lootPosition;
+        actor->current.pos=actor->old.pos=enemy->spawnPosition;
         actor->shape_angle.x=actor->shape_angle.z=0;
         actor->mBossPhase=1;actor->mIsOpeningDemo=false;actor->mEyeColorAlpha=255;
         actor->mAction=daB_DS_c::ACT_B2_WAIT;actor->mMode=0;actor->mCreateFireBreath=false;

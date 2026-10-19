@@ -1,4 +1,4 @@
-// Native burn particles anchored along the actual blade, never to a guessed
+// Native Bulblin flame particles anchored along the actual blade, never to a guessed
 // world-space offset. Their lifetime belongs to the run, not Link's model.
 std::array<u32,3> s_fireEdgeEmitters{};
 void clear_fire_edge() {
@@ -14,6 +14,8 @@ void update_fire_edge() {
     if (!in_arena() || !link || !s_run.rank(Upgrade::FireEdge) || !link->mSwordModel || link->checkWolf()) {
         clear_fire_edge();return;
     }
+    const u16 flame=bow_fire_effect();
+    if (!flame) {clear_fire_edge();return;}
     for (unsigned i=0;i<s_fireEdgeEmitters.size();++i) {
         // Combat endpoints can be stale while sheathed and are extended by
         // Reach. Use the current visible sword model, including its back pose.
@@ -23,7 +25,7 @@ void update_fire_edge() {
         auto& key=s_fireEdgeEmitters[i];
         auto* old=key?dComIfGp_particle_getEmitter(key):nullptr;
         if (!old || old->isEnableDeleteEmitter()) key=0;
-        key=dComIfGp_particle_set(key,ID_ZI_J_LK_BURNS_A,&point,nullptr,nullptr);
+        key=dComIfGp_particle_set(key,flame,&point,nullptr,nullptr);
         if (auto* emitter=dComIfGp_particle_getEmitter(key)) emitter->setGlobalScale(cXyz(.35f,.35f,.35f));
     }
 }

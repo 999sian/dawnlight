@@ -51,7 +51,7 @@ using daE_VA_c=Native;using daE_YMB_c=Native;using daE_PZ_c=Native;using e_hzeld
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* a,unsigned n){return std::any_cast<T>(static_cast<std::any*>(a)[n]);}}
 struct Enemy{ActorId id=kNone;int profile=0;bool encounterReady=false,initialized=true,retiring=false,credited=false;unsigned age=0,specialCooldown=0,summonCooldown=240,encounterTick=0;
- cXyz lootPosition,encounterTarget;};
+ cXyz lootPosition,spawnPosition,encounterTarget;};
 std::array<Enemy,32>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id&&id!=kNone)return &e;return nullptr;}
 struct Child{ActorId parent;bool retiring=false;};std::map<ActorId,Child>children;
@@ -82,7 +82,7 @@ ActorId fopAcM_createChild(int,ActorId parent,u32 param,const cXyz*,int,const cs
 main=r'''
 int main(){
  player.current.pos={100,500,200};Native boss;boss.profile=fpcNm_E_PZ_e;
- auto& owner=s_enemies[0];owner.id=boss.id;owner.profile=boss.profile;owner.lootPosition={200,500,300};
+ auto& owner=s_enemies[0];owner.id=boss.id;owner.profile=boss.profile;owner.spawnPosition={200,500,300};owner.lootPosition={200,0,300};
  std::any args[]={&boss};
  // Scoped flags during create/execute, including nested unrelated actors.
  std::any scope[]={0,static_cast<void*>(&boss)};before_boss_scope(nullptr,scope,nullptr,nullptr);

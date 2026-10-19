@@ -11,6 +11,11 @@ unsigned s_rangedRest = 0;
 Upgrade s_lastRanged = Upgrade::Ball;
 uint64_t s_bowVolleySerial = 0;
 
+bool ranged_pose_active() {return s_ranged.active;}
+
+bool ranged_pose_available(daAlink_c* link) {
+    return sword_action_available(link) || (s_swordAction==SwordAction::Normal && !s_wavePending && normal_sword_proc(link));
+}
 void cancel_ranged() {
     auto* link = daAlink_getAlinkActorClass();
     if (s_ranged.active && link && fopAcM_GetID(link) == s_player &&
@@ -63,8 +68,8 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     }
     s_cooldowns[unsigned(weapon)] = s_run.item_cooldown(weapon);
     // One native upper-body pose can be displayed at a time. It is cosmetic:
-    // other weapons and the normal sword combo do not wait for it to finish.
-    if (!s_ranged.active && !s_rangedRest && sword_action_available(link) && !link->checkEquipAnime()) {
+    // Other projectiles continue; ordinary cuts yield until this pose finishes.
+    if (!s_ranged.active && !s_rangedRest && ranged_pose_available(link) && !link->checkEquipAnime()) {
         s_lastRanged = weapon;
         s_ranged.active = true; s_ranged.released = true;
         s_ranged.weapon = weapon; s_ranged.target = target;
@@ -78,7 +83,7 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
 void update_ranged(daAlink_c* link) {
     if (s_rangedRest) --s_rangedRest;
     if (!s_ranged.active) return;
-    if (!sword_action_available(link) || !link->checkUpperAnime(s_ranged.animation) ||
+    if (!ranged_pose_available(link) || !link->checkUpperAnime(s_ranged.animation) ||
         link->checkAnmEnd(&link->mUpperFrameCtrl[2])) cancel_ranged();
 }
 HookAction before_ranged_native(ModContext*, void* args, void* result, void*) {
@@ -89,13 +94,13 @@ HookAction before_ranged_native(ModContext*, void* args, void* result, void*) {
     // IBTHROW also passes checkIronBallAnime(). Its native action handler uses
     // the locomotion frame as a wind-up timer, and its next-action handler
     // enters IRON_BALL_MOVE/SUBJECT without an equipped ball. Both must yield
-    // to our release/pull/catch scheduler, just like manual bow targeting.
+    // to our independent projectile scheduler, just like manual bow targeting.
     return HOOK_SKIP_ORIGINAL;
 }
 HookAction before_ranged_aim(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
     if (!s_ranged.active || !link || fopAcM_GetID(link) != s_player || !playable() ||
-        !sword_action_available(link) || !link->checkUpperAnime(s_ranged.animation)) return HOOK_CONTINUE;
+        !ranged_pose_available(link) || !link->checkUpperAnime(s_ranged.animation)) return HOOK_CONTINUE;
     if (!s_ranged.released) nearest_item_target(link, s_ranged.target, s_run.item_range(s_ranged.weapon));
     const cXyz delta = s_ranged.target - link->current.pos - cXyz(0, 70, 0);
     link->shape_angle.y = cM_atan2s(delta.x, delta.z);

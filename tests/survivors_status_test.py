@@ -53,7 +53,8 @@ bool jump_strike_pose(const daAlink_c*){return false;}
 struct dBgS_LinChk{cXyz target;void Set(const cXyz*,cXyz* to,daAlink_c*){target=*to;}};
 struct Background{bool LineCross(dBgS_LinChk* line){return line->target.x==999;}} bg;
 Background& dComIfG_Bgsp(){return bg;}
-struct Emitter{bool stopped=false,deleted=false;uintptr_t user=0;cXyz scale,position;
+u16 bow_fire_effect(){return 99;}
+struct Emitter{u16 effect=0;bool stopped=false,deleted=false;uintptr_t user=0;cXyz scale,position;
  void setGlobalPrmColor(unsigned r,unsigned,unsigned){black=r<20;}void setGlobalEnvColor(unsigned,unsigned,unsigned){}bool black=false;
  void stopCreateParticle(){stopped=true;}void quitImmortalEmitter(){}void becomeInvalidEmitter(){deleted=true;}
  bool isEnableDeleteEmitter(){return deleted;}void setParticleCallBackPtr(void*){}
@@ -61,7 +62,7 @@ struct Emitter{bool stopped=false,deleted=false;uintptr_t user=0;cXyz scale,posi
 struct BlackFlameCallback{void bind(Emitter*){}void unbind(Emitter*){}};
 std::map<u32,Emitter> emitters;u32 nextKey=1;
 Emitter* dComIfGp_particle_getEmitter(u32 key){auto it=emitters.find(key);return it==emitters.end()?nullptr:&it->second;}
-u32 dComIfGp_particle_set(u32 key,u16,cXyz* pos,void*,void*){if(!key)key=nextKey++;emitters.try_emplace(key);emitters[key].position=*pos;return key;}
+u32 dComIfGp_particle_set(u32 key,u16 effect,cXyz* pos,void*,void*){if(!key)key=nextKey++;emitters.try_emplace(key);emitters[key].effect=effect;emitters[key].position=*pos;return key;}
 struct dPa_control_c{static void* getParticleTracePCB(){return nullptr;}};
 constexpr u16 ID_ZI_J_LK_BURNS_A=1,ID_ZI_J_LK_BURNS_B=2;
 '''

@@ -42,7 +42,7 @@ int main(){
   s_run.ranks[unsigned(Upgrade::Ball)]=s_run.ranks[unsigned(Upgrade::ShieldAttack)]=30;
   s_run.ranks[unsigned(Upgrade::Power)]=s_run.ranks[unsigned(Upgrade::Reach)]=30;s_run.ticks=duration;
   for(unsigned n=0;n<100;++n)queue_knockback(enemy,&actor,heavy);
-  const float distance=((heavy?24.f:0.f)+4.f*rank)*(elite?.5f:1.f);
+  const float distance=((heavy?240.f:0.f)+40.f*rank)*(elite?.5f:1.f);
   for(unsigned frame=0;frame<6;++frame){update_knockback(enemy,&actor);queue_knockback(enemy,&actor,heavy);}
   assert(std::abs(actor.current.pos.z-100-distance)<.001f&&actor.current.pos.y==0);
   assert(actor.current.pos.z==actor.old.pos.z&&actor.current.pos.z==actor.eyePos.z);
@@ -53,14 +53,14 @@ int main(){
  reset();s_run.ranks[unsigned(Upgrade::Knockback)]=10;
  queue_knockback(enemy,&actor,false);queue_knockback(enemy,&actor,true);
  for(unsigned frame=0;frame<6;++frame)update_knockback(enemy,&actor);
- assert(std::abs(actor.current.pos.z-164)<.001f); // strongest simultaneous hit, not 104 units
+ assert(std::abs(actor.current.pos.z-740)<.001f); // strongest simultaneous hit, not 1040 units
  for(unsigned reason=0;reason<3;++reason){
   reset();queue_knockback(enemy,&actor,true);blocked=reason==0;ledge=reason==1;noFloor=reason==2;
   update_knockback(enemy,&actor);assert(actor.current.pos.z==100&&!effect.knockFrames);
  }
  reset();actor.current.pos.y=actor.old.pos.y=actor.eyePos.y=600;
  queue_knockback(enemy,&actor,true);for(unsigned n=0;n<6;++n)update_knockback(enemy,&actor);
- assert(actor.current.pos.y==600&&std::abs(actor.current.pos.z-124)<.001f);
+ assert(actor.current.pos.y==600&&std::abs(actor.current.pos.z-340)<.001f);
  reset();actor.health=0;queue_knockback(enemy,&actor,true);assert(!effect.knockFrames);
  std::cout<<"Survivors knockback: fixed heavy push, capped upgrades, elites, simultaneous/rapid hits, walls/ledges and flight passed\n";
 }

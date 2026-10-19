@@ -45,7 +45,7 @@ struct TargetSet:dCcD_GObjInf {dCcD_GObjInf extra[3];
  dCcD_GObjInf& operator[](unsigned i){return i?extra[i-1]:*this;}
  struct Iter {TargetSet* a;unsigned i;auto& operator*(){return (*a)[i];}Iter& operator++(){++i;return *this;}bool operator!=(Iter o){return i!=o.i;}};Iter begin(){return {this,0};}Iter end(){return {this,3};}};
 struct NativeActor:fopAc_ac_c {
- enum {ACT_WAIT=1,ACT_MOVE=2,ACT_CHASEH=3};
+ enum {ACT_WAIT=1,ACT_MOVE=2,ACT_CHASEH=3,ACTION_ATTACK_e=4};
  int mAction=0,mMode=0,mActionMode=0,mMoveMode=0,mActionMode1=0,action=0,mode=0,mActionPhase=0;
  int field_0x5b4=0,mCurAction=0,field_0x672=0,mCryTimer=0,combine_off_timer=0,mPlayerStunTimer=0,mPushButtonCount=0,field_0x6a0=0,animation=0;float speedF=0;
  float field_0x6d4=0,pl_range=0,pl_dir=0,field_0x6b8=0,mRecognizeDist=0,pl_recognize_dist=0,pl_search_range=0;
@@ -114,6 +114,13 @@ template<class Angle>ActorId fopAcM_createChild(int,ActorId parent,unsigned para
 '''
 main=r'''
 int main(){
+ for(int phase:{0,1,2,3}){
+  NativeActor phantom;phantom.profile=fpcNm_E_PZ_e;phantom.mActionMode=NativeActor::ACTION_ATTACK_e;phantom.mMoveMode=phase;
+  Enemy owner;owner.profile=fpcNm_E_PZ_e;
+  assert(phantom_projectile_charge(&phantom,owner)==(phase<=2));
+  phantom.health=0;assert(!phantom_projectile_charge(&phantom,owner));
+ }
+
  player.id=s_player;player.current.pos={100,0,0};s_run.start(5);
  for(unsigned kind=5;kind<species_count;++kind) {
   NativeActor actor;actor.profile=native_roster[kind].profile;actors={{1,&actor}};
@@ -160,6 +167,22 @@ int main(){
   // Normal runtime does not execute retiring actors again.
  }
  assert(credits==species_count-5&&disappears==credits&&deletes==credits);
+ // Heavy direct and queued hits keep the live Phantom Zant charge running.
+ for(int phase:{0,1,2})for(bool queued:{false,true}) {
+  NativeActor phantom;phantom.profile=fpcNm_E_PZ_e;phantom.health=100;
+  phantom.mActionMode=NativeActor::ACTION_ATTACK_e;phantom.mMoveMode=phase;
+  s_enemies={};effects={};auto& owner=s_enemies[0];owner.id=1;owner.profile=fpcNm_E_PZ_e;
+  actors={{1,&phantom}};auto body=extended_body(&phantom,owner.profile);
+  owner.stagger=4; // An older stagger cannot freeze the newly entered charge.
+  if(queued){auto& effect=effect_for(owner);effect.pending=7;effect.pendingStagger=true;}
+  else body.targets[0]->hit=&player.mGuardAtCps;
+  assert(update_extended_enemy(&phantom,owner)&&phantom.health==93&&owner.stagger==0);
+  assert(phantom.mActionMode==NativeActor::ACTION_ATTACK_e&&phantom.mMoveMode==phase);
+  phantom.health=7;body.targets[0]->hit=&player.mGuardAtCps;const auto beforeCredits=credits;
+  assert(!update_extended_enemy(&phantom,owner)&&phantom.health==0&&owner.retiring&&owner.credited);
+  assert(credits==beforeCredits+1);
+ }
+
  // Every map's final boss uses the full boss pool and selected HP multiplier.
  for(unsigned map=0;map<map_rosters.size();++map) {
   NativeActor finalBoss;Enemy finalEnemy;

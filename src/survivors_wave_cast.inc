@@ -14,6 +14,7 @@ void update_sword_wave(daAlink_c* link) {
             return;
         }
     }
+    if (ranged_pose_active()) return; // Do not hide a new cast under an item pose.
     if (!manual_skill(link,Upgrade::Wave) && !enemy_in_range(link,1600)) return;
     if (s_swordAction==SwordAction::Normal && link->mProcID==daAlink_c::PROC_CUT_NORMAL) {
         if (link->mUnderFrameCtrl[0].getFrame()<link->field_0x347c) {s_wavePending=true;s_waveManual=manual_skill(link,Upgrade::Wave);}

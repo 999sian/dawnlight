@@ -78,7 +78,7 @@ struct Bg{float GroundCross(dBgS_ObjGndChk*){return groundMissing ? -1.e9f : 0.f
  bool LineCross(dBgS_LinChk*){return wallBlocked;}}bg;
 Bg& dComIfG_Bgsp(){return bg;}
 bool arena_path_clear(cXyz,cXyz,float){return !barrierBlocked;}
-bool dry_arena_floor(cXyz& p,float,float){if(groundMissing||groundCode==4||groundCode==5||groundCode==10||
+bool dry_arena_floor(cXyz& p,float rise,float drop){if(p.y>drop||p.y < -rise||groundMissing||groundCode==4||groundCode==5||groundCode==10||
  (groundRoom!=-2&&groundRoom!=arena().room))return false;
  p.y=0;return true;}
 bool rejectLongPath=false,narrowLanding=false;
@@ -138,9 +138,18 @@ int main(){
  auto killed=s_enemies[0];drop_elite_chest(killed,&player);assert(s_eliteEncounters[0].defeated&&s_chests[2].active&&s_chests[2].free);
  assert(!s_chests[0].active&&!s_chests[1].active);s_chests[2]={};drop_elite_chest(killed,&player);assert(!s_chests[2].active);
  s_enemies[0]={};update_elite_spawns(&player);assert(waves()==0);
+ // Flying corpses project deeply to a validated floor, unlike spawn placement.
+ for(float height:{300.f,1500.f,12000.f}) {
+  fresh(0);Enemy flyer;flyer.elite=true;flyer.eliteSlot=0;flyer.lootPosition={100,0,200};
+  player.current.pos={500,height,600};auto landing=player.current.pos;
+  assert(!elite_floor_position(landing));assert(loot_floor_position(landing)&&landing.y==0);
+  drop_elite_chest(flyer,&player);assert(s_chests[2].active&&s_chests[2].position.y==0);
+  assert(s_chests[2].position.x==500&&s_chests[2].position.z==600);
+ }
+ s_chests[2]={};
  // Missing corpse ground falls back to its last validated floor.
  killed.eliteSlot=1;killed.lootPosition={100,0,200};groundMissing=true;drop_elite_chest(killed,&player);
- assert(s_chests[2].position.x==100&&s_chests[2].position.z==200);groundMissing=false;
+ assert(s_chests[2].position.x==100&&s_chests[2].position.y==0&&s_chests[2].position.z==200);groundMissing=false;
  // Exact milestone bypasses ordinary spawn cooldown, ordinary horde continues.
  fresh(0);s_run.ticks=elite_interval;s_spawnCooldown=30;update_spawns(&player);assert(waves()==1&&ordinarySpawns==1);
  // Spawn warning counts consecutive failures and clears after recovery/cap/end.

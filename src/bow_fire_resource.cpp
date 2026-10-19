@@ -23,7 +23,11 @@ namespace dawnlight {
 namespace {
 
 // Borrow the original resources from the disc, using private common-bank IDs.
-constexpr std::array<u16,8> kSources{0x8113,0x846c,0x846d,0x846e,0x846f,0x8470,0x8471,0x8472};
+constexpr std::array<u16,18> kSources{
+    0x8113,0x846c,0x846d,0x846e,0x846f,0x8470,0x8471,0x8472,
+    0x89ac,0x89ad,0x89ae,0x89af,0x85f6,0x89b0,0x89b1, // Stallord fireball / mouth
+    0x8848,0x8849,0x884a // Death Sword magic orb
+};
 struct ImportedEffect {
     JKRExpHeap* heap=nullptr;
     std::unique_ptr<u8[]> storage;
@@ -151,13 +155,19 @@ std::uint16_t imported_particle_effect(unsigned index) {
     if(!imported.attempted) {
         imported.attempted=true;
         if(!install_resource(common,index))svc_log->error(mod_ctx,
-            index==0?"Dawnlight: could not load Bulblin flame from the disc":"Dawnlight: could not load Dodongo fire effect from the disc");
+            "Dawnlight: could not load requested native attack particle from the disc");
     }
     return imported.effect;
 }
 std::uint16_t bow_fire_effect() {return imported_particle_effect(0);}
 std::uint16_t dodongo_fire_effect(std::uint16_t native) {
-    for(unsigned i=1;i<kSources.size();++i)if(kSources[i]==native)return imported_particle_effect(i);
+    for(unsigned i=1;i<8;++i)if(kSources[i]==native)return imported_particle_effect(i);
+    return 0;
+}
+
+std::uint16_t boss_attack_effect(std::uint16_t native, bool stallord) {
+    const unsigned first=stallord?8:15, end=stallord?15:18;
+    for(unsigned i=first;i<end;++i)if(kSources[i]==native)return imported_particle_effect(i);
     return 0;
 }
 

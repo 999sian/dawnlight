@@ -163,6 +163,11 @@ HookAction before_roster_bubble_search(ModContext*,void* args,void* result,void*
        (range!=2000.f && range!=actor->pl_search_range))return HOOK_CONTINUE;
     *static_cast<int*>(result)=1;return HOOK_SKIP_ORIGINAL;
 }
+bool phantom_projectile_charge(fopAc_ac_c* actor,const Enemy& enemy) {
+    if (enemy.profile!=fpcNm_E_PZ_e || !actor || actor->health<=0) return false;
+    const auto* phantom=reinterpret_cast<const daE_PZ_c*>(actor);
+    return phantom->mActionMode==daE_PZ_c::ACTION_ATTACK_e && phantom->mMoveMode>=0 && phantom->mMoveMode<=2;
+}
 bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
     maintain_helmasaur_armor(enemy,actor);
     auto body=extended_body(actor,enemy.profile);
@@ -208,7 +213,7 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
                 auto* gibdo=reinterpret_cast<daE_GI_c*>(actor);
                 gibdo->mPlayerStunTimer=0;gibdo->mCryTimer=20;
             }
-            if(causes_stagger(attack))enemy.stagger=8;
+            if(causes_stagger(attack) && !phantom_projectile_charge(actor,enemy))enemy.stagger=8;
         }
         effect.injected=false;effect.damage=0;effect.fixedDamage=0;effect.critical=false;effect.stagger=false;
     }
@@ -220,6 +225,7 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
         enemy.retiring=true;svc_actor->delete_actor(mod_ctx,enemy.id);
         return false;
     }
+    if(phantom_projectile_charge(actor,enemy))enemy.stagger=0;
     if(enemy.stagger) {
         --enemy.stagger;
         // Re-register body targets during the short stagger; movement/AI and

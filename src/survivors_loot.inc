@@ -164,7 +164,7 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
     auto& chest=*available;
     chest={}; chest.active=true; chest.free=true; chest.yaw=actor->shape_angle.y;
     cXyz pos=actor->current.pos;
-    if (!elite_floor_position(pos)) pos=enemy.lootPosition;
+    if (!loot_floor_position(pos)) pos=enemy.lootPosition;
     chest.position=pos;
 }
 

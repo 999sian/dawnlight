@@ -343,6 +343,8 @@ void sync_survivors_inventory();
 bool queue_ranged(daAlink_c*, Upgrade);
 struct Enemy;
 void queue_knockback(Enemy&, fopAc_ac_c*, bool);
+bool ranged_pose_active();
+bool loot_floor_position(cXyz&);
 void update_knockback(Enemy&, fopAc_ac_c*);
 void initialize_extended_enemy(Enemy&,fopAc_ac_c*);
 void drop_elite_chest(Enemy&, fopAc_ac_c*);
@@ -357,7 +359,7 @@ struct Enemy {
     unsigned age = 0;
     int eliteSlot = -1;
     bool dormant = false, idleAnimation = false;
-    cXyz lootPosition{};
+    cXyz lootPosition{}, spawnPosition{};
     unsigned species=0, hitCooldown=0, stagger=0;
     cCcD_Obj* childHit=nullptr;
     bool encounterReady=false;
@@ -721,7 +723,9 @@ bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot
     if (create_standalone_actor(native.profile, params, id) != MOD_OK) return false;
     *slot = {id, native.profile, false, false, false, elite, 0};
     slot->species=type;
-    slot->eliteSlot = eliteSlot; slot->dormant = dormant; slot->lootPosition = pos;
+    slot->eliteSlot = eliteSlot; slot->dormant = dormant; slot->spawnPosition = slot->lootPosition = pos;
+    // Callers add flight height before creation; never cache that altitude as loot ground.
+    if (!loot_floor_position(slot->lootPosition)) slot->lootPosition.y-=native.height;
     return true;
 }
 bool spawn_enemy(daAlink_c* link, bool elite, int eliteSlot = -1) {
@@ -905,9 +909,32 @@ void after_spin_effect(ModContext*, void* args, void*, void*) {
     // emitters receive the same radius in their very first rendered frame.
     sync_spin_radius(link);
 }
+bool begin_spin_attack(daAlink_c* link) {
+    // A due ability may interrupt an ordinary cut, but never another ability,
+    // equipment transition, damage, dodge or airborne action.
+    if (ranged_pose_active() || link->checkEquipAnime() ||
+        (!sword_action_available(link) && !(s_swordAction==SwordAction::Normal && !s_wavePending && normal_sword_proc(link))) ||
+        !link->mLinkAcch.ChkGroundHit() || link->checkWolf() || !link->mSwordModel) return false;
+    if (!link->checkItemSwordEquip()) {
+        if (link->mEquipItem==dItemNo_NONE_e) link->swordEquip(0);
+        return false;
+    }
+    const auto previous=s_swordAction;
+    s_swordAction=SwordAction::Spin;
+    struct Scope { Scope(){s_autoSwordCall=true;} ~Scope(){s_autoSwordCall=false;} } scope;
+    if (!link->procCutTurnInit(1,1)) {s_swordAction=previous;return false;}
+    s_trackMelee=s_wavePending=false;s_meleeTarget=kNone;
+    s_comboStep=s_comboTimeout=0;
+    new_melee_swing();
+    // Use the perk tier, independently of the equipped sword's Light flag.
+    const auto& spin=link->mpHIO->mCut.mCutTurn.m;
+    link->field_0x3478=s_run.great_spin(Upgrade::Spin)?spin.mLargeAttackRadius:spin.mAttackRadius;
+    return true;
+}
 void update_sword(daAlink_c* link) {
     if (s_meleeCooldown) --s_meleeCooldown;
     if (s_comboTimeout && !--s_comboTimeout) s_comboStep = 0;
+    if (ranged_pose_active()) return; // Ordinary cuts always yield presentation to abilities.
     bool continuingSwing = false;
     if (s_swordAction == SwordAction::Jump) return; // Owned traversal finishes before the scheduler resumes.
     if (s_swordAction == SwordAction::Normal) {
@@ -969,7 +996,7 @@ void after_sword_move(ModContext*, void* args, void*, void*) {
 }
 HookAction before_large_spin(ModContext*, void*, void* result, void*) {
     if (!in_arena()) return HOOK_CONTINUE;
-    *static_cast<BOOL*>(result) = FALSE;
+    *static_cast<BOOL*>(result) = s_swordAction==SwordAction::Spin && s_run.great_spin(Upgrade::Spin);
     return HOOK_SKIP_ORIGINAL;
 }
 #include "survivors_loot.inc"
@@ -1222,7 +1249,7 @@ void after_process(ModContext*, void* args, void*, void*) {
         confine_arena_actor(actor, enemy->elite ? 80.f : 35.f);
         if (enemy->elite && actor->health > 0 && enemy->age % 15 == 0) {
             cXyz floor = actor->current.pos;
-            if (elite_floor_position(floor)) enemy->lootPosition = floor;
+            if (loot_floor_position(floor)) enemy->lootPosition = floor;
         }
         credit_death(*enemy, actor);
     }
@@ -1632,7 +1659,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
     PRE(SurvivorsManualCharge, before_manual_charge);
     PRE(SurvivorsChargeInit, before_cut); PRE(SurvivorsChargeMoveInit, before_cut);
-    PRE(SurvivorsNativeSpin, before_cut); PRE(SurvivorsJumpTarget, before_jump_target);
+    PRE(SurvivorsNativeSpin, before_sword_attack); PRE(SurvivorsJumpTarget, before_jump_target);
     PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_hub_door);
     POST(SurvivorsPower, after_power);
     POST(SurvivorsSwordCollision, after_sword_collision);

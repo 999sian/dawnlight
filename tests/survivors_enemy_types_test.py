@@ -42,7 +42,7 @@ struct e_ba_class{fopAc_ac_c enemy;Morf morph;Morf* mpMorf=&morph;Sphere mSph;};
 struct e_ms_class:fopAc_ac_c{Morf morph;Morf* mpModelMorf=&morph;Sphere mSph1,mSph2;};
 struct e_rd_class{fopAc_ac_c enemy;Sphere cc_sph[3];};
 struct Enemy{ActorId id=kNone;ProfileName profile=0;bool initialized=false,credited=false,retiring=false,elite=false;
- unsigned age=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{};unsigned species=0;};
+ unsigned age=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{},spawnPosition{};unsigned species=0;};
 std::array<Enemy,enemy_capacity>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id!=kNone&&e.id==id)return &e;return nullptr;}
 Run s_run;bool arenaPresent=true;bool in_arena(){return arenaPresent;}
@@ -53,7 +53,8 @@ ProfileName lastProfile;ActorSpawnParams lastParams;
 int create_standalone_actor(ProfileName p,const ActorSpawnParams& params,ActorId& id){
  lastProfile=p;lastParams=params;if(createFailed)return 1;id=nextId++;return MOD_OK;}
 float cM_ssin(s16 a){return std::sin(a*3.14159265f/32768);}float cM_scos(s16 a){return std::cos(a*3.14159265f/32768);}
-bool dryPath=true;bool walkable_spawn_path(cXyz,cXyz& p,float){if(dryPath)p.y=30;return dryPath;}
+bool dryPath=true,lootFloor=true;bool loot_floor_position(cXyz& p){if(!lootFloor)return false;p.y=30;return true;}
+bool walkable_spawn_path(cXyz,cXyz& p,float){if(dryPath)p.y=30;return dryPath;}
 std::map<ActorId,fopAc_ac_c*>actors;std::set<ActorId>creating,deleted;
 fopAc_ac_c* actor_by_id(ActorId id){auto it=actors.find(id);return it==actors.end()?nullptr:it->second;}
 bool fpcM_IsCreating(ActorId id){return creating.contains(id);}
@@ -65,6 +66,7 @@ int main(){
  for(s_map=0;s_map<5;++s_map){std::set<unsigned>variants;
   for(unsigned i=0;i<1000;++i){s_enemies={};assert(spawn_enemy(&player,false));
    variants.insert(s_enemies[0].species);
+   assert(s_enemies[0].lootPosition.y==30&&s_enemies[0].spawnPosition.y==lastParams.position.y);
    assert(lastParams.scale.x==1&&lastParams.position.y==30+native_roster[s_enemies[0].species].height);
    if(lastProfile==fpcNm_E_KR_e)assert(lastParams.angle.z==0xff);
    if(lastProfile==fpcNm_E_RDY_e)assert(lastParams.angle.x==0xff&&(lastParams.parameters&0xff)==7);
@@ -77,6 +79,11 @@ int main(){
    if(kind==Species::Helmasaurus)assert(lastParams.argument==1);
   }
  }
+ // If a large-chest footprint fails, retain the original validated spawn floor.
+ lootFloor=false;
+ for(unsigned kind=0;kind<species_count;++kind){s_enemies={};assert(create_enemy_at({100,30+native_roster[kind].height,200},0,kind,true));
+  assert(s_enemies[0].lootPosition.y==30&&s_enemies[0].spawnPosition.y==30+native_roster[kind].height);}
+ lootFloor=true;
  const int profiles[]={fpcNm_E_MS_e,fpcNm_E_BA_e,fpcNm_E_RD_e,fpcNm_E_OC_e};
  s_map=0;
  s_enemies={};dryPath=false;assert(!spawn_enemy(&player,true,0)&&s_enemies[0].id==kNone);dryPath=true;

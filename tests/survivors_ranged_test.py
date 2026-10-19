@@ -116,14 +116,15 @@ int main(){
  }
  swordHeld=false;fresh();player.proc=1; // an active native sword swing does not block any item
  for(unsigned i=8;i<=11;++i)assert(queue_ranged(&player,Upgrade(i)));
- assert(shots.size()==4 && player.proc==1 && player.mEquipItem==0x103 && !s_ranged.active);
+ assert(shots.size()==4 && player.proc==1 && player.mEquipItem==0x103 && s_ranged.active);
  for(unsigned i=8;i<=11;++i)assert(!queue_ranged(&player,Upgrade(i)));
  fresh();s_run.ranks[8]=10;
  assert(queue_ranged(&player,Upgrade::Bow));assert(shots.size()==3);
  assert(queue_ranged(&player,Upgrade::Boomerang));assert(queue_ranged(&player,Upgrade::Bombs));
  assert(queue_ranged(&player,Upgrade::Ball));assert(shots.size()==6);
  assert(player.mEquipItem==0x103 && s_ranged.active);
- player.proc=1;update_ranged(&player);assert(!s_ranged.active && player.proc==1);
+ player.proc=1;update_ranged(&player);assert(s_ranged.active && player.proc==1);
+ player.proc=2;update_ranged(&player);assert(!s_ranged.active && player.proc==2);
  assert(shots.size()==6); // cosmetic cancellation never duplicates/cancels releases
  fresh();targetDistance=2300;s_run.ranks[unsigned(Upgrade::Reach)]=10;
  assert(queue_ranged(&player,Upgrade::Bow));assert(queue_ranged(&player,Upgrade::Boomerang));
@@ -146,6 +147,8 @@ int main(){
  fresh();targetExists=false;assert(!queue_ranged(&player,Upgrade::Bow)&&!s_cooldowns[8]);
  targetExists=true;playing=false;assert(!queue_ranged(&player,Upgrade::Bow));
  playing=true;s_loot.ready=false;assert(!queue_ranged(&player,Upgrade::Bow));
+ fresh();player.proc=1;s_wavePending=true; // A Sword Wave wind-up owns its visible swing.
+ assert(queue_ranged(&player,Upgrade::Bow)&&!s_ranged.active&&shots.size()==1);s_wavePending=false;
  fresh();player.proc=2; // Jump Strike body pose remains untouched.
  assert(queue_ranged(&player,Upgrade::Bow)&&player.proc==2&&shots.size()==1);
  fresh();assert(queue_ranged(&player,Upgrade::Ball));int result=1;

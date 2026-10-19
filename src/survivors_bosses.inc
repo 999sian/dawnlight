@@ -40,7 +40,7 @@ HookAction before_boss_rdb(ModContext*,void* args,void*,void*) {
     auto* e=mods::arg<e_rdb_class*>(args,0);auto* owner=encounter_owner(&e->enemy);
     if(!owner)return HOOK_CONTINUE;
     if(!owner->encounterReady) {
-        e->enemy.current.pos=e->enemy.old.pos=owner->lootPosition;
+        e->enemy.current.pos=e->enemy.old.pos=owner->spawnPosition;
         e->mAction=1;e->mMode=0;e->mDemoMode=0;owner->encounterReady=true;
     }
     if(encounter_running(*owner)&&!owner->specialCooldown&&e->mAction==1&&fopAcM_searchPlayerDistance(&e->enemy)<900.f) {
@@ -52,7 +52,7 @@ HookAction before_boss_th(ModContext*,void* args,void*,void*) {
     auto* e=mods::arg<e_th_class*>(args,0);auto* owner=encounter_owner(e);
     if(!owner)return HOOK_CONTINUE;
     if(!owner->encounterReady) {
-        e->current.pos=e->old.pos=owner->lootPosition;e->mAction=0;e->mMode=0;
+        e->current.pos=e->old.pos=owner->spawnPosition;e->mAction=0;e->mMode=0;
         e->mNoDraw=false;e->mDemoCamMode=0;owner->encounterReady=true;
     }
     // The ball is asynchronous; RETURN dereferences it without a null check.
@@ -77,7 +77,7 @@ HookAction before_boss_gnd_execute(ModContext*,void* args,void* result,void*) {
         *static_cast<int*>(result)=1;return HOOK_SKIP_ORIGINAL;
     }
     if(!owner->encounterReady) {
-        e->current.pos=e->old.pos=owner->lootPosition;
+        e->current.pos=e->old.pos=owner->spawnPosition;
         e->speed.zero();e->speedF=0;e->mActionMode=10;e->mMoveMode=0;
         e->mDrawHorse=false;e->mDemoCamMode=0;e->mGakeChkType=0;
         e->field_0x1e08=0;e->field_0x1e0a=0;e->field_0xc44[8]=100;

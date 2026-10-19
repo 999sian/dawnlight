@@ -108,7 +108,7 @@ inline constexpr std::array descriptions{
     "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
     "Master Sword: occasionally perform a quick Jump Strike. Landing splash starts at 30% melee damage; +5 percentage points per rank.",
     "Improve equipped Dual Wield: +2.5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
-    "Add a small, bounded push to all direct attacks. +4 distance per level; maximum level 10. Heavy weapons start with a fixed small push. Elites resist knockback.",
+    "Add a bounded push to all direct attacks. +40 distance per level; maximum level 10. Heavy weapons start with a fixed 240-unit push. Elites resist knockback.",
     "Arrows pass through one additional enemy per level, damaging every target. Applies to every arrow, including Multishot; maximum level 10.",
     "Add one projectile per level to Bow, Boomerang, Bombs, Ball and Chain and Sword Wave. Epic grants 1 level; Legendary grants 2; maximum level 3.",
     "Reduce passive regeneration interval by 1 second per level; maximum level 5. Rare or better. Stacks with the Life Regen talent.",
@@ -363,7 +363,7 @@ struct Run {
     unsigned ranged_shots() const { return 1 + extra_projectiles(); }
     unsigned arrow_targets() const { return 1 + std::min(10u,rank(Upgrade::Piercing)); }
     float knockback_distance(bool heavy, bool elite) const {
-        return ((heavy ? 24.f : 0.f) + 4.f*std::min(10u,rank(Upgrade::Knockback))) * (elite ? 0.5f : 1.f);
+        return ((heavy ? 240.f : 0.f) + 40.f*std::min(10u,rank(Upgrade::Knockback))) * (elite ? 0.5f : 1.f);
     }
     unsigned bow_base_shots() const { const auto level=rank(Upgrade::Bow); return !level ? 0 : level>=20 ? 5 : level>=10 ? 3 : 1; }
     unsigned bow_shots() const { return bow_base_shots() ? bow_base_shots()+extra_projectiles() : 0; }
