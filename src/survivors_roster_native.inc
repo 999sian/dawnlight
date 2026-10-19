@@ -65,7 +65,7 @@ DEFINE_HOOK_SYMBOL("daE_TT_c::checkPlayerSearch",bool(daE_TT_c*),RosterTTSearch)
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_bu.cpp#pl_check",int(e_bu_class*,float,s16),RosterBubbleSearch);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_dd.cpp#pl_check",int(e_dd_class*,float,s16),RosterDDSearch);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rdy.cpp#pl_check",int(e_rdy_class*,float,s16),RosterRDYSearch);
-DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rdy.cpp#e_rdy_normal",void(e_rdy_class*),RosterRDYIdle);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rdy.cpp#action",void(e_rdy_class*),RosterRDYAction);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_yc.cpp#action",void(e_yc_class*),RosterYCAction);
 DEFINE_HOOK_SYMBOL("daB_DS_c::mBattle2Action",void(daB_DS_c*),RosterHeadAction);
 DEFINE_HOOK_SYMBOL("daE_ZH_c::action",void(daE_ZH_c*),RosterHandAction);

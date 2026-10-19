@@ -212,12 +212,19 @@ HookAction before_roster_s1_search(ModContext*,void* args,void* result,void*) {
     if(!arena_aggro(mods::arg<e_s1_class*>(args,0),fpcNm_E_S1_e))return HOOK_CONTINUE;
     *static_cast<int*>(result)=1;return HOOK_SKIP_ORIGINAL;
 }
-HookAction before_roster_rdy_idle(ModContext*,void* args,void*,void*) {
+// Stop the whole action dispatcher: its sound/social reactions run AFTER normal
+// idle and can switch to EXCITE despite pl_check returning false. Execute still
+// animates and registers targets; update_extended_enemy consumes player hits
+// before this hook and clears dormant, restoring native AI on the first hit.
+HookAction before_roster_rdy_action(ModContext*,void* args,void*,void*) {
     auto* actor=mods::arg<e_rdy_class*>(args,0);auto* enemy=encounter_owner(&actor->actor);
-    if(!enemy||!enemy->dormant)return HOOK_CONTINUE;
+    if(!enemy||!enemy->dormant||enemy->retiring||enemy->credited)return HOOK_CONTINUE;
     if(!enemy->idleAnimation) {
-        encounter_animation(actor->mpMorf,"E_rdy",0x4c);enemy->idleAnimation=true;
+        encounter_animation(actor->mpMorf,"E_rdy",0x4c);actor->mAnm=0x4c;enemy->idleAnimation=true;
     }
-    actor->actor.speedF=0;actor->actor.speed.x=actor->actor.speed.z=0;
+    actor->mAction=0;actor->mMode=0;
+    actor->actor.current.pos=actor->actor.old.pos=enemy->lootPosition;
+    actor->actor.speedF=0;actor->actor.speed.set(0,0,0);
+    actor->field_0xabc=actor->mKnockback=0;actor->field_0xa7b=0;
     return HOOK_SKIP_ORIGINAL;
 }

@@ -11,7 +11,7 @@ button.survivors-talent-adjust { flex: 0 0 44dp; min-width: 44dp; font-size: 22d
 window tab-bar { background-color: #171d19ee; }
 window content pane.survivors-map-list { flex: 0 0 35%; background-color: #171d19ef; padding: 16dp; gap: 8dp; font-size: 15dp; }
 window content pane.survivors-map-preview { flex: 1 1 0; padding: 0dp 16dp 16dp; justify-content: flex-start; }
-.survivors-map-preview-copy { background-color: #171d19e8; border-radius: 8dp; padding: 0dp 16dp 16dp; font-size: 16dp; }
+.survivors-map-preview-copy { display: block; background-color: #171d19e8; border-radius: 8dp; padding: 0dp 16dp 16dp; font-size: 16dp; }
 .survivors-map-preview-title { display: block; font-family: var(--font-family-heading); font-size: 24dp; }
 button.survivors-map-start { margin-top: auto; align-self: flex-end; padding: 12dp 28dp; font-size: 18dp; background-color: #171d19ee; }
 button.survivors-map-option { padding: 12dp; font-size: 16dp; }
@@ -63,9 +63,14 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
         s_records.runs,s_records.wins,s_records.level());
     result=svc_ui->pane_add_text(mod_ctx,left,records,nullptr);
     if (result!=MOD_OK) return result;
-    const std::string copy="<div class=\"survivors-map-preview-copy\"><div class=\"survivors-map-preview-title\" style=\"color: "+
-        std::string(arena().accent)+";\">"+treasure_rml_escape(arena().name)+"</div><div>High score: "+number(s_records.high_scores[s_map])+"</div></div>";
-    result=svc_ui->pane_add_rml(mod_ctx,right,copy.c_str(),nullptr);
+    const std::string copy="<div class=\"survivors-map-preview-title\" style=\"color: "+
+        std::string(arena().accent)+";\">"+treasure_rml_escape(arena().name)+"</div><div>High score: "+number(s_records.high_scores[s_map])+"</div>";
+    // Style the block created by pane_add_rml itself, avoiding an inline box
+    // split around the title (the empty dark pill above the map name).
+    UiElementHandle previewCopy=0;
+    result=svc_ui->pane_add_rml(mod_ctx,right,copy.c_str(),&previewCopy);
+    if (result!=MOD_OK) return result;
+    result=svc_ui->elem_set_class(mod_ctx,previewCopy,"survivors-map-preview-copy",true);
     if (result!=MOD_OK) return result;
     UiControlDesc start=UI_CONTROL_DESC_INIT;
     start.label="Start run"; start.on_pressed=start_run;

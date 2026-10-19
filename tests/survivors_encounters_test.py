@@ -44,7 +44,7 @@ struct daB_DS_c:fopAc_ac_c {enum {ACT_B2_WAIT=1,ANM_HEAD_FWAIT=44,ANM_HEAD_FATTA
 struct daE_ZH_c:fopAc_ac_c {void* mS_Ball=nullptr;int mActionMode=0,mMoveMode=0,field_0x78c=0,animation=0;
  Background mBgc;Texture texture;Texture* mpBtkAnm=&texture;mDoExt_McaMorfSO morph;mDoExt_McaMorfSO* mpModelMorf=&morph;
  Collision field_0xc7c;void setBck(int a,int,float,float){animation=a;}};
-struct e_rdy_class {fopAc_ac_c actor;float mPlayerCheckDist=1000;mDoExt_McaMorfSO morph;mDoExt_McaMorfSO* mpMorf=&morph;};
+struct e_rdy_class {fopAc_ac_c actor;float mPlayerCheckDist=1000,field_0xabc=0,mKnockback=0;int mAction=0,mMode=0,mAnm=0,field_0xa7b=0;mDoExt_McaMorfSO morph;mDoExt_McaMorfSO* mpMorf=&morph;};
 struct e_yk_class:fopAc_ac_c {float mPlayerTrigger=1000;};using e_s1_class=fopAc_ac_c;
 struct Enemy {ActorId id=kNone;int profile=0;bool initialized=true,retiring=false,credited=false,dormant=false,idleAnimation=false,encounterReady=false;
  unsigned encounterTick=0,stagger=0;cXyz lootPosition,encounterTarget;};
@@ -127,6 +127,24 @@ int main(){
  after_roster_time(nullptr,otherArgs,nullptr,nullptr);assert(env.daytime==0);
  after_roster_time(nullptr,dogArgs,nullptr,nullptr);assert(env.daytime==180&&s_rosterTimes.empty());
  dogArgs[0]=process_method_func(del);before_roster_time(nullptr,dogArgs,nullptr,nullptr);assert(env.daytime==180);
+ // Dormant building guards ignore every native action (including sound-driven
+ // EXCITE), stay anchored, and resume native dispatch immediately after a hit.
+ e_rdy_class guard;guard.actor.id=4;guard.actor.profile=fpcNm_E_RDY_e;
+ auto& g=s_enemies[3];g={};g.id=4;g.profile=fpcNm_E_RDY_e;g.dormant=true;g.lootPosition={20,40,60};
+ std::any guardArgs[]={&guard};
+ for(int action=0;action<32;++action){
+  guard.mAction=action;guard.mMode=5;guard.actor.speed={3,-5,8};guard.actor.speedF=12;
+  guard.actor.current.pos={900,-500,900};guard.field_0xabc=20;guard.mKnockback=10;guard.field_0xa7b=1;
+  assert(before_roster_rdy_action(nullptr,guardArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+  assert(guard.mAction==0&&guard.mMode==0&&guard.mAnm==0x4c);
+  assert((guard.actor.current.pos-g.lootPosition).abs()==0&&(guard.actor.old.pos-g.lootPosition).abs()==0);
+  assert(guard.actor.speed.abs()==0&&guard.actor.speedF==0&&guard.field_0xabc==0&&guard.mKnockback==0&&guard.field_0xa7b==0);
+ }
+ assert(guard.morph.sets==1); // idle keeps playing rather than restarting
+ g.dormant=false;guard.mAction=3;
+ assert(before_roster_rdy_action(nullptr,guardArgs,nullptr,nullptr)==HOOK_CONTINUE&&guard.mAction==3);
+ g.dormant=true;arena=false;
+ assert(before_roster_rdy_action(nullptr,guardArgs,nullptr,nullptr)==HOOK_CONTINUE);arena=true;
  // Creation-ID reuse starts a fresh encounter because state lives in the Enemy slot.
  b={};b.id=3;b.profile=bird.profile;before_roster_yc_action(nullptr,birdArgs,nullptr,nullptr);assert(b.encounterReady&&bird.mAction==e_yc_class::ACT_F_FLY&&bird.mTimer[2]==150);
 }

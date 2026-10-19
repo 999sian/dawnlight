@@ -17,7 +17,7 @@
     PRE(RosterYK,before_roster_native_damage);
     PRE(RosterDDSearch,before_roster_dd_search); PRE(RosterRDYSearch,before_roster_rdy_search);
     PRE(RosterYKSearch,before_roster_yk_search); PRE(RosterS1Search,before_roster_s1_search);
-    PRE(RosterRDYIdle,before_roster_rdy_idle);
+    PRE(RosterRDYAction,before_roster_rdy_action);
     PRE(RosterYCAction,before_roster_yc_action);
     PRE(RosterHeadAction,before_roster_head_action); PRE(RosterHandAction,before_roster_hand_action);
     POST(RosterHandCollision,after_roster_hand_collision);
