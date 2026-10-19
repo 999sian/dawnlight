@@ -63,7 +63,7 @@ struct ModContext{}; enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int i){return std::any_cast<T>(static_cast<std::any*>(args)[i]);}}
 unsigned s_map=0;const Arena& arena(){return arenas[s_map];}Run s_run;
 ActorId s_player=7;unsigned s_warmup=0,recordsLoaded=0;
-bool active=true,transition=false,event=false,creating=false;
+bool active=true,transition=false,event=false,creating=false,s_restart=false;
 bool in_arena(){return active;}bool transitioning(){return transition;}bool playable(){return active&&!event&&!transition;}
 bool fpcM_IsCreating(ActorId){return creating;}
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}int fopAcM_GetRoomNo(fopAc_ac_c* a){return a->room;}
