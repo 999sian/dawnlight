@@ -43,9 +43,12 @@ map can still be selected. Story mode and Boss Rush retain their own rules.
 ## Run
 
 Call Midna during a run on any arena, including the throne room, using the usual
-controller binding or Midna touch button. Her native dialog offers only **Cancel**
-and **End Run**. Cancel (also the back button) resumes play; End Run closes the
-dialog and opens the existing results screen without awarding a victory. Run time,
+controller binding or Midna touch button. Her native dialog offers **Cancel**,
+**End Run** and **Restart Run**. Cancel (also the back button) resumes play; End Run closes the
+dialog and opens the existing results screen without awarding a victory.
+Restart Run waits for the same native dialog/event closure, credits the run once,
+then uses the existing same-map replay and scene reload to return to run setup.
+The results screen is skipped. Transition/reset discards pending actions. Run time,
 automatic attacks and enemies pause while talking. Calling Midna interrupts
 automatic attacks; chest interaction keeps priority if both are pressed together.
 

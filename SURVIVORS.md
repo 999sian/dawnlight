@@ -23,7 +23,7 @@ your map, difficulty, settings and allocated talents remain unchanged.
   in the item wheel and power-ups via the Hidden Skills scroll in Collection.
   Only bottles can be assigned to item buttons. Magnet also attracts rupees,
   hearts and heart pieces; nearby pots trigger normal automatic sword swings.
-- Call Midna for **Cancel** or **End Run**. Survive 20 minutes and defeat all four timed elites to win;
+- Call Midna for **Cancel**, **End Run** or **Restart Run**. Survive 20 minutes and defeat all four timed elites to win;
   **New run** resets upgrades and returns to map selection. Map exits are sealed.
 
 ## Run setup
@@ -60,7 +60,7 @@ change score. Final totals round down; normal kill points are normalized before
 applying difficulty. Example: a win at default difficulty with 400 normal kills,
 four timed elites and run level 20 earns **12,350 points**.
 
-On victory, defeat or **Midna → End Run**, the final score also grants permanent
+On victory, defeat or **Midna → End Run / Restart Run**, the final score also grants permanent
 XP, shared across maps/runs in this Survivors save. Meta level 1 starts at 0 XP;
 the next level costs 2,000 XP, then 2,500, 3,000… Each grants **one Unlock Point**.
 Abruptly quitting an unfinished run does not award its score. Old saves retain
@@ -100,6 +100,9 @@ Link regenerates **1/4 heart every 20 seconds** even without Life Regen ranks.
 Regeneration pauses with the run, continues during the final fight after 20 minutes,
 and never exceeds maximum health or revives Link. Each Legendary Chance rank
 moves 0.6 percentage points from Common to Legendary before Luck is applied.
+
+**Midna → Restart Run** credits the current run like End Run, then reloads the
+same map and returns to run setup without opening the results screen.
 
 The starting selection pauses the timer and combat until you choose. Closing it
 keeps the same offers. It grants the reward directly, without a world chest,

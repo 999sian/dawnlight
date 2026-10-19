@@ -9,7 +9,7 @@ root=Path(__file__).resolve().parents[1]
 sdk=Path(sys.argv[1]) if len(sys.argv)>1 else root/'dusklight'
 core=(root/'src/survivors.cpp').read_text()
 def extract(name):
-    match=re.search(r'^(?:bool|void) '+name+r'\(',core,re.M)
+    match=re.search(r'^(?:bool|void) '+name+r'\([^;{}]*\)\s*\{',core,re.M)
     assert match,name
     start=core.index('{',match.start()); depth=0
     for end in range(start,len(core)):
@@ -30,14 +30,16 @@ using u16=uint16_t;
 std::map<u16,FlowNodeData> nodes;std::map<u16,u16> edges;
 std::map<MessageId,std::vector<std::string>> texts;
 u16 nextNode=0x8000,nextEdge=0x8000,nextMessage=0x8000;
-FlowEventFn endEvent=nullptr;
+FlowEventFn endEvent=nullptr,restartEvent=nullptr;
 ModResult begin_graph(ModContext*,u16 group,FlowGraphHandle* out){assert(group==0);*out=1;return MOD_OK;}
 ModResult allocate_node(ModContext*,FlowGraphHandle,u16* out){*out=nextNode++;return MOD_OK;}
 ModResult add_edges(ModContext*,FlowGraphHandle,const u16* targets,u16 count,u16* out){*out=nextEdge;for(unsigned i=0;i<count;++i)edges[nextEdge++]=targets[i];return MOD_OK;}
 ModResult fill_node(ModContext*,FlowGraphHandle,u16 id,const FlowNodeData* data){nodes[id]=*data;return MOD_OK;}
 ModResult commit_graph(ModContext*,FlowGraphHandle){return MOD_OK;}
 ModResult remove_graph(ModContext*,FlowGraphHandle){return MOD_OK;}
-ModResult register_event(ModContext*,const char*,FlowEventFn fn,void*,FlowEventId* out){endEvent=fn;*out=200;return MOD_OK;}
+ModResult register_event(ModContext*,const char* name,FlowEventFn fn,void*,FlowEventId* out){
+ if(std::string(name)=="Survivors End Run"){endEvent=fn;*out=200;}
+ else {assert(std::string(name)=="Survivors Restart Run");restartEvent=fn;*out=201;}return MOD_OK;}
 ModResult register_message(ModContext*,u16 group,const MessageVariantData* v,size_t count,MessageId* id,MessageHandle* handle){
  assert(group==0&&count==6);*id=nextMessage++;*handle=*id;
  for(size_t i=0;i<count;++i)texts[*id].emplace_back(reinterpret_cast<const char*>(v[i].text),v[i].text_size);
@@ -62,8 +64,10 @@ struct daPy_py_c{static daMidna_c* getMidnaActor(){return &midna;}};
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
 unsigned fopAcM_GetID(daAlink_c* a){return a->id;}
-unsigned s_player=7,s_midnaRequestFrames=0;bool s_midnaTalking=false,s_midnaEndPending=false;
+unsigned s_player=7,s_midnaRequestFrames=0;bool s_midnaTalking=false,s_midnaEndPending=false,s_midnaRestartPending=false;
 Run s_run;bool arena=true,transition=false,pause=false,event=false,message=false,ui=false;
+unsigned s_map=0,s_requestedMap=0,closed=0;bool s_restart=false;
+void close_window(){++closed;}
 unsigned map=0;std::string stage=arenas[0].stage;int room=51;
 bool in_arena(){return arena&&arena_matches(map,stage,room);}
 bool transitioning(){return transition;}
@@ -80,15 +84,17 @@ void fopAcM_orderTalkEvent(daAlink_c* a,daMidna_c* b,int,int){assert(a==&link&&b
 main=r'''
 u16 word(const FlowNodeData& n,unsigned offset){return u16(n.bytes[offset]<<8|n.bytes[offset+1]);}
 int main(){
- assert(initialize_midna_dialog()==MOD_OK&&nodes.size()==5&&s_midnaStart>=0x8000);
- auto setup=nodes.at(s_midnaStart);assert(setup.bytes[0]==3&&setup.bytes[1]==FLOW_EVENT_SELECT_VERTICAL&&setup.bytes[7]==3);
+ assert(initialize_midna_dialog()==MOD_OK&&nodes.size()==6&&s_midnaStart>=0x8000);
+ auto setup=nodes.at(s_midnaStart);assert(setup.bytes[0]==3&&setup.bytes[1]==FLOW_EVENT_SELECT_VERTICAL&&setup.bytes[7]==4);
  auto prompt=nodes.at(edges.at(word(setup,2)));assert(prompt.bytes[0]==1);
  auto options=nodes.at(word(prompt,4));assert(options.bytes[0]==1);
- for(auto& text:texts.at(word(options,2))){assert(text.find("Cancel")!=text.npos&&text.find("End Run")!=text.npos);}
- auto choice=nodes.at(word(options,4));assert(choice.bytes[0]==2&&choice.bytes[1]==3&&word(choice,2)==FLOW_QUERY_SELECT_2_CANCEL);
- auto first=word(choice,6);assert(edges.at(first)==mods::flow::kEnd&&edges.at(first+2)==mods::flow::kEnd);
+ for(auto& text:texts.at(word(options,2))){assert(text.find("Cancel")!=text.npos&&text.find("End Run")!=text.npos&&text.find("Restart Run")!=text.npos);}
+ auto choice=nodes.at(word(options,4));assert(choice.bytes[0]==2&&choice.bytes[1]==4&&word(choice,2)==FLOW_QUERY_SELECT_3_CANCEL);
+ auto first=word(choice,6);assert(edges.at(first)==mods::flow::kEnd&&edges.at(first+3)==mods::flow::kEnd);
  auto end=nodes.at(edges.at(first+1));assert(end.bytes[0]==3&&end.bytes[1]==s_midnaEndEvent.id());
  assert(edges.at(word(end,2))==mods::flow::kEnd);
+ auto restart=nodes.at(edges.at(first+2));assert(restart.bytes[0]==3&&restart.bytes[1]==s_midnaRestartEvent.id());
+ assert(edges.at(word(restart,2))==mods::flow::kEnd);
  std::any input[]={&link};std::any flowArgs[]={&midna.mMsgFlow,u16(0xbb9)};
  // All maps including the native throne-room prohibition; current automatic
  // combat is interrupted and the same native trigger supports touch/custom binds.
@@ -131,7 +137,25 @@ int main(){
  arena=true;assert(before_midna_order(nullptr,nullptr,&orderResult,nullptr)==HOOK_SKIP_ORIGINAL&&orderResult==0);
  before_midna_flow(nullptr,flowArgs,&node,nullptr);endEvent(nullptr,nullptr,nullptr);transition=true;update_midna_dialog();
  assert(!midna_dialog_busy()&&ended==1); // No pending End Run leaks into a new scene.
- std::cout<<"Survivors Midna: native graph, Cancel/End/Back, all maps, combat pause, input and lifecycle passed\n";
+ // Restart waits for native closure, credits once and reuses the same-map replay.
+ for(map=0;map<arenas.size();++map) {
+  stage=arenas[map].stage;room=arenas[map].room;s_map=map;s_requestedMap=99;s_restart=false;
+  transition=false;s_run.start(7);reset_midna_dialog();const auto before=ended,closures=closed;
+  restartEvent(nullptr,nullptr,nullptr);assert(!s_midnaRestartPending); // No active conversation.
+  before_midna_flow(nullptr,flowArgs,&node,nullptr);event=message=true;midna.eventInfo.talk=true;
+  restartEvent(nullptr,nullptr,nullptr);restartEvent(nullptr,nullptr,nullptr);
+  endEvent(nullptr,nullptr,nullptr);assert(s_midnaRestartPending&&!s_midnaEndPending);
+  update_midna_dialog();assert(!s_restart&&ended==before);
+  event=message=false;update_midna_dialog();assert(!s_restart&&ended==before);
+  midna.eventInfo.talk=false;update_midna_dialog();
+  assert(s_restart&&s_requestedMap==map&&ended==before+1&&closed==closures+1&&s_run.phase==Phase::Defeat);
+  assert(!midna_dialog_busy()&&!s_midnaRestartPending);
+  update_midna_dialog();assert(ended==before+1&&closed==closures+1);
+ }
+ s_restart=false;s_run.start(7);before_midna_flow(nullptr,flowArgs,&node,nullptr);
+ restartEvent(nullptr,nullptr,nullptr);transition=true;const auto before=ended;update_midna_dialog();
+ assert(!s_restart&&!midna_dialog_busy()&&!s_midnaRestartPending&&ended==before);
+ std::cout<<"Survivors Midna: native graph, Cancel/End/Restart/Back, all maps, combat pause, input and lifecycle passed\n";
 }
 '''
 # Ensure native initialization still loads group 0 before the entry-node hook.
@@ -139,7 +163,7 @@ native=(sdk/'src/d/actor/d_a_midna.cpp').read_text()
 assert 'mMsgFlow.init(this, 0xbb9, 0, NULL)' in native
 assert 'dComIfGs_onEventBit(dSv_event_flag_c::M_067)' in core
 assert core.index('PRE(SurvivorsPlayer, before_chest_action)')<core.index('PRE(SurvivorsPlayer, before_midna_call)')
-functions='\n'.join(extract(n) for n in ['midna_dialog_busy','reset_midna_dialog','playable','pause_run_actor'])
+functions='\n'.join(extract(n) for n in ['midna_dialog_busy','reset_midna_dialog','playable','pause_run_actor','replay'])
 with tempfile.TemporaryDirectory() as tmp:
     cpp,binary=Path(tmp)/'test.cpp',Path(tmp)/'test'
     cpp.write_text(fixture+functions+(root/'src/survivors_midna.inc').read_text()+main)

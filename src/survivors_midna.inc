@@ -1,12 +1,16 @@
 // Private native flow: no patches to the story/Boss Rush Midna menu or its edges.
 mods::flow::Graph s_midnaGraph;
 mods::flow::RegisteredMessage s_midnaPrompt, s_midnaOptions;
-mods::flow::Event s_midnaEndEvent;
+mods::flow::Event s_midnaEndEvent, s_midnaRestartEvent;
 u16 s_midnaStart = 0;
 
 void midna_end_run(ModContext*, const FlowEventContext*, void*) {
-    if (in_arena() && s_run.phase==Phase::Running && s_midnaTalking)
+    if (in_arena() && s_run.phase==Phase::Running && s_midnaTalking && !s_midnaRestartPending)
         s_midnaEndPending=true;
+}
+void midna_restart_run(ModContext*, const FlowEventContext*, void*) {
+    if (in_arena() && s_run.phase==Phase::Running && s_midnaTalking && !s_midnaEndPending)
+        s_midnaRestartPending=true;
 }
 mods::flow::RegisteredMessage register_survivors_dialog(const mods::flow::MessageBuilder& builder) {
     std::vector<mods::flow::MessageVariant> variants;
@@ -19,23 +23,26 @@ ModResult initialize_midna_dialog() {
     const auto style=mods::flow::MessageStyle{}.speaker(21).box_kind(MESSAGE_BOX_MIDNA)
         .draw_type(MESSAGE_DRAW_INSTANT).talk_anim(31).face_anim(31);
     s_midnaPrompt=register_survivors_dialog(mods::flow::MessageBuilder{style}
-        .text("End this run?\n").await_choice());
+        .text("What would you like to do?\n").await_choice());
     if (!s_midnaPrompt) return s_midnaPrompt.result();
     s_midnaOptions=register_survivors_dialog(mods::flow::MessageBuilder{}.speaker(21)
-        .options("Cancel","End Run"));
+        .options("Cancel","End Run","Restart Run"));
     if (!s_midnaOptions) return s_midnaOptions.result();
     s_midnaEndEvent=mods::flow::register_event("Survivors End Run",midna_end_run);
     if (!s_midnaEndEvent) return s_midnaEndEvent.result();
+    s_midnaRestartEvent=mods::flow::register_event("Survivors Restart Run",midna_restart_run);
+    if (!s_midnaRestartEvent) return s_midnaRestartEvent.result();
     mods::flow::GraphBuilder graph{0};
-    const auto setup=graph.add_event(FLOW_EVENT_SELECT_VERTICAL,{0,0,0,3});
+    const auto setup=graph.add_event(FLOW_EVENT_SELECT_VERTICAL,{0,0,0,4});
     const auto prompt=graph.add_message(s_midnaPrompt.id());
     const auto options=graph.add_message(s_midnaOptions.id());
-    const auto choice=graph.add_branch(FLOW_QUERY_SELECT_2_CANCEL,0);
+    const auto choice=graph.add_branch(FLOW_QUERY_SELECT_3_CANCEL,0);
     const auto end=graph.add_event(s_midnaEndEvent.id(),{0,0,0,0});
+    const auto restart=graph.add_event(s_midnaRestartEvent.id(),{0,0,0,0});
     setup.next(prompt); prompt.next(options); options.next(choice);
     // Cancel is both the initially selected option and the controller back path.
-    choice.results({mods::flow::kEnd,end.id(),mods::flow::kEnd});
-    end.next(mods::flow::kEnd);
+    choice.results({mods::flow::kEnd,end.id(),restart.id(),mods::flow::kEnd});
+    end.next(mods::flow::kEnd); restart.next(mods::flow::kEnd);
     s_midnaGraph=graph.commit();
     if (!s_midnaGraph) return s_midnaGraph.result();
     s_midnaStart=setup.id();
@@ -93,8 +100,9 @@ void update_midna_dialog() {
     if (dComIfGp_event_runCheck() || dMsgObject_isTalkNowCheck() ||
         (midna && midna->eventInfo.checkCommandTalk())) return;
     // Let Midna's native doFlow finish its message, animation and event reset.
-    // Only then may finish() pause Link and display the existing results screen.
-    const bool end=s_midnaEndPending;
+    // Credit the completed run once before using the existing same-map replay.
+    const bool end=s_midnaEndPending, restart=s_midnaRestartPending;
     reset_midna_dialog();
-    if (end) finish(false);
+    if (end || restart) finish(false);
+    if (restart) replay(nullptr,nullptr);
 }

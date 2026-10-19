@@ -237,9 +237,9 @@ ActorId s_player = kNone;
 fpc_ProcID s_savePrompt = kNone;
 unsigned s_spawnCooldown = 0, s_spawnFailures = 0, s_warmup = 0;
 unsigned s_midnaRequestFrames = 0;
-bool s_midnaTalking = false, s_midnaEndPending = false;
-bool midna_dialog_busy() { return s_midnaRequestFrames || s_midnaTalking || s_midnaEndPending; }
-void reset_midna_dialog() { s_midnaRequestFrames=0; s_midnaTalking=s_midnaEndPending=false; }
+bool s_midnaTalking = false, s_midnaEndPending = false, s_midnaRestartPending = false;
+bool midna_dialog_busy() { return s_midnaRequestFrames || s_midnaTalking || s_midnaEndPending || s_midnaRestartPending; }
+void reset_midna_dialog() { s_midnaRequestFrames=0; s_midnaTalking=s_midnaEndPending=s_midnaRestartPending=false; }
 enum class SwordAction { None, Normal, Spin, Jump };
 SwordAction s_swordAction = SwordAction::None;
 unsigned s_meleeCooldown = 0;
@@ -253,6 +253,7 @@ void clear_locomotion();
 void clear_attacks();
 void interrupt_auto_actions(daAlink_c*);
 void finish(bool won);
+void replay(ModContext*, void*);
 void clear_enemy_effects();
 bool effect_collider(const cCcD_Obj*);
 bool native_sword_collider(const cCcD_Obj*);
@@ -1326,6 +1327,7 @@ void update_survivors() {
     }
     if (fpcM_IsCreating(s_player)) return;
     update_midna_dialog();
+    if (s_restart) return; // Reload next tick without briefly opening the results UI.
     update_arena_safety(link);
     if (s_run.phase == Phase::Loading) {
         // Never freeze a falling or partially initialized Link in the preview.
