@@ -4,6 +4,8 @@ import os, subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
 ns={'__file__':str(root/'tests/survivors_status_test.py')}
 exec((root/'tests/survivors_status_test.py').read_text().split("main = r'''")[0],ns)
+# This fixture intentionally omits native defense hooks, the sole user of LIGHT.
+ns['fixture']=ns['fixture'].replace(',dCcD_MTRL_LIGHT=1','')
 main=r'''
 int main(){
  const std::array powers{Upgrade::Hurricane,Upgrade::FireBomb,Upgrade::BombArrow,Upgrade::FireEdge,Upgrade::DarkAura,Upgrade::Shockwave};
