@@ -1226,5 +1226,7 @@ and visual concurrency limitations.
 
 Post-run **Save records** and **Return to hub** are separate navigation rows,
 so D-pad Down/Up moves between them. Gameplay map/menu input is blocked through
-the results-to-save handoff, and native save dialogs receive the gameplay pause
-normally supplied by their original event.
+the results-to-save handoff. The native save process stays globally unpaused:
+its deferred initializer explicitly waits for the pause flag to be clear.
+Survivors actors, HUD and gameplay menu entry points use their targeted modal
+gates while the save dialog and its navigation continue running.

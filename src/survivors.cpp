@@ -1581,10 +1581,10 @@ void update_survivors() {
         dComIfGs_getSaveData()->getPlayer().getPlayerReturnPlace().set(arena().stage, arena().room, arena().point);
         s_savePrompt = d_GameOver_Create(1);
         s_saveRequested = s_savePrompt == kNone;
-        // Scripted Game Over saves normally inherit the event's gameplay pause.
-        // Our results window has already closed, so supply it for this native
-        // modal too; saveClose_proc releases it on either completed choice.
-        if(s_savePrompt!=kNone)dComIfGp_onPauseFlag();
+        // Creation is deferred. dGameover_c::_create explicitly waits while
+        // the global pause flag is set, so never pause it here. s_savePrompt
+        // already gates Survivors actors, HUD and gameplay menu input while
+        // leaving the native save process and its controls running.
         return;
     }
     if ((s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count) ||

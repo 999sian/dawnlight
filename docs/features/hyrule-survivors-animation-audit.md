@@ -57,8 +57,9 @@ rendered/gameplay details.
 - Puppet Zelda's attack clock and attack animations run at 2x; her movement and
   damage animations retain their normal rates.
 - Post-run save actions use separate vertical navigation rows. Gameplay menu
-  entry points are gated during results and save handoff, and the native save
-  receives its usual gameplay pause until its close handler releases it.
+  entry points are gated during results and save handoff. Native save creation
+  must remain globally unpaused: its initializer waits while the pause flag is
+  set. The post-run softlock regression is covered against that native gate.
 
 Regression fixtures exercise release-once timing, interruption refunds, native
 Shield hit deduplication, guard direction, collision pair scope, music handoff,
