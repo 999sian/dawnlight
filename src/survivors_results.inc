@@ -86,10 +86,10 @@ std::string results_damage_rml(const Run& run=s_run,unsigned map=s_map) {
     std::string rml="<div class=\"sr-heading\">"+std::string(run.phase==Phase::Victory?"VICTORY":"DEFEAT")+"</div>";
     if(run.options.allow_cheats || run.modded) {
         const std::string labels=std::string(run.options.allow_cheats?"Cheated":"")+
-            (run.options.allow_cheats && run.modded?" &bull; ":"")+(run.modded?"Modded":"");
+            (run.options.allow_cheats && run.modded?" \xE2\x80\xA2 ":"")+(run.modded?"Modded":"");
         rml="<div class=\"sr-integrity\">"+labels+"</div>"+rml;
     }
-    rml+="<div class=\"sr-subtitle\">"+treasure_rml_escape(arenas[map].name)+" &bull; "+result_time(run.ticks)+"</div>";
+    rml+="<div class=\"sr-subtitle\">"+treasure_rml_escape(arenas[map].name)+" \xE2\x80\xA2 "+result_time(run.ticks)+"</div>";
     rml+="<div class=\"sr-metrics\">";
     const auto metric=[&](const char* label,const std::string& value){
         rml+="<div class=\"sr-metric\"><span class=\"sr-value\">"+value+"</span><span class=\"sr-label\">"+label+"</span></div>";
