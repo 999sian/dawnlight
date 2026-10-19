@@ -81,7 +81,7 @@ bool s_saveReady=false, s_gameStarted=true;
 bool s_progressSaving=false,s_progressSaved=false;
 bool s_loaded=false, s_resultsStored=false, s_storeFailed=false, s_saveRequested=false;
 ActorId s_player=kNone, s_savePrompt=kNone, s_bossHudTarget=kNone;
-unsigned s_spawnCooldown=0, s_spawnFailures=0, s_warmup=0;
+unsigned s_spawnCooldown=0, s_spawnFailures=0, s_warmup=0, s_saveStartTicks=0;
 std::array<unsigned,3> s_cooldowns{};
 std::array<int,64> s_orbs{};
 Records s_records;

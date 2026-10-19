@@ -259,6 +259,7 @@ bool s_active = false, s_registered = false, s_loaded = false, s_restart = false
 // the save; only gameStart commits it after names and optional TV settings.
 bool s_saveReady = false, s_gameStarted = false;
 bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
+unsigned s_saveStartTicks = 0;
 Run s_run;
 RunOptions s_options;
 enum class HubMenu { None, Talents, Run };
@@ -581,7 +582,7 @@ void reset_runtime() {
     clear_combat_feedback();
     s_run = {}; s_orbs = {}; s_cooldowns = {};
     s_player = kNone; s_loaded = false; s_resultsStored = false;
-    s_storeFailed = false; s_restart = false; s_saveRequested = false;
+    s_storeFailed = false; s_restart = false; s_saveRequested = false; s_saveStartTicks = 0;
     s_progressSaving=s_progressSaved=false;
     s_spawnCooldown = s_spawnFailures = s_warmup = 0;
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
@@ -1418,7 +1419,13 @@ void start_run(ModContext*, void*) {
     close_window(); // Save and fully hide the UI before ordering the native door event.
 }
 void replay(ModContext*, void*) { close_window(); s_requestedMap = s_map; s_restart = true; }
-void save_results(ModContext*, void*) { close_window(); s_saveRequested = true; }
+#include "survivors_post_run_save.inc"
+void save_results(ModContext*, void*) {
+    if(s_saveRequested || s_savePrompt!=kNone)return;
+    s_storeFailed=false; s_saveStartTicks=0;
+    close_window(); s_saveRequested=true;
+    svc_log->info(mod_ctx,"Survivors post-run save: queued");
+}
 ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, void* data = nullptr,
                  const char* help = nullptr) {
     UiControlDesc desc = UI_CONTROL_DESC_INIT;
@@ -1534,13 +1541,7 @@ void update_survivors() {
     if (!s_active || !s_gameStarted) return;
     enforce_survivors_bindings();
     if(update_hub_save())return;
-    if (s_savePrompt != kNone) {
-        if (d_GameOver_CheckDelete(s_savePrompt) && dComIfGp_getGameoverStatus() == 1) {
-            d_GameOver_Delete(s_savePrompt); dComIfGp_setGameoverStatus(0);
-            s_savePrompt = kNone;
-        }
-        return;
-    }
+    if(update_post_run_save())return;
     if (!in_arena() || transitioning()) { reset_ending(); reset_midna_dialog(); close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
@@ -1584,20 +1585,6 @@ void update_survivors() {
     open_powerup_window();
     if (s_run.phase == Phase::TreasureChoice) update_treasure_choice(link);
     if (s_run.phase == Phase::Treasure) update_treasure_demo(link);
-    if (s_saveRequested) {
-        if (ui_visible() || dComIfGp_event_runCheck() || dMeter2Info_getGameOverType()) return;
-        const auto bytes = s_records.encode();
-        s_storeFailed = svc_save->set_blob(mod_ctx, kBlob, bytes.data(), bytes.size()) != MOD_OK;
-        if (s_storeFailed) { s_saveRequested = false; return; }
-        dComIfGs_getSaveData()->getPlayer().getPlayerReturnPlace().set(arena().stage, arena().room, arena().point);
-        s_savePrompt = d_GameOver_Create(1);
-        s_saveRequested = s_savePrompt == kNone;
-        // Creation is deferred. dGameover_c::_create explicitly waits while
-        // the global pause flag is set, so never pause it here. s_savePrompt
-        // already gates Survivors actors, HUD and gameplay menu input while
-        // leaving the native save process and its controls running.
-        return;
-    }
     if ((s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count) ||
         s_run.phase == Phase::Ready || s_run.phase == Phase::Upgrade ||
         s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) open_window();

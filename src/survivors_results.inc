@@ -148,7 +148,7 @@ ModResult build_results(UiElementHandle left,UiElementHandle right,const HighSco
     result=svc_ui->elem_set_class(mod_ctx,sideBody,"sr-body",true);if(result!=MOD_OK)return result;
     if(archived)return button(left,"Back to maps",close_high_score);
     result=svc_ui->pane_add_text(mod_ctx,left,s_storeFailed?
-        "Records could not be stored. Retry Save records before leaving.":
+        "Records could not be stored. Retry Save records or Return to hub.":
         "Save records before quitting. Return to hub keeps your progress and lets you prepare another run.",nullptr);
     if(result!=MOD_OK)return result;
     UiRowDesc rowDesc=UI_ROW_DESC_INIT;UiElementHandle row=0;
