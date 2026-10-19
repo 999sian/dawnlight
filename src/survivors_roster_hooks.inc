@@ -47,3 +47,8 @@
     PRE(RosterHeadTrap,before_boss_camera);
     PRE(BossTNChange,before_boss_tn_change); PRE(BossTNArea,before_boss_tn_area);
     PRE(BossTHSpin,before_boss_th_spin); POST(BossTHSpin,after_boss_th_spin);
+
+    PRE(BossTNThrow,before_boss_tn_throw); POST(BossTNThrowCollision,after_boss_tn_throw_collision);
+    PRE(BossCarrierRide,before_boss_carrier_ride); POST(BossCarrierRide,after_boss_carrier_ride);
+    PRE(BossGNDCharge,before_boss_gnd_charge);
+    POST(BossYMBAction,after_boss_ymb_move);

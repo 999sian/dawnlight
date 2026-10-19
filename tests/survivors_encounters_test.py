@@ -36,8 +36,8 @@ struct Wall {void SetWall(float,float){}};struct Background {void CrrPos(int){}}
 struct e_yc_class:fopAc_ac_c {enum {ACT_F_FLY=10,ACT_ATTACK=11,ANM_FLY=9,ANM_CATCH_START=6,ANM_FLY_BRAKE=7};
  int mTimer[4]{};ActorId mRiderID=0;int mAction=0,mMode=0,mAnm=0;Collision mAtSph;Background mAcch;
  mDoExt_McaMorfSO morph;mDoExt_McaMorfSO* mpMorf=&morph;};
-struct daB_DS_c:fopAc_ac_c {enum {ACT_B2_WAIT=1,ANM_HEAD_FWAIT=44,ANM_HEAD_FATTACK_A=41,ANM_HEAD_FATTACK_B=42,TYPE_BULLET_B=3};
- int mBossPhase=0,mAction=0,mMode=0,animation=0;bool mIsOpeningDemo=true,mCreateFireBreath=false,mDrawZant=true,mNoDrawSword=true;
+struct daB_DS_c:fopAc_ac_c {enum {ACT_B2_F_MOVE=2,ACT_B2_WAIT=1,ANM_HEAD_FWAIT=44,ANM_HEAD_FATTACK_A=41,ANM_HEAD_FATTACK_B=42,TYPE_BULLET_B=3};
+ int mModeTimer=0,mBossPhase=0,mAction=0,mMode=0,animation=0;bool mIsOpeningDemo=true,mCreateFireBreath=false,mDrawZant=true,mNoDrawSword=true;
  float mEyeColorAlpha=0,mWallR=0,mGroundUpY=0;int mBh2AttackAngleF=0;cXyz mMouthPos,mSoundPos;Wall mAcchCir;Background mAcch;
  mDoExt_McaMorfSO morph,sword;mDoExt_McaMorfSO* mpMorf=&morph,*mpSwordMorf=&sword;Texture texture;Texture* mpSwordBrkAnm=&texture;
  void setBck(int a,int,float,float){animation=a;}};
@@ -46,7 +46,7 @@ struct daE_ZH_c:fopAc_ac_c {void* mS_Ball=nullptr;int mActionMode=0,mMoveMode=0,
  Collision field_0xc7c;void setBck(int a,int,float,float){animation=a;}};
 struct e_rdy_class {fopAc_ac_c actor;float mPlayerCheckDist=1000,field_0xabc=0,mKnockback=0;int mAction=0,mMode=0,mAnm=0,field_0xa7b=0;mDoExt_McaMorfSO morph;mDoExt_McaMorfSO* mpMorf=&morph;};
 struct e_yk_class:fopAc_ac_c {float mPlayerTrigger=1000;};using e_s1_class=fopAc_ac_c;
-struct Enemy {ActorId id=kNone;int profile=0;bool initialized=true,retiring=false,credited=false,dormant=false,idleAnimation=false,encounterReady=false;
+struct Enemy {ActorId id=kNone;int profile=0;bool elite=true,initialized=true,retiring=false,credited=false,dormant=false,idleAnimation=false,encounterReady=false;
  unsigned encounterTick=0,stagger=0;cXyz lootPosition,encounterTarget;};
 std::array<Enemy,4> s_enemies;Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id&&id!=kNone)return &e;return nullptr;}
 bool arena=true;bool in_arena(){return arena;}bool roster_owned(fopAc_ac_c* a){return arena&&a&&tracked(a->id);}
@@ -56,6 +56,9 @@ ActorId ownedBullet=kNone;bool active_enemy_arrow(ActorId id){return id!=kNone&&
 bool standalone=true;bool enemy_spawner_process_active(){return standalone;}
 bool arena_aggro(fopAc_ac_c* a,int profile){auto* e=a?tracked(a->id):nullptr;return arena&&e&&e->initialized&&!e->dormant&&!e->retiring&&!e->credited&&a->profile==profile&&s_run.phase==Phase::Running;}
 fopAc_ac_c player;auto* daAlink_getAlinkActorClass(){return &player;}
+float fopAcM_searchPlayerDistance(fopAc_ac_c* a){return (player.current.pos-a->current.pos).abs();}
+void maintain_carrier_rider(e_yc_class*,const Enemy&){}
+bool prepare_carrier_rider(e_rdy_class*){return false;}
 struct Env {float daytime=180;}env;Env* dKy_getEnvlight(){return &env;}
 struct Shot {ActorId parent;unsigned parameter;cXyz position;csXyz angle;};std::vector<Shot> shots;
 ActorId fopAcM_createChild(int profile,ActorId parent,unsigned parameter,cXyz* pos,int,csXyz* angle,void*,int,void*){
@@ -77,6 +80,11 @@ int main(){
  assert(head.current.pos.y==80);head.mMode=3;
  for(int i=0;i<40;++i)before_roster_head_hover(nullptr,headArgs,nullptr,nullptr);
  assert(head.current.pos.y==320&&shots.empty());
+ head.mAction=daB_DS_c::ACT_B2_F_MOVE;head.mMode=1;head.mModeTimer=1;
+ player.current.pos.x=5000;before_roster_head_action(nullptr,headArgs,nullptr,nullptr);
+ assert(head.mMode==3&&head.animation==daB_DS_c::ANM_HEAD_FATTACK_A);
+ head.mMode=2;player.current.pos.x=10000;before_roster_head_action(nullptr,headArgs,nullptr,nullptr);assert(head.mMode==2);
+ player.current.pos.x=1000;s_run.phase=Phase::Upgrade;before_roster_head_action(nullptr,headArgs,nullptr,nullptr);assert(head.mMode==2);s_run.phase=Phase::Running;
  arena=false;assert(before_roster_head_action(nullptr,headArgs,nullptr,nullptr)==HOOK_CONTINUE);arena=true;
  // Scoped creation flags: no boss-clear query or zone mutation leaks to story actors.
  before_roster_head_create(nullptr,headArgs,nullptr,nullptr);int cleared=1;
@@ -151,7 +159,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
-    cpp.write_text(fixture+(root/'src/survivors_encounters.inc').read_text()+main)
+    cpp.write_text(fixture+(root/'src/survivors_encounters.inc').read_text().replace('#include "survivors_boss_specials.inc"','')+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror',str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)
 print('Survivors encounters: head placement/fire/recovery, riderless dives, orb-free slams, pause, ownership and scoped clock/flags passed')

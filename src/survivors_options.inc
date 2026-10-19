@@ -2,10 +2,23 @@
 HookAction before_enemy_speed(ModContext*, void* args, void*, void*) {
     auto* acch=mods::arg<dBgS_Acch*>(args,0);
     auto* actor=acch ? acch->getMyAc() : nullptr;
-    if (!actor || !playable() || s_run.phase!=Phase::Running || s_run.options.enemy_speed==1) return HOOK_CONTINUE;
+    if (!actor || !playable() || s_run.phase!=Phase::Running) return HOOK_CONTINUE;
     const auto* enemy=tracked(fopAcM_GetID(actor));
     if (!enemy || !enemy->initialized || enemy->retiring || enemy->credited || enemy->dormant || actor->health<=0)
         return HOOK_CONTINUE;
+    if(enemy->profile==fpcNm_B_TN_e&&acch!=&static_cast<daB_TN_c*>(actor)->mAcch)return HOOK_CONTINUE;
+    const bool boss=faster_boss(*enemy);
+    if(enemy->stagger)return HOOK_CONTINUE;
+    // Boss locomotion and charges gain 50%; ordinary difficulty retains its
+    // conservative locomotion whitelist. Bloat has no Acch call (own hook).
+    if(boss) {
+        actor->current.pos.x+=actor->speed.x*.5f;
+        actor->current.pos.z+=actor->speed.z*.5f;
+        if(enemy->profile==fpcNm_E_YC_e||enemy->profile==fpcNm_E_HZELDA_e||enemy->profile==fpcNm_E_KR_e)
+            actor->current.pos.y+=actor->speed.y*.5f;
+        acch->OnLineCheck();
+    }
+    if(s_run.options.enemy_speed==1)return HOOK_CONTINUE;
     // Whitelist locomotion, not a numeric range which also contains attacks.
     // Bokoblin attack root motion is separate from speed and must stay native,
     // including the frame transitioning from attack back to the find state.
@@ -32,7 +45,7 @@ HookAction before_enemy_speed(ModContext*, void* args, void*, void*) {
         const bool bowRun=bulblin->action==5 && (bulblin->mode==1 || bulblin->mode==2) && bulblin->anm==0x32;
         if ((!chase && !bowRun) || bulblin->jump_z!=0 || bulblin->field_0x9f0>0.1f) return HOOK_CONTINUE;
     } else if (!extended_locomotion(actor,enemy->profile) || enemy->stagger) return HOOK_CONTINUE;
-    const float extra=float(std::clamp(s_run.options.enemy_speed,1u,3u)-1);
+    const float extra=float(std::clamp(s_run.options.enemy_speed,1u,3u)-1)*(boss?1.5f:1.f);
     // Add only horizontal locomotion velocity before native wall correction.
     // Do not multiply animation translations, collision pushes, falls or teleports.
     actor->current.pos.x+=actor->speed.x*extra;
@@ -49,11 +62,11 @@ HookAction before_enemy_damage(ModContext*, void* args, void*, void*) {
         auto* attacker=target.ChkTgHit() ? target.GetTgHitAc() : nullptr;
         const auto* enemy=attacker ? tracked(fopAcM_GetID(attacker)) : nullptr;
         if (attacker && active_enemy_arrow(fopAcM_GetID(attacker))) {
-            mods::arg_ref<int>(args,1)=std::min(mods::arg<int>(args,1),32767)*int(s_run.options.enemy_damage);
+            mods::arg_ref<int>(args,1)=std::min(mods::arg<int>(args,1),32767)*int(s_run.options.enemy_damage)*int(enemy_damage_factor(fopAcM_GetID(attacker)));
             break;
         }
         if (!enemy || !enemy->initialized || enemy->retiring) continue;
-        mods::arg_ref<int>(args,1)=std::min(mods::arg<int>(args,1),32767)*int(s_run.options.enemy_damage);
+        mods::arg_ref<int>(args,1)=std::min(mods::arg<int>(args,1),32767)*int(s_run.options.enemy_damage)*int(enemy_damage_factor(fopAcM_GetID(attacker)));
         break;
     }
     return HOOK_CONTINUE;

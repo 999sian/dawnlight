@@ -19,6 +19,7 @@ bool encounter_running(Enemy& enemy) {
     return enemy.initialized && !enemy.retiring && !enemy.credited &&
         s_run.phase==Phase::Running && !transitioning();
 }
+#include "survivors_boss_specials.inc"
 // Carrier Kargarok's native catch attack dereferences its scripted Bulblin
 // rider. Keep its approach/brake/15-frame telegraph/catch animation sequence,
 // replacing only the rider cinematic with a talon hit against Link.
@@ -32,6 +33,7 @@ HookAction before_roster_yc_action(ModContext*,void* args,void*,void*) {
     }
     if(!encounter_running(*enemy))return HOOK_SKIP_ORIGINAL;
     auto* link=daAlink_getAlinkActorClass();if(!link)return HOOK_SKIP_ORIGINAL;
+    if(enemy->elite)maintain_carrier_rider(actor,*enemy);
     const auto animate=[&](int anm,int loop) {
         actor->mAnm=anm;encounter_animation(actor->mpMorf,"E_yc",anm,loop);
     };
@@ -83,6 +85,10 @@ HookAction before_roster_head_action(ModContext*,void* args,void*,void*) {
         actor->mDrawZant=false;actor->mNoDrawSword=false;actor->mWallR=200;actor->mGroundUpY=0;
         actor->home.pos=actor->current.pos;enemy->encounterReady=true;
     }
+    if(encounter_running(*enemy)&&actor->mAction==daB_DS_c::ACT_B2_F_MOVE&&
+       (actor->mMode==1||actor->mMode==2)&&actor->mModeTimer<=1&&fopAcM_searchPlayerDistance(actor)<=6000.f) {
+        actor->setBck(daB_DS_c::ANM_HEAD_FATTACK_A,0,3.f,1.f);actor->mMode=3;
+    }
     return HOOK_CONTINUE; // native breath telegraph, release, fireball and recovery
 }
 HookAction before_roster_head_move(ModContext*,void* args,void* result,void*) {
@@ -91,8 +97,8 @@ HookAction before_roster_head_move(ModContext*,void* args,void* result,void*) {
     if(link) {
         const auto delta=link->current.pos-actor->current.pos;
         cXyz target=actor->current.pos;
-        if(delta.absXZ()>700){target.x=link->current.pos.x;target.z=link->current.pos.z;}
-        encounter_move(actor,target,6,0);actor->home.pos=link->current.pos;
+        if(delta.absXZ()>1800){target.x=link->current.pos.x;target.z=link->current.pos.z;}
+        encounter_move(actor,target,9,0); // Native MoveF clears horizontal speed before Acch.actor->home.pos=link->current.pos;
         actor->mBh2AttackAngleF=0x2000;actor->mWallR=200;
     }
     *static_cast<bool*>(result)=true;return HOOK_SKIP_ORIGINAL;
@@ -102,7 +108,7 @@ HookAction before_roster_head_hover(ModContext*,void* args,void*,void*) {
     if(auto* link=daAlink_getAlinkActorClass()) {
         // Recovery after the native shot remains reachable with the basic sword.
         const float height=actor->mMode==100?80.f:320.f;
-        actor->current.pos.y+=std::clamp(link->current.pos.y+height-actor->current.pos.y,-8.f,8.f);
+        actor->current.pos.y+=std::clamp(link->current.pos.y+height-actor->current.pos.y,-12.f,12.f);
         actor->speed.y=0;actor->gravity=0;actor->mSoundPos=actor->current.pos;
     }
     return HOOK_SKIP_ORIGINAL;
@@ -217,7 +223,9 @@ HookAction before_roster_s1_search(ModContext*,void* args,void* result,void*) {
 // animates and registers targets; update_extended_enemy consumes player hits
 // before this hook and clears dormant, restoring native AI on the first hit.
 HookAction before_roster_rdy_action(ModContext*,void* args,void*,void*) {
-    auto* actor=mods::arg<e_rdy_class*>(args,0);auto* enemy=encounter_owner(&actor->actor);
+    auto* actor=mods::arg<e_rdy_class*>(args,0);
+    if(prepare_carrier_rider(actor))return HOOK_CONTINUE;
+    auto* enemy=encounter_owner(&actor->actor);
     if(!enemy||!enemy->dormant||enemy->retiring||enemy->credited)return HOOK_CONTINUE;
     if(!enemy->idleAnimation) {
         encounter_animation(actor->mpMorf,"E_rdy",0x4c);actor->mAnm=0x4c;enemy->idleAnimation=true;

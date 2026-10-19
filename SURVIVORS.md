@@ -177,7 +177,8 @@ with new positions in Field/Desert. Timed elites do not respawn.
 Stalhounds emerge and fight in daylight as well as at night. Shadow Beasts do
 not require simultaneous group kills. Shadow Kargaroks use independent dive attacks with their native approach, brake
 and catch animations, with the scripted
-rider/capture sequence replaced by a talon hit. Stallord uses his native phase-two
+capture sequence replaced by a talon hit. The elite Carrier also has one native
+mounted archer; its arrows inherit the Carrier damage factor. Stallord uses his native phase-two
 fire breath and recovery, adapted to ground combat without tower rails or traps.
 Death Sword uses native sword strikes and both magic shots and is visible to human
 Link. Twilit Bloat retains its electric charge, flight and retreat. Phantom Zant
@@ -188,6 +189,22 @@ attacks. King Bulblin fights on foot with his axe; Ganondorf uses his native swo
 duel. Darknut sheds armor as his run HP falls and uses the native sword throw and
 unarmored fighting phase. Dungeon intros, story flags and camera/QTE sequences
 are excluded; attacks, effects and attack timing remain native where portable.
+
+
+Boss balance: active elites/bosses move 50% faster. Promoted ordinary elites have
+half attack-readiness/recovery timers and double damage; native bosses/minibosses
+do not inherit those two generic factors. Explicit damage overrides are Darknut
+×2; Death Sword, Stallord, elite Carrier and Puppet Zelda ×4; Bloat and Darkhammer
+×3; Ganondorf and Phantom Zant ×5. Overrides do not stack with the generic ×2.
+King Bulblin can spin every six seconds at a safe chase boundary. Darknut repeats
+his sword throw every 1.5 active seconds outside melee range in either phase.
+Death Sword can enter ranged combat after four seconds of distant pursuit;
+Stallord can start breath out to 6,000 units without Link's damage-protection gate.
+Bloat can attack immediately while retaining its telegraph. Ganondorf charges
+from distant WAIT with a shared five-second cooldown and summons five native
+ghost riders every eight active seconds. Summons/riders retire with their boss;
+all owned children pause and clean up with the run. Full native baselines and
+current overrides: [boss attack reference](docs/features/hyrule-survivors-boss-attacks.md).
 
 Each timed elite and the first kill of each guard slot drops a **free large chest**. Guard respawns still give XP but no repeated chest, including after relocation. The four timed elites also drop an
 **large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals, rupees and hearts

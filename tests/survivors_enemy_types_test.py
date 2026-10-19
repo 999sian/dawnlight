@@ -23,7 +23,7 @@ using ActorId=unsigned;using ProfileName=int;using u32=unsigned;using s16=short;
 unsigned s_map=0;constexpr ActorId kNone=~0u;constexpr int fpcNm_E_OC_e=1,fpcNm_E_BA_e=2,fpcNm_E_MS_e=3,fpcNm_E_RD_e=4,fpcNm_E_ARROW_e=5;
 constexpr int fpcNm_E_TT_e=6,fpcNm_E_DN_e=7,fpcNm_E_MM_e=8,fpcNm_E_GE_e=9,fpcNm_E_KR_e=10,fpcNm_E_CR_e=11,fpcNm_E_BS_e=12,fpcNm_E_GI_e=13,fpcNm_E_SF_e=14,fpcNm_E_FS_e=15,fpcNm_E_BU_e=16,fpcNm_E_SM2_e=17,fpcNm_E_MF_e=18,fpcNm_E_CR_EGG_e=19,fpcNm_E_MM_MT_e=20,fpcNm_B_GG_e=21,fpcNm_B_TN_e=22;
 constexpr int fpcNm_E_DD_e=23,fpcNm_E_SH_e=24,fpcNm_E_RDY_e=25,fpcNm_E_S1_e=26,fpcNm_E_YK_e=27,fpcNm_E_YC_e=28,fpcNm_B_DS_e=29,fpcNm_E_ZH_e=30;
-constexpr int fpcNm_E_RDB_e=31,fpcNm_E_VT_e=32,fpcNm_E_YMB_e=33,fpcNm_E_PZ_e=34,fpcNm_E_TH_e=35,fpcNm_E_HZELDA_e=36,fpcNm_B_GND_e=37,fpcNm_E_TH_BALL_e=38,fpcNm_MANT_e=39;
+constexpr int fpcNm_E_RDB_e=31,fpcNm_E_VT_e=32,fpcNm_E_YMB_e=33,fpcNm_E_PZ_e=34,fpcNm_E_TH_e=35,fpcNm_E_HZELDA_e=36,fpcNm_B_GND_e=37,fpcNm_E_TH_BALL_e=38,fpcNm_MANT_e=39,fpcNm_E_FK_e=40;
 struct daB_DS_c{enum {TYPE_BULLET_B=3,TYPE_BULLET_C=4};};
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 ModContext* mod_ctx=nullptr;
@@ -31,7 +31,8 @@ namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}};
 struct csXyz{s16 x,y,z;};
-struct fopAc_ac_c{int health=1,field_0x560=1;struct{cXyz pos;}current;cXyz scale{2,2,2};};
+struct fopAc_ac_c{int profile=0;int health=1,field_0x560=1;struct{cXyz pos;}current;cXyz scale{2,2,2};};
+int fopAcM_GetName(fopAc_ac_c* a){return a->profile;}
 struct daAlink_c:fopAc_ac_c{};
 struct Model{cXyz scale{1,1,1};void setBaseScale(cXyz s){scale=s;}};
 struct Morf{Model model;Model* getModel(){return &model;}};
@@ -185,6 +186,35 @@ int main(){
  assert(before_enemy_arrow(nullptr,breathArgs,&breath,nullptr)==HOOK_CONTINUE);
  after_enemy_arrow(nullptr,breathArgs,&breath,nullptr);s_enemies={};assert(active_enemy_arrow(breath));
  retire_enemy_arrows();assert(!active_enemy_arrow(breath));s_enemyArrows={};
+ // Explicit factors replace, rather than multiply, promoted-elite damage.
+ for(auto spec:{std::pair{fpcNm_E_DN_e,2u},std::pair{fpcNm_E_RDB_e,1u},std::pair{fpcNm_B_TN_e,2u},
+     std::pair{fpcNm_E_VT_e,4u},std::pair{fpcNm_B_DS_e,4u},std::pair{fpcNm_E_YC_e,4u},
+     std::pair{fpcNm_E_YMB_e,3u},std::pair{fpcNm_E_TH_e,3u},std::pair{fpcNm_E_HZELDA_e,4u},
+     std::pair{fpcNm_B_GND_e,5u},std::pair{fpcNm_E_PZ_e,5u}}){
+  Enemy e;e.elite=true;e.profile=spec.first;assert(enemy_attack_factor(e)==spec.second);
+  if(!native_boss_profile(e.profile)){e.elite=false;assert(enemy_attack_factor(e)==1);}
+ }
+ // Rider arrows belong to the carrier, keep its factor after death, and never
+ // inherit a reused enemy slot. Attached riders/ghosts retire with their root.
+ s_enemyArrows={};s_enemies={};auto& carrier=s_enemies[0];carrier.id=42;carrier.profile=fpcNm_E_YC_e;carrier.elite=true;
+ std::any riderArgs[]={s16(fpcNm_E_RDY_e),ActorId(42)};ActorId rider=500;
+ after_enemy_arrow(nullptr,riderArgs,&rider,nullptr);assert(enemy_damage_factor(rider)==4);
+ fopAc_ac_c riderActor;riderActor.profile=fpcNm_E_RDY_e;actors[rider]=&riderActor;
+ std::any mountedShot[]={s16(fpcNm_E_ARROW_e),ActorId(rider)};ActorId flyingArrow=501;
+ assert(before_enemy_arrow(nullptr,mountedShot,&flyingArrow,nullptr)==HOOK_CONTINUE);
+ after_enemy_arrow(nullptr,mountedShot,&flyingArrow,nullptr);assert(enemy_damage_factor(flyingArrow)==4&&tracked_enemy_arrow(flyingArrow)->parent==42);
+ carrier={};carrier.id=43;carrier.profile=fpcNm_E_OC_e;
+ assert(!active_enemy_arrow(rider)&&active_enemy_arrow(flyingArrow)&&enemy_damage_factor(flyingArrow)==4);
+ ActorId rejected=502;assert(before_enemy_arrow(nullptr,mountedShot,&rejected,nullptr)==HOOK_CONTINUE); // retired rider cannot execute/create
+ retire_enemy_arrows();assert(!active_enemy_arrow(flyingArrow));s_enemyArrows={};actors.clear();s_enemies={};
+ s_enemies[0].id=42;s_enemies[0].profile=fpcNm_B_GND_e;
+ std::any ghostArgs[]={s16(fpcNm_E_FK_e),ActorId(42)};ActorId ghost=503;
+ s_run.phase=Phase::Upgrade;assert(before_enemy_arrow(nullptr,ghostArgs,&ghost,nullptr)==HOOK_SKIP_ORIGINAL&&ghost==kNone);
+ s_run.phase=Phase::Running;ghost=503;after_enemy_arrow(nullptr,ghostArgs,&ghost,nullptr);
+ assert(active_enemy_arrow(ghost)&&enemy_damage_factor(ghost)==5);
+ s_enemies[0].credited=true;assert(!active_enemy_arrow(ghost));creating.insert(ghost);cleanup_enemy_arrows();
+ assert(tracked_enemy_arrow(ghost));creating.clear();actors[ghost]=&player;cleanup_enemy_arrows();assert(deleted.contains(ghost));
+ actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(ghost));s_enemies={};
  // Foreign children and failed creates are ignored; capacity/pause reject new owned arrows.
  arrowId=101;after_enemy_arrow(nullptr,args,&arrowId,nullptr);assert(!tracked_enemy_arrow(101));
  s_enemies[0].id=42;s_enemies[0].profile=fpcNm_E_RD_e;
@@ -197,7 +227,7 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
  native=(root/'src/survivors_roster_native.inc').read_text().split('// Suppress only')[0]
- cpp.write_text(fixture+native+'void initialize_extended_enemy(Enemy&,fopAc_ac_c*){assert(false);}' +(root/'src/survivors_enemy_types.inc').read_text()+(root/'src/survivors_enemy_arrows.inc').read_text()+
+ cpp.write_text(fixture+native+'void initialize_extended_enemy(Enemy&,fopAc_ac_c*){assert(false);}' +(root/'src/survivors_enemy_types.inc').read_text()+(root/'src/survivors_enemy_balance.inc').read_text().split('// Add one decrement')[0]+(root/'src/survivors_enemy_arrows.inc').read_text()+
   function('create_enemy_at')+function('spawn_enemy')+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)

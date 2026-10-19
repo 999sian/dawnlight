@@ -28,10 +28,13 @@ struct daAlink_c:fopAc_ac_c{Target mTgCyls[3];};
 struct daE_OC_c:fopAc_ac_c{int mActionMode=3,mOcState=4,animation=0x1e;bool checkBck(int n){return animation==n;}};
 struct e_ms_class:fopAc_ac_c{int mAction=1,mMode=2;};
 struct e_ba_class:fopAc_ac_c{enum{ACT_FIGHT_FLY=1,ACT_RETURN=4,ACT_FLY=5,ACT_PATH_FLY=6};bool mIsDying=false;float mKnockbackSpeed=0;int mAction=2;};
+constexpr int fpcNm_B_TN_e=5,fpcNm_E_YC_e=6,fpcNm_E_HZELDA_e=8,fpcNm_E_KR_e=9;
 constexpr int fpcNm_E_OC_e=1,fpcNm_E_MS_e=2,fpcNm_E_BA_e=3,fpcNm_E_RD_e=4;
 struct e_rd_class{fopAc_ac_c enemy;int action=3,mode=1,anm=0x32;float jump_z=0,field_0x9f0=0;};
 bool arrowActive=false;bool active_enemy_arrow(int id){return arrowActive&&id==7;}
-struct Enemy{bool initialized=true,retiring=false,credited=false,dormant=false;int profile=1;unsigned stagger=0;}enemy;
+struct Enemy{bool elite=false;bool initialized=true,retiring=false,credited=false,dormant=false;int profile=1;unsigned stagger=0;}enemy;
+bool faster_boss(const Enemy& e){return e.elite;}
+unsigned enemy_damage_factor(int){return enemy.elite?2:1;}
 bool owned=true,active=true,paused=false,transition=false,event=false,aim=false,blocked=false;
 Enemy* tracked(int id){return owned&&id==2?&enemy:nullptr;}
 void suppress_player_reaction(daAlink_c*){}
@@ -40,6 +43,7 @@ bool dComIfGp_event_runCheck(){return event;}
 void* s_menuDocument=nullptr;void remember_menu_document(bool){}
 Run s_run;RunOptions s_options;int s_player=1;bool s_restart=false;
 struct dBgS_Acch{fopAc_ac_c* actor;bool line=false;auto* getMyAc(){return actor;}void OnLineCheck(){line=true;}};
+struct daB_TN_c:fopAc_ac_c{dBgS_Acch mAcch{this};};
 struct dBgS_CamLinChk{cXyz cross{0,0,150};cXyz GetCross(){return cross;}};
 struct Direction{cXyz v;void Val(cXyz a){v=a;}};
 struct dCamera_c{cXyz mEye{0,0,100},mCenter{};Direction mDirection;int mPadID=0;
@@ -81,6 +85,11 @@ int main(){
   if(reason==3)enemy.dormant=true;if(reason==4)enemy.retiring=true;if(reason==5)bok.health=0;if(reason==6)bok.mActionMode=6;
   before_enemy_speed(nullptr,movement,nullptr,nullptr);assert(bok.current.pos.abs2({12,3,14})==0);
  }
+ // Boss movement is 1.5x before correction and composes with run difficulty.
+ active=owned=true;paused=false;enemy={};enemy.elite=true;bok.health=20;bok.mActionMode=3;bok.mOcState=4;bok.animation=0x1e;
+ for(unsigned difficulty=1;difficulty<=3;++difficulty){s_run.options.enemy_speed=difficulty;bok.current.pos={12,3,14};
+  before_enemy_speed(nullptr,movement,nullptr,nullptr);assert(bok.current.pos.abs2({10+3.f*difficulty,3,10+6.f*difficulty})==0);}
+ enemy.elite=false;s_run.options.enemy_speed=3;
  // Attack root motion and collision displacement are never multiplied.
  active=owned=true;paused=false;enemy={};bok.health=20;
  for(int action=0;action<=16;++action){

@@ -105,3 +105,8 @@ DEFINE_HOOK_SYMBOL("daB_DS_c::mCreateTrap",void(daB_DS_c*,bool),RosterHeadTrap);
 DEFINE_HOOK_SYMBOL("daB_TN_c::executeChangeDemo",void(daB_TN_c*),BossTNChange);
 DEFINE_HOOK_SYMBOL("daB_TN_c::checkMoveArea",int(daB_TN_c*),BossTNArea);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_th.cpp#e_th_spin_B",void(e_th_class*),BossTHSpin);
+
+DEFINE_HOOK_SYMBOL("daB_TN_c::calcSwordMoveA",void(daB_TN_c*),BossTNThrow);
+DEFINE_HOOK_SYMBOL("daB_TN_c::cc_set",void(daB_TN_c*),BossTNThrowCollision);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_rdy.cpp#e_rdy_yc_ride",void(e_rdy_class*),BossCarrierRide);
+DEFINE_HOOK_SYMBOL("src/d/actor/d_a_b_gnd.cpp#b_gnd_g_attack",BOOL(b_gnd_class*),BossGNDCharge);

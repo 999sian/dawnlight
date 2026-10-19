@@ -43,6 +43,9 @@ HookAction before_boss_rdb(ModContext*,void* args,void*,void*) {
         e->enemy.current.pos=e->enemy.old.pos=owner->lootPosition;
         e->mAction=1;e->mMode=0;e->mDemoMode=0;owner->encounterReady=true;
     }
+    if(encounter_running(*owner)&&!owner->specialCooldown&&e->mAction==1&&fopAcM_searchPlayerDistance(&e->enemy)<900.f) {
+        e->mAction=4;e->mMode=0;owner->specialCooldown=180; // six seconds, safe attack boundary
+    }
     return HOOK_CONTINUE; // native chase, axe combos, spin and defence
 }
 HookAction before_boss_th(ModContext*,void* args,void*,void*) {
@@ -85,6 +88,14 @@ HookAction before_boss_gnd_execute(ModContext*,void* args,void* result,void*) {
     // Sword-lock is an interactive cinematic; return to his native sword AI.
     if(e->mActionMode==19){e->mActionMode=10;e->mMoveMode=0;}
     e->mDemoCamMode=0;
+    if(encounter_running(*owner)) {
+        if(!owner->specialCooldown&&e->mActionMode==10&&fopAcM_searchPlayerDistance(e)>550.f) {
+            e->mActionMode=11;e->mMoveMode=10; // Charge hook starts the shared cooldown.
+        }
+        if(!owner->summonCooldown) {
+            summon_ghost_riders(e,*owner);owner->summonCooldown=240;
+        }
+    }
     return HOOK_CONTINUE;
 }
 HookAction before_boss_va(ModContext*,void* args,void*,void*) {
@@ -97,11 +108,17 @@ HookAction before_boss_va(ModContext*,void* args,void*,void*) {
         e->mWeponEfMode=3;e->setActionMode(daE_VA_c::ACTION_OPACI_CHASE_e,12);
         e->setBck(30,2,3.f,1.f);e->gravity=-5.f;owner->encounterReady=true;
     }
+    // A distant player must not prevent the magic phase indefinitely. Only
+    // transition out of chase; an active sword/magic animation is never reset.
+    if(encounter_running(*owner)&&e->mAction==daE_VA_c::ACTION_OPACI_CHASE_e&&e->mMode==12&&
+       ++owner->encounterTick>=120&&fopAcM_searchPlayerDistance(e)>600.f)
+        e->setActionMode(daE_VA_c::ACTION_OPACI_FLY_e,0);
     // Fly modes 0..4 and chase modes 0..11 orbit the old world origin.
     // Keep native chase/strike and the complete two-projectile attack instead.
     if(e->mAction==daE_VA_c::ACTION_OPACI_FLY_e) {
-        if(e->mMode==0) {e->mMode=10;e->speedF=0;e->setBck(12,2,3.f,1.f);}
-        else if(e->mMode<10) {e->setActionMode(daE_VA_c::ACTION_OPACI_CHASE_e,12);e->setBck(30,2,3.f,1.f);}
+        if(e->mMode==0) {e->mMode=10;e->speedF=0;e->speed.y=0;e->gravity=0;e->setBck(12,2,3.f,1.f);owner->encounterTick=0;}
+        e->shape_angle.y=e->current.angle.y=fopAcM_searchPlayerAngleY(e);
+        if(e->mMode<10) {e->setActionMode(daE_VA_c::ACTION_OPACI_CHASE_e,12);e->gravity=-5;e->setBck(30,2,3.f,1.f);}
     }
     return HOOK_CONTINUE;
 }
@@ -119,7 +136,9 @@ HookAction before_boss_ymb(ModContext*,void* args,void*,void*) {
         e->field_0x6d4=link->current.pos.y;
     }
     if(e->mAction==0||e->mAction>=5)e->setActionMode(1,0);
-    return HOOK_CONTINUE; // native flight, electric telegraph, charge and retreat
+    e->field_0x70c=0;
+    if(e->mAction==1&&encounter_running(*owner))e->setActionMode(2,0);
+    return HOOK_CONTINUE; // retain the native telegraph, charge and recovery
 }
 HookAction before_boss_hzelda(ModContext*,void* args,void*,void*) {
     auto* e=mods::arg<e_hzelda_class*>(args,0);auto* owner=encounter_owner(e);
@@ -222,7 +241,7 @@ void after_boss_th_spin(ModContext*,void* args,void*,void*) {
     if(!owner)return;
     // Native movement only follows the mansion corridor's Z axis. Rotate that
     // same step toward Link while retaining the native spin/throw timing.
-    const float step=(e->current.pos-owner->encounterTarget).absXZ();
+    const float step=(e->current.pos-owner->encounterTarget).absXZ()*1.5f;
     e->current.pos.x=owner->encounterTarget.x+cM_ssin(e->mPlayerAngleY)*step;
     e->current.pos.z=owner->encounterTarget.z+cM_scos(e->mPlayerAngleY)*step;
 }

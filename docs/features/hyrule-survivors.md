@@ -249,15 +249,32 @@ writes and arena-specific weather changes are isolated to owned actor scopes.
 replacing tower movement and hover anchors and excluding rail/trap spawning. The
 Carrier's native rider-dependent catch sequence retains approach, braking,
 telegraph and catch poses, using a talon collider in place of the capture cinematic.
+The elite Carrier adds one owned mounted archer with native shooting animations.
 The unused Zant Hand adapter remains available but is no longer a scheduled boss.
 Run pause, teardown, HP scaling and final HP budgets apply to all new bosses.
 Desktop/Android in-game validation of the new encounters remains required.
+
+
+Boss balance: active elites/bosses move 50% faster. Promoted ordinary elites have
+half attack-readiness/recovery timers and double damage; native bosses/minibosses
+do not inherit those two generic factors. Explicit damage overrides are Darknut
+×2; Death Sword, Stallord, elite Carrier and Puppet Zelda ×4; Bloat and Darkhammer
+×3; Ganondorf and Phantom Zant ×5. Overrides do not stack with the generic ×2.
+King Bulblin can spin every six seconds at a safe chase boundary. Darknut repeats
+his sword throw every 1.5 active seconds outside melee range in either phase.
+Death Sword can enter ranged combat after four seconds of distant pursuit;
+Stallord can start breath out to 6,000 units without Link's damage-protection gate.
+Bloat can attack immediately while retaining its telegraph. Ganondorf charges
+from distant WAIT with a shared five-second cooldown and summons five native
+ghost riders every eight active seconds. Summons/riders retire with their boss;
+all owned children pause and clean up with the run. Full native baselines and
+current overrides: [boss attack reference](hyrule-survivors-boss-attacks.md).
 
 Dodongo armor flags are also normalized after Execute, because its native code
 sets them after collision registration. Only owned target objects are changed;
 attack colliders retain their native role. The fixture exercises the actual new
 action hooks over complete cycles, ownership boundaries, pause/retirement,
-phase-two spawn restoration, fireball production, riderless dives, orb-free
+phase-two spawn restoration, fireball production, Carrier dives/mounted archery, orb-free
 slams, nested clock/flag scopes and slot reuse. Runtime rendering, attack feel,
 terrain interaction and device performance still require in-game checks.
 

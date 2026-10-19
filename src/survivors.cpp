@@ -291,6 +291,10 @@ struct Enemy {
     cCcD_Obj* childHit=nullptr;
     bool encounterReady=false;
     unsigned encounterTick=0;
+    unsigned specialCooldown=0, summonCooldown=240, throwLife=0;
+    bool extraAttackReady=false;
+    dCcD_Stts extraStatus{};
+    dCcD_Sph extraAttack{};
     cXyz encounterTarget{};
 };
 std::array<Enemy, enemy_capacity> s_enemies;
@@ -354,6 +358,7 @@ Enemy* tracked(ActorId id) {
     return nullptr;
 }
 #include "survivors_enemy_types.inc"
+#include "survivors_enemy_balance.inc"
 #include "survivors_enemy_arrows.inc"
 #include "survivors_elite_positions.inc"
 #include "survivors_maps.inc"
@@ -1065,6 +1070,11 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     }
     if (enemy && extended_enemy(enemy->profile) && !update_extended_enemy(actor,*enemy)) {
         *static_cast<int*>(result)=1; return HOOK_SKIP_ORIGINAL;
+    }
+    if(enemy) {
+        advance_elite_cooldowns(actor,*enemy);
+        if(enemy->specialCooldown)--enemy->specialCooldown;
+        if(enemy->summonCooldown)--enemy->summonCooldown;
     }
     return HOOK_CONTINUE;
 }

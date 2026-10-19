@@ -31,7 +31,7 @@ struct Native:fopAc_ac_c {
  cXyz field_0x2710,field_0x69c;int mTimers[4]{},field_0x5dc=0;float mPlayerDist=0; s16 mPlayerAngleY=0;
  ActorId mBallID=kNone,mMantChildID=kNone;
  int mAlphaType=0,mFadeAwayTimer=0,mGlowLightA=0,mEyeAlpha=0,mFootSmokeAlpha=0,mWeponEfMode=0,animation=0;
- bool mDrawRopes=true,mRopesEnabled=true;int field_0x6d8=0,field_0x6dc=0,field_0x710=1,field_0x717=0,field_0x764=0;
+ bool mDrawRopes=true,mRopesEnabled=true;int field_0x70c=0,field_0x6d8=0,field_0x6dc=0,field_0x710=1,field_0x717=0,field_0x764=0;
  float field_0x6cc=0,field_0x6d0=0,field_0x6d4=0;
  int mMsgSetTimer=30,mMissedBallCount=1;bool mDrawTriangleAt=false;cXyz mTrianglePos;
  int field_0x7d3=3,field_0x844=0,mPointNum=0,mCurrentPoint=0,field_0x846=0,field_0x7d8=1;
@@ -50,7 +50,7 @@ using e_rdb_class=Native;using e_th_class=Native;using b_gnd_class=Native;using 
 using daE_VA_c=Native;using daE_YMB_c=Native;using daE_PZ_c=Native;using e_hzelda_class=Native;using daB_TN_c=Native;
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* a,unsigned n){return std::any_cast<T>(static_cast<std::any*>(a)[n]);}}
-struct Enemy{ActorId id=kNone;int profile=0;bool encounterReady=false,initialized=true,retiring=false,credited=false;unsigned age=0;
+struct Enemy{ActorId id=kNone;int profile=0;bool encounterReady=false,initialized=true,retiring=false,credited=false;unsigned age=0,specialCooldown=0,summonCooldown=240,encounterTick=0;
  cXyz lootPosition,encounterTarget;};
 std::array<Enemy,32>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id&&id!=kNone)return &e;return nullptr;}
@@ -66,11 +66,14 @@ fopAc_ac_c* actor_by_id(ActorId id){return actors.contains(id)?actors[id]:nullpt
 bool fpcM_IsCreating(ActorId id){return pending.contains(id);}bool fopAcM_IsExecuting(ActorId id){return actors.contains(id)&&!pending.contains(id);}
 fopAc_ac_c player;auto* daAlink_getAlinkActorClass(){return &player;}
 s16 fopAcM_searchPlayerAngleY(fopAc_ac_c*){return 123;}
+float distanceToPlayer=300;float fopAcM_searchPlayerDistance(fopAc_ac_c*){return distanceToPlayer;}
 float cM_ssin(s16 a){return std::sin(a*3.14159265f/32768);}float cM_scos(s16 a){return std::cos(a*3.14159265f/32768);}
 bool floorValid=true,pathValid=true;bool dry_arena_floor(cXyz& p,float,float){p.y=500;return floorValid;}
 bool elite_floor_position(cXyz& p){p.y=500;return floorValid;}
 bool walkable_spawn_path(cXyz,cXyz&,int){return pathValid;}
 enum class Species{ShadowKeese,ShadowBeast};enum class Phase{Running,Upgrade};struct{Phase phase=Phase::Running;}s_run;
+bool encounter_running(Enemy& e){return e.initialized&&!e.retiring&&!e.credited&&s_run.phase==Phase::Running;}
+unsigned summons=0;void summon_ghost_riders(b_gnd_class*,const Enemy&){++summons;}
 unsigned spawned=0;bool create_enemy_at(cXyz,s16,unsigned,bool){for(auto& e:s_enemies)if(e.id==kNone){e.id=50+spawned++;return true;}return false;}
 ActorId childOwner=kNone;unsigned childParams=0,childCreates=0;
 ActorId fopAcM_createChild(int,ActorId parent,u32 param,const cXyz*,int,const csXyz*,const cXyz*,s8,void*){
@@ -105,8 +108,27 @@ int main(){
  boss.mMode=2;before_boss_va(nullptr,args,nullptr,nullptr);assert(boss.mAction==15&&boss.mMode==12);
  // Native Bloat charge aims at Link, not Lake Hylia's elevation; visible as human.
  owner.encounterReady=false;before_boss_ymb(nullptr,args,nullptr,nullptr);
- assert(boss.mAction==1&&boss.field_0x6d8==255&&boss.field_0x764==1&&boss.field_0x6d0+550==600);
+ assert(boss.mAction==2&&boss.field_0x6d8==255&&boss.field_0x764==1&&boss.field_0x6d0+550==600);
  boss.mAction=2;boss.mMode=3;before_boss_ymb(nullptr,args,nullptr,nullptr);assert(boss.mAction==2&&boss.mMode==3);
+ // A distant chase reaches magic after four active seconds, without resetting attacks.
+ boss.mAction=15;boss.mMode=12;owner.encounterTick=0;distanceToPlayer=1000;
+ for(int i=0;i<119;++i)before_boss_va(nullptr,args,nullptr,nullptr);
+ assert(boss.mAction==15);before_boss_va(nullptr,args,nullptr,nullptr);
+ assert(boss.mAction==12&&boss.mMode==10&&owner.encounterTick==0);
+ boss.mMode=12;before_boss_va(nullptr,args,nullptr,nullptr);assert(boss.mMode==12);
+ boss.mAction=15;boss.mMode=13;owner.encounterTick=200;
+ before_boss_va(nullptr,args,nullptr,nullptr);assert(boss.mAction==15&&boss.mMode==13);
+ // King spin only starts at a safe chase boundary; native bosses do not inherit elite clocks.
+ boss.mAction=1;owner.specialCooldown=0;distanceToPlayer=500;
+ before_boss_rdb(nullptr,args,nullptr,nullptr);assert(boss.mAction==4&&owner.specialCooldown==180);
+ boss.mMode=2;before_boss_rdb(nullptr,args,nullptr,nullptr);assert(boss.mMode==2);
+ boss.mAction=1;before_boss_rdb(nullptr,args,nullptr,nullptr);assert(boss.mAction==1);
+ // Ganondorf's distant trigger and independent eight-second summons.
+ boss.mActionMode=10;owner.specialCooldown=0;owner.summonCooldown=0;distanceToPlayer=1000;
+ before_boss_gnd_execute(nullptr,args,&result,nullptr);assert(boss.mActionMode==11&&boss.mMoveMode==10&&summons==1&&owner.summonCooldown==240);
+ boss.mMoveMode=12;before_boss_gnd_execute(nullptr,args,&result,nullptr);assert(boss.mMoveMode==12&&summons==1);
+ s_run.phase=Phase::Upgrade;boss.mActionMode=10;owner.summonCooldown=0;
+ before_boss_gnd_execute(nullptr,args,&result,nullptr);assert(boss.mActionMode==10&&summons==1);s_run.phase=Phase::Running;
  // Native teleport selection receives only valid points; no empty point table.
  owner.encounterReady=false;before_boss_pz(nullptr,args,nullptr,nullptr);assert(boss.mPointNum==9);
  floorValid=false;before_boss_pz(nullptr,args,nullptr,nullptr);assert(boss.mPointNum==1);floorValid=true;
