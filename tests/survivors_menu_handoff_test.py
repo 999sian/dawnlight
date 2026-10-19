@@ -87,7 +87,7 @@ UiWindowHandle s_window=0,s_refreshChoices=0;UiDialogHandle s_talentDialog=0;
 ChestReward s_chosenTreasure=ChestReward::Count;
 void dismiss_treasure_choice(){assert(false);}
 ModResult build_window(ModContext*,UiWindowHandle,UiElementHandle,UiElementHandle,void*,ModError*){return MOD_OK;}
-auto build_difficulty=build_window,build_talents=build_window,build_run_settings=build_window;
+auto build_difficulty=build_window,build_talents=build_window,build_run_settings=build_window,build_debug=build_window;
 ModResult update_talent_tab(ModContext*,void*,ModError*){return MOD_OK;}
 constexpr char kTreasureStyle[]="",kArenaStyle[]="";
 '''

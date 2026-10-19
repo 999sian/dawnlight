@@ -115,6 +115,15 @@ unsigned waves(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.elite&&!e.
 void door(float x,float z){fopAcM_prm_class p;p.room_no=arena().room;p.base.parameters=unsigned(arena().room)<<13;p.base.position={x,0,z};capture_elite_site(fpcNm_DOOR20_e,p);}
 void add_floor(float size){capture_elite_floor({-size,0,-size},{size,0,-size},{-size,0,size},1,false);capture_elite_floor({size,0,-size},{size,0,size},{-size,0,size},1,false);}
 int main(){
+ // Actual encounter scheduler follows the selected timer, including the final boss.
+ for(unsigned minutes:{5u,10u,20u}){
+  fresh(0);s_run.options.debug.run_minutes=minutes;
+  for(unsigned boss=1;boss<=4;++boss){
+   s_run.ticks=boss*s_run.boss_interval()-1;update_elite_spawns(&player);assert(waves()==boss-1);
+   s_run.ticks=boss*s_run.boss_interval();update_elite_spawns(&player);assert(waves()==boss);
+  }
+ }
+
  // Compact arenas have no map guards, even with captured doors or large floor.
  for(unsigned map:{0u,4u}){fresh(map);add_floor(10000);door(2000,0);assert(s_eliteDoorSites.size()==1);
   for(unsigned minute=0;minute<20;++minute){s_run.ticks=minute*60*30;update_elite_spawns(&player);

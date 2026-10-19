@@ -98,7 +98,7 @@ ModResult add_choice_card(UiElementHandle row, const std::string& rml, const cha
     // Separate sibling above the pick overlay: touch/Confirm only banishes.
     control=UI_CONTROL_DESC_INIT;control.label="\uE14B";control.tooltip="Banish this choice";
     control.on_pressed=banish_choice;control.user_data=data;
-    control.is_disabled=[](ModContext*,void*){return !s_run.banishes;};
+    control.is_disabled=[](ModContext*,void*){return !s_run.can_banish();};
     UiElementHandle banish=0;
     result=svc_ui->pane_add_control(mod_ctx,card,&control,&banish);
     if(result!=MOD_OK)return result;

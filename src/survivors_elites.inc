@@ -96,13 +96,13 @@ bool landmark_guard_position(const EliteLandmark& site, cXyz& pos) {
 void update_elite_spawns(daAlink_c* link) {
     if (s_run.phase != Phase::Running) return;
     if (s_map==3) refresh_elite_sites();
-    const unsigned guards = s_run.ticks >= duration ? 0 : s_map==1 || s_map==2 ? 4 :
+    const unsigned guards = s_run.ticks >= s_run.run_duration() ? 0 : s_map==1 || s_map==2 ? 4 :
         s_map==3 ? std::min<unsigned>(guard_capacity,s_eliteDoorSites.size()) : 0;
     for (unsigned i=0;i<timed_elite_count+guards;++i) {
         auto& encounter = s_eliteEncounters[i];
         const bool guard = i>=timed_elite_count;
         if (encounter.defeated && (!guard || s_run.ticks < encounter.respawnAt)) continue;
-        if (!guard && s_run.ticks < (i+1)*elite_interval) continue;
+        if (!guard && s_run.ticks < (i+1)*s_run.boss_interval()) continue;
         bool exists = false;
         for (const auto& enemy : s_enemies) if (enemy.id!=kNone && enemy.eliteSlot==int(i)) {exists=true;break;}
         if (exists) continue;

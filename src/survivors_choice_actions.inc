@@ -52,7 +52,7 @@ ModResult add_choice_header(UiElementHandle pane) {
     if(result!=MOD_OK)return result;
     result=svc_ui->elem_set_class(mod_ctx,row,"survivors-choice-toolbar",true);
     if(result!=MOD_OK)return result;
-    const std::string label=s_run.free_rerolls ? "Reroll: Free" : "Reroll: "+number(s_run.reroll_cost())+" rupees";
+    const std::string label=(s_run.infinite_rerolls() || s_run.free_rerolls) ? "Reroll: Free" : "Reroll: "+number(s_run.reroll_cost())+" rupees";
     UiControlDesc control=UI_CONTROL_DESC_INIT;control.label=label.c_str();control.on_pressed=reroll_choices;
     control.is_disabled=[](ModContext*,void*) {
         const bool chest=s_run.phase==Phase::TreasureChoice;
@@ -72,8 +72,8 @@ ModResult add_choice_header(UiElementHandle pane) {
     equipment+="</div>";
     // Material Symbols already ships with the host: refresh and block glyphs.
     equipment="<div class=\"survivors-choice-status\">"+equipment+
-        "<div class=\"survivors-choice-counts\"><span><icon>&#xE5D5;</icon>x"+number(s_run.free_rerolls)+
-        "</span><span><icon class=\"survivors-banish-color\">&#xE14B;</icon>x"+number(s_run.banishes)+"</span></div></div>";
+        "<div class=\"survivors-choice-counts\"><span><icon>&#xE5D5;</icon>x"+(s_run.infinite_rerolls()?std::string("∞"):number(s_run.free_rerolls))+
+        "</span><span><icon class=\"survivors-banish-color\">&#xE14B;</icon>x"+(s_run.infinite_banishes()?std::string("∞"):number(s_run.banishes))+"</span></div></div>";
     result=svc_ui->pane_add_rml(mod_ctx,row,equipment.c_str(),&loadout);if(result!=MOD_OK)return result;
     return svc_ui->elem_set_class(mod_ctx,loadout,"survivors-choice-loadout",true);
 }

@@ -381,6 +381,17 @@ int main(){
     playing=true;player.id=8;after_sword_move(nullptr,args,nullptr,nullptr);assert(player.mNormalSpeed==9);player.id=7;
     BOOL large=1;assert(before_large_spin(nullptr,nullptr,&large,nullptr)==HOOK_SKIP_ORIGINAL && large==0);
     arena=false;assert(before_large_spin(nullptr,nullptr,&large,nullptr)==HOOK_CONTINUE);arena=true;
+    // Apply the debug multiplier once at the final owned damage boundary,
+    // including combined fixed burns. Foreign/native attacks remain untouched.
+    reset();s_swordAction=SwordAction::Normal;
+    for(unsigned multiplier=1;multiplier<=10;++multiplier){
+        s_run.options.debug.player_damage=multiplier;
+        dCcU_AtInfo hit{&player.mAtCps[0]};std::any debugArgs[]={&hit};
+        after_power(nullptr,debugArgs,nullptr,nullptr);assert(hit.mAttackPower==s_run.melee_power()*multiplier);
+        s_effects[0].damage=7;s_effects[0].fixedDamage=13;hit={&s_effects[0].collider};
+        after_power(nullptr,debugArgs,nullptr,nullptr);assert(hit.mAttackPower==20*multiplier);
+    }
+    s_run.options.debug.player_damage=1;s_effects[0].fixedDamage=0;
     // Only this Link's active native sword colliders receive linear Survivors damage.
     s_swordAction=SwordAction::Spin;s_run.ranks[0]=s_run.ranks[1]=1;s_run.ranks[3]=2;dCcU_AtInfo info{&player.mAtSph};std::any powerArgs[]={&info};
     after_power(nullptr,powerArgs,nullptr,nullptr);assert(info.mAttackPower==5);

@@ -70,7 +70,7 @@ struct Service{
 main=r'''
 int main(){
  s_run.start(1);s_run.phase=Phase::Ready;open_window();
- assert((tabNames==std::vector<std::string>{"Maps","Difficulty","Talents","Settings"}));
+ std::vector<std::string> expected{"Maps","Difficulty","Talents","Settings"};if(debug_enabled)expected.push_back("Debug");assert(tabNames==expected);
  s_window=0;s_run.phase=Phase::Upgrade;open_window();assert(tabNames.size()==1&&tabNames[0]=="Choose an upgrade");
  s_run.start(1);s_run.options.enemy_speed=3;
  daE_OC_c bok;bok.old.pos={10,0,10};bok.current.pos={12,3,14};dBgS_Acch acch{&bok};std::any movement[]={&acch};
@@ -148,6 +148,24 @@ int main(){
   value.int_value=-1;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==c.min);
   s_run.phase=Phase::Running;value.int_value=c.max;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==c.min);s_run.phase=Phase::Ready;
  }
+ controls.clear();s_options.debug={4,10,1,1,5};s_run.options.debug=s_options.debug;
+ assert(build_debug(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
+ if(debug_enabled){
+  assert(controls.size()==5&&std::string(controls[0].label)=="Minimum Rarity");
+  for(unsigned i=0;i<5;++i){auto& c=controls[i];UiControlValue value=UI_CONTROL_VALUE_INIT;
+   assert(c.kind==(i==1?UI_CONTROL_NUMBER:UI_CONTROL_SELECT));
+   value.int_value=0;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==(i==1?1:0));
+   value.int_value=i==1?10:int64_t(c.option_count-1);c.set(nullptr,c.user_data,&value);
+   s_run.phase=Phase::Running;assert(c.is_disabled(nullptr,c.user_data));
+   UiControlValue denied=UI_CONTROL_VALUE_INIT;c.set(nullptr,c.user_data,&denied);c.get(nullptr,c.user_data,&denied);assert(value.int_value==denied.int_value);s_run.phase=Phase::Ready;
+  }
+  assert(s_options.debug.run_minutes==5&&s_options.debug.player_damage==10);
+ }else{
+  assert(controls.empty()&&s_options.debug.run_minutes==20&&s_options.debug.player_damage==1);
+  assert(s_options.debug.minimum_rarity==0&&!s_options.debug.infinite_rerolls&&!s_options.debug.infinite_banishes);
+  assert(s_run.options.debug.run_minutes==20&&s_run.options.debug.player_damage==1);
+ }
+
 }
 '''
 core=(root/'src/survivors.cpp').read_text()
@@ -155,7 +173,8 @@ window=core[core.index('void open_window() {'):core.index('ModResult activated('
 ui=(root/'src/survivors_maps_ui.inc').read_text().split('struct RunOptionControl',1)[1]
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+'bool extended_locomotion(fopAc_ac_c*,int){return false;}\n'+(root/'src/survivors_options.inc').read_text()+'struct RunOptionControl'+ui+window+main)
- subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
- subprocess.run([str(exe)],check=True)
+ cpp.write_text(fixture+'bool extended_locomotion(fopAc_ac_c*,int){return false;}\n'+(root/'src/survivors_options.inc').read_text()+'struct RunOptionControl'+ui+(root/'src/survivors_debug_ui.inc').read_text()+window+main)
+ for enabled in [0,1]:
+  subprocess.run([os.environ.get('CXX','c++'),f'-DDAWNLIGHT_SURVIVORS_DEBUG={enabled}','-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
+  subprocess.run([str(exe)],check=True)
 print('Survivors options: native movement/damage scoping, stable camera zoom/collision and UI boundaries passed')

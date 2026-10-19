@@ -286,6 +286,8 @@ jobs:
           python3 tests/survivors_combat_test.py dusklight
           CXX=clang++ python3 tests/survivors_combat_test.py dusklight
           python3 tests/survivors_ranged_test.py dusklight
+          python3 tests/survivors_debug_test.py
+          CXX=clang++ python3 tests/survivors_debug_test.py
           python3 tests/survivors_legendary_test.py
           CXX=clang++ python3 tests/survivors_legendary_test.py
           python3 tests/survivors_black_flame_test.py

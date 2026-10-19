@@ -423,3 +423,38 @@ Field/Desert guards are distributed away from the original entrance and Link,
 on open land validated locally rather than along a straight path from Link.
 Sword Waves again fire from a visible normal sword swing, including at ranged
 distance; other automatic skills continue during its wind-up.
+
+
+## Development Debug tab
+
+The development build adds **Debug** after Settings in the start menu. Changes
+apply to the next run and are not written to save files.
+
+| Setting | Values | Default |
+| --- | --- | --- |
+| Minimum Rarity | Common / Uncommon / Rare / Epic / Legendary | Common |
+| Player damage | x1–x10 outgoing damage, including burns | x1 |
+| Infinite rerolls | Off / On; free, without consuming charges | Off |
+| Infinite banishes | Off / On; no charge consumption | Off |
+| Run timer | 20 / 10 / 5 minutes | 20 minutes |
+
+Minimum Rarity raises lower rarity rolls to the floor for both level-ups and
+all treasure offers, including the starting item. Higher rolls remain higher.
+Infinite rerolls preserve chest purchase costs. Banished choices remain excluded
+for the rest of the run. The damage multiplier applies once after ordinary,
+critical, Dark Link and fixed burn damage calculations, with a safe native HP cap.
+
+| Run timer | Boss 1 | Boss 2 | Boss 3 | Final boss |
+| --- | --- | --- | --- | --- |
+| 20 min | 5:00 | 10:00 | 15:00 | 20:00 |
+| 10 min | 2:30 | 5:00 | 7:30 | 10:00 |
+| 5 min | 1:15 | 2:30 | 3:45 | 5:00 |
+
+At the selected limit, normal spawns/hordes stop; victory still requires all four
+bosses defeated. XP, enemy HP curves, cooldowns and regeneration continue to use
+actual elapsed time. The HUD displays the chosen timer.
+
+**Before merging PR #140:** set `DAWNLIGHT_SURVIVORS_DEBUG` to `0` in
+`src/survivors_debug.hpp`. This is the single enable/disable switch. It removes
+the tab and forces every debug setting back to the defaults above, including
+stale run/menu values. The switch is currently `1` for development testing.

@@ -904,3 +904,28 @@ flight/wind sizing, shockwave geometry and multi-target deduplication, and scope
 black-particle rendering. Device verification: retest dense Multishot + Piercing
 explosions, black flame appearance with other visual mods, blade placement,
 Hurricane wind and Shockwave visuals, boss burns, restart and map transitions.
+
+
+### Development debug switch (must be off before merge)
+
+`src/survivors_debug.hpp` owns `DAWNLIGHT_SURVIVORS_DEBUG` (currently 1).
+**Set it to 0 before merging/releasing PR #140.** No separate switches or save
+migration are required. `DebugOptions::clamp` resets all debug fields when off;
+effective getters also neutralize stale values, including an existing run.
+Menu/reset/start boundaries sanitize stored options. Debug is the rightmost,
+Ready-only tab, and values are copied into a new run, never into records/config.
+
+The shared rarity sampler applies the chosen floor after its normal roll.
+Outgoing damage scales once in the final owned damage hook, after cache reuse
+checks and ordinary/Dark/fixed damage composition; it saturates at 32767 to
+avoid signed native HP overflow. Infinite rerolls are zero-cost and retain
+charges/counters; infinite banishes retain charges but keep exclusion flags.
+Both chest and upgrade action buttons use effective availability and display
+infinity. Reserved chest currency is still required.
+
+Per-run duration and quarter-duration boss intervals drive encounter scheduling,
+spawn/horde cutoff, victory gating, time-score cap, result time and HUD target.
+Static 20-minute capacity bounds remain sufficient. HP/XP/cooldown progression
+is not accelerated. Regression tests exercise enabled and disabled builds,
+stale-value reset, UI ordering/callbacks, all five controls, rarity floor,
+resource consumption, damage application and real 5/10/20-minute boss scheduling.

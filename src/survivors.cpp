@@ -458,6 +458,7 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    s_options.debug.clamp();
     reset_midna_dialog();
     s_saveReady = false; s_gameStarted = false;
     s_map = s_requestedMap = 0; clear_arena_geometry();
@@ -659,13 +660,13 @@ void update_spawns(daAlink_c* link) {
         // Guards and scheduled elites persist until killed; cleanup grants no loot.
         if (!e.elite && !e.retiring && e.age > 5400) e.retiring = true;
     }
-    if (s_run.ticks <= duration && s_run.ticks % elite_interval == 0) s_spawnCooldown = 0;
+    if (s_run.ticks <= s_run.run_duration() && s_run.ticks % s_run.boss_interval() == 0) s_spawnCooldown = 0;
     for (const auto& encounter : s_eliteEncounters)
         if (encounter.defeated && encounter.respawnAt == s_run.ticks) s_spawnCooldown = 0;
     if (s_spawnCooldown) { --s_spawnCooldown; return; }
     s_spawnCooldown = s_run.spawn_interval();
     update_elite_spawns(link);
-    if (s_run.ticks >= duration || population>=s_run.target_population()) { s_spawnFailures=0; return; }
+    if (s_run.ticks >= s_run.run_duration() || population>=s_run.target_population()) { s_spawnFailures=0; return; }
     for (unsigned i=0; i<s_run.spawn_batch() && population<s_run.target_population(); ++i) {
         if (spawn_enemy(link,false)) { ++population; s_spawnFailures=0; }
         else { ++s_spawnFailures; break; }
@@ -935,18 +936,18 @@ void after_power(ModContext*, void* args, void*, void*) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
         if (auto* hit=bulblin_power_hit(info)) hit->critical=effect.critical;
         mark_damage_critical(info,effect.critical);
-        info->mAttackPower = s_run.dark_power(effect.damage) + effect.fixedDamage; return;
+        info->mAttackPower = s_run.player_damage(s_run.dark_power(effect.damage) + effect.fixedDamage); return;
     }
     auto* link = daAlink_getAlinkActorClass();
     if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Rat stun must not reset elite HP to one.
-        info->mAttackPower = s_run.dark_power(critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack)))); return;
+        info->mAttackPower = s_run.player_damage(s_run.dark_power(critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack))))); return;
     }
     if (native_sword_collider(info->mpCollider)) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Keep cc_at_check from doubling the linear value for Master Sword.
         const auto base = s_swordAction == SwordAction::Jump && info->mpCollider == &link->mAtSph ?
             s_run.jump_splash_power() : s_swordAction == SwordAction::Spin ? s_run.attack_power(1) : s_run.melee_power();
-        info->mAttackPower = s_run.dark_power(critical_power(base));
+        info->mAttackPower = s_run.player_damage(s_run.dark_power(critical_power(base)));
         return;
     }
     for (const auto& attack : s_attacks) {
@@ -955,7 +956,7 @@ void after_power(ModContext*, void* args, void*, void*) {
             // Keep native collision, defense, damage reactions and death handling,
             // but use a linear power value for our own weapons only.
             info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
-            info->mAttackPower = s_run.dark_power(critical_power(info->mpCollider->GetAtAtp()));
+            info->mAttackPower = s_run.player_damage(s_run.dark_power(critical_power(info->mpCollider->GetAtAtp())));
             return;
         }
     }
@@ -971,7 +972,7 @@ void after_player(ModContext*, void* args, void*, void*) {
         dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if (const unsigned rupees=s_run.auto_rupees())
         dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(),dComIfGs_getRupee()+rupees));
-    if (s_run.ticks >= duration && s_run.timed_elites == timed_elite_count) { finish(true); return; }
+    if (s_run.ticks >= s_run.run_duration() && s_run.timed_elites == timed_elite_count) { finish(true); return; }
     update_enemy_effects();
     update_spawns(link); update_pots(link); update_exp_magnets(link); update_weapons(link); update_orbs(link);
     s_run.maximum_hearts = dComIfGs_getMaxLife() / 5;
@@ -1150,8 +1151,8 @@ void draw_hud(ModContext*, void* args, void*, void*) {
     draw_combat_feedback();
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
     char text[180];
-    std::snprintf(text, sizeof(text), "%02u:%02u / 20:00   Level %u   Score %u",
-        s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.level, s_run.score());
+    std::snprintf(text, sizeof(text), "%02u:%02u / %02u:00   Level %u   Score %u",
+        s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.run_duration()/1800, s_run.level, s_run.score());
     label(text, x, 40, 17);
     std::snprintf(text, sizeof(text), "XP %u / %u", s_run.xp, s_run.required_xp());
     label(text, x, 62, 14);
@@ -1226,6 +1227,7 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_powerups.inc"
 #include "survivors_talents.inc"
 #include "survivors_maps_ui.inc"
+#include "survivors_debug_ui.inc"
 
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {
@@ -1241,7 +1243,7 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
         s_run.score(),s_records.high_scores[s_map],s_run.options.score_percent()/100.f);
     svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
     std::snprintf(text,sizeof(text),"Survival %us | Normal kills %u | Timed elites %u | Other elites %u",
-        std::min(s_run.ticks,duration)/ticks_per_second,s_run.normal_kills(),s_run.timed_elites,s_run.guard_elites);
+        std::min(s_run.ticks,s_run.run_duration())/ticks_per_second,s_run.normal_kills(),s_run.timed_elites,s_run.guard_elites);
     svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
     std::snprintf(text,sizeof(text),"Meta level %u | XP %llu / %u | Unlock Points %u (+%u this run)",
         s_records.level(),static_cast<unsigned long long>(s_records.level_xp()),s_records.next_level_xp(),
@@ -1264,7 +1266,8 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
 }
 void open_window() {
     if (s_window || ui_visible()) return;
-    UiTabDesc tabs[4] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
+    s_options.debug.clamp();s_run.options.debug.clamp();
+    UiTabDesc tabs[5] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
     auto& tab=tabs[0];
     tab.title = s_run.phase == Phase::TreasureChoice ? (s_run.starting_item_pending ? "Choose a starting item" : "Choose a treasure") :
         s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivors";
@@ -1277,6 +1280,7 @@ void open_window() {
         tabs[2].title="Talents"; tabs[2].build=build_talents; tabs[2].update=update_talent_tab;
         tabs[3].title="Settings"; tabs[3].build=build_run_settings;
         desc.tab_count=4;
+        if (debug_enabled) { tabs[4].title="Debug";tabs[4].build=build_debug;desc.tab_count=5; }
     }
     if (s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Upgrade) desc.rcss = kTreasureStyle;
     if (s_run.phase == Phase::Ready) desc.rcss = kArenaStyle;

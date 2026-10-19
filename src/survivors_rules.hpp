@@ -1,4 +1,5 @@
 #pragma once
+#include "survivors_debug.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -124,11 +125,13 @@ struct LegendaryBurn {
 struct RunOptions {
     unsigned enemy_hp = 1, enemy_damage = 1, enemy_speed = 1, horde = 1;
     unsigned camera_distance = 200;
+    DebugOptions debug{};
     unsigned score_percent() const {
         return 100+10*(std::clamp(enemy_hp,1u,10u)-1)+15*(std::clamp(enemy_damage,1u,10u)-1)+
             25*(std::clamp(enemy_speed,1u,3u)-1)+10*(std::clamp(horde,1u,5u)-1);
     }
     void clamp() {
+        debug.clamp();
         enemy_hp=std::clamp(enemy_hp,1u,10u); enemy_damage=std::clamp(enemy_damage,1u,10u);
         enemy_speed=std::clamp(enemy_speed,1u,3u); horde=std::clamp(horde,1u,5u);
         camera_distance=std::clamp(camera_distance,100u,500u);
@@ -165,10 +168,17 @@ struct Run {
         free_rerolls+=talents.rank(Talent::Rerolls); banishes+=talents.rank(Talent::Banishes);
         random=seed ? seed : 1; phase=Phase::Running;
     }
+    DebugOptions debug_options() const { auto value=options.debug;value.clamp();return value; }
+    unsigned run_duration() const { return debug_options().run_minutes*60*ticks_per_second; }
+    unsigned boss_interval() const { return run_duration()/timed_elite_count; }
+    unsigned player_damage(unsigned base) const { return unsigned(std::min<uint64_t>(32767,uint64_t(base)*debug_options().player_damage)); }
+    bool infinite_rerolls() const { return debug_options().infinite_rerolls!=0; }
+    bool infinite_banishes() const { return debug_options().infinite_banishes!=0; }
+    bool can_banish() const { return infinite_banishes() || banishes!=0; }
     unsigned magnet_range() const { return (150+65*rank(Upgrade::Magnet))*(100+10*talents.rank(Talent::Magnet))/100; }
     unsigned normal_kills() const { return kills-std::min(kills,timed_elites+guard_elites); }
     unsigned score() const {
-        const uint64_t base=2*(std::min(ticks,duration)/ticks_per_second)+uint64_t(normal_kills())*10/std::clamp(options.horde,1u,5u)+
+        const uint64_t base=2*(std::min(ticks,run_duration())/ticks_per_second)+uint64_t(normal_kills())*10/std::clamp(options.horde,1u,5u)+
             uint64_t(timed_elites)*500+uint64_t(guard_elites)*250+uint64_t(level ? level-1 : 0)*50+
             (phase==Phase::Victory ? 3000 : 0);
         return unsigned(std::min<uint64_t>(UINT32_MAX,base*options.score_percent()/100));
@@ -214,7 +224,7 @@ struct Run {
         do { roll = next_random() - 1; } while (roll >= limit);
         roll %= total;
         for (unsigned i = 0; i < weights.size(); ++i) {
-            if (roll < weights[i]) return Rarity(i);
+            if (roll < weights[i]) return Rarity(std::max(i,debug_options().minimum_rarity));
             roll -= weights[i];
         }
         return Rarity::Common;
@@ -346,21 +356,23 @@ struct Run {
         unsigned count=0;for(unsigned i=0;i<unsigned(ChestReward::Count);++i) count+=owns(ChestReward(i));
         return count;
     }
-    unsigned reroll_cost() const { return free_rerolls ? 0 : 50*(paid_rerolls+1); }
+    unsigned reroll_cost() const { return infinite_rerolls() || free_rerolls ? 0 : 50*(paid_rerolls+1); }
     bool pay_reroll(unsigned& rupees, unsigned reserved=0) {
         if ((phase!=Phase::Upgrade && phase!=Phase::TreasureChoice) || rupees<reserved || rupees-reserved<reroll_cost()) return false;
-        rupees-=reroll_cost(); if(free_rerolls)--free_rerolls;else ++paid_rerolls;return true;
+        rupees-=reroll_cost(); if(!infinite_rerolls()){if(free_rerolls)--free_rerolls;else ++paid_rerolls;}return true;
     }
     bool banish(Upgrade u) {
-        if (!banishes || phase!=Phase::Upgrade || u>=Upgrade::Count || !eligible(u)) return false;
-        --banishes; banned_upgrades[unsigned(u)]=true;
+        if (!can_banish() || phase!=Phase::Upgrade || u>=Upgrade::Count || !eligible(u)) return false;
+        if(!infinite_banishes()) --banishes;
+        banned_upgrades[unsigned(u)]=true;
         if(u==Upgrade::DualWield)banned_items[unsigned(ChestReward::OrdonSword)]=true;
         if(u>=Upgrade::Bow && u<=Upgrade::Ball)banned_items[unsigned(u)-unsigned(Upgrade::Bow)]=true;
         return true;
     }
     bool banish(ChestReward reward, bool bottles) {
-        if (!banishes || phase!=Phase::TreasureChoice || !chest_eligible(reward,bottles)) return false;
-        --banishes;banned_items[unsigned(reward)]=true;
+        if (!can_banish() || phase!=Phase::TreasureChoice || !chest_eligible(reward,bottles)) return false;
+        if(!infinite_banishes()) --banishes;
+        banned_items[unsigned(reward)]=true;
         if(reward==ChestReward::OrdonSword)banned_upgrades[unsigned(Upgrade::DualWield)]=true;
         const auto weapon=chest_weapon(reward);if(weapon!=Upgrade::Count)banned_upgrades[unsigned(weapon)]=true;
         return true;
@@ -446,9 +458,9 @@ struct Run {
         if (horde_remaining) --horde_remaining;
         // Independent one-second trials: E(events / 5 minutes) = 300 / 150 = 2.
         // Overlaps add time, never multiply the active spawn boost.
-        if (ticks < duration && ticks % ticks_per_second == 0 && next_random() % 150 == 0)
+        if (ticks < run_duration() && ticks % ticks_per_second == 0 && next_random() % 150 == 0)
             horde_remaining += horde_duration;
-        if (ticks >= duration) horde_remaining = 0;
+        if (ticks >= run_duration()) horde_remaining = 0;
         if (dark_remaining) --dark_remaining;
         if (dark_link && !dark_permanent() && ++dark_clock >= dark_interval()) {
             dark_clock = 0; dark_remaining = dark_duration();
