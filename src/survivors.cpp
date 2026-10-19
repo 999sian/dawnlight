@@ -1,4 +1,6 @@
 #include "survivors.hpp"
+#include "config.hpp"
+#include "heroes_shade_encounter.hpp"
 #include "aim_hooks.hpp"
 #include "bullet_time.hpp"
 #include "combat_meter.hpp"
@@ -236,6 +238,22 @@ bool s_saveReady = false, s_gameStarted = false;
 bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 Run s_run;
 RunOptions s_options;
+enum class HubMenu { None, Talents, Run };
+bool s_hub=true, s_hubDeparture=false, s_hubDoorStarted=false, s_arrivingRun=false;
+bool s_hubSaveRequested=false, s_allowHubDoor=false;
+HubMenu s_hubMenu=HubMenu::None;
+ActorId s_hubDoor=kNone;
+unsigned s_hubDoorTicks=0;
+u16 s_hubDoorPriority=0, s_hubDoorFlags=0;
+void open_window();
+void load_option_config();
+void store_option_config();
+bool settings_editable();
+void hub_menu_closed() {
+    if(s_hubMenu==HubMenu::None)return;
+    s_hubMenu=HubMenu::None;
+    if(s_active&&s_gameStarted&&s_hub&&s_run.phase==Phase::Ready)s_hubSaveRequested=true;
+}
 Records s_records;
 bool s_progressSaving=false, s_progressSaved=false;
 UiWindowHandle s_refreshChoices=0;
@@ -247,7 +265,7 @@ DEFINE_HOOK_SYMBOL("dusk::ui::Modal::handle_nav_command",
 void* s_menuDocument = nullptr;
 void* s_talentDocument = nullptr;
 void remember_menu_document(bool talent);
-UiWindowHandle s_window = 0, s_powerupsWindow = 0;
+UiWindowHandle s_window = 0, s_powerupsWindow = 0, s_hubClosingWindow=0;
 UiDialogHandle s_talentDialog=0;
 bool s_powerupsRequested = false;
 dMenu_Collect2D_c* s_powerupsMenu = nullptr;
@@ -275,6 +293,7 @@ void clear_sword_aim();
 void restore_sword_aim_camera(dCamera_c*);
 bool update_sword_aim_camera(dCamera_c*);
 void resolve_manual_projectiles(dCamera_c*);
+void draw_hub_labels();
 void interrupt_auto_actions(daAlink_c*);
 void finish(bool won);
 void replay(ModContext*, void*);
@@ -421,7 +440,11 @@ void close_window() {
     const auto dialog=s_talentDialog;s_talentDialog=0;
     if(dialog)svc_ui->dialog_close(mod_ctx,dialog);
     const auto handle = s_window; s_window = 0;
-    if (handle) svc_ui->window_close(mod_ctx, handle);
+    if (handle) {
+        if(s_hubDeparture)s_hubClosingWindow=handle;
+        if(s_refreshChoices!=handle)hub_menu_closed();
+        svc_ui->window_close(mod_ctx, handle);
+    }
 }
 #include "survivors_menu_handoff.inc"
 void retire_pots();
@@ -487,6 +510,10 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    s_hubMenu=HubMenu::None; s_hubSaveRequested=false; s_hubClosingWindow=0;
+    s_hub=true; s_hubDeparture=s_hubDoorStarted=s_arrivingRun=s_allowHubDoor=false;
+    s_hubDoor=kNone; s_hubDoorTicks=0;
+    update_survivors_pedestal(false);
     s_options.debug.clamp();
     reset_midna_dialog();
     s_saveReady = false; s_gameStarted = false;
@@ -1040,7 +1067,7 @@ bool pause_run_actor(bool enemy) {
     if (enemy && (midna_dialog_busy() || dComIfGp_event_runCheck())) return true;
     if (ui_visible() || dComIfGp_isPauseFlag()) return true;
     // Native Get Item needs Link's Execute; enemies and the run clock stay paused.
-    return s_run.phase != Phase::Running && (enemy || s_run.phase != Phase::Treasure);
+    return s_run.phase != Phase::Running && (enemy || (s_run.phase != Phase::Treasure && !(s_hub && s_run.phase==Phase::Ready && (!s_hubDeparture || s_hubDoorStarted))));
 }
 HookAction before_process(ModContext*, void* args, void* result, void*) {
     auto* process = mods::arg<void*>(args, 1);
@@ -1145,7 +1172,12 @@ HookAction before_stage(ModContext*, void* args, void*, void*) {
     if (!s_active || !s_gameStarted || mDoRst::isReset() || mDoRst::isReturnToMenu()) return HOOK_CONTINUE;
     // gameStart and the subsequent new-file F_SP108 override must both target
     // the arena. The earlier opening/title request must remain untouched.
-    if (in_arena() && !s_restart && s_run.phase != Phase::Loading) return HOOK_SKIP_ORIGINAL;
+    if(s_hub && s_hubDoorStarted && in_arena()) {
+        s_map=s_requestedMap; s_hub=false; s_arrivingRun=true;
+        s_hubDeparture=s_hubDoorStarted=false; s_hubDoor=kNone;
+        clear_arena_geometry();
+        update_survivors_pedestal(false);
+    } else if (in_arena() && !s_restart && s_run.phase != Phase::Loading) return HOOK_SKIP_ORIGINAL;
     dComIfGs_setRestartRoomParam(0);
     mods::arg_ref<const char*>(args, 0) = arena().stage;
     mods::arg_ref<s16>(args, 1) = arena().point;
@@ -1184,6 +1216,7 @@ void label(const char* text, float x, float y, float size) {
 #include "survivors_feedback_draw.inc"
 #include "survivors_boss_hud.inc"
 void draw_hud(ModContext*, void* args, void*, void*) {
+    if(survivors_hub_active()) {draw_hub_labels();return;}
     if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
     graf->setup2D();
@@ -1237,8 +1270,9 @@ void select_upgrade(ModContext*, void* data) {
     close_window();
     s_run.level_up(); // Preserve queued levels; do not resume combat between choices.
 }
-void start_run(ModContext*, void*) {
+void begin_run() {
     if (s_run.phase != Phase::Ready || !s_arenaMeshReady || s_restart || s_progressSaving) return;
+    load_option_config();
     close_window(); clear_attacks(); clear_loot(); prepare_save();
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
@@ -1252,6 +1286,12 @@ void start_run(ModContext*, void*) {
     s_swordAction = SwordAction::None; s_meleeCooldown = 0; s_wavePending = false;
     s_comboStep = s_comboTimeout = 0;
     begin_starting_item_choice();
+}
+void start_run(ModContext*, void*) {
+    if(!s_hub || s_run.phase!=Phase::Ready || s_hubDeparture || s_progressSaving ||
+       s_restart || !s_arenaMeshReady || !actor_by_id(s_hubDoor))return;
+    s_hubDeparture=true;
+    close_window(); // Save and fully hide the UI before ordering the native door event.
 }
 void replay(ModContext*, void*) { close_window(); s_requestedMap = s_map; s_restart = true; }
 void save_results(ModContext*, void*) { close_window(); s_saveRequested = true; }
@@ -1268,6 +1308,8 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_talents.inc"
 #include "survivors_maps_ui.inc"
 #include "survivors_debug_ui.inc"
+#include "survivors_settings_config.inc"
+#include "survivors_hub.inc"
 
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {
@@ -1299,13 +1341,13 @@ ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElem
     svc_ui->pane_add_text(mod_ctx, right, s_storeFailed ?
         "Records could not be stored. Retry saving before leaving this mode." :
         "Save records before quitting. The native save screen writes your Survivors records to this mode's separate save file. "
-        "Runs are not resumed mid-combat; loading returns to the start screen.", nullptr);
+        "Runs are not resumed mid-combat; loading returns to the Darknut Arena hub.", nullptr);
     auto result = button(left, "Save records", save_results);
     if (result == MOD_OK) result = button(left, "New run", replay);
     return result;
 }
 void open_window() {
-    if (s_window || ui_visible()) return;
+    if (s_window || ui_visible() || (s_run.phase==Phase::Ready && s_hubMenu==HubMenu::None)) return;
     s_options.debug.clamp();s_run.options.debug.clamp();
     UiTabDesc tabs[5] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
     auto& tab=tabs[0];
@@ -1315,17 +1357,24 @@ void open_window() {
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
     desc.tabs = tabs; desc.tab_count = 1;
     if (s_run.phase==Phase::Ready) {
-        tab.title="Maps";
-        tabs[1].title="Difficulty"; tabs[1].build=build_difficulty;
-        tabs[2].title="Talents"; tabs[2].build=build_talents; tabs[2].update=update_talent_tab;
-        tabs[3].title="Settings"; tabs[3].build=build_run_settings;
-        desc.tab_count=4;
-        if (debug_enabled) { tabs[4].title="Debug";tabs[4].build=build_debug;desc.tab_count=5; }
+        load_option_config();
+        if(s_hubMenu==HubMenu::Talents) {
+            tab.title="Talents";tab.build=build_talents;tab.update=update_talent_tab;
+            tabs[1].title="Settings";tabs[1].build=build_run_settings;
+            desc.tab_count=2;
+        } else {
+            tab.title="Maps";
+            tabs[1].title="Difficulty";tabs[1].build=build_difficulty;
+            tabs[2].title="Settings";tabs[2].build=build_run_settings;
+            desc.tab_count=3;
+            if(debug_enabled){tabs[3].title="Debug";tabs[3].build=build_debug;desc.tab_count=4;}
+        }
     }
     if (s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Upgrade) desc.rcss = kTreasureStyle;
     if (s_run.phase == Phase::Ready) desc.rcss = kArenaStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
-        if (s_window == handle) { s_window = 0; s_menuDocument = nullptr; }
+        if(s_hubClosingWindow==handle)s_hubClosingWindow=0;
+        if (s_window == handle) { s_window = 0; s_menuDocument = nullptr; hub_menu_closed(); }
         if (s_refreshChoices==handle) { s_refreshChoices=0; return; }
         if (s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count)
             dismiss_treasure_choice();
@@ -1349,6 +1398,15 @@ ModResult loaded(void*, ModError*) {
 ModResult reset(void*, ModError*) { reset_runtime(); return MOD_OK; }
 } // namespace
 
+ModResult build_survivors_settings(ModContext* ctx,UiWindowHandle window,UiElementHandle left,UiElementHandle right,void* data,ModError* error) {
+    load_option_config();
+    return build_run_settings(ctx,window,left,right,data,error);
+}
+bool survivors_hub_active() {return s_hub && in_arena() && s_run.phase==Phase::Ready && !s_restart;}
+void survivors_open_talents() {
+    if(!survivors_hub_active() || !playable() || s_hubDeparture || s_progressSaving)return;
+    s_hubMenu=HubMenu::Talents;open_window();
+}
 bool survivors_active() { return s_active; }
 bool survivors_switch_attack_lock() {
     return s_run.phase==Phase::Running && s_run.options.switch_attack_lock && playable();
@@ -1370,7 +1428,7 @@ void update_survivors() {
     cleanup_pots(); cleanup_pickups();
     if (s_treasure.retiring) retire_treasure_actor();
     if (!s_active || !s_gameStarted) return;
-    if (s_progressSaving) { update_progress_save(); return; }
+    if(update_hub_save())return;
     if (s_savePrompt != kNone) {
         if (d_GameOver_CheckDelete(s_savePrompt) && dComIfGp_getGameoverStatus() == 1) {
             d_GameOver_Delete(s_savePrompt); dComIfGp_setGameoverStatus(0);
@@ -1385,7 +1443,9 @@ void update_survivors() {
         // Always use a scene reload: destroys old actors, pending spawns, collision,
         // damage animations and native drop actors before another run starts.
         retire_enemies(); clear_attacks(); clear_loot(); clear_arena_geometry();
-        s_map = s_requestedMap;
+        s_hub=true; s_hubMenu=HubMenu::None; s_hubDeparture=s_hubDoorStarted=s_arrivingRun=false;
+        s_hubDoor=kNone; s_hubSaveRequested=false;
+        s_map = 0;
         prepare_save();
         dComIfGp_setNextStage(arena().stage, arena().point, arena().room, 0);
         s_run = {}; s_orbs = {}; s_restart = false; s_player = kNone;
@@ -1406,7 +1466,12 @@ void update_survivors() {
         if (!playable() || !arena_grounded(link)) { s_warmup=0; return; }
         if (++s_warmup < 15) return;
         load_records(); s_run.phase = Phase::Ready;
+        if(s_arrivingRun && s_arenaMeshReady) {s_arrivingRun=false;begin_run();}
     }
+    if(s_arrivingRun && s_run.phase==Phase::Ready && s_arenaMeshReady && playable()) {
+        s_arrivingRun=false; begin_run();
+    }
+    if(s_hub)update_hub(link);
     open_powerup_window();
     if (s_run.phase == Phase::TreasureChoice) update_treasure_choice(link);
     if (s_run.phase == Phase::Treasure) update_treasure_demo(link);
@@ -1425,7 +1490,8 @@ void update_survivors() {
         s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) open_window();
 }
 ModResult initialize_survivors(ModError* error) {
-    ModResult result = initialize_midna_dialog();
+    ModResult result = initialize_option_config();
+    if(result==MOD_OK)result=initialize_midna_dialog();
     if (result == MOD_OK) initialize_menu_handoff();
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
 #define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
@@ -1495,7 +1561,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsManualCharge, before_manual_charge);
     PRE(SurvivorsChargeInit, before_cut); PRE(SurvivorsChargeMoveInit, before_cut);
     PRE(SurvivorsNativeSpin, before_cut); PRE(SurvivorsJumpTarget, before_jump_target);
-    PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_cut);
+    PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_hub_door);
     POST(SurvivorsPower, after_power);
     POST(SurvivorsSwordCollision, after_sword_collision);
     POST(SurvivorsEnemyNavigationLine, after_enemy_navigation_line);

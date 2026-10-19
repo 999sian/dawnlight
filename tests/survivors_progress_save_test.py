@@ -23,6 +23,8 @@ using u8=uint8_t;using u32=uint32_t;using ModResult=int;
 constexpr ModResult MOD_OK=0,MOD_ERROR=1;
 struct ModContext{};ModContext* mod_ctx=nullptr;
 Run s_run;Records s_records;bool s_restart=false,s_progressSaving=false,s_progressSaved=false,s_storeFailed=false,s_saveRequested=false;
+bool s_hubDeparture=false,s_hubSaveRequested=false,transition=false,event=false;
+bool in_arena(){return true;}bool transitioning(){return transition;}bool dComIfGp_event_runCheck(){return event;}
 unsigned s_window=42;void close_window(){s_window=0;}
 constexpr char kBlob[]="records";unsigned flushes=0,returnWrites=0;
 unsigned nativeLoads=0,nativeWrites=0;int status=2,loadSync=1,saveSync=1;
@@ -91,6 +93,21 @@ int main(){
  assert(s_storeFailed&&!s_progressSaved&&!s_progressSaving&&s_window==42&&flushes==1);
  save_progress(nullptr,nullptr);autoSaving();saveSync=1;waitingForWrite();endAutoSave();update_progress_save();
  assert(s_progressSaved&&!s_storeFailed&&flushes==2&&s_window==42);
+ // Menu-close autosave waits for the host and events, then flushes the same slot.
+ close_window();s_hubSaveRequested=s_hubDeparture=true;mAutoSaveProc=3;
+ assert(update_hub_save()&&s_hubSaveRequested&&!s_progressSaving);
+ mAutoSaveProc=0;event=true;assert(!update_hub_save()&&s_hubSaveRequested);event=false;
+ assert(update_hub_save()&&s_progressSaving&&!s_hubSaveRequested&&s_hubDeparture);
+ autoSaving();waitingForWrite();endAutoSave();assert(update_hub_save());
+ assert(s_progressSaved&&!s_storeFailed&&flushes==3&&s_hubDeparture);
+ assert(!update_hub_save());
+ // Storage failure cancels departure, leaving a visible retry route in the hub.
+ s_hubSaveRequested=true;status=3;assert(!update_hub_save());
+ assert(s_storeFailed&&!s_hubDeparture&&!s_hubSaveRequested);status=2;
+ s_hubSaveRequested=s_hubDeparture=true;assert(update_hub_save());
+ autoSaving();saveSync=2;waitingForWrite();assert(update_hub_save());
+ assert(s_storeFailed&&!s_hubDeparture&&!s_progressSaving);
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

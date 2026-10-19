@@ -1,5 +1,5 @@
-// The transparent preview pane shows the native scene itself. No captured game
-// textures are bundled, and HUD/texture mods are reflected in the preview.
+// Keep selection in the hub. The preview pane describes the destination; only
+// the confirmed native door transition loads a run map.
 constexpr const char* kArenaStyle=R"(
 window { background-color: transparent; backdrop-filter: none; }
 window content pane.survivors-settings { background-color: #171d19f5; padding: 16dp; gap: 12dp; }
@@ -27,9 +27,9 @@ button.survivors-map-selected { background-color: #e5bc3b28; border-color: #ffdc
 std::array<unsigned,arenas.size()> s_mapChoices{0,1,2,3,4};
 void select_arena(ModContext*, void* data) {
     const unsigned choice=*static_cast<unsigned*>(data);
-    if (s_run.phase!=Phase::Ready || s_restart || s_progressSaving || choice>=arenas.size() || choice==s_map) return;
+    if (s_run.phase!=Phase::Ready || s_restart || s_progressSaving || choice>=arenas.size() || choice==s_requestedMap) return;
     s_requestedMap=choice;
-    close_window(); s_restart=true;
+    s_refreshChoices=s_window; close_window();
 }
 ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
     auto result=svc_ui->elem_set_class(mod_ctx,left,"survivors-map-list",true);
@@ -46,17 +46,17 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
         if (result!=MOD_OK) return result;
         result=svc_ui->elem_set_class(mod_ctx,option,"survivors-map-option",true);
         if (result!=MOD_OK) return result;
-        if (i==s_map) {
+        if (i==s_requestedMap) {
             result=svc_ui->elem_set_class(mod_ctx,option,"survivors-map-selected",true);
             if (result!=MOD_OK) return result;
         }
     }
     if (!s_arenaMeshReady) result=svc_ui->pane_add_text(mod_ctx,left,
-        "Arena collision could not be prepared. Please select another map.",nullptr);
+        "Hub collision is still loading. Please wait.",nullptr);
     if (result!=MOD_OK) return result;
     result=svc_ui->pane_add_text(mod_ctx,left,
         "Survive 20 minutes and defeat all four timed elites. Elites appear every 5 minutes and drop free big chests. Weapons attack automatically. "
-        "Collect XP, hearts and rupees. Chest prices: 20, 25, 32, 41, 52...",nullptr);
+        "Collect XP, hearts and rupees. Small chests cost 40 rupees. Start run closes this menu and opens the arena door.",nullptr);
     if (result!=MOD_OK) return result;
     char records[160];
     std::snprintf(records,sizeof(records),"Runs %u | Wins %u | Meta level %u",
@@ -64,7 +64,7 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
     result=svc_ui->pane_add_text(mod_ctx,left,records,nullptr);
     if (result!=MOD_OK) return result;
     const std::string copy="<div class=\"survivors-map-preview-title\" style=\"color: "+
-        std::string(arena().accent)+";\">"+treasure_rml_escape(arena().name)+"</div><div>High score: "+number(s_records.high_scores[s_map])+"</div>";
+        std::string(arenas[s_requestedMap].accent)+";\">"+treasure_rml_escape(arenas[s_requestedMap].name)+"</div><div>High score: "+number(s_records.high_scores[s_requestedMap])+"</div><div>"+treasure_rml_escape(arenas[s_requestedMap].description)+"</div>";
     // Style the block created by pane_add_rml itself, avoiding an inline box
     // split around the title (the empty dark pill above the map name).
     UiElementHandle previewCopy=0;
@@ -74,7 +74,7 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
     if (result!=MOD_OK) return result;
     UiControlDesc start=UI_CONTROL_DESC_INIT;
     start.label="Start run"; start.on_pressed=start_run;
-    start.is_disabled=[](ModContext*,void*) { return !s_arenaMeshReady || s_restart || s_progressSaving; };
+    start.is_disabled=[](ModContext*,void*) { return !s_arenaMeshReady || s_restart || s_progressSaving || s_hubDeparture; };
     UiElementHandle startButton=0;
     result=svc_ui->pane_add_control(mod_ctx,right,&start,&startButton);
     if (result!=MOD_OK) return result;
@@ -97,6 +97,7 @@ ModResult build_run_controls(UiElementHandle left, UiElementHandle right, unsign
     for (unsigned i=first;i<last;++i) {
         auto& setting=s_runControls[i];
         UiControlDesc control=UI_CONTROL_DESC_INIT;
+        control.is_disabled=[](ModContext*,void*){return !settings_editable();};
         control.kind=UI_CONTROL_NUMBER; control.label=setting.label; control.help_rml=setting.help;
         control.user_data=&setting; control.min=setting.min; control.max=setting.max; control.step=setting.step;
         control.prefix=i==4 ? nullptr : "x"; control.suffix=i==4 ? "%" : nullptr;
@@ -104,16 +105,17 @@ ModResult build_run_controls(UiElementHandle left, UiElementHandle right, unsign
             value->int_value=s_options.*static_cast<RunOptionControl*>(data)->field;
         };
         control.set=[](ModContext*,void* data,const UiControlValue* value) {
-            if (s_run.phase!=Phase::Ready || s_restart) return;
+            if (!settings_editable()) return;
             const auto& setting=*static_cast<RunOptionControl*>(data);
             s_options.*setting.field=unsigned(std::clamp<int64_t>(value->int_value,setting.min,setting.max));
+            store_option_config();
         };
         result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
         if (result!=MOD_OK) return result;
     }
     return svc_ui->pane_add_text(mod_ctx,right,first==0 ?
         "Score bonus: +10% per Enemy HP step, +15% per Enemy Damage step, +25% per Enemy Speed step and +10% per Horde step. Bonuses add together (x1.00 to x4.15). Normal kill points are divided by Horde. Settings apply to the next run." :
-        "Settings apply to the next run. Return to Maps to start.",nullptr);
+        "Shared with Dawnlight Settings and saved automatically. Settings apply to the next run; edit them outside a run.",nullptr);
 }
 ModResult build_difficulty(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     return build_run_controls(left,right,0,4);
@@ -130,14 +132,16 @@ ModResult build_manual_aim_settings(UiElementHandle pane) {
     auto result=svc_ui->pane_add_text(mod_ctx,pane,"Manual aiming abilities — on: follow the reticle while attacking; off: always use automatic targeting. All default to on. Unlocks, cooldowns and Jump Strike's nearby-enemy requirement still apply. Elemental perks inherit their weapon's aim; auras and passive effects stay automatic.",nullptr);
     if(result!=MOD_OK)return result;
     for(auto& setting:s_manualAimControls) {
-        UiControlDesc control=UI_CONTROL_DESC_INIT;control.kind=UI_CONTROL_TOGGLE;
+        UiControlDesc control=UI_CONTROL_DESC_INIT;control.is_disabled=[](ModContext*,void*){return !settings_editable();};
+        control.kind=UI_CONTROL_TOGGLE;
         control.label=setting.label;control.user_data=&setting;
         control.get=[](ModContext*,void* data,UiControlValue* value) {
             value->bool_value=s_options.manual_enabled(static_cast<ManualAimControl*>(data)->ability);
         };
         control.set=[](ModContext*,void* data,const UiControlValue* value) {
-            if(s_run.phase!=Phase::Ready||s_restart)return;
+            if(!settings_editable())return;
             s_options.manual_aim[unsigned(static_cast<ManualAimControl*>(data)->ability)]=value->bool_value;
+            store_option_config();
         };
         result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);if(result!=MOD_OK)return result;
     }
@@ -147,21 +151,23 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
     auto result=build_run_controls(left,right,4,5);
     if(result!=MOD_OK)return result;
     UiControlDesc control=UI_CONTROL_DESC_INIT;
+    control.is_disabled=[](ModContext*,void*){return !settings_editable();};
     control.kind=UI_CONTROL_NUMBER;control.label="3rd Person Reticle Y";
     control.min=-40;control.max=40;control.step=1;
     control.help_rml="Moves the sword-aim reticle vertically in Survivors only. Positive values move it up; negative values move it down.";
     control.get=[](ModContext*,void*,UiControlValue* value){value->int_value=s_options.reticle_y;};
     control.set=[](ModContext*,void*,const UiControlValue* value){
-        if(s_run.phase==Phase::Ready&&!s_restart)s_options.reticle_y=int(std::clamp<int64_t>(value->int_value,-40,40));
+        if(settings_editable()){s_options.reticle_y=int(std::clamp<int64_t>(value->int_value,-40,40));store_option_config();}
     };
     result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
     if(result!=MOD_OK)return result;
     control=UI_CONTROL_DESC_INIT;
+    control.is_disabled=[](ModContext*,void*){return !settings_editable();};
     control.kind=UI_CONTROL_TOGGLE;control.label="Switch Attack/Lock-on Keybinds";
     control.help_rml="Swap attack and lock-on during Survivors gameplay, including the touch sword button. Default: off.";
     control.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=s_options.switch_attack_lock;};
     control.set=[](ModContext*,void*,const UiControlValue* value){
-        if(s_run.phase==Phase::Ready&&!s_restart)s_options.switch_attack_lock=value->bool_value;
+        if(settings_editable()){s_options.switch_attack_lock=value->bool_value;store_option_config();}
     };
     result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
     if(result!=MOD_OK)return result;
@@ -169,7 +175,7 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
     control.help_rml="Use motion aiming while holding attack in the Survivors shoulder view. Uses the configured gyro sensitivity and inversion. Default: on.";
     control.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=s_options.gyro_aim;};
     control.set=[](ModContext*,void*,const UiControlValue* value){
-        if(s_run.phase==Phase::Ready&&!s_restart)s_options.gyro_aim=value->bool_value;
+        if(settings_editable()){s_options.gyro_aim=value->bool_value;store_option_config();}
     };
     result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
     return result==MOD_OK?build_manual_aim_settings(right):result;

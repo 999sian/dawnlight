@@ -9,13 +9,29 @@ The title screen, save selection, Link/Epona names and optional TV settings fini
 before the arena loads. Selecting the mode alone cannot start a run. Returning
 to the title screen disarms the run until another save is selected and started.
 
-## Arena selection
+## Hub and arena selection
 
-After file selection, choose an arena with controller, keyboard or touch. The
-right-hand preview shows the selected map directly from the game, including active
-texture mods. Selecting another map loads its preview; combat, enemy spawns and the
-run clock stay paused until **Start run**. **New run** returns to this selection.
-No screenshot files or copied game textures are bundled for these previews.
+Loading a Survivors save enters the Darknut Arena hub with normal movement and
+no automatically opened menu. The Master Sword in its stone pedestal stands in
+the room's center. The floating **Talents** label uses the native boss-name font.
+Face the sword and press A (including touch A) to open **Talents / Settings**.
+Closing the menu automatically saves talent progress to the current Survivors
+slot. **Save progress** remains available for an explicit retry after a failed save.
+
+The exit door carries a floating **Start Run** label. Interacting with it opens
+**Maps / Difficulty / Settings / Debug** (Debug only in debug-enabled builds).
+Selecting maps updates the description and high score while Link stays in the hub.
+**Start run** closes the menu, waits for background saving and the UI to finish,
+then orders the original native door event. The door opens and Link walks through;
+only the event's final scene change is redirected to the chosen map. Combat and
+the timer start after arrival, grounding and collision preparation. Cancelling the
+menu leaves Link in the hub. **New run** returns to the hub with the last arena selected.
+
+The **Survivors** tab beside **Boss Rush** in Dawnlight Settings mirrors the same
+Survivors Settings controls. Camera distance, Reticle Y, attack/lock-on swap,
+gyro and all ten manual-ability switches share persistent config values; difficulty
+is persisted too. They participate in Dawnlight settings export/import. Edit outside
+a run; active runs keep their snapshot. Talents remain specific to each save slot.
 
 | Arena | Native area | Layout |
 | --- | --- | --- |
@@ -35,10 +51,9 @@ doors remain. Magical curtains seal only native scene-exit polygons, exit
 triggers and doorways. Open mesh edges, cliffs and ordinary room/material seams
 do not create curtains. Curtains are tinted green in the field, amber in the
 desert, violet in the palace and red in the throne room. Door interactions and
-native scene exits are disabled.
+native scene exits are disabled during runs. The hub retains its usable exit door.
 Enemy and chest placement reject other rooms and paths across these barriers.
-If the arena collision cannot be prepared, Start run stays disabled and another
-map can still be selected. Story mode and Boss Rush retain their own rules.
+If collision is not ready, combat does not begin. Story mode and Boss Rush retain their own rules.
 
 ## Run
 
@@ -47,7 +62,7 @@ controller binding or Midna touch button. Her native dialog offers **Cancel**,
 **End Run** and **Restart Run**. Cancel (also the back button) resumes play; End Run closes the
 dialog and opens the existing results screen without awarding a victory.
 Restart Run waits for the same native dialog/event closure, credits the run once,
-then uses the existing same-map replay and scene reload to return to run setup.
+then reloads the hub with the previous map selected for another run.
 The results screen is skipped. Transition/reset discards pending actions. Run time,
 automatic attacks and enemies pause while talking. Calling Midna interrupts
 automatic attacks; chest interaction keeps priority if both are pressed together.
@@ -639,6 +654,14 @@ and native movement/root-motion equations.
 Before merging/releasing, test on Android and desktop:
 
 1. Create and reload a separate Survivors slot; verify story and Boss Rush saves.
+   Check free movement on load, the central sword and both floating boss-font labels.
+   Open Talents with A/touch A, change/refund ranks and settings, close, then reload
+   the slot/app and verify persistence. Compare the mirrored Dawnlight Survivors tab.
+   Cancel the door menu and verify no departure; confirm each of the five maps,
+   checking menu fade/save completion before native door animation and the selected
+   destination after the scene transition. Verify starting-item choice/timer only
+   begin after arrival, and failed saving keeps Link in the hub with a retry message.
+   Confirm Hero's Shade's original pedestal still starts its encounter normally.
    Break/carry/throw pots on all maps; check rupee colors, rare native heart-piece
    pickup, menu/event pause and cleanup on End Run/restart.
 2. Kill map guards and check their three-minute respawn, including pauses; check
@@ -773,8 +796,8 @@ that damage, jumping and chest item-get still finish normally.
 
 
 For the additional maps, in-game verification remains required on an actual game
-installation: load each arena from both a new and existing Survivors save, switch
-previews repeatedly, start/replay, inspect every doorway and outdoor exit, roll
+installation: load new and existing Survivors saves into the hub, switch map
+selections repeatedly, start/replay, inspect every doorway and outdoor exit, roll
 along the barriers, and check chest/enemy placement near slopes and platforms.
 Verify the Palace exterior and intact throne room load without story events.
 The automated checks exercise stage-routing gates, map-selection/start callbacks,

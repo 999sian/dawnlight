@@ -21,12 +21,14 @@ HookAction before_survivors_menu_command(ModContext*, void* args, void* result, 
     // pop() marks our document pending-close immediately, so the host's next
     // top document is already valid while the old window finishes its fade.
     // This also closes our talent description, without touching foreign dialogs.
+    const auto hubMenu=s_hubMenu;
     close_window();
+    s_hubMenu=hubMenu;
     if (!ui_visible()) {
         if (auto* host = s_menuHost.top()) s_menuHost.navigate(host, event, MenuCommand::Menu);
     }
     // update_survivors/open_window already waits for all host documents to hide.
-    // Keeping Phase::Ready preserves setup and reopens it only after that point.
+    // Preserve the explicitly opened hub menu until the host menu is closed.
     *static_cast<bool*>(result) = true;
     return HOOK_SKIP_ORIGINAL;
 }

@@ -80,6 +80,8 @@ ModResult add_callback(ModContext*,void* target,HookPreFn callback,const HookOpt
 }
 HookService hook{};auto* test_hook=&hook;
 struct Log{void warn(ModContext*,const char*){++warnings;}}logService;auto* test_log=&logService;
+enum class HubMenu{None,Talents,Run};unsigned s_hubClosingWindow=0;HubMenu s_hubMenu=HubMenu::Run;
+bool s_hubDeparture=false;void hub_menu_closed(){s_hubMenu=HubMenu::None;}void load_option_config(){}
 Run s_run;RunOptions s_options;unsigned s_map=3;Records s_records;
 bool arena=true,transition=false;bool in_arena(){return arena;}bool transitioning(){return transition;}
 void* s_menuDocument=nullptr;void* s_talentDocument=nullptr;
@@ -121,13 +123,13 @@ int main(){
   if(failure<6)assert(!installs&&!adds);
   remember_menu_document(false);remember_menu_document(true);
   assert(!s_menuDocument&&!s_talentDocument);
-  s_run.phase=Phase::Ready;open_window();assert(s_window);
+  s_run.phase=Phase::Ready;s_hubMenu=HubMenu::Run;open_window();assert(s_window);
   Rml::Event event;assert(!request(top(),event)&&s_window);
   close_window();documents.clear();
  }
  reset_hooks();initialize_menu_handoff();assert(s_menuHost.enabled&&installs==2&&adds==2);
  auto* host=push();host->shown=false;
- s_run.phase=Phase::Ready;s_options.enemy_hp=7;s_options.camera_distance=350;s_records.talents.ranks[0]=3;
+ s_run.phase=Phase::Ready;s_hubMenu=HubMenu::Run;s_options.enemy_hp=7;s_options.camera_distance=350;s_records.talents.ranks[0]=3;
  Rml::Event event;open_window();assert(s_window&&s_menuDocument==top());
  // Menu is the native F1 command: controller bindings and three-finger taps
  // synthesize the same key. Shift-F1 and ordinary navigation remain untouched.

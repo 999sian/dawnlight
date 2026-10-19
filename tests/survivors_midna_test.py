@@ -65,7 +65,7 @@ enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
 unsigned fopAcM_GetID(daAlink_c* a){return a->id;}
 unsigned s_player=7,s_midnaRequestFrames=0;bool s_midnaTalking=false,s_midnaEndPending=false,s_midnaRestartPending=false;
-Run s_run;bool arena=true,transition=false,pause=false,event=false,message=false,ui=false;
+bool s_hub=false,s_hubDeparture=false,s_hubDoorStarted=false;Run s_run;bool arena=true,transition=false,pause=false,event=false,message=false,ui=false;
 unsigned s_map=0,s_requestedMap=0,closed=0;bool s_restart=false;
 void close_window(){++closed;}
 unsigned map=0;std::string stage=arenas[0].stage;int room=51;

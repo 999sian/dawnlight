@@ -61,6 +61,7 @@ struct fopAcM_prm_class {struct{unsigned parameters=0;cXyz position;csXyz angle;
 struct stage_actor_data_class {char name[8]{};};
 struct ModContext{}; enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int i){return std::any_cast<T>(static_cast<std::any*>(args)[i]);}}
+bool s_hub=false,s_hubDoorStarted=false,s_arrivingRun=false;void update_hub(daAlink_c*){} void begin_run(){}
 unsigned s_map=0;const Arena& arena(){return arenas[s_map];}Run s_run;
 ActorId s_player=7;unsigned s_warmup=0,recordsLoaded=0;
 bool active=true,transition=false,event=false,creating=false,s_restart=false;

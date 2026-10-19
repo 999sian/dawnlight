@@ -21,7 +21,7 @@ void save_progress(ModContext*,void*) {
     const auto bytes=s_records.encode();
     s_storeFailed=svc_save->set_blob(mod_ctx,kBlob,bytes.data(),bytes.size())!=MOD_OK;
     if(s_storeFailed)return;
-    dComIfGs_getSaveData()->getPlayer().getPlayerReturnPlace().set(arena().stage,arena().room,arena().point);
+    dComIfGs_getSaveData()->getPlayer().getPlayerReturnPlace().set(arenas[0].stage,arenas[0].room,arenas[0].point);
     *s_hostSaveResult=0;
     s_enterProgressSave();
     s_progressSaving=*s_hostSavePhase!=0;
@@ -32,4 +32,19 @@ void update_progress_save() {
     s_progressSaving=false;
     s_storeFailed=*s_hostSaveResult!=1;
     s_progressSaved=!s_storeFailed;
+}
+
+// Closing a hub menu queues exactly one background save. Let an existing host
+// save finish first, and keep failed writes in the hub where they can be retried.
+bool update_hub_save() {
+    if(s_progressSaving) {
+        update_progress_save();
+        if(!s_progressSaving && s_storeFailed)s_hubDeparture=false;
+        return true;
+    }
+    if(!s_hubSaveRequested || !in_arena() || transitioning() || dComIfGp_event_runCheck())return false;
+    if(resolve_progress_save() && *s_hostSavePhase!=0)return true;
+    s_hubSaveRequested=false;save_progress(nullptr,nullptr);
+    if(s_storeFailed)s_hubDeparture=false;
+    return s_progressSaving;
 }

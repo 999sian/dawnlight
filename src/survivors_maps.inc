@@ -74,7 +74,7 @@ HookAction before_arena_stage_actor(ModContext*, void* args, void*, void*) {
         skip=true;
     } else if (local && (info->procname==fpcNm_DOOR20_e || info->procname==fpcNm_DBDOOR_e ||
                         info->procname==fpcNm_BOSS_DOOR_e)) {
-        add_exit_box(*params,std::max(300.f,float(params->scale.x)*30.f),30.f);
+        if(!s_hub)add_exit_box(*params,std::max(300.f,float(params->scale.x)*30.f),30.f);
     }
     if (!skip) return HOOK_CONTINUE;
     // The original creator normally owns this allocation. Skipping it must
@@ -131,7 +131,7 @@ void confine_arena_actor(fopAc_ac_c* actor, float radius) {
 void after_arena_position(ModContext*, void* args, void*, void*) {
     // Authored entrances can begin behind a door/exit curtain. Let the native
     // entry and ground correction finish before constraining movement.
-    if (!in_arena() || transitioning() || s_run.phase==Phase::Loading || !s_arenaSafe) return;
+    if (!in_arena() || transitioning() || s_hub || s_run.phase==Phase::Loading || !s_arenaSafe) return;
     auto* link=mods::arg<daAlink_c*>(args,0);
     if (!link || fopAcM_GetID(link)!=s_player) return;
     confine_arena_actor(link,40);
@@ -139,7 +139,7 @@ void after_arena_position(ModContext*, void* args, void*, void*) {
 // Reject exits before the native code puts Link into an unfinishable scene-change
 // action. setNextStage is additionally guarded against scripted transitions.
 HookAction before_arena_exit(ModContext*, void*, void* result, void*) {
-    if (!in_arena() || transitioning()) return HOOK_CONTINUE;
+    if (!in_arena() || transitioning() || (s_hub&&s_hubDoorStarted)) return HOOK_CONTINUE;
     *static_cast<int*>(result)=0;
     return HOOK_SKIP_ORIGINAL;
 }
@@ -161,7 +161,7 @@ bool arena_grounded(daAlink_c* link) {
 void update_arena_safety(daAlink_c* link) {
     // Native ground contact is available before our derived barrier mesh. Keep
     // the first safe position during Loading as well, not just after warmup.
-    if (fpcM_IsCreating(fopAcM_GetID(link))) return;
+    if (fpcM_IsCreating(fopAcM_GetID(link)) || (s_hub&&s_hubDoorStarted)) return;
     const int room=fopAcM_GetRoomNo(link);
     const bool palace=s_map==3 && s_arenaSpawn && s_run.phase==Phase::Running;
     const bool fallen=s_arenaSafe && (link->current.pos.y<s_arenaSafePosition.y-500 ||
@@ -196,6 +196,7 @@ void update_arena_safety(daAlink_c* link) {
     }
 }
 void draw_arena_barriers() {
+    if(s_hub)return;
     const auto* link=daAlink_getAlinkActorClass();
     if (!link) return;
     const auto& color=arena().barrier_color;

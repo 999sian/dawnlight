@@ -23,7 +23,7 @@ for name, end in [('wait_proc', 'pointerWait'), ('pointerActivateCurrent', 'save
 assert 'field_0x22d[3][3] = isSkillIconVisible();' in collect
 core = (root/'src/survivors.cpp').read_text()
 a = core.index('void select_upgrade(')
-select = core[a:core.index('\nvoid start_run(', a)]
+select = core[a:core.index('\nvoid begin_run(', a)]
 # Compile the host's descriptor validation, not a permissive UI mock: rejected
 # descriptors fail the tab builder and cause Dusklight to deactivate the mod.
 host_ui = (sdk/'src/dusk/mods/svc/ui.cpp').read_text()

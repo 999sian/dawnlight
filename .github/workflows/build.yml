@@ -69,6 +69,12 @@ jobs:
           python3 tests/survivors_prices_test.py
           python3 tests/survivors_minimap_test.py
           python3 tests/survivors_lifecycle_test.py
+          python3 tests/survivors_hub_test.py
+          python3 tests/survivors_settings_config_test.py
+          python3 tests/survivors_progress_save_test.py
+          python3 tests/survivors_options_test.py
+          python3 tests/survivors_menu_handoff_test.py
+          python3 tests/heroes_shade_pedestal_test.py
           python3 tests/survivors_defense_test.py
           python3 tests/survivors_feedback_test.py
           python3 tests/survivors_enemy_facing_test.py

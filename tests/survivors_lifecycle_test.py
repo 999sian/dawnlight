@@ -26,7 +26,7 @@ stubs = r'''
 #include "survivors_rules.hpp"
 #include "../include/survivors_maps.hpp"
 using namespace dawnlight::survivors;
-using ActorId=unsigned; using ProfileName=int; using s8=signed char; using s16=short;
+using u16=unsigned short;using ActorId=unsigned; using ProfileName=int; using s8=signed char; using s16=short;
 constexpr ActorId kNone=~0u;
 constexpr int fpcNm_E_OC_e=1, fpcNm_E_BA_e=2,fpcNm_E_RD_e=4;
 struct ModContext {};
@@ -50,6 +50,12 @@ struct Enemy {
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
 Run s_run;RunOptions s_options;
+enum class HubMenu{None,Talents,Run};unsigned s_hubClosingWindow=0;HubMenu s_hubMenu=HubMenu::None;
+bool s_hub=true,s_hubDeparture=false,s_hubDoorStarted=false,s_arrivingRun=false,s_allowHubDoor=false,s_hubSaveRequested=false;
+ActorId s_hubDoor=kNone;unsigned s_hubDoorTicks=0;
+unsigned s_window=0,s_refreshChoices=0;
+void load_option_config(){}void update_survivors_pedestal(bool){}
+
 void begin_starting_item_choice(){if(s_run.starting_item_pending)s_run.phase=Phase::TreasureChoice;}
 enum class SwordAction { None, Normal, Spin, Jump };
 SwordAction s_swordAction=SwordAction::None;
@@ -304,21 +310,21 @@ int main() {
     // before that reload nor starts combat. Duplicate/invalid/running clicks fail.
     s_map=0;s_requestedMap=0;s_restart=false;s_run.phase=Phase::Ready;
     unsigned choice=3;select_arena(nullptr,&choice);
-    assert(s_requestedMap==3 && s_map==0 && s_restart && s_run.phase==Phase::Ready);
-    choice=2;select_arena(nullptr,&choice);assert(s_requestedMap==3);
+    assert(s_requestedMap==3 && s_map==0 && !s_restart && s_run.phase==Phase::Ready);
+    choice=2;select_arena(nullptr,&choice);assert(s_requestedMap==2);
     s_restart=false;s_map=3;choice=3;select_arena(nullptr,&choice);assert(!s_restart);
     choice=99;select_arena(nullptr,&choice);assert(!s_restart);
     s_run.phase=Phase::Running;choice=1;select_arena(nullptr,&choice);assert(!s_restart);
-    s_run.phase=Phase::Ready;s_arenaMeshReady=false;start_run(nullptr,nullptr);
+    s_run.phase=Phase::Ready;s_arenaMeshReady=false;begin_run();
     assert(s_run.phase==Phase::Ready);
-    s_arenaMeshReady=true;s_restart=true;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Ready);
-    s_restart=false;s_progressSaving=true;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Ready);
+    s_arenaMeshReady=true;s_restart=true;begin_run();assert(s_run.phase==Phase::Ready);
+    s_restart=false;s_progressSaving=true;begin_run();assert(s_run.phase==Phase::Ready);
     choice=2;select_arena(nullptr,&choice);assert(!s_restart);
-    s_progressSaving=false;s_bossHudTarget=7;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Running && s_run.ticks==0 && s_bossHudTarget==kNone);
+    s_progressSaving=false;s_bossHudTarget=7;begin_run();assert(s_run.phase==Phase::Running && s_run.ticks==0 && s_bossHudTarget==kNone);
     s_records.talents.ranks[unsigned(Talent::StartingItem)]=1;s_run.phase=Phase::Ready;
-    start_run(nullptr,nullptr);assert(s_run.phase==Phase::TreasureChoice&&s_run.starting_item_pending&&s_run.ticks==0);
-    const auto seed=s_run.random;start_run(nullptr,nullptr);assert(s_run.random==seed);
-    s_records.talents={};s_run.phase=Phase::Ready;start_run(nullptr,nullptr);
+    begin_run();assert(s_run.phase==Phase::TreasureChoice&&s_run.starting_item_pending&&s_run.ticks==0);
+    const auto seed=s_run.random;begin_run();assert(s_run.random==seed);
+    s_records.talents={};s_run.phase=Phase::Ready;begin_run();
     assert(s_run.phase==Phase::Running&&!s_run.starting_item_pending);
     // Every selected map routes through the same post-file-select gate.
     s_active=true;s_gameStarted=true;s_run.phase=Phase::Ready;arenaPresent=true;
@@ -343,6 +349,6 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'; binary=Path(tmp)/'test'
     cpp.write_text(stubs+'\n'+ '\n'.join(extract(n) for n in [
         'in_arena','retire_enemies','reset_runtime','prepare_save','activated','deactivated','new_save','loaded','reset',
-        'start_run','select_arena','cleanup_enemies','credit_death','before_game_start','before_opening','before_stage','after_power'])+'\n'+main)
+        'begin_run','select_arena','cleanup_enemies','credit_death','before_game_start','before_opening','before_stage','after_power'])+'\n'+main)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

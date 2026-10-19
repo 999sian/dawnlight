@@ -181,7 +181,7 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(prefix + stubs + '\nvoid draw_chest_prices(){} void draw_combat_feedback(){}\n' + native + '\n' + function(source, 'void label(') + '\n' +
+    cpp.write_text(prefix + stubs + '\nbool survivors_hub_active(){return false;} void draw_hub_labels(){} void draw_chest_prices(){} void draw_combat_feedback(){}\n' + native + '\n' + function(source, 'void label(') + '\n' +
                    (root/'src/survivors_boss_hud.inc').read_text() + '\n' + function(source, 'void draw_hud(') + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)

@@ -29,6 +29,9 @@ struct Player {
     bool checkDeadHP(){return dead;}bool checkWolf(){return wolf;}
 } player;
 auto daAlink_getAlinkActorClass(){return &player;}
+unsigned talentOpens=0;bool hubActive=false;
+bool survivors_hub_active(){return hubActive;}void survivors_open_talents(){++talentOpens;}
+namespace timing{constexpr int shade=1;}void begin_clear_timer(int){}
 bool inArena=true,nextStage=false,event=false,paused=false,menu=false;
 bool arena(){return inArena;}bool dComIfGp_isEnableNextStage(){return nextStage;}
 bool dComIfGp_event_runCheck(){return event;}bool dComIfGp_isPauseFlag(){return paused;}
@@ -38,7 +41,7 @@ struct Trials {
     bool place(){return ready;}bool prepare_effects(){return ready;}
 };
 struct Animation {void play(){}};
-struct Pedestal {bool ready=true;Animation btk,brk;int collision=0;Trials trials;Transform current;};
+struct Pedestal {bool survivors=false;bool ready=true;Animation btk,brk;int collision=0;Trials trials;Transform current;};
 struct Space {void Set(int*){}} space;
 auto dComIfG_Ccsp(){return &space;}
 struct Fighter {int id=-1;};
@@ -142,6 +145,18 @@ int main() {
     // A pending/failed wave load must not block encounter start or wind.
     check_interaction(false);
     check_interaction(true);
+    // The shared Survivors visual only opens Talents; it never starts a trial.
+    Pedestal p;p.survivors=true;p.trials.ready=false;
+    hubActive=true;inArena=false;nextStage=event=paused=menu=false;player={};pad={};
+    const auto beforeSpawns=spawns,beforeRandom=randomCalls;
+    execute_pedestal(&p);assert(!talentOpens);
+    pad.mPressedButtonFlags=PAD_BUTTON_A|2;execute_pedestal(&p);
+    assert(talentOpens==1&&pad.mPressedButtonFlags==2&&spawns==beforeSpawns&&randomCalls==beforeRandom);
+    for(int reason=0;reason<8;++reason){
+        hubActive=reason!=0;nextStage=reason==1;event=reason==2;paused=reason==3;menu=reason==4;
+        player.dead=reason==5;player.wolf=reason==6;player.current.pos.x=reason==7?231:0;
+        pad.mPressedButtonFlags=PAD_BUTTON_A;execute_pedestal(&p);assert(talentOpens==1);
+    }
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

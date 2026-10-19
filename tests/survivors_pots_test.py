@@ -38,7 +38,7 @@ fopAc_ac_c* actor_by_id(ActorId id){auto it=actors.find(id);return it==actors.en
 bool fpcM_IsCreating(ActorId id){return pending.count(id);}
 struct Service{unsigned deletes=0;void delete_actor(ModContext*,ActorId id){++deletes;actors.erase(id);}}service;
 auto* svc_actor=&service;
-Run s_run;unsigned s_map=0;bool s_arenaMeshReady=true,s_allowDrop=false,active=true,paused=false,transition=false;
+bool s_hub=false,s_hubDeparture=false,s_hubDoorStarted=false;Run s_run;unsigned s_map=0;bool s_arenaMeshReady=true,s_allowDrop=false,active=true,paused=false,transition=false;
 bool eventRunning=false,windowOpen=false;
 bool ui_visible(){return windowOpen;}bool midna_dialog_busy(){return false;}
 bool dComIfGp_event_runCheck(){return eventRunning;}bool dComIfGp_isPauseFlag(){return paused;}

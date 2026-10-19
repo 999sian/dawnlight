@@ -3,8 +3,12 @@
 [← Dawnlight](README.md)
 
 A 20-minute survival mode included in `dawnlight_mod.dusk`. Select **Hyrule
-Survivors** in Dusklight's game-mode menu, create/load its separate save, pick a
-map and press **Start run**. Story and Boss Rush saves remain separate.
+Survivors** in Dusklight's game-mode menu and create/load its separate save.
+You arrive in the freely walkable Darknut Arena hub. Interact with the central
+Master Sword using A to open **Talents / Settings**; closing saves automatically.
+Interact with the exit door beneath **Start Run** to open map selection. Pick a
+map and press **Start run**: the menu closes, the native door opens, and Link walks
+through before the scene changes to the selected arena. Story and Boss Rush saves remain separate.
 The Dusklight menu shortcut (keyboard, controller or three-finger tap) closes
 this setup menu and opens Dusklight. Closing Dusklight returns to setup;
 your map, difficulty, settings and allocated talents remain unchanged.
@@ -16,18 +20,23 @@ your map, difficulty, settings and allocated talents remain unchanged.
   pause during jumps, Gale charging and gliding; released projectiles finish normally.
   Collect blue XP crystals and choose one of three power-ups at each level-up. Selection supports controller,
   keyboard and touch; menus and Get Item animations pause the run.
-- Press or hold the sword button to trigger ready, unlocked **Spin Attack**,
-  **Jump Strike** and **Sword Wave**. Jump Strike retains its nearby-enemy
-  requirement and proc chance. Each skill keeps its cooldown. All other weapons
-  and skills continue firing automatically at their normal targets.
-- Holding the sword button uses Dawnlight's third-person shoulder view and
-  reticle. Sword Wave converges onto the reticle point, including nearby targets
-  and walls. A multishot volley always includes one centered wave. Releasing
-  restores the normal camera. The native charged spin remains disabled.
+- Press or hold the sword button to aim unlocked attacks manually. **Settings →
+  Manual aiming abilities** lets you toggle Sword, Spin, Jump Strike, Sword Wave,
+  Bow, Boomerang, Bombs, Ball and Chain, Shield Attack and Shockwave independently.
+  All default to on. Off always keeps automatic targeting; on follows the reticle
+  during manual input. Unlocks and cooldowns still apply. Jump Strike jumps in
+  place, stays steerable and requires a nearby enemy; Spin remains centered on Link.
+  Elemental perks inherit their weapon's aim; auras/passives remain automatic.
+- Holding attack uses the third-person shoulder view and reticle. Projectiles
+  converge on the reticle within their reach; bombs keep their arc and boomerangs
+  retain earned follow-up hops. Bow/Wave multishot includes a centered projectile.
+  Releasing restores the normal camera. The native charged spin remains disabled.
+- **Gyro Aim** defaults to on for this view. **Switch Attack/Lock-on Keybinds**
+  defaults to off; enabling it also moves the touch sword icon from B to L.
 - **Settings → 3rd Person Reticle Y** adjusts only this Survivors sword-aim view
   from -40 to +40 (default 0); positive values move the reticle up. It is separate
   from Dawnlight's general item-aim setting and applies to the next run.
-- Start with three hearts and normal sword attacks at twice the previous base melee range. Unlock Sword Wave and
+- Start with three hearts and normal sword attacks at 130% of the original base melee range. Unlock Sword Wave and
   Spin Attack through level-ups. Passive upgrades, including Heart Container,
   remain available independently of other choices (maximum 20 hearts).
 - The HUD shows time, run level, score, XP and the next chest price. Inspect equipment
@@ -35,12 +44,15 @@ your map, difficulty, settings and allocated talents remain unchanged.
   Only bottles can be assigned to item buttons. Magnet also attracts rupees,
   hearts and heart pieces; nearby pots trigger normal automatic sword swings.
 - Call Midna for **Cancel**, **End Run** or **Restart Run**. Survive 20 minutes and defeat all four timed elites to win;
-  **New run** resets upgrades and returns to map selection. Map exits are sealed.
+  **New run** resets upgrades and returns to the hub. Map exits are sealed during runs.
 
 ## Run setup
 
-Map selection also has **Difficulty**, **Talents** and **Settings** tabs. Choices carry over
-between maps/replays in the current session and are fixed when the run starts.
+The door menu has **Maps**, **Difficulty**, **Settings** and (in debug builds)
+**Debug** tabs. The sword menu has **Talents** and **Settings**. Dawnlight Settings
+also has a mirrored **Survivors** tab beside **Boss Rush**. Shared settings and
+difficulty persist across app restarts and support settings export/import.
+Edit outside a run; values are fixed when the run starts.
 
 | Setting | Range | Default |
 | --- | --- | --- |
@@ -55,7 +67,7 @@ rewards are unchanged. Camera 100% is native distance; event cameras stay native
 
 ## Score and permanent talents
 
-Each map has its own high score, shown in the right live preview and the result screen. Final score:
+Each map has its own high score, shown in the map description panel and the result screen. Final score:
 
 | Source | Points before difficulty bonus |
 | --- | ---: |
@@ -77,13 +89,14 @@ the next level costs 2,000 XP, then 2,500, 3,000… Each grants **one Unlock Poi
 Abruptly quitting an unfinished run does not award its score. Old saves retain
 previous statistics and start this new progression at level 1.
 
-Open **Talents** between Difficulty and Settings. Each rank costs one point;
+Interact with the central sword in the hub to open **Talents**. Each rank costs one point;
 use **+ / −** to spend or refund points in the scrollable list. Click a perk name
 for its description. Removing a prerequisite also refunds its dependent perks;
 **Reset all perks** refunds every rank without changing XP, level or high scores.
-Changes apply next run; run power-up ranks remain separate. **Save progress**
-writes the native save in the background and keeps the menu open; wait for
-**Progress saved** before quitting. The results screen also offers **Save records**.
+Changes apply next run; run power-up ranks remain separate. Closing the menu
+saves the native slot in the background automatically. **Save progress** also
+allows an explicit save/retry while keeping the menu open. A failed write leaves
+you in the hub and displays a retry message. The results screen also offers **Save records**.
 
 | Talent | Ranks | Effect / prerequisite |
 | --- | ---: | --- |

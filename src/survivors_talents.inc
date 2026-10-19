@@ -7,7 +7,7 @@ std::array<Talent,unsigned(Talent::Count)> s_talentChoices{
 bool talent_editable() { return s_run.phase==Phase::Ready && !s_restart && !s_progressSaving; }
 std::string talent_summary() {
     const char* status=s_progressSaving ? "Saving..." : s_storeFailed ? "Save failed. Please retry Save progress." :
-        s_progressSaved ? "Progress saved." : "Each rank costs 1 Unlock Point. Save progress before quitting.";
+        s_progressSaved ? "Progress saved." : "Each rank costs 1 Unlock Point. Progress and settings save automatically when you close this menu.";
     return "Level "+number(s_records.level())+" | XP "+std::to_string(s_records.level_xp())+" / "+
         number(s_records.next_level_xp())+" | Unlock Points: "+number(s_records.available_points())+"\n"+status;
 }

@@ -42,6 +42,10 @@ bool in_arena(){return active;}bool playable(){return active&&!paused;}bool tran
 bool dComIfGp_event_runCheck(){return event;}
 void* s_menuDocument=nullptr;void remember_menu_document(bool){}
 Run s_run;RunOptions s_options;int s_player=1;bool s_restart=false;
+enum class HubMenu{None,Talents,Run};unsigned s_hubClosingWindow=0;HubMenu s_hubMenu=HubMenu::Run;
+void hub_menu_closed(){} void load_option_config(){} void store_option_config(){}
+bool settings_editable(){return s_run.phase==Phase::Ready&&!s_restart;}
+
 struct dBgS_Acch{fopAc_ac_c* actor;bool line=false;auto* getMyAc(){return actor;}void OnLineCheck(){line=true;}};
 struct daB_TN_c:fopAc_ac_c{dBgS_Acch mAcch{this};};
 struct dBgS_CamLinChk{cXyz cross{0,0,150};cXyz GetCross(){return cross;}};
@@ -76,7 +80,9 @@ struct Service{
 main=r'''
 int main(){
  s_run.start(1);s_run.phase=Phase::Ready;open_window();
- std::vector<std::string> expected{"Maps","Difficulty","Talents","Settings"};if(debug_enabled)expected.push_back("Debug");assert(tabNames==expected);
+ std::vector<std::string> expected{"Maps","Difficulty","Settings"};if(debug_enabled)expected.push_back("Debug");assert(tabNames==expected);
+ s_window=0;s_hubMenu=HubMenu::None;open_window();assert(!s_window);
+ s_hubMenu=HubMenu::Talents;open_window();assert((tabNames==std::vector<std::string>{"Talents","Settings"}));
  s_window=0;s_run.phase=Phase::Upgrade;open_window();assert(tabNames.size()==1&&tabNames[0]=="Choose an upgrade");
  s_run.start(1);s_run.options.enemy_speed=3;
  daE_OC_c bok;bok.old.pos={10,0,10};bok.current.pos={12,3,14};dBgS_Acch acch{&bok};std::any movement[]={&acch};

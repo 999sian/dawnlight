@@ -144,7 +144,7 @@ void dComIfGs_setCollectShield(int){}
 void dMeter2Info_setShield(int item,bool){equippedShield=item;}
 void dMeter2Info_setSword(int item,bool){equippedSword=item;}
 void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
-Run s_run;unsigned rupees=0;int s_player=1;
+bool s_hub=false,s_hubDeparture=false,s_hubDoorStarted=false;Run s_run;unsigned rupees=0;int s_player=1;
 struct Chest{bool active=false,opening=false,free=false,fixed=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};std::array<Rarity,3> rarities{};};
 constexpr unsigned kChestCount=2;unsigned s_selectedChest=kChestCount;
 std::array<Chest,2>s_chests;
