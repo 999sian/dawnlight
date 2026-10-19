@@ -1090,3 +1090,22 @@ release's embedded symbol manifest and its disassembly. Inventory/navigation
 regressions exercise the production callbacks, and `survivors_hook_install_test.py`
 injects failure at every required hook registration. A full Windows game launch
 still requires an in-game check; compilation alone does not test hook relocation.
+
+### Windows progress-save symbol resolution
+
+The Windows v2.0.3 manifest exposes `mAutoSaveProc` as `?mAutoSaveProc@@3EA`
+and `autoSaveWriteState` as `?autoSaveWriteState@@3HA`, without undecorated
+aliases. Resolving the Unix names therefore failed before the native save could
+start, leaving the hub's "Progress save failed" warning visible and cancelling
+run departure. Use the MSVC names on both Windows architectures and the plain
+names elsewhere. `enterAutoSave` has a plain-name alias on all eight targets.
+
+Resolution remains transactional: no host pointers are cached until all three
+lookups succeed. Failures now log the missing symbol or the failed save phase,
+including card/write status where applicable. The native asynchronous save and
+per-slot blob flush remain responsible for writing progress.
+
+`survivors_progress_save_test.py` executes the production save path against both
+symbol naming schemes, with missing/null symbols, unavailable card, busy host,
+failed blob staging, failed disk write, retry and successful hub departure. The
+names were also checked against all eight official v2.0.3 release manifests.

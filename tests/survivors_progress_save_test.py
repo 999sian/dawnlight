@@ -22,6 +22,8 @@ using namespace dawnlight::survivors;
 using u8=uint8_t;using u32=uint32_t;using ModResult=int;
 constexpr ModResult MOD_OK=0,MOD_ERROR=1;
 struct ModContext{};ModContext* mod_ctx=nullptr;
+struct Log{std::vector<std::string> warnings;void warn(ModContext*,const char* text){warnings.emplace_back(text);}}logger;
+auto* svc_log=&logger;
 Run s_run;Records s_records;bool s_restart=false,s_progressSaving=false,s_progressSaved=false,s_storeFailed=false,s_saveRequested=false;
 bool s_hubDeparture=false,s_hubSaveRequested=false,transition=false,event=false;
 bool in_arena(){return true;}bool transitioning(){return transition;}bool dComIfGp_event_runCheck(){return event;}
@@ -57,12 +59,20 @@ struct Save{bool fail=false;std::vector<uint8_t> blob;
  ModResult set_blob(ModContext*,const char*,const void* p,size_t n){if(fail)return MOD_ERROR;auto* b=static_cast<const uint8_t*>(p);blob.assign(b,b+n);return MOD_OK;}
 }save;auto* svc_save=&save;
 void enterAutoSave();
-struct Hook{bool fail=false;
+struct Hook{bool fail=false;std::string failName;bool nullAddress=false;std::vector<std::string> requests;
  ModResult resolve(ModContext*,const char* name,void** address,void*){
-  if(fail)return MOD_ERROR;
+  requests.emplace_back(name);
+  if(fail || failName==name)return MOD_ERROR;
+  if(nullAddress){*address=nullptr;return MOD_OK;}
   if(std::string(name)=="enterAutoSave")*address=reinterpret_cast<void*>(&enterAutoSave);
+#ifdef _WIN32
+  // Actual Windows v2.0.3 manifest entries: no undecorated data aliases.
+  else if(std::string(name)=="?mAutoSaveProc@@3EA")*address=&mAutoSaveProc;
+  else if(std::string(name)=="?autoSaveWriteState@@3HA")*address=&autoSaveWriteState;
+#else
   else if(std::string(name)=="mAutoSaveProc")*address=&mAutoSaveProc;
   else if(std::string(name)=="autoSaveWriteState")*address=&autoSaveWriteState;
+#endif
   else return MOD_ERROR;
   return MOD_OK;
  }
@@ -73,7 +83,17 @@ int main(){
  s_run.phase=Phase::Ready;s_records.total_xp=meta_threshold(3);s_records.high_scores[0]=1234;
  assert(s_records.buy(Talent::MaxHealth));
  hook.fail=true;save_progress(nullptr,nullptr);assert(s_storeFailed&&!s_progressSaving&&s_window==42&&!nativeLoads);
- hook.fail=false;status=3;save_progress(nullptr,nullptr);assert(s_storeFailed&&!nativeLoads);
+ assert(logger.warnings.back().find("could not resolve enterAutoSave")!=std::string::npos);
+ hook.fail=false;
+ for(const auto* name:{kProgressSavePhaseSymbol,kProgressSaveResultSymbol}){
+  hook.failName=name;save_progress(nullptr,nullptr);
+  assert(s_storeFailed&&!s_progressSaving&&!nativeLoads&&!s_enterProgressSave&&!s_hostSavePhase&&!s_hostSaveResult);
+  assert(logger.warnings.back().find(name)!=std::string::npos);
+ }
+ hook.failName.clear();hook.nullAddress=true;save_progress(nullptr,nullptr);
+ assert(s_storeFailed&&!s_progressSaving&&!nativeLoads);hook.nullAddress=false;
+ status=3;save_progress(nullptr,nullptr);assert(s_storeFailed&&!nativeLoads);
+ assert(logger.warnings.back().find("memory card is not ready (status 3)")!=std::string::npos);
  status=2;mAutoSaveProc=3;save_progress(nullptr,nullptr);assert(s_storeFailed&&!nativeLoads);mAutoSaveProc=0;
  save.fail=true;save_progress(nullptr,nullptr);assert(s_storeFailed&&!nativeLoads);save.fail=false;
  s_restart=true;save_progress(nullptr,nullptr);assert(!nativeLoads);s_restart=false;
@@ -91,6 +111,7 @@ int main(){
  // A native disk failure keeps the menu open and permits a subsequent retry.
  save_progress(nullptr,nullptr);autoSaving();saveSync=2;waitingForWrite();update_progress_save();
  assert(s_storeFailed&&!s_progressSaved&&!s_progressSaving&&s_window==42&&flushes==1);
+ assert(logger.warnings.back().find("native write failed (result 2)")!=std::string::npos);
  save_progress(nullptr,nullptr);autoSaving();saveSync=1;waitingForWrite();endAutoSave();update_progress_save();
  assert(s_progressSaved&&!s_storeFailed&&flushes==2&&s_window==42);
  // Menu-close autosave waits for the host and events, then flushes the same slot.
@@ -113,6 +134,7 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
     cpp.write_text(fixture+'\n'.join(extract(n) for n in ['writeAutoSave','autoSaving','enterAutoSave','waitingForWrite','endAutoSave'])+'\n'+(root/'src/survivors_progress_save.inc').read_text()+main)
-    subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
-    subprocess.run([str(exe)],check=True)
-print('Survivors progress save: native async save, slot flush, open menu, busy/failure and retry passed')
+    for defines in [[],['-D_WIN32']]:
+        subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror',*defines,'-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
+        subprocess.run([str(exe)],check=True)
+print('Survivors progress save: Windows/Unix symbols, resolution diagnostics, native async save, slot flush, busy/failure and retry passed')
