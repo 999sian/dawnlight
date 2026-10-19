@@ -43,7 +43,7 @@ constexpr int fpcNm_E_MM_MT_e=77;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 struct Effect{std::vector<uint64_t>bowVolleys;unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,12>effects;
 Effect& effect_for(Enemy&e){return effects[&e-enemies.data()];}
-struct Attack{unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0,arrowTargets=1;std::array<unsigned,enemy_capacity>ballVictims{};
+struct Attack{bool manualFlight=false,aimPending=false;unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0,arrowTargets=1;std::array<unsigned,enemy_capacity>ballVictims{};
  Collider collider;Status status;std::array<unsigned,9>emitters{};float radius=0,effectBaseRadius=260;cXyz position,velocity;};
 std::deque<Attack>s_attacks(initial_projectile_slots);
 Run s_run;unsigned s_player=1,s_meleeSerial=1;
@@ -72,6 +72,9 @@ std::array<unsigned,unsigned(Upgrade::Rupees)>s_cooldowns{};unsigned waves=0;
 bool waveReady=true;
 void update_sword_wave(daAlink_c*){if(waveReady&&s_run.ranks[0]&&!s_cooldowns[0]){++waves;s_cooldowns[0]=s_run.cooldown(60);}}
 '''
+manual_source=(root/'src/survivors_manual_attack.inc').read_text()
+start=manual_source.index('bool manual_skill(')
+fixture+=manual_source[start:manual_source.index('\n}',start)+2]
 main=r'''
 int main(){
  s_run.start(123);enemies[0].id=2;enemies[1].id=3;actors[0].id=2;actors[1].id=3;
@@ -128,7 +131,9 @@ int main(){
   assert(count==(level>=15?6u:2u));
   player.current.pos={20,30,40};update_parallel_pulse(a,&player);assert(a.position.y==95);
  }
- // Sword input activates Spin only; Shield/Shockwave keep their automatic gate/aim.
+ // Disabling Shield/Shockwave restores their automatic gates; Shield/Shockwave keep their automatic gate/aim.
+ s_run.options.manual_aim[unsigned(ManualAbility::ShieldAttack)]=false;
+ s_run.options.manual_aim[unsigned(ManualAbility::Shockwave)]=false;
  distance=100000;manual=false;assert(!launch_parallel_pulse(&player,Upgrade::Spin));
  s_attacks[kShieldSlot].active=false;manual=true;s_cooldowns={};s_run.ranks[1]=s_run.ranks[2]=1;s_run.shield=1;
  update_parallel_skills(&player);assert(s_attacks[kSpinSlot].active&&!s_attacks[kShieldSlot].active&&!s_cooldowns[2]);
@@ -136,7 +141,22 @@ int main(){
  distance=100;update_parallel_skills(&player);assert(s_attacks[kShieldSlot].active&&s_cooldowns[2]);
  update_parallel_pulse(s_attacks[kShieldSlot],&player);
  assert(s_attacks[kShieldSlot].position.z==player.current.pos.z+100&&s_attacks[kShieldSlot].position.x==player.current.pos.x);
- manual=false;
+ // Shield and its dependent Shockwave have independent direction/gate choices.
+ for(bool shieldManual:{false,true})for(bool waveManual:{false,true})for(bool target:{false,true}){
+  s_run.start(123);s_run.shield=1;s_run.ranks[2]=s_run.ranks[unsigned(Upgrade::Shockwave)]=1;
+  s_run.options.manual_aim[unsigned(ManualAbility::ShieldAttack)]=shieldManual;
+  s_run.options.manual_aim[unsigned(ManualAbility::Shockwave)]=waveManual;
+  s_cooldowns={};s_attacks=std::deque<Attack>(initial_projectile_slots);distance=target?100:100000;manual=true;
+  update_parallel_skills(&player);
+  assert(s_attacks[kShieldSlot].active==(shieldManual||target));
+  if(s_attacks[kShieldSlot].active){update_parallel_pulse(s_attacks[kShieldSlot],&player);assert(s_attacks[kShieldSlot].position.x==player.current.pos.x+(shieldManual?100:0));}
+  const auto wave=std::find_if(s_attacks.begin(),s_attacks.end(),[](const auto&a){return a.active&&a.weapon==unsigned(Upgrade::Shockwave);});
+  assert((wave!=s_attacks.end())==(waveManual||target));
+  if(wave!=s_attacks.end())assert(wave->velocity.x==(waveManual?45:0)&&wave->aimPending==waveManual);
+  assert(bool(s_cooldowns[2])==(shieldManual||waveManual||target));
+ }
+ s_run.start(123);manual=true;distance=100000;s_run.options.manual_aim[unsigned(ManualAbility::Spin)]=false;
+ assert(!launch_parallel_pulse(&player,Upgrade::Spin));manual=false;
  // Same-volley extra hits are quarter damage; separate/overlapping volleys
  // and different targets retain full first-hit damage, even on one frame.
  effects={};s_attacks=std::deque<Attack>(initial_projectile_slots);target.owner=&actors[0];s_run.ranks[unsigned(Upgrade::CritChance)]=0;

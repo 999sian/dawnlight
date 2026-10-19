@@ -122,6 +122,21 @@ struct LegendaryBurn {
     }
 };
 
+enum class ManualAbility : unsigned { Sword, Spin, JumpStrike, Wave, Bow, Boomerang, Bombs, Ball, ShieldAttack, Shockwave, Count };
+constexpr ManualAbility manual_ability(Upgrade weapon) {
+    switch(weapon) {
+    case Upgrade::Spin:return ManualAbility::Spin;
+    case Upgrade::JumpStrike:return ManualAbility::JumpStrike;
+    case Upgrade::Wave:return ManualAbility::Wave;
+    case Upgrade::Bow:return ManualAbility::Bow;
+    case Upgrade::Boomerang:return ManualAbility::Boomerang;
+    case Upgrade::Bombs:return ManualAbility::Bombs;
+    case Upgrade::Ball:return ManualAbility::Ball;
+    case Upgrade::ShieldAttack:return ManualAbility::ShieldAttack;
+    case Upgrade::Shockwave:return ManualAbility::Shockwave;
+    default:return ManualAbility::Count;
+    }
+}
 struct RunOptions {
     unsigned enemy_hp = 1, enemy_damage = 1, enemy_speed = 1, horde = 1;
     unsigned camera_distance = 200;
@@ -129,6 +144,13 @@ struct RunOptions {
     int reticle_y = 0;
     bool switch_attack_lock = false;
     bool gyro_aim = true;
+    std::array<bool,unsigned(ManualAbility::Count)> manual_aim=[] {
+        std::array<bool,unsigned(ManualAbility::Count)> enabled{};enabled.fill(true);return enabled;
+    }();
+    bool manual_enabled(ManualAbility ability) const {
+        return unsigned(ability)<manual_aim.size()&&manual_aim[unsigned(ability)];
+    }
+    bool manual_enabled(Upgrade weapon) const { return manual_enabled(manual_ability(weapon)); }
     unsigned score_percent() const {
         return 100+10*(std::clamp(enemy_hp,1u,10u)-1)+15*(std::clamp(enemy_damage,1u,10u)-1)+
             25*(std::clamp(enemy_speed,1u,3u)-1)+10*(std::clamp(horde,1u,5u)-1);

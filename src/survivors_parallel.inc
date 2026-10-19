@@ -7,7 +7,7 @@ float parallel_spin_base_radius(const daAlink_c* link) {
 }
 void update_parallel_pulse(Attack& a, daAlink_c* link) {
     a.position = link->current.pos + cXyz(0,65,0);
-    if (a.weapon == unsigned(Upgrade::ShieldAttack)) a.position += target_direction(link) * 100.f;
+    if (a.weapon == unsigned(Upgrade::ShieldAttack)) a.position += (a.manualFlight?manual_direction(link):target_direction(link)) * 100.f;
     for (auto key : a.emitters) if (auto* emitter=key?dComIfGp_particle_getEmitter(key):nullptr)
         emitter->setGlobalTranslation(a.position);
 }
@@ -16,7 +16,8 @@ void launch_shockwave(daAlink_c* link) {
     stop_attack(wave);wave={};wave.active=true;wave.weapon=unsigned(Upgrade::Shockwave);
     wave.life=30;wave.radius=s_run.shockwave_radius();wave.effectBaseRadius=260.f;
     wave.position=link->current.pos+cXyz(0,65,0);
-    wave.velocity=target_direction(link)*45.f;
+    const bool manual=manual_skill(link,Upgrade::Shockwave);
+    wave.velocity=(manual?manual_direction(link):target_direction(link))*45.f;wave.aimPending=manual;
     wave.status.Init(120,0xff,link);wave.collider.Set(kAttackSource);wave.collider.SetStts(&wave.status);
     wave.collider.SetAtType(AT_TYPE_NORMAL_SWORD);wave.collider.SetAtMtrl(dCcD_MTRL_NONE);
     wave.collider.SetAtAtp(static_cast<u8>(s_run.melee_power()));
@@ -26,9 +27,11 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     const bool spin=weapon==Upgrade::Spin;
     const float base=spin?parallel_spin_base_radius(link):60+3*s_run.rank(weapon);
     const float range=spin?s_run.area_radius(base):100+s_run.shield_radius();
-    if (!(spin && manual_attack(link)) && !enemy_in_range(link,range)) return false;
+    const bool manual=manual_skill(link,weapon);
+    if (!manual && !enemy_in_range(link,range)) return false;
     auto& a=s_attacks[spin?kSpinSlot:kShieldSlot];
     stop_attack(a);a={};
+    a.manualFlight=manual;
     a.active=true;a.weapon=unsigned(weapon);a.life=6; // Six registered frames; minimum cooldown is six.
     a.radius=s_run.area_radius(base);
     // Keep pulse centers attached to Link without adding projectile movement.
@@ -37,7 +40,7 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     a.collider.SetAtAtp(static_cast<u8>(s_run.attack_power(unsigned(weapon))));
     a.collider.OnAtNoConHit();a.collider.ResetAtHit();a.collider.OnAtSetBit();
     a.position=link->current.pos+cXyz(0,65,0);
-    if (!spin) a.position += target_direction(link)*100.f;
+    if (!spin) a.position += (manual?manual_direction(link):target_direction(link))*100.f;
     if (spin) {
         const auto effects=survivor_spin_effects(s_run.great_spin(Upgrade::Spin));
         // Each tier uses particles authored for its own native base radius.
@@ -47,7 +50,8 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
             a.emitters[i]=dComIfGp_particle_set(0,effects[i],&a.position,&link->tevStr,
                 nullptr,&scale,0xff,nullptr,-1,nullptr,nullptr,nullptr);
     }
-    if (!spin && s_run.rank(Upgrade::Shockwave)) launch_shockwave(link);
+    if (!spin && s_run.rank(Upgrade::Shockwave) &&
+        (manual_skill(link,Upgrade::Shockwave)||enemy_in_range(link,range))) launch_shockwave(link);
     return true;
 }
 void update_parallel_skills(daAlink_c* link) {
@@ -55,6 +59,13 @@ void update_parallel_skills(daAlink_c* link) {
     if(s_run.rank(Upgrade::Spin) && !s_cooldowns[unsigned(Upgrade::Spin)] && launch_parallel_pulse(link,Upgrade::Spin))
         s_cooldowns[unsigned(Upgrade::Spin)]=s_run.cooldown(120);
     if(s_run.owns(ChestReward::Shield) && s_run.rank(Upgrade::ShieldAttack) &&
-       !s_cooldowns[unsigned(Upgrade::ShieldAttack)] && launch_parallel_pulse(link,Upgrade::ShieldAttack))
-        s_cooldowns[unsigned(Upgrade::ShieldAttack)]=s_run.shield_cooldown();
+       !s_cooldowns[unsigned(Upgrade::ShieldAttack)]) {
+        bool fired=launch_parallel_pulse(link,Upgrade::ShieldAttack);
+        // Shockwave remains tied to the shield's cadence, but its manual toggle
+        // does not force an automatic-only shield bash to fire without a target.
+        if(!fired&&s_run.rank(Upgrade::Shockwave)&&manual_skill(link,Upgrade::Shockwave)) {
+            launch_shockwave(link);fired=true;
+        }
+        if(fired)s_cooldowns[unsigned(Upgrade::ShieldAttack)]=s_run.shield_cooldown();
+    }
 }

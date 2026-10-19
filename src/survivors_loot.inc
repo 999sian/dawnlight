@@ -191,7 +191,8 @@ bool next_boom_target(Attack& a, daAlink_c* link, float range) {
         if (!e.initialized || e.credited || e.retiring ||
             std::find(a.visited.begin(), a.visited.begin() + a.visitedCount, e.id) != a.visited.begin() + a.visitedCount) continue;
         auto* actor = actor_by_id(e.id);
-        if (!actor || actor->health <= 0) continue;
+        if (!actor || actor->health <= 0 ||
+            std::find(a.ballVictims.begin(),a.ballVictims.begin()+a.ballVictimCount,e.id)!=a.ballVictims.begin()+a.ballVictimCount) continue;
         const float distance = (actor->eyePos - a.position).abs2();
         if (distance >= nearest) continue;
         cXyz to = actor->eyePos;
@@ -262,7 +263,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     if (a.bombArrow && !prepare_bomb_arrow_model(a)) return false;
     a.hurricane=weapon==Upgrade::Boomerang && s_run.rank(Upgrade::Hurricane);
     a.detonated=false;
-    a.aimPending=manual&&weapon==Upgrade::Bow;a.aimSpread=spread;
+    a.aimPending=manual;a.aimSpread=spread;a.manualFlight=manual;
     a.weapon = index; a.age = 0; a.life = 100;
     a.bowVolleySlot=volleySlot;a.bowVolley=volley;a.arrowTargets=s_run.arrow_targets();
     a.returning = a.exploding = false; a.travel = 0;
@@ -272,7 +273,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     // matrix. Its 180-degree local rotation does not change this origin.
     if (weapon == Upgrade::Bow) mDoMtx_multVecZero(link->getLeftItemMatrix(), &a.position);
     cXyz delta = target - a.position;
-    if (weapon == Upgrade::Ball) {
+    if (weapon == Upgrade::Ball && !manual) {
         delta.y = 0;
         if (delta.abs() < 1.0f)
             delta = cXyz(cM_ssin(link->shape_angle.y), 0, cM_scos(link->shape_angle.y));
@@ -290,7 +291,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
         a.life = unsigned(std::ceil(s_run.radius(float(120 + 40 * a.hops))));
         if (initialTarget != kNone) {
             a.target=initialTarget; a.visited[a.visitedCount++]=initialTarget;
-        } else if (!next_boom_target(a, link, s_run.item_range(weapon))) return false;
+        } else if (!manual && !next_boom_target(a, link, s_run.item_range(weapon))) return false;
     }
     if (weapon == Upgrade::Ball) {
         // Reach must not expire the projectile before its outbound/return legs.
@@ -364,7 +365,9 @@ void update_item_attack(Attack& a, daAlink_c* link) {
         if (weapon == Upgrade::Boomerang && !a.returning) {
             auto* target = actor_by_id(a.target);
             if (shield) a.returning = true;
-            else if (!target || target->health <= 0 || (target->eyePos - a.position).abs() <= a.radius || (!a.hurricane && a.collider.ChkAtHit())) {
+            else if ((a.manualFlight ? a.travel>=a.limit : !target || target->health<=0 || (target->eyePos-a.position).abs()<=a.radius) ||
+                     (!a.hurricane && a.collider.ChkAtHit())) {
+                a.manualFlight=false;
                 if (a.hops && next_boom_target(a, link, s_run.boomerang_hop_range())) { --a.hops; a.collider.ResetAtHit(); }
                 else { a.returning = true; a.collider.ResetAtHit(); }
             }
@@ -386,7 +389,7 @@ void update_item_attack(Attack& a, daAlink_c* link) {
         if (weapon==Upgrade::Boomerang && a.hurricane) a.collider.ResetAtHit();
         if (a.returning) {
             cXyz delta = link->current.pos + cXyz(0, 70, 0) - a.position;
-            if (weapon == Upgrade::Ball) delta.y = 0; // Keep the launch height on both passes.
+            if (weapon == Upgrade::Ball && !a.manualFlight) delta.y = 0; // Keep the launch height on both passes.
             const float distance = delta.abs();
             if (distance < 65) { stop_attack(a); return; }
             a.velocity = delta * (55.0f / distance);

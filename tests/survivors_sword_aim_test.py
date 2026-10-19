@@ -63,7 +63,7 @@ struct Shape{cXyz center;float radius=30;
 struct Target{fopAc_ac_c actor;Shape shape;fopAc_ac_c* GetAc(){return &actor;}Shape* GetShapeAttr(){return &shape;}}targetObject;
 struct Server{unsigned mObjTgCount=0;std::array<Target*,1>mpObjTg{};}server;
 Server* dComIfG_Ccsp(){return &server;}
-struct Attack{bool active=true,aimPending=true;unsigned weapon=0;float aimSpread=0;cXyz position{0,65,0},velocity;};
+struct Attack{bool active=true,aimPending=true;unsigned weapon=0;float aimSpread=0,limit=0;cXyz position{0,65,0},velocity;};
 std::vector<Attack>s_attacks;
 '''
 main=r'''
@@ -71,6 +71,13 @@ void near(cXyz a,cXyz b,std::source_location site=std::source_location::current(
 void reset(){gyroX=gyroY=0;gyroActive=false;s_swordAim={};player={};cameraActor={};s_run.start(9);s_player=7;playing=arena=cameraPresent=true;
  busy=nativeAim=false;server={};s_attacks.clear();wallDistance=10000;enemy={};}
 int main(){
+ reset();for(unsigned i=0;i<unsigned(ManualAbility::Count);++i)assert(s_run.options.manual_aim[i]);
+ for(auto weapon:{Upgrade::Spin,Upgrade::JumpStrike,Upgrade::Wave,Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball,Upgrade::ShieldAttack,Upgrade::Shockwave}) {
+  assert(manual_skill(&player,weapon));s_run.options.manual_aim[unsigned(manual_ability(weapon))]=false;assert(!manual_skill(&player,weapon));
+ }
+ s_run.options.manual_aim[unsigned(ManualAbility::Sword)]=false;assert(!manual_sword(&player)&&manual_attack(&player));
+ assert(update_sword_aim_camera(&cameraActor.mCamera)); // Camera hold still works with all families disabled.
+
  reset();auto& camera=cameraActor.mCamera;const auto baseEye=camera.mEye,baseCenter=camera.mCenter;
  for(int i=0;i<100;++i){restore_sword_aim_camera(&camera);near(camera.mEye,baseEye);near(camera.mCenter,baseCenter);
   assert(update_sword_aim_camera(&camera));near(camera.mCenter,{60,170,0});near(camera.mEye,{60,170,-300});assert(player.mSight.drawn);}
@@ -93,10 +100,17 @@ int main(){
   assert(third_person_reticle_ray(&camera,y,fov,eye,forward));near(player.mSight.position,eye+forward*distance);
   const auto axis=camera.mCenter-camera.mEye;const float slope=(forward.y/forward.z-axis.y/axis.z);
   assert(y==0?std::abs(slope)<.001f:y*slope>0);
-  for(auto weapon:{Upgrade::Wave,Upgrade::Bow}) {
+  for(auto weapon:{Upgrade::Wave,Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball,Upgrade::Shockwave}) {
    s_attacks={Attack{}};s_attacks[0].weapon=unsigned(weapon);s_attacks[0].position={-25,145,30};
    resolve_manual_projectiles(&camera);assert(!s_attacks[0].aimPending);
-   const float speed=weapon==Upgrade::Bow?70.f:42.f;
+   if(weapon==Upgrade::Bombs) {
+    cXyz expected=player.mSight.position-s_attacks[0].position;const float distance=std::min(expected.abs(),s_run.item_range(weapon));expected.normalize();expected=s_attacks[0].position+expected*distance;
+    auto position=s_attacks[0].position,velocity=s_attacks[0].velocity;
+    for(int frame=0;frame<30;++frame){position=position+velocity;velocity.y-=1.4f;}
+    near(position,expected);assert(s_attacks[0].limit==30);continue;
+   }
+   if(weapon==Upgrade::Ball)assert(s_attacks[0].limit<=s_run.radius(900.f));
+   const float speed=weapon==Upgrade::Bow?70.f:weapon==Upgrade::Ball?40.f:weapon==Upgrade::Shockwave?45.f:42.f;
    const auto hit=s_attacks[0].position+s_attacks[0].velocity*((player.mSight.position-s_attacks[0].position).abs()/speed);
    near(hit,player.mSight.position);
    // A launched projectile cannot be redirected by subsequent camera changes.

@@ -67,10 +67,17 @@ Start with three hearts and automatic normal sword strikes. Sword Wave starts
 locked, like Spin Attack. Move, dodge and collect blue experience
 crystals while weapons attack automatically. Manual Jump remains available with
 your configured binding; arena exits are disabled. Pressing or holding the mapped
-sword button triggers ready, unlocked Spin Attack, Jump Strike, Sword Wave and Bow.
-Jump Strike keeps its nearby-enemy requirement and proc chance. All other skills,
-including Shield Attack/Shockwave, Boomerang, Bombs and Ball and Chain, retain automatic
-target gates, priorities and cooldowns even while the button is held. Native
+sword button aims all unlocked attack families at the reticle by default.
+The Settings **Manual aiming abilities** list independently controls Sword Attack,
+Spin Attack, Jump Strike, Sword Wave, Bow, Boomerang, Bombs, Ball and Chain,
+Shield Attack and Shockwave. Each switch defaults to on. Off keeps that family's
+automatic target gates and priorities even during a manual hold; on only overrides
+targeting during a tap/hold. Release resumes automatic attacks. These are next-run
+settings and never unlock skills or bypass cooldowns. Jump Strike retains its
+nearby-enemy requirement and proc chance, jumps in place and stays steerable.
+Spin remains centered on Link; close-range attacks retain their reach.
+Fire Arrows, Bomb Arrow, Fire Bomb, Fire Edge and Hurricane inherit their base
+weapon's targeting; auras and passive effects remain automatic. Native
 charged spin attacks remain suppressed. Holding uses the shared Dawnlight
 third-person shoulder camera and reticle without replacing Link's movement or
 attack procedure. Releasing, pausing, events, run resets and mode exit restore
@@ -85,9 +92,14 @@ image to L and makes L momentary for attack holds; B becomes lock-on.
 native gyro sensitivity/inversion. This run-local toggle is independent of the
 global item gyro enable setting. Stick orbit and normal movement remain available;
 sensor demand is shared with bullet time and released on leaving the view.
-Arrows and Sword Waves converge from their actual launch origins onto the rendered
-reticle before their first movement. Manual multishot keeps one central projectile;
-extra projectiles retain their fan, and in-flight projectiles never retarget.
+Directional projectiles converge from their actual launch origins onto the rendered
+reticle before their first movement. Bombs follow their ballistic arc to the aimed
+point within weapon range. Boomerangs keep their aimed first leg, then use earned
+automatic hops without revisiting crossed enemies. Manual Ball and Chain can aim
+vertically and returns to Link. Shield and Shockwave retain their shared cadence
+while honoring their separate target-selection switches. Manual Bow/Sword Wave
+multishot keeps one central projectile and its extra projectiles retain their fan;
+other manual multishots share the aimed point. In-flight projectiles never retarget.
 The Palace exterior uses the standard DungeonS gameplay camera base before
 Survivors distance scaling, avoiding the authored distant-camera preset stacking
 with the setting. Event, tag and native aiming cameras retain their own types.
@@ -651,8 +663,11 @@ Before merging/releasing, test on Android and desktop:
    Circle an enemy at full speed; verify facing tracks it through the hit window,
    a passing enemy does not steal the target, and walls/death release the lock.
    Check 130% base sword reach before buying Reach. Tap/hold the sword button
-   and verify only Spin, Jump Strike, Sword Wave and Bow react; Boomerang, Bombs,
-   Ball and Shield/Shockwave still need their normal targets. Check no native charge/spin
+   and verify all enabled attack families aim manually. Toggle each family off
+   individually and verify its automatic target gate, priorities and direction
+   while the others still follow the reticle. Test all-off and mixed selections,
+   shield/shockwave independently, aimed bomb arcs, vertical ball return and
+   boomerang/Hurricane first legs followed by earned hops. Check no native charge/spin
    appears on hold/release. Set Survivors Reticle Y to -40/0/+40 and verify the
    held shoulder view, centered wave/arrow with every multishot rank, nearby enemies,
    walls and camera movement. Confirm the global item-aim offset is unchanged.

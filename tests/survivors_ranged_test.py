@@ -71,25 +71,33 @@ constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
 struct Attack{bool active=false,returning=false;unsigned weapon=0,age=0,bowVolleySlot=20;uint64_t bowVolley=0;};std::deque<Attack>s_attacks(initial_projectile_slots);
 std::vector<cXyz>destinations;std::vector<Upgrade>shots;std::vector<float>spread;
 bool launch_item(daAlink_c*,Upgrade weapon,cXyz targetPosition,float angle=0,unsigned group=20,uint64_t volley=0,ActorId target=kNone,bool manual=false){
- assert(!manual||weapon==Upgrade::Bow);
+ assert(!manual||(s_run.options.manual_enabled(weapon)&&swordHeld));
  destinations.push_back(targetPosition);shotTargets.push_back(target);
  unsigned type=unsigned(weapon)-unsigned(Upgrade::Bow);
  auto& a=acquire_projectile(s_attacks,unsigned(weapon),item_projectile_begin(type),item_initial_slots(type));
  a.active=true;a.weapon=unsigned(weapon);a.bowVolleySlot=group;a.bowVolley=volley;shots.push_back(weapon);spread.push_back(angle);return true;}
 '''
+manual_source=(root/'src/survivors_manual_attack.inc').read_text()
+start=manual_source.index('bool manual_skill(')
+fixture+=manual_source[start:manual_source.index('\n}',start)+2]
 main=r'''
 void fresh(){targetCount=1;shotTargets.clear();targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
  s_attacks=std::deque<Attack>(initial_projectile_slots);shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;
  for(unsigned i=8;i<=11;++i)s_run.ranks[i]=1;}
 int main(){
- // Only Bow joins manual aiming; other item weapons preserve automatic targets.
- for(bool held:{false,true})for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}){
-  fresh();swordHeld=held;targetExists=false;
-  if(held&&weapon==Upgrade::Bow){destinations.clear();assert(queue_ranged(&player,weapon));assert(destinations[0].z==900&&destinations[0].y==140&&spread[0]==0);assert(!queue_ranged(&player,weapon));continue;}
+ // Each item independently opts into reticle aim or its original automatic gates.
+ for(bool enabled:{false,true})for(bool held:{false,true})for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}){
+  fresh();swordHeld=held;s_run.options.manual_aim[unsigned(manual_ability(weapon))]=enabled;targetExists=false;
+  if(held&&enabled){destinations.clear();assert(queue_ranged(&player,weapon));assert(destinations[0].z==900&&destinations[0].y==140&&spread[0]==0);assert(!queue_ranged(&player,weapon));continue;}
   assert(!queue_ranged(&player,weapon)&&!s_cooldowns[unsigned(weapon)]);
   targetExists=true;destinations.clear();assert(queue_ranged(&player,weapon));
   assert(destinations[0].x==targetDistance&&destinations[0].y==100&&destinations[0].z==0);
   assert(!queue_ranged(&player,weapon));
+ }
+ for(auto weapon:{Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}) {
+  fresh();swordHeld=true;targetExists=false;s_run.ranks[unsigned(Upgrade::Multishot)]=3;destinations.clear();
+  assert(queue_ranged(&player,weapon)&&destinations.size()==4);
+  for(const auto& target:destinations)assert(target.x==0&&target.y==140&&target.z==900);
  }
  swordHeld=false;
 

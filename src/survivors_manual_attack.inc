@@ -4,6 +4,12 @@ bool manual_attack(daAlink_c* link) {
     return link && fopAcM_GetID(link)==s_player && playable() &&
         s_run.phase==Phase::Running && (link->swordButton() || link->swordTrigger());
 }
+bool manual_skill(daAlink_c* link,Upgrade weapon) {
+    return s_run.options.manual_enabled(weapon)&&manual_attack(link);
+}
+bool manual_sword(daAlink_c* link) {
+    return s_run.options.manual_enabled(ManualAbility::Sword)&&manual_attack(link);
+}
 #include "survivors_sword_aim.inc"
 cXyz manual_direction(daAlink_c* link) {
     cXyz target,forward;

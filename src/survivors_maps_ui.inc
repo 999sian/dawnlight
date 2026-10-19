@@ -118,6 +118,31 @@ ModResult build_run_controls(UiElementHandle left, UiElementHandle right, unsign
 ModResult build_difficulty(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     return build_run_controls(left,right,0,4);
 }
+struct ManualAimControl {const char* label;ManualAbility ability;};
+std::array<ManualAimControl,10> s_manualAimControls{{
+    {"Sword Attack",ManualAbility::Sword},{"Spin Attack",ManualAbility::Spin},
+    {"Jump Strike",ManualAbility::JumpStrike},{"Sword Wave",ManualAbility::Wave},
+    {"Bow",ManualAbility::Bow},{"Boomerang",ManualAbility::Boomerang},
+    {"Bombs",ManualAbility::Bombs},{"Ball and Chain",ManualAbility::Ball},
+    {"Shield Attack",ManualAbility::ShieldAttack},{"Shockwave",ManualAbility::Shockwave}
+}};
+ModResult build_manual_aim_settings(UiElementHandle pane) {
+    auto result=svc_ui->pane_add_text(mod_ctx,pane,"Manual aiming abilities — on: follow the reticle while attacking; off: always use automatic targeting. All default to on. Unlocks, cooldowns and Jump Strike's nearby-enemy requirement still apply. Elemental perks inherit their weapon's aim; auras and passive effects stay automatic.",nullptr);
+    if(result!=MOD_OK)return result;
+    for(auto& setting:s_manualAimControls) {
+        UiControlDesc control=UI_CONTROL_DESC_INIT;control.kind=UI_CONTROL_TOGGLE;
+        control.label=setting.label;control.user_data=&setting;
+        control.get=[](ModContext*,void* data,UiControlValue* value) {
+            value->bool_value=s_options.manual_enabled(static_cast<ManualAimControl*>(data)->ability);
+        };
+        control.set=[](ModContext*,void* data,const UiControlValue* value) {
+            if(s_run.phase!=Phase::Ready||s_restart)return;
+            s_options.manual_aim[unsigned(static_cast<ManualAimControl*>(data)->ability)]=value->bool_value;
+        };
+        result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);if(result!=MOD_OK)return result;
+    }
+    return MOD_OK;
+}
 ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     auto result=build_run_controls(left,right,4,5);
     if(result!=MOD_OK)return result;
@@ -146,5 +171,6 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
     control.set=[](ModContext*,void*,const UiControlValue* value){
         if(s_run.phase==Phase::Ready&&!s_restart)s_options.gyro_aim=value->bool_value;
     };
-    return svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
+    result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
+    return result==MOD_OK?build_manual_aim_settings(right):result;
 }

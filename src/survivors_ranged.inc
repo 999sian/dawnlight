@@ -30,7 +30,7 @@ void ranged_anime(daAlink_c* link, u16 animation, unsigned ticks) {
 bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     if (!s_loot.ready || !playable() || !s_run.rank(weapon) || s_cooldowns[unsigned(weapon)]) return false;
     cXyz target;
-    const bool manual=weapon==Upgrade::Bow&&manual_attack(link);
+    const bool manual=manual_skill(link,weapon);
     if(manual) {
         cXyz forward;
         if(!sword_aim_target(link,target,forward))return false;
@@ -54,10 +54,10 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
         std::array<ActorId,4> chosen{};
         const float range=weapon==Upgrade::Ball ? std::min(s_run.item_range(weapon),s_run.radius(900.f)) : s_run.item_range(weapon);
         for (unsigned i=0; i<s_run.ranged_shots(); ++i) {
-            cXyz destination; ActorId id=kNone;
-            if (!nearest_item_target(link,destination,range,std::span<const ActorId>(chosen.data(),i),&id) &&
+            cXyz destination=target; ActorId id=kNone;
+            if (!manual && !nearest_item_target(link,destination,range,std::span<const ActorId>(chosen.data(),i),&id) &&
                 !nearest_item_target(link,destination,range,{},&id)) return false;
-            if (!launch_item(link,weapon,destination,0,20,0,id)) return false;
+            if (!launch_item(link,weapon,destination,0,20,0,id,manual)) return false;
             chosen[i]=id;
         }
     }

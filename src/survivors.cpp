@@ -325,7 +325,7 @@ struct Attack {
     bool active = false;
     unsigned life = 0, weapon = 0, age = 0;
     bool returning = false, exploding = false, greatSpin = false;
-    bool hurricane=false, bombArrow=false, detonated=false, aimPending=false;
+    bool hurricane=false, bombArrow=false, detonated=false, aimPending=false, manualFlight=false;
     float aimSpread=0;
     J3DModel* bombModel=nullptr;
     JKRSolidHeap* bombHeap=nullptr;
@@ -784,7 +784,7 @@ bool enemy_in_range(daAlink_c* link, float range) {
     return false;
 }
 void release_sword_wave(daAlink_c* link) {
-    const bool manual=s_waveManual||manual_attack(link);
+    const bool manual=s_run.options.manual_enabled(Upgrade::Wave)&&(s_waveManual||manual_skill(link,Upgrade::Wave));
     const auto direction = manual ? manual_direction(link) : target_direction(link);
     for (unsigned i=0; i<s_run.ranged_shots(); ++i) {
         const float angle=manual ? (i==0?0.f:float((i+1)/2)*(i%2?-1.f:1.f)*.20943951f) : s_run.wave_spread(i);
@@ -802,7 +802,7 @@ bool begin_sword_combo(daAlink_c* link) {
     // Native recovery can clear its counter before our cooldown expires. Keep
     // the automatic sequence across that gap, but let native code pick each
     // directional/lock-on/hit-dependent swing and the fourth-hit finisher.
-    s_manualSwing=manual_attack(link);
+    s_manualSwing=manual_sword(link);
     link->mComboCutCount = s_comboStep;
     struct Scope { Scope(){s_autoSwordCall=true;} ~Scope(){s_autoSwordCall=false;} } scope;
     if (!link->checkCutAction() || !normal_sword_proc(link)) return false;
@@ -858,7 +858,7 @@ void update_sword(daAlink_c* link) {
         s_comboStep = s_comboTimeout = 0;
         return;
     }
-    if (s_meleeCooldown || (!manual_attack(link) && !melee_target(link))) return;
+    if (s_meleeCooldown || (!manual_sword(link) && !melee_target(link))) return;
     if (!link->checkItemSwordEquip()) {
         if (link->mEquipItem != dItemNo_NONE_e) return;
         // The pending item ID can survive an interrupted upper animation.
@@ -870,8 +870,8 @@ void update_sword(daAlink_c* link) {
     // normal combo and its occasional Jump Strike movement.
     if (try_jump_strike(link)) return;
     auto* target = melee_target(link);
-    if (!target && !manual_attack(link)) return;
-    const auto direction = manual_attack(link) ? manual_direction(link) : target->current.pos - link->current.pos;
+    if (!target && !manual_sword(link)) return;
+    const auto direction = manual_sword(link) ? manual_direction(link) : target->current.pos - link->current.pos;
     link->shape_angle.y = cM_atan2s(direction.x, direction.z);
     link->current.angle.y = link->shape_angle.y;
     if (begin_sword_combo(link)) {

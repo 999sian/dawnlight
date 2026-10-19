@@ -38,7 +38,7 @@ void track_melee_facing(daAlink_c* link) {
     if (!s_trackMelee || s_swordAction != SwordAction::Normal || !normal_sword_proc(link) ||
         !link->mLinkAcch.ChkGroundHit() || !playable() || s_run.phase != Phase::Running ||
         fopAcM_GetID(link) != s_player) return;
-    if(manual_attack(link)||s_manualSwing) {
+    if(s_run.options.manual_enabled(ManualAbility::Sword)&&(manual_sword(link)||s_manualSwing)) {
         const auto delta=manual_direction(link);
         link->shape_angle.y=cM_atan2s(delta.x,delta.z);
         if(link->mProcID==daAlink_c::PROC_CUT_NORMAL)link->mProcVar2.field_0x300c=link->shape_angle.y;

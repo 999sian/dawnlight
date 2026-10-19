@@ -152,7 +152,7 @@ int main(){
  s_run.phase=Phase::Ready;s_options.camera_distance=300;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==300);
  before_run_camera(nullptr,cam,nullptr,nullptr);active=false;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==100);active=true;
  assert(build_difficulty(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
- assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK&&controls.size()==8);
+ assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK&&controls.size()==18);
  assert(controls[2].max==3);
  for(unsigned i=0;i<6;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_NUMBER&&c.get&&c.set);
   UiControlValue value=UI_CONTROL_VALUE_INIT;value.int_value=10000;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==c.max);
@@ -165,6 +165,16 @@ int main(){
   s_run.phase=Phase::Running;value.bool_value=(i==7);c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.bool_value==!(i==7));
   s_run.phase=Phase::Ready;s_restart=true;value.bool_value=(i==7);c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.bool_value==!(i==7));s_restart=false;
  }
+ for(unsigned i=8;i<18;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_TOGGLE&&c.user_data);
+  UiControlValue value=UI_CONTROL_VALUE_INIT;c.get(nullptr,c.user_data,&value);assert(value.bool_value);
+  value.bool_value=false;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);
+  assert(!s_options.manual_aim[i-8]);for(unsigned j=i-7;j<10;++j)assert(s_options.manual_aim[j]);
+  value.bool_value=true;s_run.phase=Phase::Running;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);
+  s_run.phase=Phase::Ready;s_restart=true;value.bool_value=true;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);s_restart=false;
+ }
+ s_run.start(1,s_options);for(bool enabled:s_run.options.manual_aim)assert(!enabled);
+ s_options.manual_aim.fill(true);for(bool enabled:s_run.options.manual_aim)assert(!enabled);
+ assert(!s_run.options.manual_enabled(Upgrade::Power)&&!s_run.options.manual_enabled(ManualAbility::Count));
  s_run.start(1,s_options);assert(s_run.options.switch_attack_lock&&!s_run.options.gyro_aim);
  s_run.phase=Phase::Ready;
  controls.clear();s_options.debug={4,10,1,1,5};s_run.options.debug=s_options.debug;

@@ -97,19 +97,30 @@ bool update_sword_aim_camera(dCamera_c* camera) {
 }
 
 // Player Execute precedes the camera's final view. Correct only fresh manual
-// waves/arrows before their first movement/collision frame, using that rendered reticle.
+// projectiles before their first movement/collision frame, using that rendered reticle.
 void resolve_manual_projectiles(dCamera_c* camera) {
     auto* link=daAlink_getAlinkActorClass();
     if(!link||!camera||camera->mPadID!=0||!playable()||s_run.phase!=Phase::Running||fopAcM_GetID(link)!=s_player)return;
-    if(std::none_of(s_attacks.begin(),s_attacks.end(),[](const auto& a){return a.active&&(a.weapon==unsigned(Upgrade::Wave)||a.weapon==unsigned(Upgrade::Bow))&&a.aimPending;}))return;
+    if(std::none_of(s_attacks.begin(),s_attacks.end(),[](const auto& a){return a.active&&a.aimPending;}))return;
     cXyz target,forward;if(!sword_aim_target(link,target,forward))return;
-    for(auto& a:s_attacks)if(a.active&&(a.weapon==unsigned(Upgrade::Wave)||a.weapon==unsigned(Upgrade::Bow))&&a.aimPending) {
+    for(auto& a:s_attacks)if(a.active&&a.aimPending) {
         a.aimPending=false;
         cXyz direction=target-a.position;
         if(direction.abs()<=.001f||direction.inprod(forward)<=0)direction=forward;
         else direction.normalize();
+        const auto weapon=static_cast<Upgrade>(a.weapon);
+        if(weapon==Upgrade::Bombs) {
+            const float distance=std::min((target-a.position).abs(),s_run.item_range(weapon));
+            a.velocity=direction*(distance/30.f);a.velocity.y+=1.4f*29.f/2.f;
+            a.limit=30;continue;
+        }
+        if(weapon==Upgrade::Boomerang||weapon==Upgrade::Ball) {
+            const float range=weapon==Upgrade::Ball?std::min(s_run.item_range(weapon),s_run.radius(900.f)):s_run.item_range(weapon);
+            a.limit=std::min((target-a.position).abs(),range);
+        }
+        const float speed=weapon==Upgrade::Bow?70.f:weapon==Upgrade::Ball?40.f:weapon==Upgrade::Shockwave?45.f:42.f;
         const float sine=std::sin(a.aimSpread),cosine=std::cos(a.aimSpread);
         a.velocity=cXyz(direction.x*cosine+direction.z*sine,direction.y,
-            direction.z*cosine-direction.x*sine)*(a.weapon==unsigned(Upgrade::Bow)?70.f:42.f);
+            direction.z*cosine-direction.x*sine)*speed;
     }
 }

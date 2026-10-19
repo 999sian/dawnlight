@@ -571,6 +571,17 @@ int main(){
     enemy.current.pos.z=428;assert(melee_target(&player)==&enemy);
     enemy.current.pos.z=430;assert(!melee_target(&player));
     s_meleeTarget=kNone;enemy.current.pos.z=365;assert(!melee_target(&player));
+    // Disabling individual skills keeps held attack from bypassing their target gates.
+    reset();s_enemies={};player.swordHeld=true;s_run.options.manual_aim[unsigned(ManualAbility::Sword)]=false;
+    update_sword(&player);assert(!player.normals);
+    s_run.ranks[0]=1;s_run.options.manual_aim[unsigned(ManualAbility::Wave)]=false;
+    update_sword_wave(&player);assert(!s_wavePending);
+    for(bool enabled:{false,true}) {
+        reset();player.swordHeld=true;s_run.master_sword=1;s_run.ranks[unsigned(Upgrade::JumpStrike)]=1;
+        s_run.options.manual_aim[unsigned(ManualAbility::JumpStrike)]=enabled;camera.mCamera.center={100,0,0};camera.mCamera.eye={};enemy.current.pos={0,0,150};
+        bool jumped=false;for(int attempt=0;attempt<100&&!jumped;++attempt)jumped=try_jump_strike(&player);
+        assert(jumped&&player.shape_angle.y==(enabled?0x4000:0));
+    }
     // Both a tap and a hold start owned melee with no target and retain cooldowns.
     for(bool hold:{false,true}){
         reset();s_enemies={};player.swordPressed=!hold;player.swordHeld=hold;

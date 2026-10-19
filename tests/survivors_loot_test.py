@@ -81,7 +81,7 @@ struct Collider {
     bool ChkAtHit(){return hit;}bool ChkAtShieldHit(){return shield;}
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
-struct Attack {bool aimPending=false;float aimSpread=0;
+struct Attack {bool manualFlight=false,aimPending=false;float aimSpread=0;
     unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0,arrowTargets=1;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
     bool bombArrow=false,hurricane=false,detonated=false;bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
@@ -402,6 +402,26 @@ int main(){
         }
         assert(count==18&&std::count(quadrants.begin(),quadrants.end(),true)>=3);
     }
+    // A manual boomerang keeps its reticle leg; Hurricane ignores incidental
+    // contacts. Earned later hops skip enemies already crossed on that leg.
+    for(bool hurricane:{false,true}) {
+        reset();s_run.ranks[unsigned(Upgrade::Boomerang)]=4;s_run.ranks[unsigned(Upgrade::Hurricane)]=hurricane;
+        Actor crossed,next;crossed.id=2;crossed.eyePos={50,70,450};next.id=3;next.eyePos={100,70,500};
+        actors={{2,&crossed},{3,&next}};s_enemies={};s_enemies[0]={2,true,false,false};s_enemies[1]={3,true,false,false};
+        assert(launch_item(&player,Upgrade::Boomerang,{0,70,420},0,20,0,kNone,true));
+        auto& a=s_attacks[item_projectile_begin(1)];assert(a.aimPending&&a.manualFlight&&a.target==kNone);
+        a.collider.hit=hurricane;update_item_attack(a,&player);
+        assert(a.manualFlight&&!a.returning&&a.target==kNone&&a.velocity.x==0&&a.velocity.z==42);
+        a.ballVictims[0]=2;a.ballVictimCount=1;a.travel=a.limit;
+        update_item_attack(a,&player);assert(!a.manualFlight&&!a.returning&&a.target==3&&a.velocity.x>0);
+    }
+    // Manual ball flight and retrieval retain vertical aim; automatic balls
+    // keep the established horizontal pass.
+    reset();s_run.ranks[unsigned(Upgrade::Ball)]=1;
+    assert(launch_item(&player,Upgrade::Ball,{0,350,400},0,20,0,kNone,true));
+    auto& aimedBall=s_attacks[item_projectile_begin(3)];assert(aimedBall.manualFlight&&aimedBall.velocity.y>0);
+    aimedBall.position={0,350,400};aimedBall.travel=aimedBall.limit;update_item_attack(aimedBall,&player);
+    assert(aimedBall.returning&&aimedBall.velocity.y<0);
     std::cout<<"Survivors loot: targeting, four projectile types, uncapped growth, placement and proximity behavior passed\n";
 }
 '''
