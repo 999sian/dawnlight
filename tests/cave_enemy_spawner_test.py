@@ -26,6 +26,7 @@ void available(){}
 struct Service{void (*create_actor)()=&available;}service;Service* svc_actor=&service;
 daAlink_c player;daAlink_c* link=&player;
 daAlink_c* daAlink_getAlinkActorClass(){return link;}
+bool inSurvivors=false;bool survivors_active(){return inSurvivors;}
 bool blocked=false;bool enemy_spawner_blocked_in_bossrush_hub(){return blocked;}
 ModResult install_test_hooks(){return MOD_OK;}
 float cM_ssin(s16 a){return std::sin(a*3.14159265359f/32768);}
@@ -57,6 +58,7 @@ int main(){
     // Old persisted indices still identify the same boundary entries.
     assert(std::strcmp(kEnemySpawnerProfileLabels[0],"Darknut")==0);
     assert(std::strcmp(kEnemySpawnerProfileLabels[32],"Stalfos")==0);
+    inSurvivors=true;int savedCalls=calls;assert(spawn_enemy_for_testing(33)==MOD_UNAVAILABLE&&calls==savedCalls);inSurvivors=false;
     assert(spawn_enemy_for_testing(-1)==MOD_INVALID_ARGUMENT);
     assert(spawn_enemy_for_testing(43)==MOD_INVALID_ARGUMENT);
     int oldCalls=calls;groundY=-1e9f;assert(spawn_enemy_for_testing(35)==MOD_UNAVAILABLE);

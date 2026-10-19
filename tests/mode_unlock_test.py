@@ -352,6 +352,8 @@ int main(){
                  s_greatSpinProjectile,s_fierceDeity,s_dualWield,s_stamina,s_sprint}){
         assert(mode_config_override(var,effective)&&effective==0);
     }
+    for(size_t i=0;i<s_staminaSettings.size();++i)
+        assert(mode_config_override(s_staminaSettings[i],effective)&&effective==kStaminaSettings[i].standard);
     assert(mode_config_override(s_healthScale,effective)&&effective==100);
     assert(mode_config_override(s_rJump,effective)&&effective==0);
     testSurvivorsDual=true;assert(mode_config_override(s_dualWield,effective)&&effective==1);testSurvivorsDual=false;

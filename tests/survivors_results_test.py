@@ -52,6 +52,14 @@ int main(){
  assert(table.find("No damage dealt this run.")!=std::string::npos&&table.find("00:00")!=std::string::npos);
  s_storeFailed=true;texts.clear();assert(build_results(1,2)==MOD_OK);
  assert(texts.back().find("could not be stored")!=std::string::npos);
+ for(bool cheats:{false,true})for(bool modded:{false,true}) {
+  s_run.options.allow_cheats=cheats;s_run.modded=modded;table=results_damage_rml();
+  assert((table.find("Cheated")!=std::string::npos)==cheats);
+  assert((table.find("Modded")!=std::string::npos)==modded);
+  if(cheats||modded)assert(table.find("sr-integrity")<table.find("sr-heading"));
+ }
+ assert(stylesheet.find(".sr-integrity { font-size: 13dp; color: #ff4545;")!=std::string::npos);
+ s_run.start(3);assert(!s_run.modded&&!s_run.options.allow_cheats);
  assert(result_number(1234567890)=="1,234,567,890");
 }
 '''

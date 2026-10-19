@@ -437,6 +437,10 @@ void copy_dawnlight_hud_settings(ModContext*, void*) {
 }
 
 void spawn_selected_enemy(ModContext*, void*) {
+    if(survivors_active()) {
+        push_toast("Enemy Spawn Unavailable", "Survivors controls its own enemy spawns.", "warning");
+        return;
+    }
     const ModResult result = spawn_enemy_for_testing(enemy_spawner_profile());
     if (result == MOD_UNAVAILABLE) {
         if (enemy_spawner_blocked_in_bossrush_hub()) {

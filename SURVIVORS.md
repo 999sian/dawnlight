@@ -73,6 +73,19 @@ also has a mirrored **Survivors** tab beside **Boss Rush**. Shared settings and
 difficulty persist across app restarts and support settings export/import.
 Edit outside a run; values are fixed when the run starts.
 
+**Allow Cheats** defaults to **off**. During a run, all settings in Dusklight's
+Cheats tab are temporarily suppressed, including attempts to enable them in the
+menu. Your saved cheat preferences return when the run ends, restarts or exits.
+Turning Allow Cheats on marks the result **Cheated** in small red text at the top,
+even if no individual cheat was used. A second red **Modded** label appears if
+any other mod was active during the run, including cosmetic or asset-only mods;
+disabling it later does not remove the label. Installed but inactive mods do not
+count. These labels do not change scores or progression.
+
+Survivors also suppresses Dawnlight's ordinary gameplay overrides and Enemy
+Spawner regardless of Allow Cheats. Its own talents, weapons and balancing
+remain in control; your ordinary Dawnlight preferences are retained.
+
 | Setting | Range | Default |
 | --- | --- | --- |
 | Enemy HP | ×1–×10, including elites | ×1 |

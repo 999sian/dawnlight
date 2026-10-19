@@ -97,6 +97,7 @@ int main(){
 }
 '''
 core=(root/'src/survivors.cpp').read_text()
+fixture+='\nvoid update_survivors_integrity(bool&){}\nvoid end_survivors_integrity(){}\n'
 finish=core[core.index('void finish(bool won) {'):core.index('#include "survivors_ending.inc"')]
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'

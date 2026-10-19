@@ -213,5 +213,13 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
         if(settings_editable()){s_options.gyro_aim=value->bool_value;store_option_config();}
     };
     result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
+    if(result!=MOD_OK)return result;
+    control.label="Allow Cheats";
+    control.help_rml="Allow Dusklight's Cheats settings during the next run. Marks its results Cheated, even if no cheat is used. Default: off.";
+    control.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=s_options.allow_cheats;};
+    control.set=[](ModContext*,void*,const UiControlValue* value){
+        if(settings_editable()){s_options.allow_cheats=value->bool_value;store_option_config();}
+    };
+    result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
     return result==MOD_OK?build_manual_aim_settings(right):result;
 }

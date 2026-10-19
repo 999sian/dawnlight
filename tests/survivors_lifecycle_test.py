@@ -161,6 +161,9 @@ unsigned xp=0;
 void add_orb(int,unsigned value){xp+=value;}
 unsigned rewards=0;
 void drop_reward(fopAc_ac_c*){++rewards;}
+void end_survivors_integrity(){}
+void update_survivors_integrity(bool&){}
+void begin_survivors_integrity(bool,bool&){}
 void finish(bool won){s_run.end(won);}
 std::set<ActorId> pending;
 std::unordered_map<ActorId,fopAc_ac_c*> actors;

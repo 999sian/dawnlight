@@ -1,4 +1,5 @@
 #include "survivors.hpp"
+#include "survivors_integrity.hpp"
 #include "d/d_door_param2.h"
 #include "config.hpp"
 #include "heroes_shade_encounter.hpp"
@@ -527,6 +528,7 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    end_survivors_integrity();
     reset_ending();
     s_hubMenu=HubMenu::None; s_hubSaveRequested=false; s_hubClosingWindow=0;
     s_hub=true; s_hubDeparture=s_hubDoorStarted=s_arrivingRun=s_allowHubDoor=false;
@@ -603,6 +605,8 @@ void finish(bool won) {
     if (s_resultsStored || (s_run.phase != Phase::Running && s_run.phase != Phase::Upgrade &&
         s_run.phase != Phase::TreasureChoice && s_run.phase != Phase::Treasure &&
         !(s_deathPending && s_run.phase==Phase::Defeat))) return;
+    update_survivors_integrity(s_run.modded);
+    end_survivors_integrity();
     s_run.end(won); clear_attacks(); retire_enemies();
     s_victory=s_deathPending=s_deathDismiss=false;
     // Only restore health after the native death presentation (or a voluntary
@@ -1334,6 +1338,7 @@ void begin_run() {
     s_bossHudTarget = kNone;
     clear_combat_feedback();
     s_run.start(seed, s_options, s_records.talents); reset_gale_charges();
+    begin_survivors_integrity(s_run.options.allow_cheats,s_run.modded);
     dComIfGs_setMaxLife(s_run.maximum_hearts*5); dComIfGs_setLife(s_run.maximum_hearts*4);
     s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
     s_resultsStored = false; s_cooldowns = {}; s_spawnCooldown = 30;
@@ -1453,6 +1458,7 @@ bool survivors_dark_link_active() {
         s_run.phase == Phase::Upgrade || s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Treasure);
 }
 void update_survivors() {
+    update_survivors_integrity(s_run.modded);
     cleanup_enemies();
     cleanup_pots(); cleanup_pickups();
     if (s_treasure.retiring) retire_treasure_actor();
@@ -1469,6 +1475,7 @@ void update_survivors() {
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
     if (s_restart) {
+        end_survivors_integrity();
         reset_ending();
         // Always use a scene reload: destroys old actors, pending spawns, collision,
         // damage animations and native drop actors before another run starts.
@@ -1522,7 +1529,8 @@ void update_survivors() {
         s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) open_window();
 }
 ModResult initialize_survivors(ModError* error) {
-    ModResult result = initialize_option_config();
+    ModResult result = initialize_survivors_integrity(error);
+    if(result==MOD_OK)result=initialize_option_config();
     if(result==MOD_OK)result=initialize_midna_dialog();
     if (result == MOD_OK) initialize_menu_handoff();
 #define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
@@ -1624,6 +1632,7 @@ ModResult initialize_survivors(ModError* error) {
     return MOD_OK;
 }
 void shutdown_survivors() {
+    shutdown_survivors_integrity();
     before_survivors_pad(nullptr,nullptr,nullptr,nullptr);
     s_active = false; reset_runtime(); cleanup_enemies(); cleanup_pots(); cleanup_pickups();
     s_midnaGraph.reset(); s_midnaPrompt.reset(); s_midnaOptions.reset(); s_midnaStart=0;

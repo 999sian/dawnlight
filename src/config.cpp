@@ -1210,6 +1210,10 @@ bool mode_config_override(ConfigVarHandle var, int64_t& value) {
     const auto setting = mode_setting_for_config(var);
     if (setting == ModeSetting::None) return false;
     if (survivors_active()) {
+        if (setting==ModeSetting::StaminaSettings) {
+            for(size_t i=0;i<s_staminaSettings.size();++i)
+                if(s_staminaSettings[i]==var){value=kStaminaSettings[i].standard;return true;}
+        }
         if (setting==ModeSetting::NoNormalHitInvulnerability) { value=1; return true; }
         if(survivors_mobility_override(setting,value))return true;
         switch (setting) {
@@ -1350,7 +1354,7 @@ bool fierce_deity_enabled() {
     return get_bool(s_fierceDeity, false);
 }
 
-bool dark_link_free_transform() { return get_bool(s_darkLinkFreeTransform, false); }
+bool dark_link_free_transform() { return !survivors_active() && get_bool(s_darkLinkFreeTransform, false); }
 ConfigVarHandle dark_link_free_transform_config_var() { return s_darkLinkFreeTransform; }
 
 FierceDeityVisual fierce_deity_visual() {
@@ -1363,6 +1367,7 @@ ConfigVarHandle dark_link_aura_config_var() { return s_darkLinkAura; }
 
 int dark_link_setting(DarkLinkSetting setting) {
     const auto& desc = kDarkLinkSettings[static_cast<size_t>(setting)];
+    if(survivors_active())return desc.standard;
     return get_int(s_darkLinkSettings[static_cast<size_t>(setting)], desc.standard, desc.min, desc.max);
 }
 ConfigVarHandle dark_link_setting_config_var(DarkLinkSetting setting) {

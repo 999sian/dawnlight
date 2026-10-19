@@ -1,4 +1,5 @@
 #include "enemy_spawner.hpp"
+#include "survivors.hpp"
 #include "process_actor.hpp"
 
 #include "save_state.hpp"
@@ -304,6 +305,7 @@ bool enemy_spawner_blocked_in_bossrush_hub() {
 }
 
 ModResult spawn_enemy_for_testing(int profileIndex) {
+    if (survivors_active()) return MOD_UNAVAILABLE;
     if (profileIndex < 0 ||
         static_cast<std::size_t>(profileIndex) >= kEnemySpawnerProfiles.size()) {
         return MOD_INVALID_ARGUMENT;

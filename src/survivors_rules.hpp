@@ -160,6 +160,7 @@ struct RunOptions {
     int reticle_y = 0;
     bool switch_attack_lock = false;
     bool gyro_aim = true;
+    bool allow_cheats = false;
     std::array<bool,unsigned(ManualAbility::Count)> manual_aim=[] {
         std::array<bool,unsigned(ManualAbility::Count)> enabled{};enabled.fill(true);return enabled;
     }();
@@ -184,6 +185,7 @@ struct Run {
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
     DamageTotals damage;
+    bool modded = false; // Sticky for this run, even if the extra mod is later disabled.
     RunOptions options;
     Talents talents;
     unsigned timed_elites = 0, guard_elites = 0;

@@ -4,6 +4,7 @@ window { background-color: #0c1210f5; }
 window content pane.survivors-results-main { flex: 1 1 69%; padding: 20dp; gap: 12dp; overflow: hidden auto; }
 window content pane.survivors-results-side { flex: 0 0 31%; padding: 20dp; gap: 12dp; overflow: hidden auto; background-color: #19221aee; }
 .sr-body { display: block; width: 100%; flex-shrink: 0; }
+.sr-integrity { font-size: 13dp; color: #ff4545; margin-bottom: 6dp; }
 .sr-heading { font-family: var(--font-family-heading); font-size: 32dp; color: #ffdc75; }
 .sr-subtitle { font-size: 17dp; color: #c4cebd; margin-bottom: 14dp; }
 .sr-metrics { display: flex; flex-wrap: wrap; gap: 8dp; margin-bottom: 18dp; }
@@ -83,6 +84,11 @@ std::string results_damage_rml() {
     const auto total=s_run.damage.total();
     const double seconds=std::max(1u,s_run.ticks)/double(ticks_per_second);
     std::string rml="<div class=\"sr-heading\">"+std::string(s_run.phase==Phase::Victory?"VICTORY":"DEFEAT")+"</div>";
+    if(s_run.options.allow_cheats || s_run.modded) {
+        const std::string labels=std::string(s_run.options.allow_cheats?"Cheated":"")+
+            (s_run.options.allow_cheats && s_run.modded?" &bull; ":"")+(s_run.modded?"Modded":"");
+        rml="<div class=\"sr-integrity\">"+labels+"</div>"+rml;
+    }
     rml+="<div class=\"sr-subtitle\">"+treasure_rml_escape(arenas[s_map].name)+" &bull; "+result_time(s_run.ticks)+"</div>";
     rml+="<div class=\"sr-metrics\">";
     const auto metric=[&](const char* label,const std::string& value){

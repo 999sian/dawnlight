@@ -63,6 +63,9 @@ struct Pickup{bool retiring=false;};unsigned pickupMoves=0;
 void drop_reward(fopAc_ac_c*){assert(false);}void add_orb(cXyz,unsigned){++orbs;}
 void drop_elite_chest(Enemy&,fopAc_ac_c*){++chests;}void queue_exp_magnet(Enemy&,fopAc_ac_c*){++magnets;}
 struct Wave{cXyz origin;float radius=0;unsigned samples=0,releases=0;void sample(){++samples;}void release(){++releases;}}s_victoryWave;
+void end_survivors_integrity(){}
+void update_survivors_integrity(bool&){}
+void begin_survivors_integrity(bool,bool&){}
 void finish(bool);void begin_victory(const cXyz&);void begin_defeat();void update_victory();
 // Game Over boundary: real native transition/animation methods are compiled below.
 enum{PROC_PLAYER_ANM_WAIT,PROC_DISP_FADE_OUT,PROC_DISP_WAIT,PROC_DEMO_FADE_IN,PROC_DEMO_FADE_OUT,
