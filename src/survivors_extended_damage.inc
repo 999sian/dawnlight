@@ -6,7 +6,23 @@ bool roster_owned(fopAc_ac_c* actor) {
     return in_arena() && enemy && extended_enemy(enemy->profile);
 }
 HookAction before_roster_native_damage(ModContext*,void* args,void*,void*) {
-    return roster_owned(mods::arg<fopAc_ac_c*>(args,0)) ? HOOK_SKIP_ORIGINAL : HOOK_CONTINUE;
+    auto* actor=mods::arg<fopAc_ac_c*>(args,0);
+    if(!roster_owned(actor))return HOOK_CONTINUE;
+    const auto* enemy=tracked(fopAcM_GetID(actor));
+    if(enemy->profile==fpcNm_E_DN_e && enemy->elite && enemy->initialized &&
+       !enemy->retiring && !enemy->credited && !enemy->dormant && !enemy->stagger &&
+       actor->health>0 && s_run.phase==Phase::Running && !transitioning()) {
+        auto* lizalfos=reinterpret_cast<e_dn_class*>(actor);
+        auto* link=daAlink_getAlinkActorClass();
+        // Native action() refreshes pl_dir immediately before damage_check(),
+        // then uses it for the fight-run spacing and attack selection. Express
+        // that decision in model units so the doubled body cannot push Link
+        // away before reaching the unscaled 300/350-unit thresholds. Recompute
+        // from world positions, never divide a previous normalized value.
+        if(lizalfos->action==3 && link && actor->scale.x>1.f)
+            lizalfos->pl_dir=(link->current.pos-actor->current.pos).absXZ()/actor->scale.x;
+    }
+    return HOOK_SKIP_ORIGINAL;
 }
 HookAction before_roster_cry(ModContext*,void* args,void* result,void*) {
     auto* actor=mods::arg<daE_GI_c*>(args,0);

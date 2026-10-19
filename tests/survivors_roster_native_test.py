@@ -48,7 +48,7 @@ struct NativeActor:fopAc_ac_c {
  enum {ACT_WAIT=1,ACT_MOVE=2,ACT_CHASEH=3};
  int mAction=0,mMode=0,mActionMode=0,mMoveMode=0,mActionMode1=0,action=0,mode=0,mActionPhase=0;
  int field_0x5b4=0,mCurAction=0,field_0x672=0,mCryTimer=0,combine_off_timer=0,mPlayerStunTimer=0,mPushButtonCount=0,field_0x6a0=0,animation=0;float speedF=0;
- float field_0x6d4=0,pl_range=0,field_0x6b8=0,mRecognizeDist=0,pl_recognize_dist=0,pl_search_range=0;
+ float field_0x6d4=0,pl_range=0,pl_dir=0,field_0x6b8=0,mRecognizeDist=0,pl_recognize_dist=0,pl_search_range=0;
  s16 angle_target=0,mTargetAngleY=0,mCurrentAngleYTarget=0,field_0x6c0=0;int timers[4]{};
  ActorId armorChildId=kNone;int field_0xb99=0,m_action=0,m_mode=0;
  dCcD_Sph mSphere,mSphere2,mSphere3,cc_sph[3],tate_sph,mCcSphs[3],mTateSph;
@@ -83,7 +83,7 @@ bool stageChange=false;bool transitioning(){return stageChange;}
 Run s_run;bool arena=true;bool in_arena(){return arena;}
 bool arena_aggro(fopAc_ac_c* a,int p){return arena&&a&&a->profile==p;}
 struct Player:fopAc_ac_c {dCcD_Sph mGuardAtCps;}player;
-Player* daAlink_getAlinkActorClass(){return &player;}ActorId s_player=100;
+bool playerPresent=true;Player* daAlink_getAlinkActorClass(){return playerPresent?&player:nullptr;}ActorId s_player=100;
 struct Effect {DamageQueue attribution;unsigned pending=0,damage=0,meleeSerial=0,fixedPending=0,fixedDamage=0;bool injected=false,critical=false,pendingCritical=false,pendingStagger=false,stagger=false;
  dCcD_Stts status;dCcD_Sph collider;};
 std::array<Effect,enemy_capacity> effects;
@@ -262,6 +262,40 @@ int main(){
  face_extended_enemy(&liz,e);assert(liz.shape_angle.y==0x4000);e.stagger=1;liz.shape_angle.y=7;face_extended_enemy(&liz,e);assert(liz.shape_angle.y==7);
  NativeActor chu;e.stagger=0;e.profile=fpcNm_E_SM2_e;chu.action=ACTION_COMBINE;engage_extended_enemy(&chu,e);
  assert(chu.combine_off_timer==30000&&chu.action==ACTION_ATTACK);
+ // The doubled Lizalfos must enter native battle spacing before body contact
+ // can keep it beyond the ordinary 300/350-unit battle/attack thresholds.
+ e.profile=fpcNm_E_DN_e;e.elite=true;e.initialized=true;e.retiring=e.credited=e.dormant=false;e.stagger=0;
+ liz.id=e.id;liz.profile=e.profile;liz.health=100;liz.scale={2,2,2};liz.action=3;liz.current.pos={0,0,0};
+ player.current.pos={0,0,590};s_run.phase=Phase::Running;arena=true;stageChange=false;
+ std::any lizArgs[]={static_cast<fopAc_ac_c*>(&liz)};
+ for(unsigned frame=0;frame<5;++frame){
+  liz.pl_dir=590;assert(before_roster_native_damage(nullptr,lizArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+  assert(liz.pl_dir==295&&liz.pl_dir<300&&liz.pl_dir<350);
+  before_roster_native_damage(nullptr,lizArgs,nullptr,nullptr);assert(liz.pl_dir==295); // Idempotent.
+ }
+ player.current.pos.z=650;before_roster_native_damage(nullptr,lizArgs,nullptr,nullptr);
+ assert(liz.pl_dir==325&&liz.pl_dir>=300&&liz.pl_dir<350);
+ player.current.pos.z=710;before_roster_native_damage(nullptr,lizArgs,nullptr,nullptr);assert(liz.pl_dir>350);
+ player.current.pos.z=590;
+ for(int reason=0;reason<13;++reason){
+  if(reason==0)e.elite=false;
+  if(reason==1)e.initialized=false;
+  if(reason==2)e.retiring=true;
+  if(reason==3)e.credited=true;
+  if(reason==4)e.dormant=true;
+  if(reason==5)e.stagger=1;
+  if(reason==6)liz.health=0;
+  if(reason==7)s_run.phase=Phase::Ready;
+  if(reason==8)stageChange=true;
+  if(reason==9)liz.action=5;
+  if(reason==10)liz.scale={1,1,1};
+  if(reason==11)arena=false;
+  if(reason==12)playerPresent=false;
+  liz.pl_dir=590;before_roster_native_damage(nullptr,lizArgs,nullptr,nullptr);assert(liz.pl_dir==590);
+  e.elite=e.initialized=true;e.retiring=e.credited=e.dormant=false;e.stagger=0;liz.health=100;
+  s_run.phase=Phase::Running;stageChange=false;liz.action=3;liz.scale={2,2,2};arena=true;playerPresent=true;
+ }
+ liz.id=kNone;liz.pl_dir=590;assert(before_roster_native_damage(nullptr,lizArgs,nullptr,nullptr)==HOOK_CONTINUE&&liz.pl_dir==590);
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
