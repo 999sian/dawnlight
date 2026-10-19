@@ -11,6 +11,9 @@ source = (root/'src/survivors_powerups.inc').read_text()
 # Verify the unused ID and texture index against the pinned game's actual tables.
 items = (sdk/'include/d/d_item_data.h').read_text()
 assert '/* 0x92 */ dItemNo_NOENTRY_146_e' in items
+for number, name in [('22', 'UTAWA_HEART'), ('01', 'GREEN_RUPEE'), ('02', 'BLUE_RUPEE'),
+                     ('04', 'RED_RUPEE'), ('05', 'PURPLE_RUPEE'), ('06', 'ORANGE_RUPEE')]:
+    assert f'/* 0x{number} */ dItemNo_{name}_e' in items
 assert 'dRes_INDEX_ITEMICON_BTI_NI_ITEM_ICON_MAKIMONO_e=0x3D' in (sdk/'assets/GZ2E01/res/Layout/itemicon.h').read_text()
 collect = (sdk/'src/d/d_menu_collect.cpp').read_text()
 for name, end in [('wait_proc', 'pointerWait'), ('pointerActivateCurrent', 'save_open_init')]:
@@ -135,13 +138,29 @@ int main(){
  for(auto& [id,e]:elements){
    if(e.css=="survivors-treasure-card")++cards;
    if((e.kind=="button"&&e.css!="survivors-card-banish"))buttons.push_back(&e);
-   if(e.kind=="rml")assert(e.text.find(kPowerupScrollIcon)!=std::string::npos&&e.text.find("survivors-treasure-delta")!=std::string::npos);
+   if(e.kind=="rml"){
+     const bool heart=e.text.find("Heart Container")!=std::string::npos;
+     assert(e.text.find(heart?"item://item/22":kPowerupScrollIcon)!=std::string::npos);
+     if(heart)assert(e.text.find(kPowerupScrollIcon)==std::string::npos);
+     assert(e.text.find("survivors-treasure-delta")!=std::string::npos);
+   }
  }
  assert(cards==3&&buttons.size()==3&&!elements.at(2).visible&&s_run.random==rng);
  assert(s_run.rank(Upgrade::Power)==0&&lifeMax==15&&money==100);
  buttons[1]->pressed(nullptr,buttons[1]->data);
  assert(s_run.rank(Upgrade::Heart)==1&&s_run.rank(Upgrade::Power)==0&&lifeMax==20&&closed==1);
  buttons[1]->pressed(nullptr,buttons[1]->data);assert(lifeMax==20&&closed==1);
+ // Rupee cards use distinct native colors for all five rarities.
+ const char* rupeeIcons[]={"item://item/01","item://item/02","item://item/04","item://item/05","item://item/06"};
+ for(unsigned r=0;r<5;++r){
+   fresh();s_run.phase=Phase::Upgrade;s_run.offers.fill(Upgrade::Rupees);
+   s_run.offer_rarities.fill(Rarity(r));assert(build_upgrade_choices(1,2)==MOD_OK);
+   unsigned icons=0;
+   for(const auto& [id,e]:elements)if(e.kind=="rml"){
+     assert(e.text.find(rupeeIcons[r])!=std::string::npos&&e.text.find(kPowerupScrollIcon)==std::string::npos);++icons;
+   }
+   assert(icons==3&&money==100);
+ }
  // All upgrade kinds produce a valid preview and don't mutate the live run.
  for(unsigned i=0;i<unsigned(Upgrade::Count);++i){
    fresh();s_run.phase=Phase::Upgrade;s_run.shield=1;s_run.red_potion=true;s_run.master_sword=1;s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;

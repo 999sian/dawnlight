@@ -1105,7 +1105,7 @@ void after_draw(ModContext*, void*, void*, void*) {
     }
     for (const auto& drop:s_expMagnets) {
         if (!drop.active) continue;
-        cXyz size(50,80,50); csXyz angle(0,static_cast<s16>(s_run.ticks*300),0);
+        cXyz size(25,40,25); csXyz angle(0,static_cast<s16>(s_run.ticks*300),0);
         cXyz pos=drop.position+cXyz(0,8*cM_ssin(s16(s_run.ticks*700)),0);
         dDbVw_drawCubeOpa(pos,size,angle,GXColor{255,210,45,255});
     }

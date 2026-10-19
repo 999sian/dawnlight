@@ -5,6 +5,18 @@
 constexpr u8 kPowerupScrollItem = dItemNo_NOENTRY_146_e;
 constexpr int kPowerupScrollTexture = 0x3d; // ITEMICON_BTI_NI_ITEM_ICON_MAKIMONO
 constexpr const char* kPowerupScrollIcon = "item://item/92?dawnlight-survivors-powerup";
+const char* powerup_icon(Upgrade upgrade, Rarity rarity) {
+    // Native full Heart Container (UTAWA_HEART), not a piece or recovery heart.
+    if (upgrade == Upgrade::Heart) return "item://item/22";
+    if (upgrade == Upgrade::Rupees) {
+        // Item IDs preserve the native layered rupee colors in the icon cache:
+        // Common green, Uncommon blue, Rare red, Epic purple, Legendary orange.
+        constexpr std::array icons{"item://item/01", "item://item/02", "item://item/04",
+                                   "item://item/05", "item://item/06"};
+        return icons[std::min(unsigned(rarity), unsigned(icons.size() - 1))];
+    }
+    return kPowerupScrollIcon;
+}
 HookAction before_powerup_icon(ModContext*, void* args, void*, void*) {
     if (in_arena() && (s_run.phase == Phase::Upgrade || s_powerupsRequested || s_powerupsWindow) &&
         mods::arg<u8>(args, 1) == kPowerupScrollItem && mods::arg<int>(args, 10) == -1)
@@ -31,7 +43,7 @@ ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
         if (!preview.choose(i)) continue;
         const auto upgrade = s_run.offers[i];
         const auto rarity = s_run.offer_rarities[i];
-        std::string rml = choice_rml_start(kPowerupScrollIcon, preview.upgrade_name(upgrade), rarity);
+        std::string rml = choice_rml_start(powerup_icon(upgrade, rarity), preview.upgrade_name(upgrade), rarity);
         rml += "<div class=\"survivors-treasure-effect\">" + treasure_rml_escape(descriptions[unsigned(upgrade)]) + "</div>";
         for (const auto& change : upgrade_changes(upgrade, s_run, preview, rarity))
             rml += "<div class=\"survivors-treasure-change\">" + treasure_rml_escape(change.label) +
