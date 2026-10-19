@@ -184,8 +184,14 @@ DEFINE_HOOK(&fpcLf_Draw, SurvivorsTreasureDraw);
 DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
 DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
-constexpr auto kSurvivorsChargeCheck=static_cast<void (daAlink_c::*)()>(&daAlink_c::checkCutTurnCharge);
-DEFINE_HOOK(kSurvivorsChargeCheck, SurvivorsManualCharge);
+// Select the non-const overload explicitly. MSVC crashes while materializing
+// its cast member pointer; the qualified display name also matches the const
+// virtual query, so use the exact platform ABI symbol for this one hook.
+#ifdef _WIN32
+DEFINE_HOOK_SYMBOL("?checkCutTurnCharge@daAlink_c@@QEAAXXZ", void(daAlink_c*), SurvivorsManualCharge);
+#else
+DEFINE_HOOK_SYMBOL("_ZN9daAlink_c18checkCutTurnChargeEv", void(daAlink_c*), SurvivorsManualCharge);
+#endif
 DEFINE_HOOK(&daAlink_c::procCutTurnChargeInit, SurvivorsChargeInit);
 DEFINE_HOOK(&daAlink_c::procCutTurnMoveInit, SurvivorsChargeMoveInit);
 DEFINE_HOOK(&daAlink_c::procCutTurnInit, SurvivorsNativeSpin);
