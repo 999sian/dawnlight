@@ -63,6 +63,8 @@ jobs:
           python3 tests/survivors_encounters_test.py
           python3 tests/survivors_bosses_test.py
           python3 tests/survivors_boss_specials_test.py
+          python3 tests/survivors_enemy_hits_test.py
+          CXX=clang++ python3 tests/survivors_enemy_hits_test.py
           python3 tests/survivors_enemy_types_test.py
           python3 tests/survivors_pots_test.py
           python3 tests/survivors_ground_test.py

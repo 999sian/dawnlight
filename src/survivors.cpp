@@ -11,6 +11,7 @@
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
 #include "survivors_rules.hpp"
+#include "survivors_enemy_hits.hpp"
 #include "survivors_projectiles.hpp"
 #include "survivors_roster.hpp"
 #include "survivors_items.hpp"
@@ -132,6 +133,7 @@
 #include <memory>
 #include <span>
 #include <optional>
+#include <unordered_map>
 
 namespace dawnlight {
 namespace {
@@ -440,6 +442,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_enemy_types.inc"
 #include "survivors_enemy_balance.inc"
 #include "survivors_enemy_arrows.inc"
+#include "survivors_enemy_hits.inc"
 #include "survivors_collision.inc"
 #include "survivors_elite_positions.inc"
 #include "survivors_maps.inc"
@@ -552,6 +555,7 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    s_enemyHitSources.clear(); s_enemyContactFrames.clear();
     stop_survivors_music();
     end_survivors_integrity();
     reset_ending();
@@ -1383,6 +1387,7 @@ void select_upgrade(ModContext*, void* data) {
 }
 void begin_run() {
     if (s_run.phase != Phase::Ready || !s_arenaMeshReady || s_restart || s_progressSaving) return;
+    s_enemyHitSources.clear(); s_enemyContactFrames.clear();
     reset_ending();
     load_option_config();
     close_window(); clear_attacks(); clear_loot(); prepare_save();
@@ -1629,7 +1634,10 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBulblinHit, before_bulblin_hit); POST(SurvivorsBulblinHit, after_bulblin_hit);
     PRE(SurvivorsBulblinAggro, before_bulblin_aggro);
     PRE(SurvivorsEnemyArrow, before_enemy_arrow); POST(SurvivorsEnemyArrow, after_enemy_arrow);
+    PRE(SurvivorsConcurrentHit, before_enemy_attack_contact); POST(SurvivorsConcurrentHit, after_enemy_attack_contact);
     PRE(SurvivorsConcurrentHit, before_concurrent_hit);
+    PRE(SurvivorsProcess, before_enemy_attack_process);
+    POST(SurvivorsEnemyArrow, after_enemy_attack_spawn);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
     PRE(SurvivorsBokoblinTargets, before_bokoblin_targets);
     PRE(SurvivorsRatRecovery, before_rat_recovery);

@@ -1287,3 +1287,25 @@ and `after.json` preserve these three results, including diagnostics on failure.
 The original IPA and downloadable mod bundle remain unchanged. The reports
 catch iOS hook preparation problems that a successful C++ build alone would not
 find; they do not replace a signed-app installation or in-game test.
+
+
+### One incoming hit per boss/elite attack use (PR #140)
+
+Each boss/elite attack has one accepted contact against Link. Extra weapon/body
+colliders, subsequent active frames, leaving/re-entering the hitbox and looping
+animations do not grant more contacts. Native block/dodge is evaluated for that
+contact once. New attack uses and different attackers remain independent; there
+is no global player immunity window. Damage amounts and cooldowns are unchanged.
+
+Darknut's repeated heavy-sword throw has a separate budget from his simultaneous
+melee attack and renews for each 1.5-second throw. Death Sword's two magic orbs
+share their cast even if his next melee action begins. Stallord/Phantom Zant
+projectiles and nested portals retain their original cast, and Ganondorf's five
+ghost riders share one summon. Carrier claw strikes and its rider's individual
+bow shots remain independent. Helmasaur armor follows each dash; Darkhammer's
+ball shares one outbound/return throw, separate from his sustained spin.
+
+The adapter reuses existing native hooks and clears ownership at actor deletion
+and run reset. GCC/Clang production-adapter regressions cover repeat overlap,
+next uses, simultaneous attacks, persistent projectiles and lifecycle. Linux
+module/package build passes; in-game confirmation remains outstanding.
