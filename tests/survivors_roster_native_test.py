@@ -279,6 +279,31 @@ int main(){
  assert(before_roster_bubble_search(nullptr,bubbleArgs,&seen,nullptr)==HOOK_SKIP_ORIGINAL&&seen);
  bubbleArgs[1]=200.f;assert(before_roster_bubble_search(nullptr,bubbleArgs,&seen,nullptr)==HOOK_CONTINUE);
  arena=false;assert(before_roster_search(nullptr,searchArgs,&found,nullptr)==HOOK_CONTINUE);arena=true;
+ // Helmasaur and Helmasaurus commit to native dash headings. Test before
+ // and after crossing Link: retargeting at either movement boundary would
+ // reverse the charge and trap its attack collider in Link's model.
+ for(auto species:{Species::Helmasaur,Species::Helmasaurus})for(bool elite:{false,true}) {
+  NativeActor runner;runner.profile=fpcNm_E_MM_e;runner.argument=species==Species::Helmasaurus?1:0;
+  e.profile=runner.profile;e.species=unsigned(species);e.stagger=0;e.elite=elite;
+  const float size=(runner.argument==1?2.5f:1.f)*(elite?2.f:1.f);runner.scale={size,size,size};
+  player.current.pos={0,0,0};runner.action=1;
+  for(int mode=0;mode<=5;++mode) {
+   runner.mode=mode;runner.current.angle.y=123;runner.shape_angle.y=77;
+   runner.current.pos={100,0,100};face_extended_enemy(&runner,e);
+   assert(runner.current.angle.y==123&&runner.shape_angle.y==77);
+  }
+  runner.mode=3;runner.current.angle.y=runner.shape_angle.y=0;
+  runner.current.pos={0,0,-150*size};const float step=(runner.argument==1?8.f:15.f)*size;
+  for(int frame=0;frame<70;++frame) {
+   face_extended_enemy(&runner,e);assert(runner.current.angle.y==0);
+   runner.current.pos.z+=step; // Native forward charge, including scale.
+   face_extended_enemy(&runner,e);assert(runner.current.angle.y==0&&runner.shape_angle.y==0);
+  }
+  assert(runner.current.pos.z>150*size); // Runs fully clear, never turns back at contact.
+  runner.action=0;runner.current.pos={100,0,0};face_extended_enemy(&runner,e);
+  assert(runner.current.angle.y==-0x4000); // Normal acquisition still turns toward Link.
+ }
+ player.current.pos={100,0,0};e.species=0;e.elite=false;
  // Acquisition changes no real player distances and excludes heavy-hit stagger.
  NativeActor liz;e.profile=fpcNm_E_DN_e;e.stagger=0;engage_extended_enemy(&liz,e);assert(liz.action==3&&liz.pl_range>100000);
  assert(extended_locomotion(&liz,e.profile));liz.action=5;assert(!extended_locomotion(&liz,e.profile));

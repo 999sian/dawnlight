@@ -129,6 +129,11 @@ void face_extended_enemy(fopAc_ac_c* actor,const Enemy& enemy) {
     if(!extended_enemy(enemy.profile)||enemy.stagger || enemy.profile==fpcNm_B_DS_e ||
        enemy.profile==fpcNm_E_ZH_e || enemy.profile==fpcNm_E_YC_e ||
        enemy.species>=unsigned(Species::KingBulblin))return;
+    // Both Helmasaur variants lock target_ya during native ACTION_DASH (1).
+    // Preserve that heading through wind-up, rush and braking: close-range
+    // facing runs before and after movement and would otherwise turn the rush
+    // back into Link every frame after crossing him, trapping its hit volume.
+    if(enemy.profile==fpcNm_E_MM_e && reinterpret_cast<e_mm_class*>(actor)->action==1)return;
     auto* link=daAlink_getAlinkActorClass();if(!link)return;
     const cXyz delta=link->current.pos-actor->current.pos;
     if(delta.absXZ()<1||delta.absXZ()>400*std::max(1.f,actor->scale.x)||std::abs(delta.y)>250*std::max(1.f,actor->scale.y))return;

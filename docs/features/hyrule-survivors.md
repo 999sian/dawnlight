@@ -1230,3 +1230,15 @@ the results-to-save handoff. The native save process stays globally unpaused:
 its deferred initializer explicitly waits for the pause flag to be clear.
 Survivors actors, HUD and gameplay menu entry points use their targeted modal
 gates while the save dialog and its navigation continue running.
+
+
+### Helmasaur / Helmasaurus charge follow-through
+
+The native dash sequence retains its committed heading, including wind-up,
+rush, braking and wall recovery. Survivors close-range facing no longer snaps
+these enemies back toward Link before/after movement. With Enemy Collision off,
+they therefore run through and clear Link instead of oscillating inside his
+model. Both variants and normal/elite sizes use the same fix. Terrain handling,
+normal target acquisition, damage and no-normal-hit-invulnerability rules remain
+unchanged. Regression coverage checks heading preservation on both sides of
+Link and complete traversal of his position.
