@@ -10,6 +10,24 @@ namespace dusk { using config::ConfigVar; }
 // Keep the Cheats enum types exact without pulling in the native UI headers.
 namespace dusk { enum class AlwaysGreatspinMode : u8; enum class MagicArmorMode : u8; }
 
+// These private host methods are absent from the SDK link stubs on Apple/Windows.
+// Resolve their actual host addresses just like GetConfigVar; keep the bridge
+// definitions hidden in this module so no native symbol is interposed.
+namespace {
+using NativeHasSubscribers=bool (*)(const dusk::config::ConfigVarBase*);
+using NativeNotifyChanged=void (*)(dusk::config::ConfigVarBase*,const void*);
+NativeHasSubscribers s_nativeHasSubscribers=nullptr;
+NativeNotifyChanged s_nativeNotifyChanged=nullptr;
+}
+namespace dusk::config {
+bool ConfigVarBase::has_subscribers() const {
+    return s_nativeHasSubscribers && s_nativeHasSubscribers(this);
+}
+void ConfigVarBase::notify_changed(const void* previous) {
+    if(s_nativeNotifyChanged)s_nativeNotifyChanged(this,previous);
+}
+}
+
 namespace dawnlight {
 namespace {
 using namespace dusk::config;
@@ -55,7 +73,9 @@ bool other_mod_active() {
 }
 }
 ModResult initialize_survivors_integrity(ModError* error) {
-    if(!resolve("dusk::config::GetConfigVar",s_get) ||
+    if(!resolve("dusk::config::ConfigVarBase::has_subscribers",s_nativeHasSubscribers) ||
+       !resolve("dusk::config::ConfigVarBase::notify_changed",s_nativeNotifyChanged) ||
+       !resolve("dusk::config::GetConfigVar",s_get) ||
        !resolve("dusk::config::subscribe",s_subscribe) ||
        !resolve("dusk::config::unsubscribe",s_unsubscribe) ||
        !resolve("dusk::mods::ModLoader::instance",s_loader))
@@ -96,5 +116,6 @@ void shutdown_survivors_integrity() {
     for(auto& cheat:s_bools)cheat={};
     s_spin={};s_armor={};s_speedrun=nullptr;
     s_loader=nullptr;s_get=nullptr;s_subscribe=nullptr;s_unsubscribe=nullptr;
+    s_nativeHasSubscribers=nullptr;s_nativeNotifyChanged=nullptr;
 }
 }
