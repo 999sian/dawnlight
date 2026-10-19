@@ -1,4 +1,5 @@
 #include "survivors.hpp"
+#include "aim_hooks.hpp"
 #include "combat_meter.hpp"
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
@@ -267,6 +268,10 @@ std::array<unsigned, unsigned(Upgrade::Rupees)> s_cooldowns{};
 void clear_loot();
 void clear_locomotion();
 void clear_attacks();
+void clear_sword_aim();
+void restore_sword_aim_camera(dCamera_c*);
+bool update_sword_aim_camera(dCamera_c*);
+void resolve_manual_waves(dCamera_c*);
 void interrupt_auto_actions(daAlink_c*);
 void finish(bool won);
 void replay(ModContext*, void*);
@@ -317,7 +322,8 @@ struct Attack {
     bool active = false;
     unsigned life = 0, weapon = 0, age = 0;
     bool returning = false, exploding = false, greatSpin = false;
-    bool hurricane=false, bombArrow=false, detonated=false, manualFlight=false;
+    bool hurricane=false, bombArrow=false, detonated=false, aimPending=false;
+    float aimSpread=0;
     J3DModel* bombModel=nullptr;
     JKRSolidHeap* bombHeap=nullptr;
     float effectBaseRadius = 260.f;
@@ -400,6 +406,7 @@ void stop_attack(Attack& a) {
     a.collider.OffAtSetBit(); a.collider.ResetAtHit();
 }
 void clear_attacks() {
+    clear_sword_aim();
     clear_jump_effects();
     s_meleeTarget = kNone; s_trackMelee = false;
     cancel_ranged();
@@ -692,7 +699,6 @@ void update_spawns(daAlink_c* link) {
 }
 #include "survivors_manual_attack.inc"
 cXyz target_direction(daAlink_c* link) {
-    if(manual_attack(link))return manual_direction(link);
     float nearest = 1600 * 1600;
     cXyz result(cM_ssin(link->shape_angle.y), 0, cM_scos(link->shape_angle.y));
     const cXyz origin = link->current.pos + cXyz(0, 70, 0);
@@ -711,9 +717,10 @@ cXyz target_direction(daAlink_c* link) {
     return result;
 }
 #include "survivors_spin_effects.inc"
-void launch(daAlink_c* link, unsigned weapon, cXyz direction) {
+void launch(daAlink_c* link, unsigned weapon, cXyz direction, bool manual, float spread) {
     auto& a = acquire_projectile(s_attacks, weapon, 0, 8);
     a.weapon = weapon; a.life = 35; a.ballVictimCount = 0;
+    a.aimPending=manual;a.aimSpread=spread;
     a.position = link->current.pos + cXyz(0, 65, 0);
     a.velocity = direction * 42.0f;
     a.greatSpin = s_run.great_spin(Upgrade::Wave);
@@ -773,11 +780,13 @@ bool enemy_in_range(daAlink_c* link, float range) {
     return false;
 }
 void release_sword_wave(daAlink_c* link) {
-    const auto direction = s_waveManual ? manual_direction(link) : target_direction(link);
+    const bool manual=s_waveManual||manual_attack(link);
+    const auto direction = manual ? manual_direction(link) : target_direction(link);
     for (unsigned i=0; i<s_run.ranged_shots(); ++i) {
-        const float angle=s_run.wave_spread(i), sine=std::sin(angle), cosine=std::cos(angle);
+        const float angle=manual ? (i==0?0.f:float((i+1)/2)*(i%2?-1.f:1.f)*.20943951f) : s_run.wave_spread(i);
+        const float sine=std::sin(angle), cosine=std::cos(angle);
         launch(link,0,cXyz(direction.x*cosine+direction.z*sine,direction.y,
-                          direction.z*cosine-direction.x*sine));
+                          direction.z*cosine-direction.x*sine),manual,angle);
     }
 }
 bool normal_sword_proc(daAlink_c* link) {
@@ -908,6 +917,7 @@ void new_melee_swing() { ++s_meleeSerial; }
 
 void update_weapons(daAlink_c* link) {
     for (auto& a : s_attacks) {
+        a.aimPending=false;
         if (!a.active) continue;
         a.status.Move();
         if (a.weapon >= unsigned(Upgrade::Bow) && a.weapon != unsigned(Upgrade::Shockwave)) { update_item_attack(a, link); continue; }

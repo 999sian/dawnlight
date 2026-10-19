@@ -119,5 +119,15 @@ ModResult build_difficulty(ModContext*,UiWindowHandle,UiElementHandle left,UiEle
     return build_run_controls(left,right,0,4);
 }
 ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
-    return build_run_controls(left,right,4,5);
+    auto result=build_run_controls(left,right,4,5);
+    if(result!=MOD_OK)return result;
+    UiControlDesc control=UI_CONTROL_DESC_INIT;
+    control.kind=UI_CONTROL_NUMBER;control.label="3rd Person Reticle Y";
+    control.min=-40;control.max=40;control.step=1;
+    control.help_rml="Moves the sword-aim reticle vertically in Survivors only. Positive values move it up; negative values move it down.";
+    control.get=[](ModContext*,void*,UiControlValue* value){value->int_value=s_options.reticle_y;};
+    control.set=[](ModContext*,void*,const UiControlValue* value){
+        if(s_run.phase==Phase::Ready&&!s_restart)s_options.reticle_y=int(std::clamp<int64_t>(value->int_value,-40,40));
+    };
+    return svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
 }

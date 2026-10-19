@@ -4,16 +4,16 @@ bool manual_attack(daAlink_c* link) {
     return link && fopAcM_GetID(link)==s_player && playable() &&
         s_run.phase==Phase::Running && (link->swordButton() || link->swordTrigger());
 }
+#include "survivors_sword_aim.inc"
 cXyz manual_direction(daAlink_c* link) {
-    if(auto* camera=dComIfGp_getCamera(0)) {
-        const cXyz delta=camera->mCamera.Center()-camera->mCamera.Eye();
+    cXyz target,forward;
+    if(sword_aim_target(link,target,forward)) {
+        const cXyz delta=target-link->current.pos-cXyz(0,65,0);
         const float length=delta.abs();
-        if(std::isfinite(length)&&length>0.001f)return delta*(1.f/length);
+        if(std::isfinite(length)&&length>.001f&&delta.inprod(forward)>0)return delta*(1.f/length);
+        return forward;
     }
     return cXyz(cM_ssin(link->shape_angle.y),0,cM_scos(link->shape_angle.y));
-}
-cXyz manual_target(daAlink_c* link,float range) {
-    return link->current.pos+cXyz(0,70,0)+manual_direction(link)*range;
 }
 HookAction before_manual_charge(ModContext*,void* args,void*,void*) {
     auto* link=mods::arg<daAlink_c*>(args,0);

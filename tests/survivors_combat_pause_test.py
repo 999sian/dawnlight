@@ -38,7 +38,7 @@ void update_ranged(daAlink_c*){++shots;}bool update_shield_attack(daAlink_c*){++
 bool readySword=false,readyRanged=false;
 void fire_items(daAlink_c*){++shots;if(readyRanged && s_swordAction==SwordAction::None)s_ranged.active=true;}
 void update_sword(daAlink_c*){++swords;if(readySword)s_swordAction=SwordAction::Normal;}
-struct Attack{bool active=false;unsigned weapon=unsigned(Upgrade::Bow),life=100;float radius=1;cXyz position,velocity;Collider collider;
+struct Attack{bool active=false,aimPending=false;unsigned weapon=unsigned(Upgrade::Bow),life=100;float radius=1;cXyz position,velocity;Collider collider;
  struct{void Move(){}}status;};std::array<Attack,1>s_attacks;
 void update_item_attack(Attack&,daAlink_c*){++projectileTicks;}void stop_attack(Attack& a){a.active=false;}
 void update_wave_effects(Attack&,daAlink_c*){}

@@ -16,10 +16,17 @@ your map, difficulty, settings and allocated talents remain unchanged.
   pause during jumps, Gale charging and gliding; released projectiles finish normally.
   Collect blue XP crystals and choose one of three power-ups at each level-up. Selection supports controller,
   keyboard and touch; menus and Get Item animations pause the run.
-- Press or hold the sword button to activate ready, unlocked attacks in the current
-  camera direction, even without a target. Holding repeats each attack on its own
-  cooldown; releasing restores automatic targeting. The native charged spin is
-  disabled, while the unlocked Survivors Spin Attack keeps its own cooldown.
+- Press or hold the sword button to trigger ready, unlocked **Spin Attack**,
+  **Jump Strike** and **Sword Wave**. Jump Strike retains its nearby-enemy
+  requirement and proc chance. Each skill keeps its cooldown. All other weapons
+  and skills continue firing automatically at their normal targets.
+- Holding the sword button uses Dawnlight's third-person shoulder view and
+  reticle. Sword Wave converges onto the reticle point, including nearby targets
+  and walls. A multishot volley always includes one centered wave. Releasing
+  restores the normal camera. The native charged spin remains disabled.
+- **Settings → 3rd Person Reticle Y** adjusts only this Survivors sword-aim view
+  from -40 to +40 (default 0); positive values move the reticle up. It is separate
+  from Dawnlight's general item-aim setting and applies to the next run.
 - Start with three hearts and normal sword attacks at twice the previous base melee range. Unlock Sword Wave and
   Spin Attack through level-ups. Passive upgrades, including Heart Container,
   remain available independently of other choices (maximum 20 hearts).

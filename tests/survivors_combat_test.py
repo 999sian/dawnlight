@@ -50,6 +50,7 @@ struct cXyz {
     cXyz operator*(float f)const{return {x*f,y*f,z*f};}
     cXyz operator+(cXyz p)const{return {x+p.x,y+p.y,z+p.z};}
     cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-p.z};}
+    float inprod(cXyz p)const{return x*p.x+y*p.y+z*p.z;}
     float abs()const{return std::sqrt(x*x+y*y+z*z);}
     float absXZ()const{return std::sqrt(x*x+z*z);}
 };
@@ -140,9 +141,15 @@ World& dComIfG_Bgsp(){return world;}
 float cM_ssin(short a){return std::sin(a*3.14159265f/32768);}float cM_scos(short a){return std::cos(a*3.14159265f/32768);}
 struct Camera{struct{cXyz center{100,0,0},eye{};cXyz Center(){return center;}cXyz Eye(){return eye;}}mCamera;}camera;
 bool cameraPresent=true;Camera* dComIfGp_getCamera(int){return cameraPresent?&camera:nullptr;}
+bool sword_aim_target(daAlink_c* link,cXyz& target,cXyz& forward){
+ if(!cameraPresent)return false;
+ forward=camera.mCamera.center-camera.mCamera.eye;
+ const float length=forward.abs();if(length<.001f)return false;forward=forward*(1.f/length);
+ target=link->current.pos+cXyz(0,65,0)+forward*1000;return true;
+}
 cXyz target_direction(daAlink_c*){return {0,0,1};}
 unsigned waves=0;std::vector<cXyz> waveDirections;
-void launch(daAlink_c*,unsigned weapon,cXyz direction){assert(weapon==0);++waves;waveDirections.push_back(direction);}
+void launch(daAlink_c*,unsigned weapon,cXyz direction,bool,float){assert(weapon==0);++waves;waveDirections.push_back(direction);}
 struct Emitter {
     int mMaxFrame=5,age=0;bool stopped=false,quit=false,invalid=false;cXyz position,scale{1,1,1};
     void setGlobalScale(const cXyz& value){scale=value;}
@@ -577,6 +584,12 @@ int main(){
     player.swordPressed=false;camera.mCamera.center={0,30,40};
     player.mUnderFrameCtrl[0].frame=player.field_0x3478;waveDirections.clear();
     update_sword_wave(&player);assert(waveDirections.size()==1&&std::abs(waveDirections[0].y-.6f)<.001f&&std::abs(waveDirections[0].z-.8f)<.001f);
+    // Even multishot volleys retain one wave exactly on the manual reticle.
+    for(unsigned multi:{1u,2u,3u}){
+        s_run.ranks[unsigned(Upgrade::Multishot)]=multi;s_waveManual=true;waveDirections.clear();
+        release_sword_wave(&player);assert(waveDirections.size()==multi+1);
+        assert(std::abs(waveDirections[0].y-.6f)<.001f&&std::abs(waveDirections[0].z-.8f)<.001f&&waveDirections[0].x==0);
+    }
     cameraPresent=false;player.shape_angle.y=0;assert(manual_direction(&player).z==1);cameraPresent=true;
     camera.mCamera.center={};assert(manual_direction(&player).z==1);camera.mCamera.center={100,0,0};
     player.swordHeld=true;playing=false;assert(!manual_attack(&player));playing=true;
@@ -630,7 +643,7 @@ native_combo_functions = extract('daAlink_c::commonCutAction', native) + '\n' + 
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(native_combo + stubs + (root/'src/survivors_manual_attack.inc').read_text() + native_combo_functions + '\n'.join((root/'src/survivors_melee.inc').read_text() if name=='melee' else (root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else (root/'src/survivors_wave_cast.inc').read_text() if name=='wave_cast' else extract(name) for name in functions) + '\n' + main)
+    cpp.write_text(native_combo + stubs + (root/'src/survivors_manual_attack.inc').read_text().replace('#include "survivors_sword_aim.inc"','') + native_combo_functions + '\n'.join((root/'src/survivors_melee.inc').read_text() if name=='melee' else (root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else (root/'src/survivors_wave_cast.inc').read_text() if name=='wave_cast' else extract(name) for name in functions) + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

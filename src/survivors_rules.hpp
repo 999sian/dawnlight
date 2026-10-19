@@ -126,12 +126,14 @@ struct RunOptions {
     unsigned enemy_hp = 1, enemy_damage = 1, enemy_speed = 1, horde = 1;
     unsigned camera_distance = 200;
     DebugOptions debug{};
+    int reticle_y = 0;
     unsigned score_percent() const {
         return 100+10*(std::clamp(enemy_hp,1u,10u)-1)+15*(std::clamp(enemy_damage,1u,10u)-1)+
             25*(std::clamp(enemy_speed,1u,3u)-1)+10*(std::clamp(horde,1u,5u)-1);
     }
     void clamp() {
         debug.clamp();
+        reticle_y=std::clamp(reticle_y,-40,40);
         enemy_hp=std::clamp(enemy_hp,1u,10u); enemy_damage=std::clamp(enemy_damage,1u,10u);
         enemy_speed=std::clamp(enemy_speed,1u,3u); horde=std::clamp(horde,1u,5u);
         camera_distance=std::clamp(camera_distance,100u,500u);

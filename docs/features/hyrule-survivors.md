@@ -67,10 +67,17 @@ Start with three hearts and automatic normal sword strikes. Sword Wave starts
 locked, like Spin Attack. Move, dodge and collect blue experience
 crystals while weapons attack automatically. Manual Jump remains available with
 your configured binding; arena exits are disabled. Pressing or holding the mapped
-sword button activates ready, unlocked Survivors attacks in the current camera
-direction, including without an enemy target. Each ability retains its cooldown;
-holding repeats it when ready and releasing restores automatic targeting. Native
-charged spin attacks are suppressed; the independent Survivors Spin skill remains.
+sword button triggers ready, unlocked Spin Attack, Jump Strike and Sword Wave.
+Jump Strike keeps its nearby-enemy requirement and proc chance. All other skills,
+including Shield Attack/Shockwave and the four item weapons, retain automatic
+target gates, priorities and cooldowns even while the button is held. Native
+charged spin attacks remain suppressed. Holding uses the shared Dawnlight
+third-person shoulder camera and reticle without replacing Link's movement or
+attack procedure. Releasing, pausing, events, run resets and mode exit restore
+the normal camera and clear the owned sight.
+Settings adds a separate **3rd Person Reticle Y** (-40..40, default 0), copied
+into the next run. It only adjusts the Survivors sword-aim view; the global
+Dawnlight item-aim setting is unchanged.
 Normal sword acquisition/retention distances and its blade collision length start
 at twice their previous base values, before Reach scaling.
 Normal strikes aim at nearby enemies and use Link's native sword animation and
@@ -511,10 +518,12 @@ jumps, damage and item-get events retain their normal handling.
 Jump Strike also retains normal stick movement throughout launch, flight and
 landing. Its nearby enemy requirement and proc chance remain, but the native
 target-directed launch is skipped: without stick input, Link jumps in place.
-Manually fired projectiles use the camera direction at launch, including camera
-pitch (Ball and Chain retains its horizontal flight). A manual Sword Wave keeps
-its camera aim through the wind-up, even after a short tap is released. Boomerang
-flies its first leg in the camera direction before using its unlocked enemy hops.
+Manual Sword Wave uses the shared reticle ray, including vertical offset/FOV,
+and converges from Link's actual launch position onto the nearest ray hit on
+terrain or registered enemy collision shapes. Fresh waves receive their final
+direction after the camera update, before their first movement/collision frame.
+Existing projectiles retain their trajectories. Multishot keeps a centered wave
+and adds spread shots; other weapons keep their ordinary targeting.
 Sword, shield bash and item animations take turns; due item weapons rotate fairly.
 The automatic iron-ball animation bypasses native manual iron-ball action and
 aim transitions, so lock-on cannot cancel the throw before its release frame.
@@ -629,12 +638,15 @@ Before merging/releasing, test on Android and desktop:
    Circle an enemy at full speed; verify facing tracks it through the hit window,
    a passing enemy does not steal the target, and walls/death release the lock.
    Check doubled base sword reach before buying Reach. Tap/hold the sword button
-   with no enemies, turn/tilt the camera and verify ready skills fire in that
-   direction on their own cooldowns, with no native charge/spin on hold/release.
-   Check short-tap Sword Wave and Shield Attack, boomerang first-leg aim and
-   automatic targeting after release. Trigger Jump Strike near an enemy with
-   no stick input, then steer through takeoff, flight and landing into a wall;
-   verify there is no enemy-directed lunge and native wall/floor collision remains.
+   and verify only Spin, Jump Strike and Sword Wave react; item weapons and
+   Shield/Shockwave still need their normal targets. Check no native charge/spin
+   appears on hold/release. Set Survivors Reticle Y to -40/0/+40 and verify the
+   held shoulder view, centered wave with every multishot rank, nearby enemies,
+   walls and camera movement. Confirm the global item-aim offset is unchanged.
+   Release, pause, open a chest, call Midna, restart and change modes while aiming;
+   check restoration of the normal camera and sight cleanup. Trigger Jump Strike
+   near an enemy with no stick input, then steer through takeoff/flight/landing;
+   verify there is no enemy-directed lunge and wall/floor collision remains.
 8. Steer in every direction during Spin Attack, including into walls; verify
    native spin hits and that damage/dodges safely interrupt attacks.
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)

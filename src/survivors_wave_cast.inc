@@ -25,7 +25,7 @@ void update_sword_wave(daAlink_c* link) {
         return;
     }
     cancel_ranged();
-    const auto direction=target_direction(link);
+    const auto direction=manual_attack(link)?manual_direction(link):target_direction(link);
     link->shape_angle.y=cM_atan2s(direction.x,direction.z);
     s_comboStep=0; // Ranged-only casting always starts with a normal cut.
     if (!begin_sword_combo(link)) return;

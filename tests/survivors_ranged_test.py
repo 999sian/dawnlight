@@ -50,9 +50,7 @@ struct daAlink_c{
 }player;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 int fopAcM_GetID(daAlink_c* p){return p->id;}
-bool manual=false;bool manual_attack(daAlink_c*){return manual;}
-cXyz manual_direction(daAlink_c*){return {0,0,1};}
-cXyz manual_target(daAlink_c*,float range){return{0,70,range};}
+bool swordHeld=false;bool manual_attack(daAlink_c*){return swordHeld;}
 bool playing=true,targetExists=true;float targetDistance=300;
 bool playable(){return playing;}bool in_arena(){return playing;}
 bool normal_sword_proc(daAlink_c* p){return p->proc==1;}
@@ -70,19 +68,27 @@ bool nearest_item_target(daAlink_c*,cXyz& target,float range,std::span<const Act
 std::vector<ActorId> shotTargets;
 constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
 struct Attack{bool active=false,returning=false;unsigned weapon=0,age=0,bowVolleySlot=20;uint64_t bowVolley=0;};std::deque<Attack>s_attacks(initial_projectile_slots);
-std::vector<cXyz> destinations;
-std::vector<Upgrade>shots;std::vector<float>spread;
-bool launch_item(daAlink_c*,Upgrade weapon,cXyz destination,float angle=0,unsigned group=20,uint64_t volley=0,ActorId target=kNone){
- destinations.push_back(destination);shotTargets.push_back(target);
+std::vector<cXyz>destinations;std::vector<Upgrade>shots;std::vector<float>spread;
+bool launch_item(daAlink_c*,Upgrade weapon,cXyz targetPosition,float angle=0,unsigned group=20,uint64_t volley=0,ActorId target=kNone){
+ destinations.push_back(targetPosition);shotTargets.push_back(target);
  unsigned type=unsigned(weapon)-unsigned(Upgrade::Bow);
  auto& a=acquire_projectile(s_attacks,unsigned(weapon),item_projectile_begin(type),item_initial_slots(type));
  a.active=true;a.weapon=unsigned(weapon);a.bowVolleySlot=group;a.bowVolley=volley;shots.push_back(weapon);spread.push_back(angle);return true;}
 '''
 main=r'''
-void fresh(){manual=false;destinations.clear();targetCount=1;shotTargets.clear();targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
+void fresh(){targetCount=1;shotTargets.clear();targetDistance=300;player={};s_run.start(1);s_cooldowns={};s_ranged={};s_rangedRest=0;
  s_attacks=std::deque<Attack>(initial_projectile_slots);shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;
  for(unsigned i=8;i<=11;++i)s_run.ranks[i]=1;}
 int main(){
+ // Sword hold neither bypasses the target gate nor redirects any item weapon.
+ for(bool held:{false,true})for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}){
+  fresh();swordHeld=held;targetExists=false;assert(!queue_ranged(&player,weapon)&&!s_cooldowns[unsigned(weapon)]);
+  targetExists=true;destinations.clear();assert(queue_ranged(&player,weapon));
+  assert(destinations[0].x==targetDistance&&destinations[0].y==100&&destinations[0].z==0);
+  assert(!queue_ranged(&player,weapon));
+ }
+ swordHeld=false;
+
  for(auto weapon:{Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball})for(unsigned targets:{1u,2u,4u}){
   fresh();targetCount=targets;s_run.ranks[unsigned(Upgrade::Multishot)]=3;
   assert(queue_ranged(&player,weapon)&&shots.size()==4);
@@ -126,14 +132,6 @@ int main(){
  fresh();targetExists=false;assert(!queue_ranged(&player,Upgrade::Bow)&&!s_cooldowns[8]);
  targetExists=true;playing=false;assert(!queue_ranged(&player,Upgrade::Bow));
  playing=true;s_loot.ready=false;assert(!queue_ranged(&player,Upgrade::Bow));
- // All four owned weapons release without enemies in camera direction. Holding
- // shares the automatic cooldowns; releasing restores normal target requirements.
- fresh();targetExists=false;manual=true;s_run.ranks[unsigned(Upgrade::Multishot)]=3;
- for(unsigned i=8;i<=11;++i){s_run.ranks[i]=1;assert(queue_ranged(&player,Upgrade(i)));assert(!queue_ranged(&player,Upgrade(i)));}
- for(auto p:destinations)assert(p.x==0&&p.y==70&&p.z>0);
- for(auto id:shotTargets)assert(id==kNone);
- s_cooldowns[8]=0;assert(queue_ranged(&player,Upgrade::Bow));
- manual=false;s_cooldowns[8]=0;assert(!queue_ranged(&player,Upgrade::Bow));
  fresh();player.proc=2; // Jump Strike body pose remains untouched.
  assert(queue_ranged(&player,Upgrade::Bow)&&player.proc==2&&shots.size()==1);
  fresh();assert(queue_ranged(&player,Upgrade::Ball));int result=1;
