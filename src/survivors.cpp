@@ -161,6 +161,7 @@ DEFINE_HOOK(&daE_OC_c::cc_set, SurvivorsBokoblinTargets);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#e_ms_damage", void(e_ms_class*), SurvivorsRatRecovery);
 DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
 DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
+DEFINE_HOOK(&fopAcM_searchActorDistance, SurvivorsEliteDistance);
 DEFINE_HOOK(&daObjCarry_c::obj_break, SurvivorsPotBreak);
 DEFINE_HOOK(&renderingAmap_c::afterDrawPath, SurvivorsEliteMinimap);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
@@ -1112,6 +1113,7 @@ HookAction before_sword_attack(ModContext* ctx, void* args, void* result, void* 
 }
 #include "survivors_extended_damage.inc"
 #include "survivors_encounters.inc"
+#include "survivors_elite_scale.inc"
 #include "survivors_bosses.inc"
 bool pause_run_actor(bool enemy) {
     if (!in_arena() || s_run.phase == Phase::Loading) return false;

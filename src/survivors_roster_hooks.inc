@@ -1,4 +1,8 @@
     PRE(RosterTargets,before_roster_targets);
+    PRE(RosterTargets,before_elite_attack_scale);
+    PRE(SurvivorsProcess,before_elite_scale_scope); POST(SurvivorsProcess,after_elite_scale_scope);
+    POST(SurvivorsEliteDistance,after_elite_melee_distance);
+    PRE(SurvivorsEnemySpeed,before_elite_attack_motion);
     PRE(RosterGibdoCry,before_roster_cry);
     PRE(RosterTT,before_roster_native_damage); PRE(RosterDN,before_roster_native_damage);
     PRE(RosterMM,before_roster_native_damage); PRE(RosterMMArmor,before_roster_native_damage);

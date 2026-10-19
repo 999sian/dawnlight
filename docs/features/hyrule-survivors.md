@@ -1109,3 +1109,27 @@ per-slot blob flush remain responsible for writing progress.
 symbol naming schemes, with missing/null symbols, unavailable card, busy host,
 failed blob staging, failed disk write, retry and successful hub departure. The
 names were also checked against all eight official v2.0.3 release manifests.
+
+### Elite combat size consistency
+
+Doubled Bokoblins, melee Bulblins/Shadow Bulblins, Shadow Beasts and Stalhounds
+evaluate native melee spacing in model units. The conversion is scoped to the
+owned actor's Execute and melee decision states; nested unrelated processes,
+archer shooting distances, ordinary enemies and native-size bosses retain world
+distances. Lizalfos retains its separate XZ fight-run conversion. Native attack
+animations, cooldowns and state transitions remain in charge.
+
+Bokoblin attack root translation and Stalhound horizontal leap travel also grow
+with their model, before native wall correction. Stalhound airtime and gravity
+are unchanged, and its existing elite movement bonus still applies. Lizalfos'
+three weapon/tail attack radii, Kargarok's attack and body-push spheres, and
+Bulblin's melee attack sphere now scale absolutely, without compounding or
+enabling an inactive attack collider.
+
+`survivors_elite_scale_test.py` covers melee boundaries, ranged/attack-state
+exclusions, nested execution scopes, lifecycle guards, repeated collider
+registration, root-motion recovery and shield/knockback exclusions. The new
+distance hook's entry passed v2.0.3 trampoline preparation on all seven dynamic
+hook platforms; the iOS entry has the required patchable NOP. This does not
+resolve the separately tracked Linux ARM64 camera and iOS prepatch TODOs, and
+does not replace an in-game combat test.

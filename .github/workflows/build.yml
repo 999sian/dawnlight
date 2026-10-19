@@ -58,6 +58,7 @@ jobs:
           /tmp/survivors-roster
           python3 tests/enemy_fire_resource_test.py
           python3 tests/survivors_roster_native_test.py
+          python3 tests/survivors_elite_scale_test.py
           python3 tests/process_actor_test.py
           python3 tests/survivors_encounters_test.py
           python3 tests/survivors_bosses_test.py
