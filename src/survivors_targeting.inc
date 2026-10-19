@@ -2,8 +2,8 @@
 // Keep a reachable enemy for the swing so orbiting does not switch targets.
 fopAc_ac_c* melee_target(daAlink_c* link) {
     fopAc_ac_c* nearest = nullptr;
-    float best = s_run.radius(560) * s_run.radius(560);
-    const float retainedRange = s_run.radius(660);
+    float best = s_run.melee_radius(280) * s_run.melee_radius(280);
+    const float retainedRange = s_run.melee_radius(330);
     const cXyz origin = link->current.pos + cXyz(0, 70, 0);
     for (const auto& enemy : s_enemies) {
         if (!enemy.initialized || enemy.retiring || enemy.credited) continue;

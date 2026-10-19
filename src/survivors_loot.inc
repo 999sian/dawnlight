@@ -254,7 +254,7 @@ bool prepare_bomb_arrow_model(Attack& a) {
     if (!a.bombModel) { mDoExt_destroySolidHeap(a.bombHeap);a.bombHeap=nullptr;return false; }
     mDoExt_adjustSolidHeap(a.bombHeap);return true;
 }
-bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0, unsigned volleySlot = 20, uint64_t volley = 0, ActorId initialTarget = kNone) {
+bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0, unsigned volleySlot = 20, uint64_t volley = 0, ActorId initialTarget = kNone, bool manual = false) {
     const unsigned index = unsigned(weapon), type = index - unsigned(Upgrade::Bow);
     auto& a = acquire_projectile(s_attacks, index, item_projectile_begin(type), item_initial_slots(type));
     if (!prepare_projectile_model(a, type)) return false;
@@ -262,6 +262,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     if (a.bombArrow && !prepare_bomb_arrow_model(a)) return false;
     a.hurricane=weapon==Upgrade::Boomerang && s_run.rank(Upgrade::Hurricane);
     a.detonated=false;
+    a.aimPending=manual&&weapon==Upgrade::Bow;a.aimSpread=spread;
     a.weapon = index; a.age = 0; a.life = 100;
     a.bowVolleySlot=volleySlot;a.bowVolley=volley;a.arrowTargets=s_run.arrow_targets();
     a.returning = a.exploding = false; a.travel = 0;
@@ -298,7 +299,8 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     if (weapon == Upgrade::Bow) {
         // Reach extends acquisition and flight, never the arrow's hit radius.
         // Retain the original lifetime unless a longer shot needs more ticks.
-        a.life = std::max(a.life, unsigned(std::ceil(distance / 70.0f)) + 1);
+        if(manual)a.limit=s_run.item_range(weapon);
+        a.life = std::max(a.life, unsigned(std::ceil((manual?a.limit:distance) / 70.0f)) + 1);
     }
     a.radius = weapon == Upgrade::Bow ? 35.0f : s_run.radius(weapon == Upgrade::Boomerang ? 63 : 55 + 8 * rank);
     if (a.hurricane) a.radius*=2.f;

@@ -11,11 +11,15 @@ void clear_fire_edge() {
 }
 void update_fire_edge() {
     auto* link=daAlink_getAlinkActorClass();
-    if (!in_arena() || !link || !s_run.rank(Upgrade::FireEdge) || !link->checkItemSwordEquip() || link->checkWolf()) {
+    if (!in_arena() || !link || !s_run.rank(Upgrade::FireEdge) || !link->mSwordModel || link->checkWolf()) {
         clear_fire_edge();return;
     }
     for (unsigned i=0;i<s_fireEdgeEmitters.size();++i) {
-        cXyz point=link->field_0x3498+(link->mSwordTopPos-link->field_0x3498)*(float(i+1)/3.f);
+        // Combat endpoints can be stale while sheathed and are extended by
+        // Reach. Use the current visible sword model, including its back pose.
+        const float length=link->checkMasterSwordEquip()?120.f:100.f;
+        const cXyz local(length*float(i+1)/3.f,0,0);
+        cXyz point;mDoMtx_multVec(link->mSwordModel->getBaseTRMtx(),&local,&point);
         auto& key=s_fireEdgeEmitters[i];
         auto* old=key?dComIfGp_particle_getEmitter(key):nullptr;
         if (!old || old->isEnableDeleteEmitter()) key=0;

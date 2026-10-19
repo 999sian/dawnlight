@@ -104,5 +104,5 @@ void update_run_camera(ModContext*, void* args, void*, void*) {
 
 void after_run_camera(ModContext* ctx,void* args,void* result,void* data) {
     update_run_camera(ctx,args,result,data);
-    resolve_manual_waves(mods::arg<dCamera_c*>(args,0));
+    resolve_manual_projectiles(mods::arg<dCamera_c*>(args,0));
 }

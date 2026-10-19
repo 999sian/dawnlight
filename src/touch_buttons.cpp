@@ -1,5 +1,6 @@
 #include "touch_buttons.hpp"
 #include "touch_button_state.hpp"
+#include "survivors.hpp"
 #include "config.hpp"
 #include "mods/svc/config.h"
 #include "mods/svc/ui.h"
@@ -101,6 +102,14 @@ void touch_window_closed(ModContext*, UiWindowHandle, void*) {
 #include "touch_buttons_native.inc"
 #endif
 }  // namespace
+void survivors_touch_sword(void* controls, bool restore) {
+#if defined(__ANDROID__)
+    if(restore)restore_survivors_touch_sword();
+    else move_survivors_touch_sword(static_cast<NativeTouch*>(controls));
+#else
+    (void)controls;(void)restore;
+#endif
+}
 
 bool consume_midna_touch_press() {
 #if defined(__ANDROID__)

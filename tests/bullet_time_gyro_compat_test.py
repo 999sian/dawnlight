@@ -39,7 +39,8 @@ BoolVar* registeredGyro = nullptr;
 int lookups = 0, resolves = 0, writes = 0;
 bool hostKeepAlive = false;
 bool missingLookup = false, nullLookup = false, missingGyro = false;
-bool s_bulletTimeActive = false;
+bool s_bulletTimeActive = false,s_survivorsGyroActive=false;
+#define DAWNLIGHT_HAS_GYRO_API 1
 constexpr int MOD_OK = 0, MOD_NOT_FOUND = 1;
 void* mod_ctx = nullptr;
 
@@ -50,7 +51,7 @@ dusk::config::ConfigVarBase* host_lookup(std::string_view name) {
 }
 bool host_get_keep_alive() { return hostKeepAlive; }
 void host_set_keep_alive(bool active) { hostKeepAlive = active; ++writes; }
-void host_get_deltas(float&, float&) {}
+void host_get_deltas(float& yaw,float& pitch){yaw=.25f;pitch=-.125f;}
 int host_resolve(void*, const char* symbol, void** result, void*) {
     ++resolves;
     const std::string_view name(symbol);
@@ -86,13 +87,23 @@ void reset() {
     s_gyroKeepAliveSymbolsResolved = false;
     registeredGyro = nullptr;
     missingLookup = nullLookup = missingGyro = false;
-    s_bulletTimeActive = hostKeepAlive = false;
+    s_bulletTimeActive = hostKeepAlive = s_survivorsGyroActive = false;
     lookups = resolves = writes = 0;
     svc_hook = &hooks;
     hooks.resolve = &host_resolve;
 }
 
 int main() {
+    reset();float yaw=0,pitch=0;
+    survivors_gyro_deltas(true,yaw,pitch);assert(hostKeepAlive&&yaw==0&&pitch==0);
+    survivors_gyro_deltas(true,yaw,pitch);assert(yaw==.25f&&pitch==-.125f);
+    survivors_gyro_deltas(false,yaw,pitch);assert(!hostKeepAlive&&yaw==0&&pitch==0);
+    // Shared ownership: releasing sword aim cannot disable active bullet time.
+    reset();registeredGyro=&upstream.gyro;upstream.gyro.registered=upstream.gyro.value=true;
+    s_bulletTimeActive=true;sync_bullet_time_gyro_keep_alive();survivors_gyro_deltas(true,yaw,pitch);
+    survivors_gyro_deltas(false,yaw,pitch);assert(hostKeepAlive);
+    s_bulletTimeActive=false;sync_bullet_time_gyro_keep_alive();assert(!hostKeepAlive);
+
     for (BoolVar* gyro : {&upstream.gyro, &forkSettings.gyro}) {
         reset();
         gyro->registered = true;
@@ -159,6 +170,7 @@ fixture = fixture.replace('// FUNCTIONS', '\n'.join(function(signature) for sign
     'void resolve_bullet_time_gyro_symbols',
     'bool bullet_time_gyro_enabled',
     'void sync_bullet_time_gyro_keep_alive',
+    'void survivors_gyro_deltas',
 )))
 with tempfile.TemporaryDirectory() as tmp:
     cpp, exe = Path(tmp) / 'test.cpp', Path(tmp) / 'test'

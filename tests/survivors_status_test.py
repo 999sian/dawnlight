@@ -39,7 +39,10 @@ fixture = fixture.replace('Run s_run;int s_player=1;', 'Run s_run;ActorId s_play
 fixture = fixture.replace('struct dCcU_AtInfo{Collider* mpCollider;};', '')
 fixture = re.sub(r'void (?:prepare_effect_hit|finish_effect_hit|record_status_hit)\([^\n]+\n', '', fixture)
 fixture=fixture.replace('bool effect_staggers(const cCcD_Obj*){return false;}','')
-fixture=fixture.replace('struct daAlink_c:fopAc_ac_c{','struct daAlink_c:fopAc_ac_c{cXyz field_0x3498{},mSwordTopPos{};bool checkItemSwordEquip(){return true;}')
+fixture=fixture.replace('struct daAlink_c:fopAc_ac_c{','''struct SwordModel{cXyz origin{};const cXyz* getBaseTRMtx(){return &origin;}} swordModel;
+void mDoMtx_multVec(const cXyz* matrix,const cXyz* local,cXyz* result){*result=*matrix+*local;}
+struct daAlink_c:fopAc_ac_c{SwordModel* mSwordModel=&swordModel;bool master=false,drawn=true;
+bool checkMasterSwordEquip(){return master;}bool checkItemSwordEquip(){return drawn;}''')
 fixture=fixture.replace('struct Attack{','struct Attack{bool bombArrow=false,detonated=false;')
 fixture+='void detonate_bomb_arrow(Attack& a,const cXyz&){a.detonated=true;}\n'
 fixture += r'''
@@ -50,7 +53,7 @@ bool jump_strike_pose(const daAlink_c*){return false;}
 struct dBgS_LinChk{cXyz target;void Set(const cXyz*,cXyz* to,daAlink_c*){target=*to;}};
 struct Background{bool LineCross(dBgS_LinChk* line){return line->target.x==999;}} bg;
 Background& dComIfG_Bgsp(){return bg;}
-struct Emitter{bool stopped=false,deleted=false;uintptr_t user=0;cXyz scale;
+struct Emitter{bool stopped=false,deleted=false;uintptr_t user=0;cXyz scale,position;
  void setGlobalPrmColor(unsigned r,unsigned,unsigned){black=r<20;}void setGlobalEnvColor(unsigned,unsigned,unsigned){}bool black=false;
  void stopCreateParticle(){stopped=true;}void quitImmortalEmitter(){}void becomeInvalidEmitter(){deleted=true;}
  bool isEnableDeleteEmitter(){return deleted;}void setParticleCallBackPtr(void*){}
@@ -58,7 +61,7 @@ struct Emitter{bool stopped=false,deleted=false;uintptr_t user=0;cXyz scale;
 struct BlackFlameCallback{void bind(Emitter*){}void unbind(Emitter*){}};
 std::map<u32,Emitter> emitters;u32 nextKey=1;
 Emitter* dComIfGp_particle_getEmitter(u32 key){auto it=emitters.find(key);return it==emitters.end()?nullptr:&it->second;}
-u32 dComIfGp_particle_set(u32 key,u16,cXyz*,void*,void*){if(!key)key=nextKey++;emitters.try_emplace(key);return key;}
+u32 dComIfGp_particle_set(u32 key,u16,cXyz* pos,void*,void*){if(!key)key=nextKey++;emitters.try_emplace(key);emitters[key].position=*pos;return key;}
 struct dPa_control_c{static void* getParticleTracePCB(){return nullptr;}};
 constexpr u16 ID_ZI_J_LK_BURNS_A=1,ID_ZI_J_LK_BURNS_B=2;
 '''

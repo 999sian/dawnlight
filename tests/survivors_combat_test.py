@@ -273,8 +273,8 @@ int main(){
         player.mAtCps[0].radius=35;player.mAtCps[1].active=false;
         for(int frame=0;frame<3;++frame) {
             after_sword_collision(nullptr,swordArgs,nullptr,nullptr);
-            assert(player.mAtCps[0].end.z==2*s_run.radius(200));
-            assert(player.mAtCps[2].end.z==2*s_run.radius(190));
+            assert(std::abs(player.mAtCps[0].end.z-1.3f*s_run.radius(200))<.001f);
+            assert(std::abs(player.mAtCps[2].end.z-1.3f*s_run.radius(190))<.001f);
             assert(player.mAtCps[0].radius==35&&!player.mAtCps[1].active);
         }
     }
@@ -566,9 +566,11 @@ int main(){
     player.mProcID=daAlink_c::PROC_WAIT;s_meleeCooldown=0;update_sword(&player);
     assert(s_swordAction==SwordAction::Normal);
     reset();
-    // Twice the base acquisition distance, still bounded and blocked by walls.
-    reset();enemy.current.pos={0,0,550};assert(melee_target(&player)==&enemy);
-    s_meleeTarget=kNone;enemy.current.pos.z=570;assert(!melee_target(&player));
+    // 130% base acquisition, with 130% retention and no old 200% range.
+    reset();enemy.current.pos={0,0,363};assert(melee_target(&player)==&enemy);
+    enemy.current.pos.z=428;assert(melee_target(&player)==&enemy);
+    enemy.current.pos.z=430;assert(!melee_target(&player));
+    s_meleeTarget=kNone;enemy.current.pos.z=365;assert(!melee_target(&player));
     // Both a tap and a hold start owned melee with no target and retain cooldowns.
     for(bool hold:{false,true}){
         reset();s_enemies={};player.swordPressed=!hold;player.swordHeld=hold;

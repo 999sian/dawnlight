@@ -30,7 +30,11 @@ void ranged_anime(daAlink_c* link, u16 animation, unsigned ticks) {
 bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     if (!s_loot.ready || !playable() || !s_run.rank(weapon) || s_cooldowns[unsigned(weapon)]) return false;
     cXyz target;
-    if (!nearest_item_target(link, target, s_run.item_range(weapon))) return false;
+    const bool manual=weapon==Upgrade::Bow&&manual_attack(link);
+    if(manual) {
+        cXyz forward;
+        if(!sword_aim_target(link,target,forward))return false;
+    } else if (!nearest_item_target(link, target, s_run.item_range(weapon))) return false;
     if (weapon == Upgrade::Bow) {
         const unsigned count=s_run.bow_shots();
         // Grow the group index space as needed; never shorten or block a volley.
@@ -40,8 +44,12 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
             return a.active && a.weapon==unsigned(Upgrade::Bow) && a.bowVolleySlot==group;
         })) ++group;
         const uint64_t volley=++s_bowVolleySerial;
-        for(unsigned i=0;i<count;++i)
-            if(!launch_item(link,weapon,target,s_run.arrow_spread(i),group,volley))return false;
+        for(unsigned i=0;i<count;++i) {
+            // Keep a central arrow at every rank, with extras inside the native fan.
+            const float spread=manual ? (i==0?0.f:(i%2?-1.f:1.f)*float((i+1)/2)/
+                float(std::max(1u,count/2))*s_run.bow_fan_degrees()*3.14159265f/360.f) : s_run.arrow_spread(i);
+            if(!launch_item(link,weapon,target,spread,group,volley,kNone,manual))return false;
+        }
     } else {
         std::array<ActorId,4> chosen{};
         const float range=weapon==Upgrade::Ball ? std::min(s_run.item_range(weapon),s_run.radius(900.f)) : s_run.item_range(weapon);

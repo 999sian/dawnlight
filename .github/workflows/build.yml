@@ -255,6 +255,8 @@ jobs:
         run: |
           python3 tests/survivors_options_test.py
           CXX=clang++ python3 tests/survivors_options_test.py
+          python3 tests/survivors_controls_test.py
+          CXX=clang++ python3 tests/survivors_controls_test.py
           python3 tests/survivors_sword_aim_test.py
           CXX=clang++ python3 tests/survivors_sword_aim_test.py
           python3 tests/survivors_talents_test.py

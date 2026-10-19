@@ -7,6 +7,7 @@ ModResult initialize_survivors(ModError* error);
 void update_survivors();
 void shutdown_survivors();
 bool survivors_active();
+bool survivors_switch_attack_lock();
 bool survivors_mobility_override(ModeSetting setting, int64_t& value);
 float survivors_sprint_multiplier();
 bool survivors_dual_wield();

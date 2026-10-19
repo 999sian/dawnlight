@@ -81,7 +81,7 @@ struct Collider {
     bool ChkAtHit(){return hit;}bool ChkAtShieldHit(){return shield;}
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
-struct Attack {
+struct Attack {bool aimPending=false;float aimSpread=0;
     unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0,arrowTargets=1;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
     bool bombArrow=false,hurricane=false,detonated=false;bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
@@ -133,6 +133,10 @@ void reset(){
     arenaPresent=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
 }
 int main(){
+    reset();s_run.ranks[unsigned(Upgrade::Bow)]=1;
+    assert(launch_item(&player,Upgrade::Bow,{0,100,500},.1f,0,1,kNone,true));
+    assert(s_attacks[8].aimPending&&s_attacks[8].aimSpread==.1f&&s_attacks[8].limit==s_run.item_range(Upgrade::Bow));
+
     // Spawn at the current native hand matrix, independent of world height/facing.
     for(auto hand:{cXyz(28,146,31),cXyz(-71,340,99),cXyz(15,-40,-200)}) {
         reset();player.current.pos={50,10,50};player.hand=hand;s_run.ranks[8]=5;

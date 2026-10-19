@@ -50,6 +50,7 @@ struct daAlink_c{
 }player;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 int fopAcM_GetID(daAlink_c* p){return p->id;}
+bool sword_aim_target(daAlink_c*,cXyz& target,cXyz& forward){target={0,140,900};forward={0,0,1};return true;}
 bool swordHeld=false;bool manual_attack(daAlink_c*){return swordHeld;}
 bool playing=true,targetExists=true;float targetDistance=300;
 bool playable(){return playing;}bool in_arena(){return playing;}
@@ -69,7 +70,8 @@ std::vector<ActorId> shotTargets;
 constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
 struct Attack{bool active=false,returning=false;unsigned weapon=0,age=0,bowVolleySlot=20;uint64_t bowVolley=0;};std::deque<Attack>s_attacks(initial_projectile_slots);
 std::vector<cXyz>destinations;std::vector<Upgrade>shots;std::vector<float>spread;
-bool launch_item(daAlink_c*,Upgrade weapon,cXyz targetPosition,float angle=0,unsigned group=20,uint64_t volley=0,ActorId target=kNone){
+bool launch_item(daAlink_c*,Upgrade weapon,cXyz targetPosition,float angle=0,unsigned group=20,uint64_t volley=0,ActorId target=kNone,bool manual=false){
+ assert(!manual||weapon==Upgrade::Bow);
  destinations.push_back(targetPosition);shotTargets.push_back(target);
  unsigned type=unsigned(weapon)-unsigned(Upgrade::Bow);
  auto& a=acquire_projectile(s_attacks,unsigned(weapon),item_projectile_begin(type),item_initial_slots(type));
@@ -80,9 +82,11 @@ void fresh(){targetCount=1;shotTargets.clear();targetDistance=300;player={};s_ru
  s_attacks=std::deque<Attack>(initial_projectile_slots);shots.clear();spread.clear();playing=targetExists=true;s_loot.ready=true;
  for(unsigned i=8;i<=11;++i)s_run.ranks[i]=1;}
 int main(){
- // Sword hold neither bypasses the target gate nor redirects any item weapon.
+ // Only Bow joins manual aiming; other item weapons preserve automatic targets.
  for(bool held:{false,true})for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}){
-  fresh();swordHeld=held;targetExists=false;assert(!queue_ranged(&player,weapon)&&!s_cooldowns[unsigned(weapon)]);
+  fresh();swordHeld=held;targetExists=false;
+  if(held&&weapon==Upgrade::Bow){destinations.clear();assert(queue_ranged(&player,weapon));assert(destinations[0].z==900&&destinations[0].y==140&&spread[0]==0);assert(!queue_ranged(&player,weapon));continue;}
+  assert(!queue_ranged(&player,weapon)&&!s_cooldowns[unsigned(weapon)]);
   targetExists=true;destinations.clear();assert(queue_ranged(&player,weapon));
   assert(destinations[0].x==targetDistance&&destinations[0].y==100&&destinations[0].z==0);
   assert(!queue_ranged(&player,weapon));
@@ -95,12 +99,14 @@ int main(){
   for(unsigned i=0;i<targets;++i)assert(shotTargets[i]==i);
   for(unsigned i=targets;i<4;++i)assert(shotTargets[i]==0);
  }
- for(unsigned rank=0;rank<=3;++rank)for(unsigned bow:{1u,10u,20u}){
+ for(unsigned rank=0;rank<=3;++rank)for(unsigned bow:{1u,10u,20u})for(bool held:{false,true}){
+  swordHeld=held;
   fresh();s_run.ranks[unsigned(Upgrade::Multishot)]=rank;s_run.ranks[unsigned(Upgrade::Bow)]=bow;
   assert(queue_ranged(&player,Upgrade::Bow)&&shots.size()==s_run.bow_shots());
   for(auto angle:spread)assert(std::abs(angle)<=s_run.bow_fan_degrees()*3.14159265f/360+.0001f);
+  if(held)assert(spread[0]==0);
  }
- fresh();player.proc=1; // an active native sword swing does not block any item
+ swordHeld=false;fresh();player.proc=1; // an active native sword swing does not block any item
  for(unsigned i=8;i<=11;++i)assert(queue_ranged(&player,Upgrade(i)));
  assert(shots.size()==4 && player.proc==1 && player.mEquipItem==0x103 && !s_ranged.active);
  for(unsigned i=8;i<=11;++i)assert(!queue_ranged(&player,Upgrade(i)));

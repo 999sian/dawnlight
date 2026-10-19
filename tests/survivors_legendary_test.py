@@ -55,6 +55,14 @@ int main(){
  assert(effect_for(s_enemies[1]).legendaryBurns[1].tenths==melee);
  assert(effect_for(s_enemies[2]).legendaryBurns[1].tenths==melee);
  update_enemy_effects();assert(s_fireEdgeEmitters[0]&&s_fireEdgeEmitters[1]&&s_fireEdgeEmitters[2]);
+ // Sheathed sword keeps burning at its model, independent of combat endpoints.
+ player.drawn=false;swordModel.origin={10,20,30};update_fire_edge();
+ assert(emitters[s_fireEdgeEmitters[2]].position.x==110);
+ player.master=true;swordModel.origin={50,60,70};update_fire_edge();
+ assert(emitters[s_fireEdgeEmitters[2]].position.x==170&&emitters[s_fireEdgeEmitters[0]].position.y==60);
+ const auto expired=s_fireEdgeEmitters[1];emitters[expired].deleted=true;update_fire_edge();assert(s_fireEdgeEmitters[1]!=expired);
+ player.mSwordModel=nullptr;update_fire_edge();for(auto key:s_fireEdgeEmitters)assert(!key);
+ player.mSwordModel=&swordModel;player.drawn=true;player.master=false;update_fire_edge();assert(s_fireEdgeEmitters[0]);
  clear_enemy_effects();for(auto key:s_fireEdgeEmitters)assert(!key);
  // Aura respects form, range and walls; exact max-HP damage bypasses Dark's x2.
  s_run.start(2);s_run.ranks[unsigned(Upgrade::DarkAura)]=1;s_run.dark_link=1;

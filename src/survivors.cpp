@@ -1,5 +1,6 @@
 #include "survivors.hpp"
 #include "aim_hooks.hpp"
+#include "bullet_time.hpp"
 #include "combat_meter.hpp"
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
@@ -219,6 +220,8 @@ DEFINE_HOOK(&cc_at_check, SurvivorsHitMaterial);
 DEFINE_HOOK(&daAlink_c::checkLightSwordMtrl, SurvivorsLightSword);
 DEFINE_HOOK(&dMeter2Draw_c::draw, SurvivorsHud);
 DEFINE_HOOK(&dComIfGs_gameStart, SurvivorsGameStart);
+DEFINE_HOOK(&mDoCPd_c::read, SurvivorsPad);
+DEFINE_HOOK(&dCamera_c::GetCameraTypeFromToolData, SurvivorsCameraType);
 DEFINE_HOOK(&dComIfG_changeOpeningScene, SurvivorsOpening);
 DEFINE_HOOK(&fpcMtd_Method, SurvivorsProcess);
 DEFINE_HOOK(&fopAcM_createItemFromTable, SurvivorsDrops);
@@ -271,7 +274,7 @@ void clear_attacks();
 void clear_sword_aim();
 void restore_sword_aim_camera(dCamera_c*);
 bool update_sword_aim_camera(dCamera_c*);
-void resolve_manual_waves(dCamera_c*);
+void resolve_manual_projectiles(dCamera_c*);
 void interrupt_auto_actions(daAlink_c*);
 void finish(bool won);
 void replay(ModContext*, void*);
@@ -390,6 +393,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_pickups.inc"
 #include "survivors_player_damage.inc"
 #include "survivors_options.inc"
+#include "survivors_controls.inc"
 #include "survivors_potions.inc"
 void stop_attack(Attack& a) {
     for (auto& id : a.emitters) {
@@ -1346,6 +1350,9 @@ ModResult reset(void*, ModError*) { reset_runtime(); return MOD_OK; }
 } // namespace
 
 bool survivors_active() { return s_active; }
+bool survivors_switch_attack_lock() {
+    return s_run.phase==Phase::Running && s_run.options.switch_attack_lock && playable();
+}
 bool survivors_mobility_override(ModeSetting setting,int64_t& value) {
     return talent_mode_override(s_run.talents,setting,value);
 }
@@ -1428,6 +1435,8 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsEnemyDamage, before_enemy_damage);
     PRE(SurvivorsPotionDrink, before_potion_drink); POST(SurvivorsPotionDrink, after_potion_drink);
     PRE(SurvivorsPotionHeal, before_potion_heal);
+    PRE(SurvivorsPad, before_survivors_pad); POST(SurvivorsPad, after_survivors_pad);
+    POST(SurvivorsCameraType, after_survivors_camera_type);
     PRE(SurvivorsCamera, before_run_camera); POST(SurvivorsCamera, after_run_camera);
     PRE(SurvivorsArenaExit, before_arena_exit);
     PRE(SurvivorsArenaRestart, before_arena_restart);
@@ -1516,6 +1525,7 @@ ModResult initialize_survivors(ModError* error) {
     return MOD_OK;
 }
 void shutdown_survivors() {
+    before_survivors_pad(nullptr,nullptr,nullptr,nullptr);
     s_active = false; reset_runtime(); cleanup_enemies(); cleanup_pots(); cleanup_pickups();
     s_midnaGraph.reset(); s_midnaPrompt.reset(); s_midnaOptions.reset(); s_midnaStart=0;
     s_treasureMessage.reset(); s_itemNameMessage.reset(); s_itemDescriptionMessage.reset();

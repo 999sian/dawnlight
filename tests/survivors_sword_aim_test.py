@@ -20,6 +20,9 @@ struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),
  float abs2()const{return inprod(*this);}float abs2(cXyz b)const{return (*this-b).abs2();}
  float abs()const{return std::sqrt(abs2());}float absXZ()const{return std::hypot(x,z);}
  void normalize(){*this=*this*(1.f/abs());}};
+using s16=short;short cM_rad2s(float a){return short(a*32768/M_PI);}
+float gyroX=0,gyroY=0;bool gyroActive=false;
+void survivors_gyro_deltas(bool active,float& yaw,float& pitch){yaw=active?gyroX:0;pitch=active?gyroY:0;gyroActive=active;}
 short cM_atan2s(float a,float b){return short(std::atan2(a,b)*32768/M_PI);}
 float cM_ssin(short a){return std::sin(a*M_PI/32768);}float cM_scos(short a){return std::cos(a*M_PI/32768);}
 struct fopAc_ac_c{ActorId id=7;int health=10;struct{cXyz pos;}current;};
@@ -65,12 +68,24 @@ std::vector<Attack>s_attacks;
 '''
 main=r'''
 void near(cXyz a,cXyz b,std::source_location site=std::source_location::current()){if((a-b).abs()>=.25f)std::fprintf(stderr,"line %u: %f %f %f vs %f %f %f\n",site.line(),a.x,a.y,a.z,b.x,b.y,b.z);assert((a-b).abs()<.25f);}
-void reset(){s_swordAim={};player={};cameraActor={};s_run.start(9);s_player=7;playing=arena=cameraPresent=true;
+void reset(){gyroX=gyroY=0;gyroActive=false;s_swordAim={};player={};cameraActor={};s_run.start(9);s_player=7;playing=arena=cameraPresent=true;
  busy=nativeAim=false;server={};s_attacks.clear();wallDistance=10000;enemy={};}
 int main(){
  reset();auto& camera=cameraActor.mCamera;const auto baseEye=camera.mEye,baseCenter=camera.mCenter;
  for(int i=0;i<100;++i){restore_sword_aim_camera(&camera);near(camera.mEye,baseEye);near(camera.mCenter,baseCenter);
   assert(update_sword_aim_camera(&camera));near(camera.mCenter,{60,170,0});near(camera.mEye,{60,170,-300});assert(player.mSight.drawn);}
+ // Gyro adds to native orbit, accumulates while held, and never rotates Link.
+ reset();gyroX=.05f;gyroY=.02f;const auto shape=player.shape_angle.y;
+ assert(update_sword_aim_camera(&camera)&&gyroActive);const auto first=camera.mCenter-camera.mEye;
+ restore_sword_aim_camera(&camera);assert(update_sword_aim_camera(&camera));
+ const auto second=camera.mCenter-camera.mEye;
+ assert(second.x>first.x&&second.y<first.y&&player.shape_angle.y==shape);
+ for(int i=0;i<100;++i){restore_sword_aim_camera(&camera);gyroY=.1f;assert(update_sword_aim_camera(&camera));}
+ assert(s_swordAim.gyroPitch==14500);
+ player.held=false;restore_sword_aim_camera(&camera);assert(!update_sword_aim_camera(&camera)&&!gyroActive&&!s_swordAim.gyroYaw);
+ reset();s_run.options.gyro_aim=false;gyroX=gyroY=.2f;
+ assert(update_sword_aim_camera(&camera)&&!gyroActive);near(camera.mEye,{60,170,-300});
+ reset();assert(update_sword_aim_camera(&camera));
  // Reticle's vertical coordinate and projectile convergence share the exact ray.
  for(int y:{-40,0,40})for(float fov:{35.f,45.f,80.f})for(float distance:{400.f,700.f,1300.f}){
   restore_sword_aim_camera(&camera);s_swordAim.active=false;camera.mFovy=fov;s_run.options.reticle_y=y;wallDistance=distance;
@@ -78,12 +93,16 @@ int main(){
   assert(third_person_reticle_ray(&camera,y,fov,eye,forward));near(player.mSight.position,eye+forward*distance);
   const auto axis=camera.mCenter-camera.mEye;const float slope=(forward.y/forward.z-axis.y/axis.z);
   assert(y==0?std::abs(slope)<.001f:y*slope>0);
-  s_attacks={Attack{}};resolve_manual_waves(&camera);assert(!s_attacks[0].aimPending);
-  const auto hit=s_attacks[0].position+s_attacks[0].velocity*((player.mSight.position-s_attacks[0].position).abs()/42.f);
-  near(hit,player.mSight.position);
-  // A launched projectile cannot be redirected by subsequent camera changes.
-  const auto velocity=s_attacks[0].velocity;camera.mCenter.x+=200;resolve_manual_waves(&camera);near(s_attacks[0].velocity,velocity);
-  camera.mCenter.x-=200;
+  for(auto weapon:{Upgrade::Wave,Upgrade::Bow}) {
+   s_attacks={Attack{}};s_attacks[0].weapon=unsigned(weapon);s_attacks[0].position={-25,145,30};
+   resolve_manual_projectiles(&camera);assert(!s_attacks[0].aimPending);
+   const float speed=weapon==Upgrade::Bow?70.f:42.f;
+   const auto hit=s_attacks[0].position+s_attacks[0].velocity*((player.mSight.position-s_attacks[0].position).abs()/speed);
+   near(hit,player.mSight.position);
+   // A launched projectile cannot be redirected by subsequent camera changes.
+   const auto velocity=s_attacks[0].velocity;camera.mCenter.x+=200;resolve_manual_projectiles(&camera);near(s_attacks[0].velocity,velocity);
+   camera.mCenter.x-=200;
+  }
  }
  // Native target geometry beats distant terrain without snapping off the ray.
  reset();assert(update_sword_aim_camera(&camera));cXyz eye,forward;third_person_reticle_ray(&camera,0,45,eye,forward);
@@ -105,7 +124,7 @@ int main(){
  assert(!update_sword_aim_camera(&foreign)&&s_swordAim.active&&player.mSight.drawn);
  restore_sword_aim_camera(&foreign);assert(s_swordAim.camera==&camera);
  restore_sword_aim_camera(&camera);wallDistance=100;assert(update_sword_aim_camera(&camera));
- s_attacks={Attack{}};resolve_manual_waves(&camera);assert(s_attacks[0].velocity.z>0); // Never shoot backwards into the camera.
+ s_attacks={Attack{}};resolve_manual_projectiles(&camera);assert(s_attacks[0].velocity.z>0); // Never shoot backwards into the camera.
  reset();cameraPresent=false;assert(manual_direction(&player).z==1);
  reset();player.held=false;player.pressed=true;assert(manual_attack(&player));assert(!update_sword_aim_camera(&camera));
 }

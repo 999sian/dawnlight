@@ -127,6 +127,8 @@ struct RunOptions {
     unsigned camera_distance = 200;
     DebugOptions debug{};
     int reticle_y = 0;
+    bool switch_attack_lock = false;
+    bool gyro_aim = true;
     unsigned score_percent() const {
         return 100+10*(std::clamp(enemy_hp,1u,10u)-1)+15*(std::clamp(enemy_damage,1u,10u)-1)+
             25*(std::clamp(enemy_speed,1u,3u)-1)+10*(std::clamp(horde,1u,5u)-1);
@@ -545,6 +547,7 @@ struct Run {
     float item_range(Upgrade weapon) const { return (weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range; }
     float boomerang_hop_range() const { return radius(800.f); }
     float radius(float base) const { return base * (1.0f + 0.075f * rank(Upgrade::Reach)); }
+    float melee_radius(float base) const { return 1.3f * radius(base); }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };
 

@@ -243,6 +243,7 @@ float s_previousGravity = 0.0f;
 float s_previousMaxFallSpeed = 0.0f;
 bool s_previousSpecialGravity = false;
 bool s_bulletTimeActive = false;
+bool s_survivorsGyroActive = false;
 #if DAWNLIGHT_HAS_GYRO_API
 bool s_bulletTimeOwnsGyroKeepAlive = false;
 using GetGyroKeepAliveFn = bool (*)();
@@ -337,7 +338,7 @@ bool bullet_time_gyro_enabled() {
 void sync_bullet_time_gyro_keep_alive() {
     resolve_bullet_time_gyro_symbols();
     if (s_getGyroKeepAlive == nullptr || s_setGyroKeepAlive == nullptr ||
-        !bullet_time_gyro_enabled())
+        (!s_survivorsGyroActive && !bullet_time_gyro_enabled()))
     {
         if (s_bulletTimeOwnsGyroKeepAlive && s_setGyroKeepAlive != nullptr) {
             s_setGyroKeepAlive(false);
@@ -347,10 +348,11 @@ void sync_bullet_time_gyro_keep_alive() {
     }
 
     const bool sensorKeepAlive = s_getGyroKeepAlive();
-    if (s_bulletTimeActive && !sensorKeepAlive) {
+    const bool wanted=s_survivorsGyroActive||(s_bulletTimeActive&&bullet_time_gyro_enabled());
+    if (wanted && !sensorKeepAlive) {
         s_setGyroKeepAlive(true);
         s_bulletTimeOwnsGyroKeepAlive = true;
-    } else if (!s_bulletTimeActive && s_bulletTimeOwnsGyroKeepAlive) {
+    } else if (!wanted && s_bulletTimeOwnsGyroKeepAlive) {
         s_setGyroKeepAlive(false);
         s_bulletTimeOwnsGyroKeepAlive = false;
     }
@@ -2123,6 +2125,19 @@ void prepare_bow_aim(daAlink_c* link) {
 }
 
 }  // namespace
+
+void survivors_gyro_deltas(bool active, float& yaw, float& pitch) {
+    const bool wasActive=s_survivorsGyroActive;
+    s_survivorsGyroActive=active;
+    sync_bullet_time_gyro_keep_alive();
+    yaw=pitch=0;
+#if DAWNLIGHT_HAS_GYRO_API
+    // The first held frame wakes the sensor; don't consume a previous context's delta.
+    if(active&&wasActive&&s_getGyroAimDeltas)s_getGyroAimDeltas(yaw,pitch);
+#else
+    (void)wasActive;
+#endif
+}
 
 void apply_bullet_time_gyro(daAlink_c* link) {
     apply_bullet_time_gyro_impl(link);

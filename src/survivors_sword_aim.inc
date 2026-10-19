@@ -5,6 +5,7 @@ struct SwordAimView {
     ActorId player=kNone;
     bool active=false, targetValid=false;
     float distance=300, height=130, fovy=45, nativeFovy=45;
+    s16 gyroYaw=0;int gyroPitch=0;
     cXyz nativeEye{},nativeCenter{},eye{},center{},target{};
 } s_swordAim;
 void restore_sword_aim_camera(dCamera_c* camera) {
@@ -17,6 +18,7 @@ void restore_sword_aim_camera(dCamera_c* camera) {
     s_swordAim.camera=nullptr;
 }
 void clear_sword_aim() {
+    float yaw=0,pitch=0;survivors_gyro_deltas(false,yaw,pitch);
     if(auto* camera=dComIfGp_getCamera(0))restore_sword_aim_camera(&camera->mCamera);
     auto* link=daAlink_getAlinkActorClass();
     if(link && s_swordAim.active && fopAcM_GetID(link)==s_swordAim.player) {
@@ -66,14 +68,23 @@ bool update_sword_aim_camera(dCamera_c* camera) {
     const cXyz nativeDirection=camera->mCenter-camera->mEye;
     if(nativeDirection.abs()<.001f){clear_sword_aim();return false;}
     if(!s_swordAim.active||s_swordAim.player!=fopAcM_GetID(link)) {
+        s_swordAim.gyroYaw=0;s_swordAim.gyroPitch=0;
         s_swordAim.distance=std::clamp(nativeDirection.abs(),200.f,600.f);
         s_swordAim.height=std::clamp(camera->mCenter.y-link->current.pos.y,100.f,180.f);
         s_swordAim.fovy=camera->mFovy;
     }
     s_swordAim.active=true;s_swordAim.player=fopAcM_GetID(link);
     s_swordAim.nativeEye=camera->mEye;s_swordAim.nativeCenter=camera->mCenter;s_swordAim.nativeFovy=camera->mFovy;
-    third_person_aim_frame(link,camera,cM_atan2s(nativeDirection.x,nativeDirection.z),
-        cM_atan2s(-nativeDirection.y,nativeDirection.absXZ()),s_swordAim.distance,s_swordAim.height,
+    float gyroYaw=0,gyroPitch=0;
+    survivors_gyro_deltas(s_run.options.gyro_aim,gyroYaw,gyroPitch);
+    const int nativePitch=cM_atan2s(-nativeDirection.y,nativeDirection.absXZ());
+    if(std::isfinite(gyroYaw)&&std::isfinite(gyroPitch)) {
+        s_swordAim.gyroYaw=s16(s_swordAim.gyroYaw+cM_rad2s(gyroYaw));
+        const int pitch=std::clamp(nativePitch+s_swordAim.gyroPitch+int(cM_rad2s(gyroPitch)),-14500,14500);
+        s_swordAim.gyroPitch=pitch-nativePitch;
+    }
+    third_person_aim_frame(link,camera,s16(cM_atan2s(nativeDirection.x,nativeDirection.z)+s_swordAim.gyroYaw),
+        s16(std::clamp(nativePitch+s_swordAim.gyroPitch,-14500,14500)),s_swordAim.distance,s_swordAim.height,
         s_swordAim.center,s_swordAim.eye);
     camera->mEye=s_swordAim.eye;camera->mCenter=s_swordAim.center;camera->mFovy=s_swordAim.fovy;
     camera->mDirection.Val(camera->mEye-camera->mCenter);s_swordAim.camera=camera;
@@ -86,19 +97,19 @@ bool update_sword_aim_camera(dCamera_c* camera) {
 }
 
 // Player Execute precedes the camera's final view. Correct only fresh manual
-// waves before their first movement/collision frame, using that rendered reticle.
-void resolve_manual_waves(dCamera_c* camera) {
+// waves/arrows before their first movement/collision frame, using that rendered reticle.
+void resolve_manual_projectiles(dCamera_c* camera) {
     auto* link=daAlink_getAlinkActorClass();
     if(!link||!camera||camera->mPadID!=0||!playable()||s_run.phase!=Phase::Running||fopAcM_GetID(link)!=s_player)return;
-    if(std::none_of(s_attacks.begin(),s_attacks.end(),[](const auto& a){return a.active&&a.weapon==unsigned(Upgrade::Wave)&&a.aimPending;}))return;
+    if(std::none_of(s_attacks.begin(),s_attacks.end(),[](const auto& a){return a.active&&(a.weapon==unsigned(Upgrade::Wave)||a.weapon==unsigned(Upgrade::Bow))&&a.aimPending;}))return;
     cXyz target,forward;if(!sword_aim_target(link,target,forward))return;
-    for(auto& a:s_attacks)if(a.active&&a.weapon==unsigned(Upgrade::Wave)&&a.aimPending) {
+    for(auto& a:s_attacks)if(a.active&&(a.weapon==unsigned(Upgrade::Wave)||a.weapon==unsigned(Upgrade::Bow))&&a.aimPending) {
         a.aimPending=false;
         cXyz direction=target-a.position;
         if(direction.abs()<=.001f||direction.inprod(forward)<=0)direction=forward;
         else direction.normalize();
         const float sine=std::sin(a.aimSpread),cosine=std::cos(a.aimSpread);
         a.velocity=cXyz(direction.x*cosine+direction.z*sine,direction.y,
-            direction.z*cosine-direction.x*sine)*42.f;
+            direction.z*cosine-direction.x*sine)*(a.weapon==unsigned(Upgrade::Bow)?70.f:42.f);
     }
 }

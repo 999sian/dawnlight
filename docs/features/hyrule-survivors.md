@@ -67,9 +67,9 @@ Start with three hearts and automatic normal sword strikes. Sword Wave starts
 locked, like Spin Attack. Move, dodge and collect blue experience
 crystals while weapons attack automatically. Manual Jump remains available with
 your configured binding; arena exits are disabled. Pressing or holding the mapped
-sword button triggers ready, unlocked Spin Attack, Jump Strike and Sword Wave.
+sword button triggers ready, unlocked Spin Attack, Jump Strike, Sword Wave and Bow.
 Jump Strike keeps its nearby-enemy requirement and proc chance. All other skills,
-including Shield Attack/Shockwave and the four item weapons, retain automatic
+including Shield Attack/Shockwave, Boomerang, Bombs and Ball and Chain, retain automatic
 target gates, priorities and cooldowns even while the button is held. Native
 charged spin attacks remain suppressed. Holding uses the shared Dawnlight
 third-person shoulder camera and reticle without replacing Link's movement or
@@ -77,9 +77,22 @@ attack procedure. Releasing, pausing, events, run resets and mode exit restore
 the normal camera and clear the owned sight.
 Settings adds a separate **3rd Person Reticle Y** (-40..40, default 0), copied
 into the next run. It only adjusts the Survivors sword-aim view; the global
-Dawnlight item-aim setting is unchanged.
+Dawnlight item-aim setting is unchanged. **Switch Attack/Lock-on Keybinds**
+(default off) swaps the accepted B/L gameplay inputs, including analog trigger
+edges, while menus keep their normal bindings. Touch moves the native sword
+image to L and makes L momentary for attack holds; B becomes lock-on.
+**Gyro Aim** (default on) adds motion control to the held shoulder view with
+native gyro sensitivity/inversion. This run-local toggle is independent of the
+global item gyro enable setting. Stick orbit and normal movement remain available;
+sensor demand is shared with bullet time and released on leaving the view.
+Arrows and Sword Waves converge from their actual launch origins onto the rendered
+reticle before their first movement. Manual multishot keeps one central projectile;
+extra projectiles retain their fan, and in-flight projectiles never retarget.
+The Palace exterior uses the standard DungeonS gameplay camera base before
+Survivors distance scaling, avoiding the authored distant-camera preset stacking
+with the setting. Event, tag and native aiming cameras retain their own types.
 Normal sword acquisition/retention distances and its blade collision length start
-at twice their previous base values, before Reach scaling.
+at 130% of their original base values, before Reach scaling.
 Normal strikes aim at nearby enemies and use Link's native sword animation and
 collision. They wait for the sword to be drawn and do not interrupt jumps, dodges,
 damage reactions or item actions.
@@ -637,12 +650,18 @@ Before merging/releasing, test on Android and desktop:
    damage reaction or a gap between targets, and permits movement during finishers.
    Circle an enemy at full speed; verify facing tracks it through the hit window,
    a passing enemy does not steal the target, and walls/death release the lock.
-   Check doubled base sword reach before buying Reach. Tap/hold the sword button
-   and verify only Spin, Jump Strike and Sword Wave react; item weapons and
-   Shield/Shockwave still need their normal targets. Check no native charge/spin
+   Check 130% base sword reach before buying Reach. Tap/hold the sword button
+   and verify only Spin, Jump Strike, Sword Wave and Bow react; Boomerang, Bombs,
+   Ball and Shield/Shockwave still need their normal targets. Check no native charge/spin
    appears on hold/release. Set Survivors Reticle Y to -40/0/+40 and verify the
-   held shoulder view, centered wave with every multishot rank, nearby enemies,
+   held shoulder view, centered wave/arrow with every multishot rank, nearby enemies,
    walls and camera movement. Confirm the global item-aim offset is unchanged.
+   Enable the B/L swap and verify controller/keyboard/analog and touch hold/release,
+   sword icon on L, lock-on on B, and normal menu bindings. Check gyro on/off,
+   inversion and sensitivity, combined stick input, bullet-time handoff and cleanup.
+   Compare Palace distance at 100/200/500% to the standard base and check camera
+   wall clipping and native event views. Acquire Fire Edge and inspect flames on
+   drawn/sheathed Ordon and Master Sword through upgrades, pauses and restart.
    Release, pause, open a chest, call Midna, restart and change modes while aiming;
    check restoration of the normal camera and sight cleanup. Trigger Jump Strike
    near an enemy with no stick input, then steer through takeoff/flight/landing;
@@ -933,7 +952,9 @@ Fire Bomb, Fire Edge and Dark Aura use separate run-local burn clocks. Rehits
 refresh their five-second lifetime without resetting pulse or stacking damage.
 Fixed-point tenths preserve low-damage ratios. Fire Edge covers native sword
 and jump colliders, parallel Spin/Shield and secondary Dual Wield hits; blade
-particles follow three points on the actual drawn sword. Fire Arrow status
+particles continuously follow three points on the current sword model, including
+its sheathed pose and equipment changes. They use visual blade length, independent
+of Reach collision extension. Fire Arrow status
 remains independent. Dark Aura checks form, range and line of sight, uses stored
 maximum run HP and preserves all five trailing pulses after exiting. Fixed burn
 damage bypasses later Dark/crit scaling in both native and extended damage paths.

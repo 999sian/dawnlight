@@ -129,5 +129,22 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
     control.set=[](ModContext*,void*,const UiControlValue* value){
         if(s_run.phase==Phase::Ready&&!s_restart)s_options.reticle_y=int(std::clamp<int64_t>(value->int_value,-40,40));
     };
+    result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
+    if(result!=MOD_OK)return result;
+    control=UI_CONTROL_DESC_INIT;
+    control.kind=UI_CONTROL_TOGGLE;control.label="Switch Attack/Lock-on Keybinds";
+    control.help_rml="Swap attack and lock-on during Survivors gameplay, including the touch sword button. Default: off.";
+    control.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=s_options.switch_attack_lock;};
+    control.set=[](ModContext*,void*,const UiControlValue* value){
+        if(s_run.phase==Phase::Ready&&!s_restart)s_options.switch_attack_lock=value->bool_value;
+    };
+    result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
+    if(result!=MOD_OK)return result;
+    control.label="Gyro Aim";
+    control.help_rml="Use motion aiming while holding attack in the Survivors shoulder view. Uses the configured gyro sensitivity and inversion. Default: on.";
+    control.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=s_options.gyro_aim;};
+    control.set=[](ModContext*,void*,const UiControlValue* value){
+        if(s_run.phase==Phase::Ready&&!s_restart)s_options.gyro_aim=value->bool_value;
+    };
     return svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
 }
