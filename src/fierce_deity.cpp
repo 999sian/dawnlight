@@ -1,4 +1,6 @@
+#include "platform_compat.hpp"
 #include "fierce_deity.hpp"
+#include "survivors.hpp"
 #include "fierce_deity_eye_bloom.hpp"
 #include "fierce_deity_veil.hpp"
 
@@ -56,7 +58,11 @@ DEFINE_HOOK(&daAlink_c::setDamagePoint, FierceReceivedDamageHook);
 DEFINE_HOOK(&cc_at_check, FierceDamageCheckHook);
 DEFINE_HOOK(&dMeter2Draw_c::draw, FierceMeterDrawHook);
 DEFINE_HOOK(&fpcLf_Delete, FiercePlayerDeleteHook);
+#if DAWNLIGHT_IOS
+DEFINE_HOOK(&mDoCPd_c::read, FierceGameCombosHook);
+#else
 DEFINE_HOOK_SYMBOL("dusk::processGameCombos", void(), FierceGameCombosHook);
+#endif
 DEFINE_HOOK(&daAlink_c::midnaTalkTrigger, FierceMidnaTriggerHook);
 
 float maximum_gauge() { return static_cast<float>(dark_link_setting(DarkLinkSetting::Gauge)); }
@@ -177,6 +183,7 @@ bool is_sword_attack(const dCcU_AtInfo* attack) {
 }
 
 bool menu_or_pause_active() {
+    if(survivors_save_screen_active())return true;
     return dMeter2Info_getWindowStatus() != 0 || dMeter2Info_getPauseStatus() != 0 ||
            dComIfGp_isPauseFlag() || dComIfGp_event_runCheck() ||
            dMeter2Info_isShopTalkFlag() || dMsgObject_isTalkNowCheck();
@@ -576,7 +583,7 @@ HookAction before_player_execute(ModContext*, void* args, void* retval, void*) {
     }
 
     s_state.meter = std::clamp(s_state.meter, 0.0f, maximum_gauge());
-    if (!fierce_deity_enabled()) {
+    if (!fierce_deity_enabled() && (!survivors_active() || s_state.active)) {
         deactivate(link, false);
     }
 
@@ -600,6 +607,10 @@ void after_player_execute(ModContext*, void* args, void*, void*) {
         return;
     }
     if (!same_link(link)) return;
+    if (survivors_active()) {
+        tick_dark_veil(link, survivors_dark_link_active() && !menu_or_pause_active());
+        return; // Run timer owns activation; no input, gauge drain or model swap.
+    }
     if (!s_state.modelReloadFrame) refresh_foot_baseline(link);
     if (!s_state.modelReloadFrame && !menu_or_pause_active()) {
         fierce_deity_transition_tick(link);
@@ -627,6 +638,7 @@ HookAction before_magic_armor_ability(ModContext*, void*, void* retval, void*) {
 }
 
 void after_attack_power_check(ModContext*, void* args, void*, void*) {
+    if (survivors_active()) return; // Survivors doubles all its own damage exactly once.
     auto* attack = mods::arg<dCcU_AtInfo*>(args, 0);
     if (!s_state.active || !same_link(daAlink_getAlinkActorClass()) ||
         !is_sword_attack(attack) || attack->mpActor != s_state.link ||
@@ -720,7 +732,12 @@ ModResult initialize_fierce_deity(ModError* error) {
         return mods::set_error(error, result,
             "failed to install Dawnlight Fierce Deity player pre-hook");
     }
+#if DAWNLIGHT_IOS
+    result = mods::hook::add_post<FierceGameCombosHook>(svc_hook,
+        [](ModContext* c,void* a,void* r,void* u){before_fierce_game_combos(c,a,r,u);});
+#else
     result = mods::hook::add_pre<FierceGameCombosHook>(svc_hook, before_fierce_game_combos);
+#endif
     if (result != MOD_OK) {
         return mods::set_error(error, result,
             "failed to install Dawnlight Dark Link input hook");
@@ -789,6 +806,7 @@ DawnlightFierceDeityHudState fierce_deity_hud_state() {
 }
 
 bool fierce_deity_active() {
+    if (survivors_active()) return survivors_dark_link_active();
     return s_state.active && same_link(daAlink_getAlinkActorClass());
 }
 
@@ -810,12 +828,14 @@ void fierce_deity_touch_button(uint32_t button, bool pressed) {
 
 bool fierce_deity_dark_visual_active() {
     auto* link = daAlink_getAlinkActorClass();
+    if (survivors_active()) return link && !link->checkWolf() && survivors_dark_link_active();
     return same_link(link) && s_state.displayedTint != FierceDeityTint::None &&
         s_state.modelSwapState == ModelSwapState::None && !s_state.modelReloadFrame &&
         !link->checkWolf() && link->mClothesChangeWaitTimer == 0;
 }
 
 FierceDeityTint fierce_deity_displayed_tint() {
+    if (survivors_active()) return fierce_deity_dark_visual_active() ? FierceDeityTint::Dark : FierceDeityTint::None;
     return fierce_deity_dark_visual_active() ? s_state.displayedTint : FierceDeityTint::None;
 }
 

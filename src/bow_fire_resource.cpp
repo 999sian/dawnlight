@@ -11,6 +11,8 @@
 #include "dolphin/dvd.h"
 #include "mods/service.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstring>
 #include <memory>
 #include <new>
@@ -20,13 +22,23 @@
 namespace dawnlight {
 namespace {
 
-constexpr u16 kBulblinFlame = 0x8113;
+// Borrow the original resources from the disc, using private common-bank IDs.
+constexpr std::array<u16,18> kSources{
+    0x8113,0x846c,0x846d,0x846e,0x846f,0x8470,0x8471,0x8472,
+    0x89ac,0x89ad,0x89ae,0x89af,0x85f6,0x89b0,0x89b1, // Stallord fireball / mouth
+    0x8848,0x8849,0x884a // Death Sword magic orb
+};
+struct ImportedEffect {
+    JKRExpHeap* heap=nullptr;
+    std::unique_ptr<u8[]> storage;
+    JPAResource* resource=nullptr;
+    u16 effect=0;
+    bool attempted=false;
+};
+std::array<ImportedEffect,kSources.size()> s_imported;
+std::array<std::vector<u8>,kSources.size()> s_sourceBytes;
 JPAResourceManager* s_common = nullptr;
-JKRExpHeap* s_heap = nullptr;
-std::unique_ptr<u8[]> s_heapStorage;
-JPAResource* s_resource = nullptr;
-bool s_attempted = false;
-u16 s_effect = 0;
+bool s_scanned=false,s_installed=false;
 JPAResource** s_originalResources = nullptr;
 JPATexture** s_originalTextures = nullptr;
 u16 s_resourceCount = 0, s_resourceCapacity = 0;
@@ -39,10 +51,9 @@ JPAResourceManager* common_manager() {
     return manager != nullptr ? manager->getResourceManager(u8{0}) : nullptr;
 }
 
-std::vector<u8> read_flame_resource() {
+void read_particle_resources() {
     DVDDir directory{};
-    if (!DVDOpenDir("/res/Particle", &directory)) return {};
-    std::vector<u8> result;
+    if (!DVDOpenDir("/res/Particle", &directory)) return;
     DVDDirEntry entry{};
     while (DVDReadDir(&directory, &entry)) {
         if (entry.isDir || entry.name == nullptr) continue;
@@ -58,21 +69,20 @@ std::vector<u8> read_flame_resource() {
             auto* bytes = reinterpret_cast<u8*>(
                 (reinterpret_cast<uintptr_t>(storage.data()) + 31) & ~uintptr_t{31});
             if (DVDReadPrio(&file, bytes, rounded, 0, 2) >= static_cast<s32>(length)) {
-                result = particle_resource::extract({bytes, length}, kBulblinFlame);
+                for(unsigned i=0;i<kSources.size();++i)
+                    if(s_sourceBytes[i].empty())s_sourceBytes[i]=particle_resource::extract({bytes,length},kSources[i]);
             }
         }
         DVDClose(&file);
-        if (!result.empty()) {
-            svc_log->info(mod_ctx, ("Dawnlight bow: loaded Bulblin flame from " + name).c_str());
-            break;
-        }
+        if(std::all_of(s_sourceBytes.begin(),s_sourceBytes.end(),[](const auto& bytes){return !bytes.empty();}))break;
     }
     DVDCloseDir(&directory);
-    return result;
 }
 
-bool install_resource(JPAResourceManager* common) {
-    auto bytes = read_flame_resource();
+bool install_resource(JPAResourceManager* common,unsigned index) {
+    if(!s_scanned){s_scanned=true;read_particle_resources();}
+    auto bytes=std::move(s_sourceBytes[index]);
+    auto& imported=s_imported[index];
     if (bytes.empty() || common->resRegNum == 0xffff) return false;
     const u16 textureCount = particle_resource::read16(bytes.data() + 10);
     if (unsigned(common->texRegNum) + textureCount > 0xffff) return false;
@@ -88,68 +98,81 @@ bool install_resource(JPAResourceManager* common) {
     // even with errorFlag=false. Back this JPA heap with mod-owned host memory;
     // the parent only registers it for JKR disposer/texture lifetime tracking.
     const u32 heapSize = static_cast<u32>(bytes.size()) + 256 * 1024;
-    s_heapStorage.reset(new (std::nothrow) u8[heapSize + 31]);
-    if (!s_heapStorage) return false;
+    imported.storage.reset(new (std::nothrow) u8[heapSize + 31]);
+    if (!imported.storage) return false;
     auto* heapMemory = reinterpret_cast<void*>(
-        (reinterpret_cast<uintptr_t>(s_heapStorage.get()) + 31) & ~uintptr_t{31});
-    s_heap = JKRExpHeap::create(heapMemory, heapSize, JKRHeap::getSystemHeap(), false);
-    if (s_heap == nullptr) {
-        s_heapStorage.reset();
+        (reinterpret_cast<uintptr_t>(imported.storage.get()) + 31) & ~uintptr_t{31});
+    imported.heap = JKRExpHeap::create(heapMemory, heapSize, JKRHeap::getSystemHeap(), false);
+    if (imported.heap == nullptr) {
+        imported.storage.reset();
         return false;
     }
-    auto* data = static_cast<u8*>(s_heap->alloc(static_cast<u32>(bytes.size()), 32));
+    auto* data = static_cast<u8*>(imported.heap->alloc(static_cast<u32>(bytes.size()), 32));
     if (data == nullptr) {
-        s_heap->destroy();
-        s_heap = nullptr;
-        s_heapStorage.reset();
+        imported.heap->destroy();
+        imported.heap = nullptr;
+        imported.storage.reset();
         return false;
     }
     std::memcpy(data, bytes.data(), bytes.size());
-    JPAResourceManager donor(data, s_heap);
-    s_resource = donor.getResource(effect);
-    auto* indices = const_cast<BE(u16)*>(s_resource->mpTDB1);
-    for (u8 i = 0; i < s_resource->texNum; ++i) {
+    JPAResourceManager donor(data, imported.heap);
+    imported.resource = donor.getResource(effect);
+    if(!imported.resource) {
+        imported.heap->destroy();imported.heap=nullptr;imported.storage.reset();return false;
+    }
+    auto* indices = const_cast<BE(u16)*>(imported.resource->mpTDB1);
+    for (u8 i = 0; i < imported.resource->texNum; ++i) {
         indices[i] = static_cast<u16>(indices[i]) + common->texRegNum;
     }
 
-    s_originalResources = common->pResAry;
-    s_originalTextures = common->pTexAry;
-    s_resourceCount = common->resRegNum;
-    s_resourceCapacity = common->resMaxNum;
-    s_textureCount = common->texRegNum;
-    s_textureCapacity = common->texMaxNum;
-    s_resources.assign(common->pResAry, common->pResAry + common->resRegNum);
-    s_textures.assign(common->pTexAry, common->pTexAry + common->texRegNum);
-    s_resources.push_back(s_resource);
+    if(!s_installed) {
+        s_originalResources = common->pResAry;
+        s_originalTextures = common->pTexAry;
+        s_resourceCount = common->resRegNum;
+        s_resourceCapacity = common->resMaxNum;
+        s_textureCount = common->texRegNum;
+        s_textureCapacity = common->texMaxNum;
+        s_resources.assign(common->pResAry, common->pResAry + common->resRegNum);
+        s_textures.assign(common->pTexAry, common->pTexAry + common->texRegNum);
+        s_installed=true;
+    }
+    s_resources.push_back(imported.resource);
     s_textures.insert(s_textures.end(), donor.pTexAry, donor.pTexAry + donor.texRegNum);
     common->pResAry = s_resources.data();
     common->pTexAry = s_textures.data();
     common->resMaxNum = common->resRegNum = static_cast<u16>(s_resources.size());
     common->texMaxNum = common->texRegNum = static_cast<u16>(s_textures.size());
-    s_effect = effect;
+    imported.effect = effect;
     return true;
 }
 
 }  // namespace
 
-std::uint16_t bow_fire_effect() {
-    auto* common = common_manager();
-    if (common == nullptr) return 0;
-    if (s_common != common) {
-        shutdown_bow_fire_resource();
-        s_common = common;
+std::uint16_t imported_particle_effect(unsigned index) {
+    auto* common=common_manager();if(!common)return 0;
+    if(s_common!=common){shutdown_bow_fire_resource();s_common=common;}
+    auto& imported=s_imported[index];
+    if(!imported.attempted) {
+        imported.attempted=true;
+        if(!install_resource(common,index))svc_log->error(mod_ctx,
+            "Dawnlight: could not load requested native attack particle from the disc");
     }
-    if (!s_attempted) {
-        s_attempted = true;
-        if (!install_resource(common)) {
-            svc_log->error(mod_ctx, "Dawnlight bow: could not load the original Bulblin flame from the disc");
-        }
-    }
-    return s_effect;
+    return imported.effect;
+}
+std::uint16_t bow_fire_effect() {return imported_particle_effect(0);}
+std::uint16_t dodongo_fire_effect(std::uint16_t native) {
+    for(unsigned i=1;i<8;++i)if(kSources[i]==native)return imported_particle_effect(i);
+    return 0;
+}
+
+std::uint16_t boss_attack_effect(std::uint16_t native, bool stallord) {
+    const unsigned first=stallord?8:15, end=stallord?15:18;
+    for(unsigned i=first;i<end;++i)if(kSources[i]==native)return imported_particle_effect(i);
+    return 0;
 }
 
 void shutdown_bow_fire_resource() {
-    if (s_resource != nullptr && common_manager() == s_common) {
+    if (s_installed && common_manager() == s_common) {
         // Invalidated emitters can still hold pRes until the next particle update.
         // Remove them before releasing the resource/texture memory.
         auto* manager = dPa_control_c::mEmitterMng;
@@ -158,7 +181,8 @@ void shutdown_bow_fire_resource() {
             for (auto* link = list.getFirst(); link != list.getEnd();) {
                 auto* next = link->getNext();
                 auto* emitter = link->getObject();
-                if (emitter->pRes == s_resource) manager->forceDeleteEmitter(emitter);
+                if (std::any_of(s_imported.begin(),s_imported.end(),[&](const auto& entry){return entry.resource&&emitter->pRes==entry.resource;}))
+                    manager->forceDeleteEmitter(emitter);
                 link = next;
             }
         }
@@ -169,14 +193,11 @@ void shutdown_bow_fire_resource() {
         s_common->texRegNum = s_textureCount;
         s_common->texMaxNum = s_textureCapacity;
     }
-    if (s_heap != nullptr) s_heap->destroy();
-    s_heap = nullptr;
-    // destroy() runs texture/disposer cleanup in this buffer; free it afterwards.
-    s_heapStorage.reset();
-    s_resource = nullptr;
-    s_common = nullptr;
-    s_effect = 0;
-    s_attempted = false;
+    for(auto& imported:s_imported) {
+        if(imported.heap)imported.heap->destroy();
+        imported={}; // Release backing memory after texture/disposer cleanup.
+    }
+    s_sourceBytes={};s_common=nullptr;s_scanned=false;s_installed=false;
     s_resources.clear();
     s_textures.clear();
 }

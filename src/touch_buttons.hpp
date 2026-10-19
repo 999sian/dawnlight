@@ -7,6 +7,7 @@ namespace dawnlight {
 ModResult register_touch_button_config(ModError* error);
 ModResult install_touch_button_hooks(ModError* error);
 void shutdown_touch_buttons();
+void survivors_touch_sword(void* controls, bool restore);
 void open_touch_buttons(ModContext* ctx, void*);
 bool midna_touch_button_available();
 std::string midna_touch_button_icon();

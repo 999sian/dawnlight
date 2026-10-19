@@ -1,6 +1,9 @@
 #include "enemy_spawner.hpp"
+#include "survivors.hpp"
+#include "process_actor.hpp"
 
 #include "save_state.hpp"
+#include "bow_fire_resource.hpp"
 #include "service_imports.hpp"
 
 #include "SSystem/SComponent/c_math.h"
@@ -123,6 +126,8 @@ static_assert(kEnemySpawnerProfiles[kHelmasaurusIndex] == fpcNm_E_MM_e);
 
 DEFINE_HOOK(&fpcMtd_Method, SpawnerProcessHook);
 DEFINE_HOOK(&fopAcM_createChild, SpawnerChildHook);
+DEFINE_HOOK(static_cast<u32 (dPa_control_c::*)(u32,u8,u16,const cXyz*,const dKy_tevstr_c*,const csXyz*,
+    const cXyz*,u8,dPa_levelEcallBack*,s8,const GXColor*,const GXColor*,const cXyz*,f32)>(&dPa_control_c::set),SpawnerFireHook);
 DEFINE_HOOK(&daE_ZS_c::executeAppear, StaltroopAppearHook);
 DEFINE_HOOK(&daE_ZS_c::executeWait, StaltroopWaitHook);
 
@@ -132,6 +137,7 @@ std::unordered_set<ActorId> s_testActors;
 std::vector<std::pair<void*, bool>> s_testProcessStack;
 bool s_processHookInstalled = false;
 bool s_childHookInstalled = false;
+bool s_fireHookInstalled = false;
 bool s_appearHookInstalled = false;
 bool s_waitHookInstalled = false;
 
@@ -155,8 +161,8 @@ HookAction before_process(ModContext*, void* args, void*, void*) {
     auto* process = mods::arg<void*>(args, 1);
     // The room's enemy-appearance switch is read in base creation, before the
     // first fopAcM_IsActor check can succeed. Process IDs already exist here.
-    s_testProcessStack.emplace_back(args, process != nullptr && s_testActors.contains(fpcM_GetID(process)));
-    if (process == nullptr || !fopAcM_IsActor(process)) return HOOK_CONTINUE;
+    s_testProcessStack.emplace_back(args, is_base_process(process) && s_testActors.contains(fpcM_GetID(process)));
+    if (process == nullptr || !is_actor_process(process)) return HOOK_CONTINUE;
     auto* actor = static_cast<fopAc_ac_c*>(process);
     if (!is_test_actor(actor)) return HOOK_CONTINUE;
     const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);
@@ -229,7 +235,26 @@ ModResult create_test_actor_in_player_layer(daAlink_c* player, ProfileName profi
     return svc_actor->create_actor(mod_ctx, profile, &params, &id);
 }
 
+HookAction before_dodongo_fire(ModContext*,void* args,void*,void*) {
+    if(!enemy_spawner_process_active())return HOOK_CONTINUE;
+    auto* actor=static_cast<fopAc_ac_c*>(mods::arg<void*>(s_testProcessStack.back().first,1));
+    if(!actor)return HOOK_CONTINUE;
+    auto& effect=mods::arg_ref<u16>(args,3);
+    const auto profile=fopAcM_GetName(actor);
+    u16 imported=0;
+    if(profile==fpcNm_E_DD_e)imported=dodongo_fire_effect(effect);
+    else if(profile==fpcNm_B_DS_e || profile==fpcNm_E_VT_e)
+        imported=boss_attack_effect(effect,profile==fpcNm_B_DS_e);
+    if(imported)effect=imported;
+    return HOOK_CONTINUE;
+}
+
 ModResult install_test_hooks() {
+    if(!s_fireHookInstalled) {
+        const auto result=mods::hook::add_pre<SpawnerFireHook>(svc_hook,before_dodongo_fire);
+        if(result!=MOD_OK)return result;
+        s_fireHookInstalled=true;
+    }
     if (!s_childHookInstalled) {
         const auto result = mods::hook::add_post<SpawnerChildHook>(svc_hook, after_create_child);
         if (result != MOD_OK) return result;
@@ -285,6 +310,7 @@ bool enemy_spawner_blocked_in_bossrush_hub() {
 }
 
 ModResult spawn_enemy_for_testing(int profileIndex) {
+    if (survivors_active()) return MOD_UNAVAILABLE;
     if (profileIndex < 0 ||
         static_cast<std::size_t>(profileIndex) >= kEnemySpawnerProfiles.size()) {
         return MOD_INVALID_ARGUMENT;

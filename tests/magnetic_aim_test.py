@@ -272,7 +272,7 @@ production = "\n\n".join(function(name) for name in (
 with tempfile.TemporaryDirectory(prefix="dawnlight-magnetic-aim-") as directory:
     test = Path(directory) / "test.cpp"
     binary = Path(directory) / "test"
-    test.write_text(fixture.replace("// PRODUCTION", production))
+    test.write_text(fixture.replace("// PRODUCTION", production.replace(function("bool camera_aim_ray"), (root / "src/aim_third_person.inc").read_text()+"\n"+function("bool camera_aim_ray"))))
     subprocess.run(["c++", "-std=c++20", "-Wall", "-Wextra", "-Werror",
                     str(test), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

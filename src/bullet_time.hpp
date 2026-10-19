@@ -14,6 +14,7 @@ void update_bullet_time_after_jump(daAlink_c* link);
 void slow_bullet_time_jump_speed_change(daAlink_c* link, float previousNormalSpeed);
 bool bullet_time_active_for(const daAlink_c* link);
 void apply_bullet_time_gyro(daAlink_c* link);
+void survivors_gyro_deltas(bool active, float& yaw, float& pitch);
 void bullet_time_tick();
 void shutdown_bullet_time();
 

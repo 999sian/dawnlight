@@ -27,9 +27,14 @@ fixture = r'''
 #include <string>
 #include <vector>
 #include "general_modes.hpp"
+#include "survivors_progression.hpp"
 #include "stamina_settings.hpp"
 #include "twilit_stamina.hpp"
 using namespace dawnlight;
+bool testSurvivors=false;
+bool survivors_active(){return testSurvivors;}
+bool survivors_dual_wield(){return false;}
+bool survivors_mobility_override(ModeSetting setting,int64_t& value){return survivors::talent_mode_override({},setting,value);}
 namespace dawnlight {bool teActive=false;bool twilit_stamina_active(){return teActive;}}
 namespace dawnlight {
 bool teHumanSprint=false,teWolfSprint=false;

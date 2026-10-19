@@ -1,3 +1,4 @@
+#include "survivors.hpp"
 #include "touch_buttons.hpp"
 #include "config.hpp"
 #include "item_slot_compat.hpp"
@@ -436,6 +437,10 @@ void copy_dawnlight_hud_settings(ModContext*, void*) {
 }
 
 void spawn_selected_enemy(ModContext*, void*) {
+    if(survivors_active()) {
+        push_toast("Enemy Spawn Unavailable", "Survivors controls its own enemy spawns.", "warning");
+        return;
+    }
     const ModResult result = spawn_enemy_for_testing(enemy_spawner_profile());
     if (result == MOD_UNAVAILABLE) {
         if (enemy_spawner_blocked_in_bossrush_hub()) {
@@ -1339,7 +1344,7 @@ void open_settings(ModContext* ctx, void*) {
         return;
     }
 
-    std::array<UiTabDesc, 8> tabs{};
+    std::array<UiTabDesc, 9> tabs{};
     for (auto& tab : tabs) {
         tab = UI_TAB_DESC_INIT;
     }
@@ -1359,6 +1364,8 @@ void open_settings(ModContext* ctx, void*) {
     tabs[6].build = build_models_tab;
     tabs[7].title = "Boss Rush";
     tabs[7].build = build_boss_rush_tab;
+    tabs[8].title = "Survivors";
+    tabs[8].build = build_survivors_settings;
 
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
     desc.tabs = tabs.data();

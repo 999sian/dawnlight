@@ -1,0 +1,19 @@
+// Restrict the healing override to native red-potion drinking. Other healing,
+// including hearts collected with a bottle equipped, keeps its original value.
+daAlink_c* s_potionDrinker = nullptr;
+HookAction before_potion_drink(ModContext*, void* args, void*, void*) {
+    auto* link = mods::arg<daAlink_c*>(args, 0);
+    s_potionDrinker = in_arena() && s_run.phase == Phase::Running && s_run.red_potion &&
+        link && fopAcM_GetID(link) == s_player && link->mEquipItem == dItemNo_RED_BOTTLE_e ? link : nullptr;
+    return HOOK_CONTINUE;
+}
+void after_potion_drink(ModContext*, void*, void*, void*) { s_potionDrinker = nullptr; }
+HookAction before_potion_heal(ModContext*, void* args, void*, void*) {
+    if (s_potionDrinker && in_arena() && s_run.phase == Phase::Running && s_run.red_potion &&
+        fopAcM_GetID(s_potionDrinker) == s_player && s_potionDrinker->mEquipItem == dItemNo_RED_BOTTLE_e &&
+        mods::arg<float>(args, 0) > 0 && mods::arg<u8>(args, 1) == 0)
+        mods::arg_ref<float>(args, 0) = float(s_run.potion_heal_quarters());
+    // Native life-count units are quarter hearts; retain normal animation,
+    // missing-health clamping, bottle consumption and empty-bottle handling.
+    return HOOK_CONTINUE;
+}

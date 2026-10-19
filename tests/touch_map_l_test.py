@@ -33,7 +33,8 @@ namespace mods {
 template<class T> T arg(void* args, int) { return static_cast<Args*>(args)->control; }
 template<class T> T& arg_ref(void* args, int) { return static_cast<Args*>(args)->requested; }
 }
-bool enabled = true;
+bool enabled = true,swapped=false;
+bool survivors_switch_attack_lock(){return enabled&&swapped;}
 int windowStatus = 0, writes = 0;
 bool dawnlight_touch_ui_active() { return enabled; }
 int dMeter2Info_getWindowStatus() { return windowStatus; }
@@ -66,6 +67,9 @@ int main() {
         sync();
         assert(writes == 0 && l() == ControlOverride::Default);
     }
+    windowStatus=0;swapped=true;sync();assert(l()==ControlOverride::Action);
+    request(Control::L,ControlOverride::Default);assert(l()==ControlOverride::Action);
+    swapped=false;sync();assert(l()==ControlOverride::Default);
     for (int map : {4, 5}) {
         windowStatus = map;
         sync();

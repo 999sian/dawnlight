@@ -1,4 +1,5 @@
 #include "heroes_shade_encounter.hpp"
+#include "survivors.hpp"
 #include "enemy_slow_motion/profile.hpp"
 #include "clear_timer.hpp"
 #include "heroes_shade_battle.hpp"
@@ -70,6 +71,7 @@ constexpr float kApproachSpeed = shade::stride::speed;
 ProfileName sProfile = -1;
 ActorHandle sRegistration = 0;
 ActorId sPedestal = kNone;
+ActorId sSurvivorsPedestal = kNone;
 struct Fighter {
     ActorId id = kNone;
     std::unique_ptr<ShadeStrideAnimation> stride;
@@ -1360,6 +1362,7 @@ public:
     dCcD_Cyl collision;
     ShadeTrials trials;
     bool ready=false;
+    bool survivors=false;
     ~Pedestal() { dComIfG_resDelete(&phase,kSwordArchive); }
     static int heap(fopAc_ac_c* actor) {
         auto* self=static_cast<Pedestal*>(actor);
@@ -1377,6 +1380,7 @@ int create_pedestal(void* ptr) {
     auto* self=static_cast<Pedestal*>(ptr);
     fopAcM_ct(self,Pedestal);
     if (self->ready) return cPhs_COMPLEATE_e;
+    self->survivors=fopAcM_GetParam(self)==1;
     const auto phase=dComIfG_resLoad(&self->phase,kSwordArchive);
     if (phase!=cPhs_COMPLEATE_e) return phase;
     if (!fopAcM_entrySolidHeap(self,Pedestal::heap,0x4000)) return cPhs_ERROR_e;
@@ -1397,12 +1401,15 @@ int create_pedestal(void* ptr) {
     self->collision.SetC(self->current.pos);
     self->collision.SetR(90);
     self->collision.SetH(62);
-    self->trials.init(self);
-    sTrials=&self->trials;
+    if(!self->survivors) {self->trials.init(self);sTrials=&self->trials;}
     self->ready=true;
     return cPhs_COMPLEATE_e;
 }
 int delete_pedestal(void* ptr) {
+    if(static_cast<Pedestal*>(ptr)->survivors) {
+        if(sSurvivorsPedestal==fopAcM_GetID(static_cast<Pedestal*>(ptr)))sSurvivorsPedestal=kNone;
+        static_cast<Pedestal*>(ptr)->~Pedestal();return 1;
+    }
     cancel_clear_timer(timing::shade);
     sStopping=true;
     stop_shade_music();
@@ -1420,6 +1427,20 @@ int execute_pedestal(void* ptr) {
     self->btk.play(); self->brk.play();
     dComIfG_Ccsp()->Set(&self->collision);
     auto* player=daAlink_getAlinkActorClass();
+    if(self->survivors) {
+        if(!survivors_hub_active() || !player || dComIfGp_isEnableNextStage() || dComIfGp_event_runCheck() ||
+           dComIfGp_isPauseFlag() || ui_document_visible() || player->checkDeadHP() || player->checkWolf())return 1;
+        const cXyz delta=player->current.pos-self->current.pos;
+        const s16 facing=static_cast<s16>(cLib_targetAngleY(&player->current.pos,&self->current.pos)-player->shape_angle.y);
+        if(delta.absXZ()<=230 && std::abs(delta.y)<=100 && std::abs(int(facing))<=0x3000) {
+            dComIfGp_setDoStatusForce(8,0);
+            if(mDoCPd_c::getTrigA(PAD_1)) {
+                mDoCPd_c::getCpadInfo(PAD_1).mPressedButtonFlags&=~PAD_BUTTON_A;
+                survivors_open_talents();
+            }
+        }
+        return 1;
+    }
     if (!arena() || !player || dComIfGp_isEnableNextStage() || dComIfGp_event_runCheck() ||
         dComIfGp_isPauseFlag() || ui_document_visible() || player->checkDeadHP() || player->checkWolf()) return 1;
     // Do both independently: loading effects must not delay wall-target spawn.
@@ -1477,6 +1498,7 @@ int draw_pedestal(void* ptr) {
     mDoExt_modelUpdateDL(self->sword);
     self->btk.remove(data); self->brk.remove(data);
     dComIfGd_getOpaList()->entryImm(&self->plinth,0);
+    if(self->survivors)return 1;
     self->trials.draw(self->tevStr);
     for (const auto id:sProjectiles) {
         auto* actor=actor_by_id(id);
@@ -1584,6 +1606,20 @@ void update_heroes_shade_arena() {
     sStopping=false;
     spawn(sProfile,cXyz(0,height,0),0,0,sPedestal);
 }
+void update_survivors_pedestal(bool enabled) {
+    if(!enabled) {remove_actor(sSurvivorsPedestal);return;}
+    if(!sRegistration || pending_or_live(sSurvivorsPedestal) || !survivors_hub_active())return;
+    auto* player=daAlink_getAlinkActorClass();if(!player)return;
+    cXyz probe(0,player->current.pos.y+1000,0);
+    dBgS_ObjGndChk ground;ground.SetPos(&probe);
+    const float height=dComIfG_Bgsp().GroundCross(&ground);
+    if(!std::isfinite(height)||height<=-1.0e8f)return;
+    spawn(sProfile,cXyz(0,height,0),0,1,sSurvivorsPedestal);
+}
+bool survivors_pedestal_anchor(cXyz& position) {
+    auto* actor=actor_by_id(sSurvivorsPedestal);if(!actor)return false;
+    position=actor->current.pos;return true;
+}
 void shutdown_heroes_shade_encounter() {
     sStopping=true;
     const auto wolfId=sShadeWolf.id;
@@ -1593,6 +1629,7 @@ void shutdown_heroes_shade_encounter() {
     owned.insert(wolfId);
     for (const auto& entry:sFighters) if (entry.id!=kNone) owned.insert(entry.id);
     owned.insert(sPedestal);
+    owned.insert(sSurvivorsPedestal);
     if (sTrials) {
         cancel_trial();
         for (const auto id:sTrials->anchors) owned.insert(id);
@@ -1619,7 +1656,7 @@ void shutdown_heroes_shade_encounter() {
     }
     sFighters={};
     sProjectiles.clear();
-    sPedestal=kNone;
+    sPedestal=kNone; sSurvivorsPedestal=kNone;
     sShadeWolf.id=kNone;
     for (auto& line:sLines) line.reset();
     sBossTitle.reset();

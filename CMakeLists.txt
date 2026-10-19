@@ -150,6 +150,8 @@ add_mod(dawnlight_mod
         src/mod.cpp
         src/model_overlays.cpp
         src/new_save_modes.cpp
+        src/survivors.cpp
+        src/survivors_integrity.cpp
         src/clear_timer.cpp
         src/cave_boss_visits.cpp
         src/boss_portal_symbols.cpp
@@ -166,6 +168,17 @@ add_mod(dawnlight_mod
     RES_DIR res
 )
 
+# The native mod inventory header depends on the host's header-only JSON types.
+include(FetchContent)
+FetchContent_Declare(dawnlight_json_headers
+    URL https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz
+    DOWNLOAD_EXTRACT_TIMESTAMP FALSE
+    SOURCE_SUBDIR dawnlight-headers-only
+)
+FetchContent_MakeAvailable(dawnlight_json_headers)
+set_property(SOURCE src/survivors_integrity.cpp APPEND PROPERTY INCLUDE_DIRECTORIES
+    "${DUSKLIGHT_DIR}/src" "${dawnlight_json_headers_SOURCE_DIR}/include")
+
 target_include_directories(dawnlight_mod PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
@@ -174,7 +187,7 @@ target_compile_definitions(dawnlight_mod PRIVATE DAWNLIGHT_VERSION="${DAWNLIGHT_
 
 # Cross-mod Z-slot, KH2 gauge and TE stamina guards read live ConfigVars on every platform.
 # Keep private host headers scoped to these sources on non-touch builds.
-set_property(SOURCE src/item_slot_hooks.cpp src/kh2_hud_compat.cpp src/twilit_stamina.cpp APPEND PROPERTY
+set_property(SOURCE src/item_slot_hooks.cpp src/kh2_hud_compat.cpp src/twilit_stamina.cpp src/survivors.cpp APPEND PROPERTY
     INCLUDE_DIRECTORIES "${DUSKLIGHT_DIR}/src")
 
 if(DAWNLIGHT_PRIVATE_TOUCH_UI_HEADERS)

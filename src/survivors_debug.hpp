@@ -1,0 +1,23 @@
+#pragma once
+#include <algorithm>
+#include <cstdint>
+
+// Development switch: set to 0 before merging a development PR or releasing.
+// Disabled builds hide the tab and forcibly neutralize every debug setting.
+#ifndef DAWNLIGHT_SURVIVORS_DEBUG
+#define DAWNLIGHT_SURVIVORS_DEBUG 0
+#endif
+namespace dawnlight::survivors {
+inline constexpr bool debug_enabled = DAWNLIGHT_SURVIVORS_DEBUG != 0;
+struct DebugOptions {
+    unsigned minimum_rarity=0, player_damage=1, infinite_rerolls=0, infinite_banishes=0, run_minutes=20;
+    bool unlock_all_maps=false;
+    void clamp() {
+        if (!debug_enabled) { *this={}; return; }
+        minimum_rarity=std::min(4u,minimum_rarity);
+        player_damage=std::clamp(player_damage,1u,10u);
+        infinite_rerolls=std::min(1u,infinite_rerolls);infinite_banishes=std::min(1u,infinite_banishes);
+        if (run_minutes!=5 && run_minutes!=10) run_minutes=20;
+    }
+};
+}

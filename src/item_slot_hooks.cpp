@@ -2,6 +2,7 @@
 #include "item_slot_compat.hpp"
 #include "fierce_deity.hpp"
 #include "touch_buttons.hpp"
+#include "survivors.hpp"
 #include "hud_layout.hpp"
 #include "save_state.hpp"
 #include "service_imports.hpp"
@@ -3821,7 +3822,7 @@ void sync_map_l_touch_override() {
         return;
     }
 
-    const bool mapActive = map_l_touch_override_needed();
+    const bool mapActive = map_l_touch_override_needed() || survivors_switch_attack_lock();
     if (mapActive || s_mapLTouchOverrideActive) {
         // Action keeps L visible and uses momentary input instead of target
         // locking. Apply before sync_visual_state can hide/release the button.
@@ -3837,7 +3838,7 @@ HookAction before_touch_set_control_override(ModContext*, void* args, void*, voi
         // Remember the latest host/other-mod request so closing the map does
         // not clear an L action that belongs to another menu.
         s_hostLTouchOverride = requested;
-        s_mapLTouchOverrideActive = map_l_touch_override_needed();
+        s_mapLTouchOverrideActive = map_l_touch_override_needed() || survivors_switch_attack_lock();
         if (s_mapLTouchOverrideActive) {
             requested = dusk::ui::ControlOverride::Action;
         }
@@ -3908,12 +3909,14 @@ void after_touch_fmap_move(ModContext*, void*, void*, void*) {
 }
 
 HookAction before_touch_sync_control_displays(ModContext*, void*, void*, void*) {
+    survivors_touch_sword(nullptr,true);
     s_inTouchControlDisplaySync = true;
     s_zTouchDisplayButton = nullptr;
     return HOOK_CONTINUE;
 }
 
-void after_touch_sync_control_displays(ModContext*, void*, void*, void*) {
+void after_touch_sync_control_displays(ModContext*, void* args, void*, void*) {
+    survivors_touch_sword(mods::arg<dusk::ui::TouchControls*>(args,0),false);
     Rml::Element* button = s_zTouchDisplayButton;
     s_inTouchControlDisplaySync = false;
     s_zTouchDisplayButton = nullptr;

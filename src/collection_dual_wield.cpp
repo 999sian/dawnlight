@@ -1,3 +1,4 @@
+#include "survivors.hpp"
 #include "collection_dual_wield.hpp"
 #include "collection_service.hpp"
 #include "collection_dual_wield_state.hpp"
@@ -654,6 +655,7 @@ template<class T> bool resolve(const char* name,T& fn) {
 }
 }
 bool dual_wield_equipped() {
+    if (survivors_active()) return survivors_dual_wield();
     if(s_serviceBackend) return collection_service_equipped();
     return s_selection.active(dual_wield_enabled(),save_state_boss_rush_active());
 }

@@ -14,6 +14,10 @@ const HostService* svc_host=nullptr;
 const UiService* svc_ui=nullptr;
 const LogService* svc_log=nullptr;
 namespace dawnlight {
+bool survivors_active() { return false; }
+bool survivors_dual_wield() { return false; }
+bool survivors_mobility_override(ModeSetting,int64_t&) { return false; }
+float survivors_sprint_multiplier() { return 1.f; }
 bool g_configCheckForUpdatesEnabled=false;
 ProgressionState progression_state() { return {}; }
 }

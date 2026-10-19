@@ -1,3 +1,4 @@
+#include "survivors.hpp"
 #include "combat_meter.hpp"
 
 #include "hud_layout.hpp"
@@ -212,6 +213,7 @@ ScreenBounds position_combat_meter(dMeter2Draw_c* meter, int row, const DuskModH
 }  // namespace
 
 bool combat_meter_hud_visible() {
+    if(survivors_save_screen_active())return false;
     return dMeter2Info_getWindowStatus() == 0 && dMeter2Info_getPauseStatus() == 0 &&
            !dComIfGp_isPauseFlag() && !dComIfGp_event_runCheck() &&
            !dMeter2Info_isShopTalkFlag() && !dMsgObject_isTalkNowCheck();
@@ -235,15 +237,16 @@ float combat_meter_screen_alpha(dMeter2Draw_c* meter) {
     return alpha / 255.0f;
 }
 
-void draw_combat_meter(
-    dMeter2Draw_c* meter, float percentage, CombatMeterStyle style, int row)
+static bool draw_meter(
+    dMeter2Draw_c* meter, float percentage, CombatMeterStyle style, int row,
+    const ScreenBounds* placement)
 {
     if (meter == nullptr || meter->mpKanteraScreen == nullptr ||
         meter->mpMagicParent == nullptr || meter->mpMagicBase == nullptr ||
         meter->mpMagicFrameL == nullptr || meter->mpMagicMeter == nullptr ||
-        meter->mpMagicFrameR == nullptr || meter->mpLifeParent == nullptr)
+        meter->mpMagicFrameR == nullptr || (!placement && meter->mpLifeParent == nullptr))
     {
-        return;
+        return false;
     }
 
     const PaneState parent = save_pane(meter->mpMagicParent);
@@ -289,7 +292,25 @@ void draw_combat_meter(
     meter->mpMagicBase->resize(
         meter->mpMagicBase->getInitSizeX(), meter->mpMagicBase->getInitSizeY());
 
-    const ScreenBounds bounds = position_combat_meter(meter, row, combat_meter_transform(style));
+    ScreenBounds bounds;
+    if (placement) {
+        // Measure at unit scale, then place by the actual artwork bounds. This
+        // keeps the boss bar fixed below XP even with a customized native HUD.
+        meter->mpMagicParent->scale(1.0f, 1.0f);
+        bounds = combat_meter_bounds(meter);
+        const float width = bounds.right - bounds.left;
+        const float height = bounds.bottom - bounds.top;
+        if (bounds.valid && width > 0.0f && height > 0.0f) {
+            meter->mpMagicParent->scale(
+                (placement->right - placement->left) / width,
+                (placement->bottom - placement->top) / height);
+            bounds = combat_meter_bounds(meter);
+            meter->mpMagicParent->translate(
+                parent.x + placement->left - bounds.left,
+                parent.y + placement->top - bounds.top);
+            bounds = combat_meter_bounds(meter);
+        } else bounds.valid = false;
+    } else bounds = position_combat_meter(meter, row, combat_meter_transform(style));
 
     J2DGrafContext* graf = dComIfGp_getCurrentGrafPort();
     DawnlightFierceDeityHudFrame replacement{};
@@ -300,8 +321,15 @@ void draw_combat_meter(
             std::abs(meter->mpMagicParent->getScaleX()), std::abs(meter->mpMagicParent->getScaleY()),
             combat_meter_screen_alpha(meter), graf};
     }
-    draw_combat_meter_screen(meter->mpKanteraScreen, graf,
-        style != CombatMeterStyle::FierceDeity, percentage, external ? &replacement : nullptr);
+    const bool drawable = graf && (!placement || bounds.valid);
+    if (drawable) {
+        if (placement) {
+            graf->setup2D();
+            meter->mpKanteraScreen->draw(0.0f, 0.0f, graf);
+            graf->setup2D();
+        } else draw_combat_meter_screen(meter->mpKanteraScreen, graf,
+            style != CombatMeterStyle::FierceDeity, percentage, external ? &replacement : nullptr);
+    }
 
     fillPicture->setBlackWhite(oldBlack, oldWhite);
     restore_pane(frameR);
@@ -309,6 +337,18 @@ void draw_combat_meter(
     restore_pane(frameL);
     restore_pane(base);
     restore_pane(parent);
+    return drawable;
+}
+
+void draw_combat_meter(dMeter2Draw_c* meter, float percentage, CombatMeterStyle style, int row) {
+    draw_meter(meter, percentage, style, row, nullptr);
+}
+
+bool draw_boss_health_meter(dMeter2Draw_c* meter, float percentage,
+    float left, float top, float width, float height) {
+    if (width <= 0.0f || height <= 0.0f) return false;
+    const ScreenBounds placement{left, top, left + width, top + height, true};
+    return draw_meter(meter, percentage, CombatMeterStyle::BossHealth, 0, &placement);
 }
 
 bool combat_meter_next_row_anchor(dMeter2Draw_c* meter, int row, float& x, float& y, float& scale) {

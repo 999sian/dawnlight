@@ -1,3 +1,4 @@
+#include "survivors.hpp"
 #include "touch_buttons.hpp"
 #include "config.hpp"
 #include "settings_snapshot.hpp"
@@ -1153,6 +1154,7 @@ ModResult register_config(ModError* error) {
 }
 
 bool dawnlight_mode_enabled() {
+    if (survivors_active()) return false;
     bool enabled = false;
     if (s_dawnlightMode) svc_config->get_bool(mod_ctx, s_dawnlightMode, &enabled);
     return enabled;
@@ -1165,6 +1167,7 @@ bool notifications_enabled() {
 }
 
 bool progression_system_enabled() {
+    if (survivors_active()) return false;
     bool enabled = false;
     if (s_progressionSystem) svc_config->get_bool(mod_ctx, s_progressionSystem, &enabled);
     return dawnlight_mode_enabled() || enabled;
@@ -1206,6 +1209,28 @@ ModeSetting mode_setting_for_config(ConfigVarHandle var) {
 bool mode_config_override(ConfigVarHandle var, int64_t& value) {
     const auto setting = mode_setting_for_config(var);
     if (setting == ModeSetting::None) return false;
+    if (survivors_active()) {
+        if (setting==ModeSetting::StaminaSettings) {
+            for(size_t i=0;i<s_staminaSettings.size();++i)
+                if(s_staminaSettings[i]==var){value=kStaminaSettings[i].standard;return true;}
+        }
+        if (setting==ModeSetting::NoNormalHitInvulnerability) { value=1; return true; }
+        if(survivors_mobility_override(setting,value))return true;
+        switch (setting) {
+        case ModeSetting::JumpHeight:
+        case ModeSetting::HealthScale:
+        case ModeSetting::WolfSpeed: value = 100; return true;
+        case ModeSetting::DualWield: value = survivors_dual_wield(); return true;
+        case ModeSetting::Progression: case ModeSetting::WolfSprint:
+        case ModeSetting::FlurryRush: case ModeSetting::BulletTime: case ModeSetting::EnemyHardMode:
+        case ModeSetting::BossHardMode: case ModeSetting::ManualShielding: case ModeSetting::ArrowModes:
+        case ModeSetting::GreatSpin:
+        case ModeSetting::FierceDeity:
+        case ModeSetting::Stamina: case ModeSetting::DisableAutoJump:
+            value = 0; return true;
+        default: return false;
+        }
+    }
     const bool dawnlight = dawnlight_mode_enabled();
     if (setting == ModeSetting::StaminaSettings) {
         if (!dawnlight) return false;
@@ -1273,6 +1298,7 @@ int health_scale_percent() {
 }
 
 bool automatic_ngplus_health_scaling() {
+    if (survivors_active()) return false;
     return get_bool(s_automaticHealthScale, true);
 }
 
@@ -1328,7 +1354,7 @@ bool fierce_deity_enabled() {
     return get_bool(s_fierceDeity, false);
 }
 
-bool dark_link_free_transform() { return get_bool(s_darkLinkFreeTransform, false); }
+bool dark_link_free_transform() { return !survivors_active() && get_bool(s_darkLinkFreeTransform, false); }
 ConfigVarHandle dark_link_free_transform_config_var() { return s_darkLinkFreeTransform; }
 
 FierceDeityVisual fierce_deity_visual() {
@@ -1341,6 +1367,7 @@ ConfigVarHandle dark_link_aura_config_var() { return s_darkLinkAura; }
 
 int dark_link_setting(DarkLinkSetting setting) {
     const auto& desc = kDarkLinkSettings[static_cast<size_t>(setting)];
+    if(survivors_active())return desc.standard;
     return get_int(s_darkLinkSettings[static_cast<size_t>(setting)], desc.standard, desc.min, desc.max);
 }
 ConfigVarHandle dark_link_setting_config_var(DarkLinkSetting setting) {
@@ -1359,7 +1386,7 @@ bool great_spin_projectile_enabled() {
 
 bool dual_wield_enabled() { return get_bool(s_dualWield, false); }
 ConfigVarHandle dual_wield_config_var() { return s_dualWield; }
-SecondSword second_sword() { return static_cast<SecondSword>(get_int(s_secondSword, 1, 0, 2)); }
+SecondSword second_sword() { if (survivors_active()) return SecondSword::Ordon; return static_cast<SecondSword>(get_int(s_secondSword, 1, 0, 2)); }
 ConfigVarHandle second_sword_config_var() { return s_secondSword; }
 
 bool arrow_modes_enabled() {
@@ -1433,6 +1460,7 @@ float wolf_speed_multiplier() {
 }
 
 float sprint_speed_multiplier() {
+    if(survivors_active())return survivors_sprint_multiplier();
     return static_cast<float>(get_int(s_sprintSpeedPercent, 150, 100, 300)) / 100.0f;
 }
 
@@ -1456,6 +1484,7 @@ ConfigVarHandle boss_rush_config_var() { return s_bossRushEnabled; }
 ConfigVarHandle clear_timer_config_var() { return s_clearTimer; }
 
 bool cave_randomizer_enabled() {
+    if (survivors_active()) return false;
     return get_bool(s_caveRandomizer, false);
 }
 

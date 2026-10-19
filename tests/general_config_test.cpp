@@ -12,6 +12,14 @@ ModContext* mod_ctx = nullptr;
 const ConfigService* svc_config = nullptr;
 const UiService* svc_ui = nullptr;
 namespace dawnlight {
+bool testSurvivors=false;
+bool survivors_active() { return testSurvivors; }
+bool twilit_stamina_active() { return false; }
+bool twilit_sprint_enabled(bool) { return false; }
+const char* z_item_slot_provider_notice() { return nullptr; }
+bool survivors_dual_wield() { return false; }
+bool survivors_mobility_override(ModeSetting,int64_t&) { return false; }
+float survivors_sprint_multiplier() { return 1.f; }
 bool g_configCheckForUpdatesEnabled = false;
 // Touch UI registration is outside this config/UI binding test.
 ModResult register_touch_button_config(ModError*) { return MOD_OK; }
@@ -149,6 +157,11 @@ int main() {
     assert(manual_shielding_enabled() && arrow_modes_enabled() && great_spin_projectile_enabled());
     assert(!remove_normal_hit_invulnerability_enabled());
     auto noInvulnerability = control(remove_normal_hit_invulnerability_config_var(), UI_CONTROL_TOGGLE);
+    testSurvivors=true;
+    assert(remove_normal_hit_invulnerability_enabled() && disabled(noInvulnerability));
+    assert(disk.at("remove-normal-hit-invulnerability").value==0);
+    testSurvivors=false;
+    assert(!remove_normal_hit_invulnerability_enabled());
     assert(!disabled(noInvulnerability) && !shown(noInvulnerability).bool_value);
     for (bool manual : {true, false, true}) {
         UiControlValue edit = UI_CONTROL_VALUE_INIT;

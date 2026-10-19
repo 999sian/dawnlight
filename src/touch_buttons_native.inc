@@ -25,6 +25,7 @@ struct TouchApi {
     dusk::ui::ControlAnchor (*dockAnchor)(dusk::ui::ControlRect, dusk::ui::ControlLayoutSize) = nullptr;
     void (*applyDock)(Rml::Element*, dusk::ui::ControlAnchor) = nullptr;
     void (*setClass)(Rml::Element*, const Rml::String*, bool) = nullptr;
+    bool (*isClassSet)(const Rml::Element*, const Rml::String*) = nullptr;
     bool (*isPseudoClassSet)(const Rml::Element*, const Rml::String*) = nullptr;
     void (*setPseudoClass)(Rml::Element*, const Rml::String*, bool) = nullptr;
     bool (*releaseTexture)(const Rml::String*, Rml::RenderInterface*) = nullptr;
@@ -95,8 +96,10 @@ void prune_extra_presses(NativeTouch* controls) {
         }
     }
 }
+#include "survivors_touch_sword.inc"
 void restore_quick_access_layout();
 void remove_extra_elements() {
+    restore_survivors_touch_sword();
     restore_quick_access_layout();
     // Called before TouchControls destruction, while its document is still live.
     if (s_extraRoot && s_touchOwner && s_touchOwner->mRoot) {
@@ -276,6 +279,7 @@ HookAction extra_sync_input(ModContext*, void* args, void*, void*) {
     return HOOK_CONTINUE;
 }
 HookAction extra_delete(ModContext*, void* args, void*, void*) {
+    if(mods::arg<NativeTouch*>(args,0)==s_swordTouchOwner)restore_survivors_touch_sword();
     if (mods::arg<NativeTouch*>(args, 0) == s_touchOwner) remove_extra_elements();
     return HOOK_CONTINUE;
 }
@@ -366,6 +370,7 @@ ModResult install_native_buttons(ModError* error) {
         !resolve_extra("_ZN3Rml7Element8SetClassERKNSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEEb", s_touchApi.setClass) ||
         !resolve_extra("_ZN3Rml7Element14SetPseudoClassERKNSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEEb", s_touchApi.setPseudoClass) ||
         !resolve_extra("_ZNK3Rml7Element16IsPseudoClassSetERKNSt6__ndk112basic_stringIcNS1_11char_traitsIcEENS1_9allocatorIcEEEE", s_touchApi.isPseudoClassSet) ||
+        !resolve_extra("Rml::Element::IsClassSet", s_touchApi.isClassSet) ||
         !resolve_extra("Rml::Element::GetParentNode", s_touchApi.parent) ||
         !resolve_extra("Rml::Event::GetTargetElement", s_touchApi.target) ||
         !resolve_extra("Rml::Event::StopPropagation", s_touchApi.stop) ||
