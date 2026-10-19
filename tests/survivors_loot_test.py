@@ -30,7 +30,7 @@ stubs = r'''
 #include "survivors_projectiles.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned;constexpr ActorId kNone=~0u;
-constexpr int dCcD_MTRL_FIRE=2;unsigned short bow_fire_effect(){return 0x1234;}
+unsigned short bow_fire_effect(){return 0x1234;}
 using s16=short;using u16=unsigned short;using u8=unsigned char;
 struct ModContext {};
 struct cXyz {
@@ -87,7 +87,7 @@ struct Attack {bool manualFlight=false,aimPending=false;float aimSpread=0;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
 };
-constexpr int kAttackSource=0;constexpr unsigned kPaidChestCount=6,kSmallChestCount=6+map_chest_capacity,kChestCount=kSmallChestCount+elite_reward_capacity,kItemBegin=8,kSlotsPerItem=4;
+constexpr int kAttackSource=0;constexpr unsigned kPaidChestCount=6,kSmallChestCount=6+map_chest_capacity,kChestCount=kSmallChestCount+elite_reward_capacity;
 std::deque<Attack>s_attacks(initial_projectile_slots);
 bool prepare_projectile_model(Attack&, unsigned){return true;}
 bool prepare_bomb_arrow_model(Attack&){return true;}

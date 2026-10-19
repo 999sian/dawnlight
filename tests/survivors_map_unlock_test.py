@@ -21,11 +21,12 @@ bool s_storeFailed=false,s_progressSaved=true,s_hubSaveRequested=false,failSave=
 unsigned s_requestedMap=0;UiWindowHandle s_window=1,s_refreshChoices=0;
 ModContext* mod_ctx=nullptr;constexpr const char* kBlob="test";
 std::vector<UiControlDesc> controls;
+std::vector<std::string> classes;
 std::unordered_map<UiElementHandle,std::string> text;
 std::unordered_map<UiElementHandle,bool> visible;
 UiElementHandle nextHandle=1;
 struct Service {
- ModResult elem_set_class(ModContext*,UiElementHandle,const char*,bool){return MOD_OK;}
+ ModResult elem_set_class(ModContext*,UiElementHandle,const char* name,bool){classes.emplace_back(name);return MOD_OK;}
  ModResult elem_set_text(ModContext*,UiElementHandle h,const char* s){text[h]=s;return MOD_OK;}
  ModResult elem_set_rml(ModContext* c,UiElementHandle h,const char* s){return elem_set_text(c,h,s);}
  ModResult elem_set_visible(ModContext*,UiElementHandle h,bool v){visible[h]=v;return MOD_OK;}
@@ -51,8 +52,12 @@ main=r'''
 int main(){
  s_run.phase=Phase::Ready;
  for(unsigned map=0;map<arenas.size();++map){
-  controls.clear();s_requestedMap=map;
+  controls.clear();classes.clear();s_requestedMap=map;
   assert(build_arena_choices(1,2)==MOD_OK);
+  // The real window installs this stylesheet outside the isolated builder.
+  // Verify that all classes assigned to map controls have matching rules.
+  const std::string stylesheet=kArenaStyle;
+  for(const auto& name:classes)assert(stylesheet.find("."+name+" {")!=std::string::npos);
   auto start=controls.back();assert(std::string(start.label)=="Start run");
   assert(start.is_disabled(nullptr,nullptr)==(map!=0));
   assert(visible[s_mapLockHint]==(map!=0));

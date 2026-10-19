@@ -1,5 +1,6 @@
 """Exercise production chest interaction and native item-event lifecycle."""
 from pathlib import Path
+import os
 import subprocess
 import tempfile
 root=Path(__file__).resolve().parents[1]
@@ -26,7 +27,7 @@ bool prepare_treasure_message(ChestReward, const Run&, const Run&, Rarity){retur
 unsigned treasure_message_id(){return 0x8123;}
 unsigned inventorySyncs=0;
 void sync_survivors_inventory(){++inventorySyncs;}
-constexpr int fpcM_ERROR_PROCESS_ID_e=-1, fpcNm_Demo_Item_e=20;
+constexpr int fpcNm_Demo_Item_e=20;
 constexpr int dItemNo_NONE_e=255,dItemNo_EMPTY_BOTTLE_e=20,dItemNo_RED_BOTTLE_e=21,dItemNo_MASTER_SWORD_e=22,
     SLOT_11=11,SLOT_14=14,COLLECT_MASTER_SWORD=1,COLLECT_LIGHT_SWORD=3,
  dItemNo_LIGHT_SWORD_e=23,dItemNo_SWORD_e=24,dItemNo_WOOD_SHIELD_e=25,dItemNo_SHIELD_e=26,dItemNo_HYLIA_SHIELD_e=27;
@@ -453,6 +454,6 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
     cpp.write_text(fixture+source+main)
-    subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
+    subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
 print('Survivors treasure: affordability, native interaction, item demo, single commit and cleanup passed')

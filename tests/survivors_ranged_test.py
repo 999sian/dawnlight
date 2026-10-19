@@ -1,5 +1,6 @@
 """Independent ranged release: same-frame weapons, sword overlap and cosmetic isolation."""
 from pathlib import Path
+import os
 import subprocess
 import sys
 import tempfile
@@ -20,8 +21,8 @@ fixture=r'''
 #include "survivors_projectiles.hpp"
 using namespace dawnlight::survivors;
 using u16=unsigned short;using s16=short;
-constexpr int FALSE=0,dItemNo_NONE_e=255;
-constexpr u16 dRes_ID_ALANM_BCK_ARELORD_e=1,dRes_ID_ALANM_BCK_ASHOOT_e=2,dRes_ID_ALANM_BCK_BOOMTHROW_e=3,dRes_ID_ALANM_BCK_BOMBTHROW_e=4,dRes_ID_ALANM_BCK_IBTHROW_e=5,dRes_ID_ALANM_BCK_IBPULL_e=6,dRes_ID_ALANM_BCK_IBCATCH_e=7;
+constexpr int dItemNo_NONE_e=255;
+constexpr u16 dRes_ID_ALANM_BCK_ASHOOT_e=2,dRes_ID_ALANM_BCK_BOOMTHROW_e=3,dRes_ID_ALANM_BCK_BOMBTHROW_e=4,dRes_ID_ALANM_BCK_IBTHROW_e=5;
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-p.z};}float absXZ()const{return std::sqrt(x*x+z*z);}};
 s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.14159265);}
@@ -67,7 +68,6 @@ bool nearest_item_target(daAlink_c*,cXyz& target,float range,std::span<const Act
   target={targetDistance+float(i*10),100,0};if(chosen)*chosen=i;return targetExists&&target.x<range;}
  return false;}
 std::vector<ActorId> shotTargets;
-constexpr unsigned kItemBegin=8,kSlotsPerItem=4;
 struct Attack{bool active=false,returning=false;unsigned weapon=0,age=0,bowVolleySlot=20;uint64_t bowVolley=0;};std::deque<Attack>s_attacks(initial_projectile_slots);
 std::vector<cXyz>destinations;std::vector<Upgrade>shots;std::vector<float>spread;
 bool launch_item(daAlink_c*,Upgrade weapon,cXyz targetPosition,float angle=0,unsigned group=20,uint64_t volley=0,ActorId target=kNone,bool manual=false){
@@ -156,6 +156,6 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
     cpp.write_text(fixture+native_next+source+main)
-    subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
+    subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
 print('Survivors ranged: simultaneous releases, sword/jump overlap, range, cooldowns and cosmetic isolation passed')

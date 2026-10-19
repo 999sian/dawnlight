@@ -69,6 +69,7 @@ jobs:
           python3 tests/survivors_prices_test.py
           python3 tests/survivors_minimap_test.py
           python3 tests/survivors_lifecycle_test.py
+          CXX=clang++ python3 tests/survivors_lifecycle_test.py
           python3 tests/survivors_hub_test.py
           python3 tests/heroes_shade_pedestal_test.py
           python3 tests/survivors_defense_test.py
@@ -81,8 +82,11 @@ jobs:
           python3 tests/survivors_status_test.py
           python3 tests/survivors_potions_test.py
           python3 tests/survivors_treasure_test.py
+          CXX=clang++ python3 tests/survivors_treasure_test.py
           python3 tests/survivors_loot_test.py
+          CXX=clang++ python3 tests/survivors_loot_test.py
           python3 tests/survivors_loot_resources_test.py
+          CXX=clang++ python3 tests/survivors_loot_resources_test.py
 
       - name: Test Boss Rush clear timers
         if: matrix.platform == 'linux-x86_64'
@@ -311,6 +315,7 @@ jobs:
           python3 tests/survivors_combat_test.py dusklight
           CXX=clang++ python3 tests/survivors_combat_test.py dusklight
           python3 tests/survivors_ranged_test.py dusklight
+          CXX=clang++ python3 tests/survivors_ranged_test.py dusklight
           python3 tests/survivors_debug_test.py
           CXX=clang++ python3 tests/survivors_debug_test.py
           python3 tests/survivors_legendary_test.py

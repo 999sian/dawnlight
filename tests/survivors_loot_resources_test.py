@@ -1,6 +1,7 @@
 """Production treasure model allocation/teardown and shared chest animation ownership."""
 from pathlib import Path
 import re
+import os
 import subprocess
 import tempfile
 root=Path(__file__).resolve().parents[1]
@@ -183,5 +184,5 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
     cpp.write_text(stubs+globals+'\n'.join(extract(n) for n in ['clear_loot','prepare_loot','prepare_projectile_model','prepare_bomb_arrow_model','draw_loot_model','draw_loot'])+draw+main)
-    subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
+    subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

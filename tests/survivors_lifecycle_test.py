@@ -1,6 +1,7 @@
 """Exercise production death accounting, deferred cleanup and stage routing with engine stubs."""
 from pathlib import Path
 import re
+import os
 import subprocess
 import tempfile
 root = Path(__file__).resolve().parents[1]
@@ -353,5 +354,5 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp.write_text(stubs+'\n'+ '\n'.join(extract(n) for n in [
         'in_arena','retire_enemies','reset_runtime','prepare_save','activated','deactivated','new_save','loaded','reset',
         'begin_run','select_arena','cleanup_enemies','credit_death','before_game_start','before_opening','before_stage','after_power'])+'\n'+main)
-    subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
+    subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
