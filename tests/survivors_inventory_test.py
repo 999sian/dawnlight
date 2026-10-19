@@ -22,7 +22,7 @@ fixture = r'''
 using namespace dawnlight::survivors;
 using u8=uint8_t;
 using u32=uint32_t;
-constexpr int SLOT_0=0,SLOT_4=4,SLOT_6=6,SLOT_11=11,SLOT_14=14,SLOT_15=15,SLOT_20=20,SLOT_21=21,SLOT_22=22,SLOT_23=23,MAX_ITEM_SLOTS=24;
+constexpr int SLOT_0=0,SLOT_4=4,SLOT_6=6,SLOT_11=11,SLOT_14=14,SLOT_15=15,SLOT_20=20,SLOT_21=21,SLOT_22=22,SLOT_23=23,MAX_ITEM_SLOTS=24,MAX_SELECT_ITEM=4;
 // ITEM_ENUM
 std::array<u8,24> inventory;
 u8 dComIfGs_getItem(int slot,bool){return slot<24?inventory[slot]:u8(dItemNo_NONE_e);}
@@ -31,10 +31,17 @@ unsigned potion_capacity(){unsigned count=0;for(int slot=11;slot<=14;++slot)coun
 bool arena=true;bool in_arena(){return arena;}
 Run s_run;
 u8 shield_item(const Run& r){return r.shield_tier()==2?dItemNo_HYLIA_SHIELD_e:r.shield_tier()==1?dItemNo_SHIELD_e:dItemNo_WOOD_SHIELD_e;}
-struct dSv_player_status_a_c{};
+struct dSv_player_status_a_c {
+ std::array<u8,4> mSelectItem{255,255,255,255},mMixItem{255,255,255,255};
+};
 struct Player{dSv_player_status_a_c status;auto& getPlayerStatusA(){return status;}};
 struct Info{Player player;auto& getPlayer(){return player;}};
 struct{Info info;}g_dComIfG_gameInfo;
+std::array<u8,4> liveItems{255,255,255,255};unsigned refreshed=0;
+void dComIfGp_setSelectItem(int button){
+ ++refreshed;const auto slot=g_dComIfG_gameInfo.info.player.status.mSelectItem[button];
+ liveItems[button]=slot==255?u8(255):button==2?slot:dComIfGs_getItem(slot,false);
+}
 struct dMenu_Ring_c{bool mPlayerIsWolf=false;unsigned mCurrentSlot=0;std::array<u8,24>mItemSlots{};};
 struct dMenu_ItemExplain_c{u32 field_0xcc=0,field_0xc8=0,field_0xc4=0,field_0xd0=0;u8 field_0xde=1,field_0xdf=10;unsigned numberUpdates=0;void setNumber(){++numberUpdates;}};
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
@@ -161,18 +168,30 @@ int main(){
  for(int i=11;i<=14;++i)assert(inventory[i]==bottles[i]);
  auto* status=&g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA();
  for(int button=0;button<4;++button)for(unsigned slot=0;slot<256;++slot){
-  std::any args[]={status,button,u8(slot)};const bool allowed=slot==255||(slot>=11&&slot<=14);
-  assert((before_item_binding(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE)==allowed);
-  assert((before_item_mix(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE)==(slot==255));
+  status->mSelectItem[button]=slot;status->mMixItem[button]=4;
+  std::any args[]={button};const bool allowed=slot==255||(slot>=11&&slot<=14);
+  assert(before_item_binding(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+  assert(status->mSelectItem[button]==(allowed?slot:255)&&status->mMixItem[button]==255);
  }
- dSv_player_status_a_c foreign;std::any foreignArgs[]={&foreign,0,u8(4)};
- assert(before_item_binding(nullptr,foreignArgs,nullptr,nullptr)==HOOK_CONTINUE);
+ // Direct provider writes bypassing the public cache rebuild are repaired
+ // before player execution; all four bindings are covered and bottles stay.
+ status->mSelectItem={4,11,12,15};status->mMixItem={255,4,255,6};liveItems.fill(dItemNo_BOW_e);refreshed=0;
+ assert(before_player_bindings(nullptr,nullptr,nullptr,nullptr)==HOOK_CONTINUE);
+ assert((status->mSelectItem==std::array<u8,4>{255,11,12,255}));
+ assert((status->mMixItem==std::array<u8,4>{255,255,255,255}));
+ assert(refreshed==3&&liveItems[0]==255&&liveItems[1]==inventory[11]&&liveItems[3]==255);
+ enforce_survivors_bindings();assert(refreshed==3); // No repeated cache changes.
+ const auto intact=*status;
+ for(int button:{-1,4,99}){std::any args[]={button};before_item_binding(nullptr,args,nullptr,nullptr);}
+ assert(status->mSelectItem==intact.mSelectItem&&status->mMixItem==intact.mMixItem);
+ arena=false;status->mSelectItem.fill(4);status->mMixItem.fill(15);enforce_survivors_bindings();
+ assert(refreshed==3&&status->mSelectItem[0]==4&&status->mMixItem[0]==15);arena=true;
  dMenu_Ring_c ring;std::any ringArgs[]={&ring};ring.mItemSlots[0]=4;
  assert(before_ring_assignment(nullptr,ringArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
  ring.mItemSlots[0]=11;assert(before_ring_assignment(nullptr,ringArgs,nullptr,nullptr)==HOOK_CONTINUE);
  inventory[11]=dItemNo_NONE_e;assert(!survivors_slot_assignable(11));
  arena=false;ring.mItemSlots[0]=4;assert(before_ring_assignment(nullptr,ringArgs,nullptr,nullptr)==HOOK_CONTINUE);
- std::any bindArgs[]={status,0,u8(4)};assert(before_item_binding(nullptr,bindArgs,nullptr,nullptr)==HOOK_CONTINUE);arena=true;
+ std::any bindArgs[]={0};assert(before_item_binding(nullptr,bindArgs,nullptr,nullptr)==HOOK_CONTINUE);assert(status->mSelectItem[0]==4);arena=true;
  dMenu_ItemExplain_c explain;explain.field_0xcc=dItemNo_BOW_e+0x165;explain.field_0xc8=explain.field_0xc4=dItemNo_BOW_e+0x265;u8 opened=1;std::any explainArgs[]={&explain,u8(4)};
  after_item_explain(nullptr,explainArgs,&opened,nullptr);assert(explain.numberUpdates==1&&explain.field_0xdf==0);
  assert(plain(explain.field_0xcc)=="Hero's Bow"&&plain(explain.field_0xc8).find("Fire Lv.0")!=std::string::npos);

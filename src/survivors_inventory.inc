@@ -119,16 +119,29 @@ HookAction before_ring_assignment(ModContext*, void* args, void*, void*) {
     if (!in_arena() || !ring || ring->mPlayerIsWolf || ring->mCurrentSlot >= MAX_ITEM_SLOTS) return HOOK_CONTINUE;
     return survivors_slot_assignable(ring->mItemSlots[ring->mCurrentSlot]) ? HOOK_CONTINUE : HOOK_SKIP_ORIGINAL;
 }
-HookAction before_item_binding(ModContext*, void* args, void*, void*) {
-    if (!in_arena() || mods::arg<dSv_player_status_a_c*>(args, 0) !=
-        &g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA()) return HOOK_CONTINUE;
-    // Covers native X/Y and service/mod-driven extra bindings as well.
-    return survivors_slot_assignable(mods::arg<u8>(args, 2)) ? HOOK_CONTINUE : HOOK_SKIP_ORIGINAL;
+// Do not hook the tiny native save setters: Windows cannot relocate their
+// entry branches. Validate the same saved slots before rebuilding the live
+// item cache, and before Link can consume direct writes from another provider.
+bool sanitize_survivors_binding(int button) {
+    if(!in_arena() || button<0 || button>=MAX_SELECT_ITEM)return false;
+    auto& status=g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA();
+    const bool invalid=!survivors_slot_assignable(status.mSelectItem[button]);
+    const bool mixed=status.mMixItem[button]!=dItemNo_NONE_e;
+    if(invalid)status.mSelectItem[button]=dItemNo_NONE_e;
+    if(mixed)status.mMixItem[button]=dItemNo_NONE_e;
+    return invalid || mixed;
 }
-HookAction before_item_mix(ModContext*, void* args, void*, void*) {
-    if (!in_arena() || mods::arg<dSv_player_status_a_c*>(args, 0) !=
-        &g_dComIfG_gameInfo.info.getPlayer().getPlayerStatusA()) return HOOK_CONTINUE;
-    return mods::arg<u8>(args, 2) == dItemNo_NONE_e ? HOOK_CONTINUE : HOOK_SKIP_ORIGINAL;
+HookAction before_item_binding(ModContext*, void* args, void*, void*) {
+    sanitize_survivors_binding(mods::arg<int>(args,0));
+    return HOOK_CONTINUE; // Native code refreshes the cache from sanitized slots.
+}
+void enforce_survivors_bindings() {
+    for(int button=0;button<MAX_SELECT_ITEM;++button)
+        if(sanitize_survivors_binding(button))dComIfGp_setSelectItem(button);
+}
+HookAction before_player_bindings(ModContext*,void*,void*,void*) {
+    enforce_survivors_bindings();
+    return HOOK_CONTINUE;
 }
 ChestReward inventory_reward(u8 slot) {
     for (unsigned i = 0; i < kSurvivorsSlots.size(); ++i) if (slot == kSurvivorsSlots[i]) {

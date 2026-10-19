@@ -48,8 +48,9 @@ Enemy* tracked(unsigned id){for(auto& e:enemies)if(e.id==id)return &e;return nul
 bool in_arena(){return arena;}
 unsigned s_map=0;
 struct ProcessFrame{unsigned id;};std::vector<ProcessFrame>s_processFrames;
-struct dBgS_LinChk{bool link=false,cam=false,arrow=false,bomb=false,boom=false;
+struct dBgS_PolyPassChk{bool link=false,cam=false,arrow=false,bomb=false,boom=false;
  void SetLink(){link=true;}bool ChkCam(){return cam;}bool ChkArrow(){return arrow;}bool ChkBomb(){return bomb;}bool ChkBoomerang(){return boom;}};
+struct cBgS_LinChk{dBgS_PolyPassChk* pass;auto* GetPolyPassChk(){return pass;}};
 Run s_run;bool playable(){return arena&&!paused;}
 '''
 native=(function(sdk/'src/d/actor/d_a_e_oc.cpp','bool daE_OC_c::searchPlayer()')+'\n'+
@@ -64,10 +65,10 @@ BOOL detect(e_ba_class& bat,float range){BOOL result=0;std::any args[]={&bat,ran
  return before_keese_aggro(nullptr,args,&result,nullptr)==HOOK_SKIP_ORIGINAL?result:native_bat_check(&bat,range,1);}
 int main(){
  s_run.start(1);s_map=1;s_processFrames={{1}};
- dBgS_LinChk query;std::any lineArgs[]={&query};
- after_enemy_navigation_line(nullptr,lineArgs,nullptr,nullptr);assert(query.link);
+ dBgS_PolyPassChk query;cBgS_LinChk line{&query};std::any lineArgs[]={nullptr,&line};
+ before_enemy_navigation_line(nullptr,lineArgs,nullptr,nullptr);assert(query.link);
  // Only the tracked field Bokoblin's generic navigation probes are changed.
- for(unsigned reason=0;reason<9;++reason){query={};arena=true;s_map=1;s_processFrames={{1}};s_run.phase=Phase::Running;
+ for(unsigned reason=0;reason<13;++reason){query={};arena=true;s_map=1;s_processFrames={{1}};s_run.phase=Phase::Running;
   if(reason==0)arena=false;
   if(reason==1)s_map=2;
   if(reason==2)s_processFrames.clear();
@@ -77,9 +78,17 @@ int main(){
   if(reason==6)query.arrow=true;
   if(reason==7)query.bomb=true;
   if(reason==8)s_run.phase=Phase::Upgrade;
-  after_enemy_navigation_line(nullptr,lineArgs,nullptr,nullptr);assert(!query.link);
+  if(reason==9)query.boom=true;
+  if(reason==10)enemies[0].retiring=true;
+  if(reason==11)enemies[0].credited=true;
+  if(reason==12)enemies[0].initialized=false;
+  assert(before_enemy_navigation_line(nullptr,lineArgs,nullptr,nullptr)==HOOK_CONTINUE);assert(!query.link);
+  enemies[0].retiring=enemies[0].credited=false;enemies[0].initialized=true;
  }
- arena=true;s_map=1;s_run.phase=Phase::Running;s_processFrames.clear();
+ arena=true;s_map=1;s_run.phase=Phase::Running;s_processFrames={{1}};
+ line.pass=nullptr;assert(before_enemy_navigation_line(nullptr,lineArgs,nullptr,nullptr)==HOOK_CONTINUE);
+ lineArgs[1]=static_cast<cBgS_LinChk*>(nullptr);assert(before_enemy_navigation_line(nullptr,lineArgs,nullptr,nullptr)==HOOK_CONTINUE);
+ s_processFrames.clear();
  daE_OC_c fieldBok;fieldBok.id=1;engage_enemy(&fieldBok,enemies[0]);assert(fieldBok.mAcch.link);
  daE_OC_c storyBok;storyBok.id=99;engage_enemy(&storyBok,enemies[0]);assert(!storyBok.mAcch.link);
  s_map=0;

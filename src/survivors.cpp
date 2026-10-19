@@ -180,8 +180,9 @@ DEFINE_HOOK(&dMeter2Info_c::readItemTexture, SurvivorsScrollTexture);
 DEFINE_HOOK(&dMenu_Ring_c::setActiveCursor, SurvivorsRingCursor);
 DEFINE_HOOK(&dMenu_Ring_c::setItem, SurvivorsRingAssign);
 DEFINE_HOOK(&dMenu_Ring_c::setMixItem, SurvivorsRingMix);
-DEFINE_HOOK(&dSv_player_status_a_c::setSelectItemIndex, SurvivorsBind);
-DEFINE_HOOK(&dSv_player_status_a_c::setMixItemIndex, SurvivorsMixBind);
+// The two status setters begin with unrelocatable short jumps in Windows
+// v2.0.3. Guard the shared item-cache consumer and Link's execution instead.
+DEFINE_HOOK(&dComIfGp_setSelectItem, SurvivorsBind);
 DEFINE_HOOK(&dMenu_ItemExplain_c::openExplain, SurvivorsExplain);
 DEFINE_HOOK(&JMessage::TControl::update, SurvivorsTreasureText);
 DEFINE_HOOK(&daAlink_c::checkUpperGrabItemThrow, SurvivorsBombThrow);
@@ -206,8 +207,7 @@ DEFINE_HOOK(&daAlink_c::procCutTurnInit, SurvivorsNativeSpin);
 DEFINE_HOOK(&daAlink_c::setCutJumpSpeed, SurvivorsJumpTarget);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
 DEFINE_HOOK(&daAlink_c::setSwordAtCollision, SurvivorsSwordCollision);
-DEFINE_HOOK_SYMBOL("dBgS_LinChk::Set", void(dBgS_LinChk*, const cXyz*, const cXyz*, const fopAc_ac_c*),
-                   SurvivorsEnemyNavigationLine);
+DEFINE_HOOK(&cBgS::LineCross, SurvivorsEnemyNavigationLine);
 DEFINE_HOOK(&daAlink_c::transAnimeProc, SurvivorsMovement);
 DEFINE_HOOK(&daAlink_c::modelCalc, SurvivorsLocomotionModel);
 DEFINE_HOOK(&daAlink_c::posMove, SurvivorsPosition);
@@ -1467,6 +1467,7 @@ void update_survivors() {
     cleanup_pots(); cleanup_pickups();
     if (s_treasure.retiring) retire_treasure_actor();
     if (!s_active || !s_gameStarted) return;
+    enforce_survivors_bindings();
     if(update_hub_save())return;
     if (s_savePrompt != kNone) {
         if (d_GameOver_CheckDelete(s_savePrompt) && dComIfGp_getGameoverStatus() == 1) {
@@ -1534,11 +1535,16 @@ void update_survivors() {
 }
 ModResult initialize_survivors(ModError* error) {
     ModResult result = initialize_survivors_integrity(error);
-    if(result==MOD_OK)result=initialize_option_config();
-    if(result==MOD_OK)result=initialize_midna_dialog();
-    if (result == MOD_OK) initialize_menu_handoff();
-#define PRE(H, F) if (result == MOD_OK) result = mods::hook_add_pre<H>(svc_hook, F)
-#define POST(H, F) if (result == MOD_OK) result = mods::hook_add_post<H>(svc_hook, F)
+    if(result!=MOD_OK)return result; // Preserve the initializer's specific error.
+    result=initialize_option_config();
+    if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Hyrule Survivors settings");
+    result=initialize_midna_dialog();
+    if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Hyrule Survivors Midna dialog");
+    initialize_menu_handoff();
+#define PRE(H, F) do { result = mods::hook_add_pre<H>(svc_hook, F); \
+    if(result!=MOD_OK)return mods::set_error(error,result,"failed to install Hyrule Survivors pre-hook " #H); } while(false)
+#define POST(H, F) do { result = mods::hook_add_post<H>(svc_hook, F); \
+    if(result!=MOD_OK)return mods::set_error(error,result,"failed to install Hyrule Survivors post-hook " #H); } while(false)
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
 #include "survivors_roster_hooks.inc"
     PRE(SurvivorsEnemySpeed, before_enemy_speed); POST(SurvivorsEnemySpeed, after_enemy_facing);
@@ -1552,6 +1558,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsArenaRestart, before_arena_restart);
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
+    PRE(SurvivorsPlayer, before_player_bindings);
     PRE(SurvivorsPlayer, before_chest_action);
     PRE(SurvivorsPlayer, before_midna_call);
     PRE(SurvivorsMidnaOrder, before_midna_order);
@@ -1594,7 +1601,6 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsRingAssign, before_ring_assignment);
     PRE(SurvivorsRingMix, before_ring_assignment);
     PRE(SurvivorsBind, before_item_binding);
-    PRE(SurvivorsMixBind, before_item_mix);
     POST(SurvivorsExplain, after_item_explain);
     PRE(SurvivorsTreasureText, before_treasure_text_update);
     PRE(SurvivorsBombThrow, before_ranged_native);
@@ -1609,7 +1615,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_hub_door);
     POST(SurvivorsPower, after_power);
     POST(SurvivorsSwordCollision, after_sword_collision);
-    POST(SurvivorsEnemyNavigationLine, after_enemy_navigation_line);
+    PRE(SurvivorsEnemyNavigationLine, before_enemy_navigation_line);
     PRE(SurvivorsHitMaterial, before_hit_material); POST(SurvivorsHitMaterial, after_hit_material);
     POST(SurvivorsLightSword, after_light_sword);
     POST(SurvivorsJumpStrike, after_jump_strike); POST(SurvivorsJumpStrikeLand, after_jump_strike);
@@ -1622,7 +1628,6 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsDrops, before_drop); PRE(SurvivorsDirectDrops, before_drop);
 #undef PRE
 #undef POST
-    if (result != MOD_OK) return mods::set_error(error, result, "failed to install Hyrule Survivors hooks");
     const GameModeDesc mode{
         .struct_size = sizeof(GameModeDesc), .game_mode_id = kMode,
         .full_name = "Hyrule Survivors", .save_name = "gczelda2-survivors", .user_data = nullptr,

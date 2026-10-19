@@ -1065,3 +1065,28 @@ SDK's native Game Over transition methods: final-boss reward ordering, unscored
 cleanup, live pickups, frozen combat time, countdown pauses, expiry during a
 level-up, deferred UI deletion and exactly-once records. The HUD test also checks
 Ruby-font victory text, red countdown rounding and restored GX vertex state.
+
+### Windows v2.0.3 hook entry compatibility
+
+The Windows x86-64 release with symbol build ID
+`3e441e7c7f09432d9cfb111c22596cb601000000` cannot relocate the short conditional
+branch in the first five bytes of these entries with its funchook backend:
+
+| Entry | RVA | Replacement |
+| --- | --- | --- |
+| `dSv_player_status_a_c::setSelectItemIndex` | `0x7982c0` | Validate saved bindings before `dComIfGp_setSelectItem` rebuilds the live cache. |
+| `dSv_player_status_a_c::setMixItemIndex` | `0x798230` | The same guard clears mixtures; Link execution and the mode tick catch direct provider writes. |
+| `dBgS_LinChk::Set` | `0x7fdcf0` | Apply the Bokoblin pass filter before `cBgS::LineCross`. |
+
+The replacement entries at `0x78a320` and `0x7f8010` have relocatable entry
+instructions in that release. Keep the mode/actor/map guards: bottles remain
+assignable, story bindings remain untouched, and only tracked Field Bokoblin
+navigation probes receive the Link pass flag. Do not make the old hooks optional
+without equivalent guards. Hook registration errors now identify the failed
+pre/post hook; initializer errors retain their own explanation.
+
+Validation: the supplied failure address was matched against the official
+release's embedded symbol manifest and its disassembly. Inventory/navigation
+regressions exercise the production callbacks, and `survivors_hook_install_test.py`
+injects failure at every required hook registration. A full Windows game launch
+still requires an in-game check; compilation alone does not test hook relocation.
