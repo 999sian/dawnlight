@@ -63,6 +63,8 @@ unsigned money=100,lifeMax=15,closed=0,pushed=0;
 unsigned dComIfGs_getRupee(){return money;}unsigned dComIfGs_getRupeeMax(){return 1000;}
 void dComIfGs_setRupee(unsigned r){money=r;}unsigned dComIfGs_getMaxLife(){return lifeMax;}
 void dComIfGs_setMaxLife(unsigned n){lifeMax=n;}
+unsigned dComIfGs_getMaxLifeGauge(){return (lifeMax/5)*4;}
+void dComIfGs_setLife(unsigned n){assert(n==dComIfGs_getMaxLifeGauge());}
 void close_window(){++closed;}
 struct Element{UiElementHandle parent=0;std::string kind,text,css,help;UiPressedFn pressed=nullptr;void* data=nullptr;bool visible=true;};
 std::map<UiElementHandle,Element> elements;UiElementHandle next=3;

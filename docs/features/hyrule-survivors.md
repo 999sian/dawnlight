@@ -111,7 +111,7 @@ is retained and multiple earned levels are offered consecutively.
 | Haste | Reduce automatic weapon cooldowns |
 | Reach | +7.5% linear reach/range per rank; Spin/Bomb/Shield radii use the square root of that factor |
 | Magnet | Attract XP, rupees, hearts and heart pieces from farther away |
-| Heart Container | Add one maximum heart without healing |
+| Heart Container | Add one maximum heart; level-up healing fills the new capacity |
 | Luck | 20 ranks; rarity weights +5% and crit multiplier +2.5% per rank; drop bonuses +10% per rank capped at +50% |
 | Rupees | Receive 20 rupees per reward unit without healing |
 
@@ -144,7 +144,7 @@ Each confirmed ordinary enemy kill has a base 2.5% chance to drop a native heart
 45% to drop a rupee and 52.5% to drop nothing. Luck multiplies the heart and rupee
 chances; at +50% Luck these become 3.75%, 67.5% and 28.75%. A second roll chooses the
 rupee's color. Experience crystals are awarded independently. Native random drops
-are suppressed to prevent duplicate rewards. Level-ups never heal Link.
+are suppressed to prevent duplicate rewards. Every level-up fully heals Link to the native maximum life gauge. Heart Container choices also fill the new capacity.
 
 | Rupee color | Value | Base chance within rupee drops |
 | --- | ---: | ---: |
@@ -596,7 +596,12 @@ Before merging/releasing, test on Android and desktop:
 8. Steer in every direction during Spin Attack, including into walls; verify
    native spin hits and that damage/dodges safely interrupt attacks.
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)
-   does not heal and that restarting clears pickups and all weapon unlocks.
+   fully heals, including queued levels, and that restarting clears pickups and all weapon unlocks.
+   Engage a chest guard and each map boss: the red native oil/oxygen-style bar
+   and RubyFont boss name appear below XP. Damage changes the fill; defeat
+   switches to another active elite or hides the bar. Sleeping guards stay hidden.
+   Check native oil, oxygen, stamina and Fierce Deity bars remain unchanged, and
+   check boss name/bar spacing at 4:3, widescreen and with HUD customization.
 10. Approach chests with 19/20 rupees: only the affordable chest offers Open.
     Check three side-by-side cards with distinct icons/text and red upgrade deltas.
     Select each position with controller and direct touch; cancel/reopen and check

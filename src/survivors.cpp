@@ -1,4 +1,5 @@
 #include "survivors.hpp"
+#include "combat_meter.hpp"
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
 #include "survivors_rules.hpp"
@@ -958,7 +959,10 @@ void after_player(ModContext*, void* args, void*, void*) {
     update_enemy_effects();
     update_spawns(link); update_pots(link); update_exp_magnets(link); update_weapons(link); update_orbs(link);
     s_run.maximum_hearts = dComIfGs_getMaxLife() / 5;
-    if (s_run.level_up()) clear_attacks();
+    if (s_run.level_up()) {
+        dComIfGs_setLife(dComIfGs_getMaxLifeGauge());
+        clear_attacks();
+    }
     else update_chests(link);
 }
 HookAction before_death(ModContext*, void*, void* result, void*) {
@@ -1121,7 +1125,8 @@ void label(const char* text, float x, float y, float size) {
 }
 #include "survivors_prices.inc"
 #include "survivors_feedback_draw.inc"
-void draw_hud(ModContext*, void*, void*, void*) {
+#include "survivors_boss_hud.inc"
+void draw_hud(ModContext*, void* args, void*, void*) {
     if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
     graf->setup2D();
@@ -1146,16 +1151,17 @@ void draw_hud(ModContext*, void*, void*, void*) {
     graf->setColor(JUtility::TColor(80, 220, 245, 240));
     graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x - 160 + 320 * fraction, 88));
     graf->setColor(oldTL, oldTR, oldBR, oldBL);
+    const float bossOffset = draw_boss_hud(mods::arg<dMeter2Draw_c*>(args, 0), x) ? 54.0f : 0.0f;
     if (s_run.chest_rewards_left(potion_slot() >= 0))
         std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
     else std::snprintf(text, sizeof(text), "No chest rewards available");
-    label(text, x, 96, 14);
+    label(text, x, 96 + bossOffset, 14);
     if (s_run.horde_remaining) {
         std::snprintf(text,sizeof(text),"HORDE!  3x enemy spawns  %us",(s_run.horde_remaining+29)/30);
-        label(text,x,118,17);
+        label(text,x,118 + bossOffset,17);
     }
     if (s_spawnFailures >= 10)
-        label("Waiting for a clear enemy spawn position", x, s_run.horde_remaining ? 140 : 118, 13);
+        label("Waiting for a clear enemy spawn position", x, (s_run.horde_remaining ? 140 : 118) + bossOffset, 13);
     graf->setup2D();
 }
 void select_upgrade(ModContext*, void* data) {
@@ -1168,6 +1174,8 @@ void select_upgrade(ModContext*, void* data) {
     if (!s_run.choose(choice)) return;
     if (selected == Upgrade::Heart)
         dComIfGs_setMaxLife(std::min(100u,unsigned(dComIfGs_getMaxLife())+5*(s_run.rank(Upgrade::Heart)-oldHearts)));
+    // Include newly gained heart containers and each queued level's choice.
+    dComIfGs_setLife(dComIfGs_getMaxLifeGauge());
     if (bonus) dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(), dComIfGs_getRupee() + bonus));
     close_window();
     s_run.level_up(); // Preserve queued levels; do not resume combat between choices.
@@ -1178,6 +1186,7 @@ void start_run(ModContext*, void*) {
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
     reset_elite_encounters();
+    s_bossHudTarget = kNone;
     clear_combat_feedback();
     s_run.start(seed, s_options, s_records.talents); reset_gale_charges();
     dComIfGs_setMaxLife(s_run.maximum_hearts*5); dComIfGs_setLife(s_run.maximum_hearts*4);

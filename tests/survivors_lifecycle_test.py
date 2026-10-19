@@ -69,7 +69,7 @@ bool arenaPresent=true, transition=false, s_active=true, s_restart=false;
 bool s_saveReady=false, s_gameStarted=true;
 bool s_progressSaving=false,s_progressSaved=false;
 bool s_loaded=false, s_resultsStored=false, s_storeFailed=false, s_saveRequested=false;
-ActorId s_player=kNone, s_savePrompt=kNone;
+ActorId s_player=kNone, s_savePrompt=kNone, s_bossHudTarget=kNone;
 unsigned s_spawnCooldown=0, s_spawnFailures=0, s_warmup=0;
 std::array<unsigned,3> s_cooldowns{};
 std::array<int,64> s_orbs{};
@@ -304,7 +304,7 @@ int main() {
     s_arenaMeshReady=true;s_restart=true;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Ready);
     s_restart=false;s_progressSaving=true;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Ready);
     choice=2;select_arena(nullptr,&choice);assert(!s_restart);
-    s_progressSaving=false;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Running && s_run.ticks==0);
+    s_progressSaving=false;s_bossHudTarget=7;start_run(nullptr,nullptr);assert(s_run.phase==Phase::Running && s_run.ticks==0 && s_bossHudTarget==kNone);
     s_records.talents.ranks[unsigned(Talent::StartingItem)]=1;s_run.phase=Phase::Ready;
     start_run(nullptr,nullptr);assert(s_run.phase==Phase::TreasureChoice&&s_run.starting_item_pending&&s_run.ticks==0);
     const auto seed=s_run.random;start_run(nullptr,nullptr);assert(s_run.random==seed);

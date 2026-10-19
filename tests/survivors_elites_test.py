@@ -241,6 +241,13 @@ int main(){
   s_run.ticks=299;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(rupees==2*rank);
   rupees=299;s_run.ticks=449;after_player(nullptr,incomeArgs,nullptr,nullptr);assert(rupees==(rank?300:299));
  }
+ // The actual level transition heals immediately, before choosing an upgrade.
+ fresh(0);life=1;lifeWrites=0;s_run.xp=s_run.required_xp()-1;
+ std::any levelArgs[]={&player};after_player(nullptr,levelArgs,nullptr,nullptr);
+ assert(life==1&&!lifeWrites&&s_run.phase==Phase::Running);
+ ++s_run.xp;after_player(nullptr,levelArgs,nullptr,nullptr);
+ assert(life==12&&lifeWrites==1&&s_run.phase==Phase::Upgrade);
+ after_player(nullptr,levelArgs,nullptr,nullptr);assert(lifeWrites==1);
  // Quarter-heart regeneration uses active time, every rank, and preserves native max life.
  for(unsigned rank=0;rank<=5;++rank) {
   fresh(0);life=4;lifeWrites=0;s_run.talents.ranks[unsigned(Talent::LifeRegen)]=rank;

@@ -1,6 +1,7 @@
 """Validate Survivors vertex packets against native J2D font/rectangle setup."""
 from pathlib import Path
 import re
+import os
 import subprocess
 import sys
 import tempfile
@@ -40,6 +41,8 @@ prefix = r'''
 #include <cassert>
 #include <cstdio>
 #include <iostream>
+#include <cstring>
+#include "survivors_roster.hpp"
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
 using f32=float; using GXTevStageID=int; using GXBlendMode=int; using GXBlendFactor=int;
@@ -87,15 +90,37 @@ struct J2DGrafContext {
         mColorTL=a;mColorTR=b;mColorBR=c;mColorBL=d;
     }
 } context;
-struct JUTResFont {void setGX();} font;
+struct JUTResFont {void setGX();} font,ruby;
+unsigned rubyLabels=0;
 bool hasFont=true, arena=true, transition=false, window=false, hasGraf=true;
 JUTResFont* mDoExt_getMesgFont(){return hasFont?&font:nullptr;}
+JUTResFont* mDoExt_getRubyFont(){return hasFont?&ruby:nullptr;}
 enum {HBIND_CENTER,VBIND_TOP};
 struct J2DPrint {
-    J2DPrint(JUTResFont* f,JUtility::TColor,JUtility::TColor){f->setGX();}
+    JUTResFont* face;
+    J2DPrint(JUTResFont* f,JUtility::TColor,JUtility::TColor):face(f){f->setGX();}
     void setFontSize(float,float){}
-    void printReturn(const char*,float,float,int,int,float,float,int){++labels;}
+    void printReturn(const char*,float,float,int,int,float,float,int){++labels;if(face==&ruby)++rubyLabels;}
 };
+
+using ActorId=unsigned;constexpr ActorId kNone=~0u;
+struct cXyz {float x=0,y=0,z=0;float abs2(cXyz p)const{return (x-p.x)*(x-p.x)+(y-p.y)*(y-p.y)+(z-p.z)*(z-p.z);}};
+struct Actor {int health=100,field_0x560=100;struct{cXyz pos;}current;};
+std::array<Actor,8> actors;
+Actor player;bool hasPlayer=true;
+Actor* daAlink_getAlinkActorClass(){return hasPlayer?&player:nullptr;}
+Actor* actor_by_id(ActorId id){return id<actors.size()?&actors[id]:nullptr;}
+struct Enemy {ActorId id=kNone;bool elite=false,initialized=true,dormant=false,retiring=false,credited=false;
+ int eliteSlot=-1;unsigned species=0;};
+std::array<Enemy,8> s_enemies;
+struct dMeter2Draw_c {} meter;
+namespace mods {template<class T>T arg(void*,unsigned){return &meter;}}
+unsigned bossBars=0;float bossPercentage=0;bool barAvailable=true;
+bool draw_boss_health_meter(dMeter2Draw_c*,float percentage,float x,float y,float w,float h){
+ assert(x==144&&y==120&&w==320&&h==24);
+ if(!barAvailable)return false;
+ ++bossBars;bossPercentage=percentage;textureCoordinates=true;return true;
+}
 struct ModContext {};
 int potion_slot(){return -1;}
 Run s_run; unsigned s_spawnFailures=0;
@@ -116,6 +141,35 @@ int main(){
             assert((labels!=0)==availableFont);
         }
     }
+
+    // Only live, initialized elites appear. Prefer the nearest initially and
+    // keep it stable as another elite walks closer; timed bosses take priority.
+    assert(!boss_hud_target());
+    s_enemies[0].id=0;s_enemies[0].elite=true;s_enemies[0].dormant=true;
+    assert(!boss_hud_target());s_enemies[0].dormant=false;
+    assert(boss_hud_target()==&s_enemies[0]);
+    s_enemies[1]=s_enemies[0];s_enemies[1].id=1;
+    actors[0].current.pos.x=100;assert(boss_hud_target()==&s_enemies[0]);
+    s_enemies[1].eliteSlot=0;s_enemies[1].species=unsigned(Species::Darknut);
+    actors[1].health=25;assert(boss_hud_target()==&s_enemies[1]);
+    hasFont=true;s_run.phase=Phase::Running;bossBars=rubyLabels=0;
+    draw_hud(nullptr,nullptr,nullptr,nullptr);
+    assert(bossBars==1&&bossPercentage==25&&rubyLabels==2&&!textureCoordinates);
+    assert(!std::strcmp(boss_hud_name(s_enemies[1].species),"Darknut"));
+    for(const auto& roster:map_rosters)for(auto species:roster.elites)
+        assert(std::strcmp(boss_hud_name(unsigned(species)),"Elite"));
+    // Missing meter/font is safe; a missing font does not suppress the HP bar.
+    hasFont=false;assert(draw_boss_hud(&meter,304));
+    barAvailable=false;assert(!draw_boss_hud(&meter,304));barAvailable=true;
+    for(int reason=0;reason<7;++reason){
+        s_enemies[1].initialized=reason!=0;s_enemies[1].retiring=reason==1;
+        s_enemies[1].credited=reason==2;s_enemies[1].id=reason==3?99:1;
+        actors[1].health=reason==4?0:100;actors[1].field_0x560=reason==5?0:100;
+        s_enemies[1].elite=reason!=6;
+        assert(boss_hud_target()==&s_enemies[0]);
+    }
+    s_enemies[1]={};actors[0].health=0;assert(!boss_hud_target()&&s_bossHudTarget==kNone);
+    actors[0].health=100;hasPlayer=false;assert(!boss_hud_target());hasPlayer=true;
     for(int reason=0;reason<6;++reason){
         arena=reason!=0;transition=reason==1;window=reason==2;hasGraf=reason!=3;
         s_run.phase=reason==4?Phase::Loading:reason==5?Phase::Ready:Phase::Running;boxes=labels=0;
@@ -128,7 +182,7 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
     cpp.write_text(prefix + stubs + '\nvoid draw_chest_prices(){} void draw_combat_feedback(){}\n' + native + '\n' + function(source, 'void label(') + '\n' +
-                   function(source, 'void draw_hud(') + '\n' + main)
-    subprocess.run(['c++', '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
+                   (root/'src/survivors_boss_hud.inc').read_text() + '\n' + function(source, 'void draw_hud(') + '\n' + main)
+    subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

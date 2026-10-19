@@ -173,6 +173,8 @@ fpc_ProcID fopAcM_createItem(const cXyz*,int item,int bit,int room,void*,void*,i
 unsigned maxLife=15,rupees=0,life=4;
 unsigned dComIfGs_getMaxLife(){return maxLife;}
 void dComIfGs_setMaxLife(unsigned v){maxLife=v;}
+unsigned dComIfGs_getMaxLifeGauge(){return (maxLife/5)*4;}
+void dComIfGs_setLife(unsigned v){life=v;}
 unsigned dComIfGs_getRupeeMax(){return 300;}unsigned dComIfGs_getRupee(){return rupees;}
 void dComIfGs_setRupee(unsigned v){rupees=v;}
 void close_window(){}
@@ -544,12 +546,21 @@ int main(){
     for(auto item:drops){assert(item>=0 && item<=7);seen[item]=true;}
     for(bool found:seen)assert(found);
     arena=false;assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_CONTINUE);arena=true;
-    // Heart Container raises capacity only; fallback currency clamps to the wallet.
+    // Level-up choices fill the native gauge, including new containers; keep heart pieces.
     reset();unsigned choice=0;s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Heart;
     maxLife=17; // Preserve two collected heart pieces when adding a container.
-    select_upgrade(nullptr,&choice);assert(maxLife==22 && life==4);
-    s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Rupees;rupees=290;
-    select_upgrade(nullptr,&choice);assert(rupees==300 && life==4);
+    select_upgrade(nullptr,&choice);assert(maxLife==22 && life==16);
+    s_run.phase=Phase::Upgrade;s_run.offers[0]=Upgrade::Rupees;rupees=290;life=1;
+    select_upgrade(nullptr,&choice);assert(rupees==300 && life==16);
+    // Invalid choices and calls outside a level-up never grant healing.
+    life=3;select_upgrade(nullptr,&choice);assert(life==3);
+    s_run.phase=Phase::Upgrade;choice=3;select_upgrade(nullptr,&choice);assert(life==3);
+    choice=0;s_run.offers[0]=Upgrade::Count;select_upgrade(nullptr,&choice);assert(life==3);
+    // An XP surplus opens another choice immediately, still at full health.
+    s_run.offers[0]=Upgrade::Power;s_run.xp=1000;
+    const auto oldLevel=s_run.level;
+    select_upgrade(nullptr,&choice);
+    assert(life==16&&s_run.level==oldLevel+1&&s_run.phase==Phase::Upgrade);
     std::cout<<"Survivors combat: native four-hit combos, sword movement, wave timing, particles and rewards passed\n";
 }
 '''

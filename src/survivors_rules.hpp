@@ -60,7 +60,7 @@ inline constexpr std::array descriptions{
     "Unlock or improve an automatic shield bash that staggers enemies.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
     "Increase melee reach, Dual Wield target range, Spin and Jump Strike radii, bow range and Boomerang flight/hop range.", "Attract experience, rupees, hearts and heart pieces from farther away.",
-    "Gain one maximum heart (does not heal).",
+    "Gain one maximum heart and fully heal.",
     "Faster, stronger arrows. Three arrows from level 10; five from level 20, across 45 degrees. Extra hits on one enemy per volley deal 25% damage.",
     "A damaging returning boomerang. Upgrades increase damage, hops and firing rate; hit size stays fixed.",
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",

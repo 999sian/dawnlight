@@ -194,12 +194,18 @@ Each timed elite and the first kill of each guard slot drops a **free large ches
 to Link from anywhere on the map. It is a one-time pickup, not an inventory item. Pots are scattered according to floor
 area and safe placement, drop rupees of different values or rare heart pieces,
 and respawn at a different safe position 20 seconds after breaking (menus pause the timer). Ordinary enemies can drop healing hearts and
-rupees; level-ups do not heal. Dropped hearts and rupees remain until collected
+rupees; every level-up fully heals Link, including newly chosen heart containers. Dropped hearts and rupees remain until collected
 or the run ends; their native despawn timer is disabled. Ordinary enemies also
 have a 2% bonus chance to drop a gold EXP magnet, increased by Luck up to 3%.
 This follows the same Horde-difficulty reward normalization as other ordinary
 drops. Magnets pull only pickups already present when collected; later drops
 require another magnet or normal pickup range.
+
+An active elite or boss gets a red HP bar below the EXP bar, using the native
+oxygen/oil artwork and the native boss-title font (also used for Hero's Shade).
+Timed bosses take priority over awakened chest guards. With several candidates,
+the nearest is selected and retained until defeated or replaced by a timed boss;
+sleeping guards and ordinary enemies never occupy this bar.
 
 Normal enemy population grows from **18 to 69 × the Horde difficulty setting**
 (up to 345). Random **HORDE!** events triple spawn batches for 15 seconds, within

@@ -307,7 +307,11 @@ jobs:
 
       - name: Test Survivors HUD native vertex layout
         if: matrix.platform == 'linux-x86_64'
-        run: python3 tests/survivors_hud_test.py dusklight
+        run: |
+          python3 tests/survivors_hud_test.py dusklight
+          CXX=clang++ python3 tests/survivors_hud_test.py dusklight
+          python3 tests/combat_meter_test.py
+          CXX=clang++ python3 tests/combat_meter_test.py
 
       - name: Test native item-ring combine input ownership
         if: matrix.platform == 'linux-x86_64'
