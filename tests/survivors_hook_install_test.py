@@ -22,6 +22,7 @@ template<class H>int hook_add_post(int service,int callback){return hook_add_pre
 }
 int init(unsigned n,ModError* e){return initFailure==n?mods::set_error(e,MOD_UNAVAILABLE,"initializer-specific failure"):MOD_OK;}
 int initialize_survivors_integrity(ModError* e){return init(1,e);}
+int initialize_save_pointer(ModError* e){return init(4,e);}
 int initialize_option_config(){return init(2,nullptr);}
 int initialize_midna_dialog(){return init(3,nullptr);}
 void initialize_menu_handoff(){}
@@ -44,10 +45,10 @@ int main(){
   assert(calls==i&&attempted.back()==expected[i-1]&&error.message.find(expected[i-1])!=std::string::npos);
  }
  failAt=0;
- for(initFailure=1;initFailure<=3;++initFailure){
+ for(initFailure=1;initFailure<=4;++initFailure){
   calls=registrations=0;error={};
   assert(initialize_survivors(&error)==MOD_UNAVAILABLE&&!calls&&!registrations);
-  assert(error.message==(initFailure==1?"initializer-specific failure":initFailure==2?
+  assert(error.message==((initFailure==1||initFailure==4)?"initializer-specific failure":initFailure==2?
    "failed to initialize Hyrule Survivors settings":"failed to initialize Hyrule Survivors Midna dialog"));
  }
  initFailure=0;modeFailure=true;calls=registrations=0;error={};

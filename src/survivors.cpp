@@ -12,6 +12,10 @@
 #include "process_actor.hpp"
 #include "survivors_rules.hpp"
 #include "survivors_enemy_hits.hpp"
+#include "d/d_msg_scrn_explain.h"
+#include "d/d_msg_scrn_3select.h"
+#include "d/d_lib.h"
+#include "dusk/menu_pointer.h"
 #include "survivors_projectiles.hpp"
 #include "survivors_roster.hpp"
 #include "survivors_items.hpp"
@@ -239,6 +243,7 @@ DEFINE_HOOK(&mDoCPd_c::read, SurvivorsPad);
 DEFINE_HOOK(&dCamera_c::setMapToolData, SurvivorsCameraType);
 DEFINE_HOOK(&dMenu_save_c::_open, SurvivorsSaveOpen);
 DEFINE_HOOK(&dMenu_save_c::_delete, SurvivorsSaveDelete);
+DEFINE_HOOK(&dMsgScrn3Select_c::pointerMove, SurvivorsSavePointer);
 DEFINE_HOOK(&dMeterMap_c::meter_map_move, SurvivorsSaveMapMove);
 DEFINE_HOOK(&dMeterMap_c::keyCheck, SurvivorsSaveMapKeys);
 DEFINE_HOOK(&dMw_c::key_wait_proc, SurvivorsSaveMenuKeys);
@@ -418,6 +423,7 @@ bool in_arena() {
     return s_active && s_gameStarted && arena_matches(s_map, dComIfGp_getStartStageName(), dComIfGp_getStartStageRoomNo());
 }
 #include "survivors_save_modal.inc"
+#include "survivors_save_pointer.inc"
 bool ui_visible() {
     if(save_modal_active())return true;
     bool value = false;
@@ -1599,6 +1605,8 @@ void update_survivors() {
 ModResult initialize_survivors(ModError* error) {
     ModResult result = initialize_survivors_integrity(error);
     if(result!=MOD_OK)return result; // Preserve the initializer's specific error.
+    result=initialize_save_pointer(error);
+    if(result!=MOD_OK)return result;
     result=initialize_option_config();
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Hyrule Survivors settings");
     result=initialize_midna_dialog();
@@ -1617,6 +1625,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsPad, before_survivors_pad); POST(SurvivorsPad, after_survivors_pad);
     POST(SurvivorsCameraType, after_survivors_camera_tools);
     PRE(SurvivorsSaveOpen,before_save_screen_open); PRE(SurvivorsSaveDelete,before_save_screen_delete);
+    PRE(SurvivorsSavePointer,before_save_pointer); POST(SurvivorsSavePointer,after_save_pointer);
     PRE(SurvivorsSaveMapMove,before_save_gameplay_menu); PRE(SurvivorsSaveMapKeys,before_save_gameplay_menu);
     PRE(SurvivorsSaveMenuKeys,before_save_gameplay_menu);
     PRE(SurvivorsCamera, before_run_camera); POST(SurvivorsCamera, after_run_camera);

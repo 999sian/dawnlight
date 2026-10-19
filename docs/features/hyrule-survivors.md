@@ -1309,3 +1309,24 @@ The adapter reuses existing native hooks and clears ownership at actor deletion
 and run reset. GCC/Clang production-adapter regressions cover repeat overlap,
 next uses, simultaneous attacks, persistent projectiles and lifecycle. Linux
 module/package build passes; in-game confirmation remains outstanding.
+
+
+### Post-run native save selection and expanded talents (PR #140)
+
+The native Explain yes/no cursor and 3Select's pointer-driven animated selection
+are kept in agreement for Survivors' post-run Save records prompt. D-pad/stick
+navigation keeps ownership after release, so a stationary mouse/touch hover over
+Yes cannot pull the visible cursor back from No. Fresh pointer movement/clicks
+can take over again; hovered choices update the logical cursor before native
+confirmation. Other saves/dialogs and native write/cancel/close handling remain
+unchanged. The new pointer hook passes v2.0.3 trampoline preparation on all seven
+dynamic-hook platforms; iOS has a patchable NOP entry. Its pointer-state symbol
+resolves in all eight manifests. In-game confirmation remains outstanding.
+
+Permanent talent rank caps are now Max Health 10, Magnet 20, Rerolls 5 and
+Banishes 5. Per-rank effects and point costs are unchanged: up to 13 starting
+hearts, +200% pickup range after run upgrades, and six rerolls/banishes including
+their base use. All talents together cost 99 Unlock Points. Existing saves keep
+their ranks, XP and invested points; new points can extend those ranks without
+a reset or storage-version change. UI/help, cap/refund/reset tests and old-save
+round trips cover the expanded limits.

@@ -286,6 +286,8 @@ jobs:
           python3 tests/survivors_post_run_save_test.py
           CXX=clang++ python3 tests/survivors_post_run_save_test.py
           python3 tests/survivors_save_modal_test.py
+          python3 tests/survivors_save_pointer_test.py
+          CXX=clang++ python3 tests/survivors_save_pointer_test.py
           CXX=clang++ python3 tests/survivors_save_modal_test.py
           python3 tests/survivors_ending_test.py
           CXX=clang++ python3 tests/survivors_ending_test.py

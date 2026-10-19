@@ -112,13 +112,13 @@ int main(){
     Records untouched=records;r.start(1);records.finish(r,0);assert(records.encode()==untouched.encode());
     r.end(false);records.finish(r,5);assert(records.encode()==untouched.encode());
     records.finish(r,2);assert(records.high_scores[2]==22078); // Never replace a higher score.
-    records.total_xp=meta_threshold(73);assert(records.available_points()==73);
+    records.total_xp=meta_threshold(99);assert(records.available_points()==99);
     assert(!records.buy(Talent::SprintSpeed)&&!records.buy(Talent::Glider)&&!records.buy(Talent::Gale)&&!records.buy(Talent::GaleCharges));
     for(unsigned i=0;i<unsigned(Talent::Count);++i){
         for(unsigned n=0;n<talent_caps[i];++n)assert(records.buy(Talent(i)));
         assert(!records.buy(Talent(i)));
     }
-    assert(records.available_points()==0&&records.talents.spent()==73&&records.talents.valid());
+    assert(records.available_points()==0&&records.talents.spent()==99&&records.talents.valid());
     auto refunded=records;
     assert(!refunded.talents.refund(Talent::Count));
     assert(refunded.talents.refund(Talent::ManualJump));
@@ -131,17 +131,21 @@ int main(){
     assert(refunded.total_xp==records.total_xp&&refunded.high_scores==records.high_scores);
     Records refundLoaded;assert(refundLoaded.decode(refunded.encode()));
     r.start(3,{},records.talents);
-    assert(r.maximum_hearts==8&&r.free_rerolls==3&&r.banishes==3);
+    assert(r.maximum_hearts==13&&r.free_rerolls==6&&r.banishes==6);
     assert(r.rank(Upgrade::Heart)==0&&r.rank(Upgrade::Magnet)==0&&r.rank(Upgrade::CritChance)==0);
-    assert(r.magnet_range()==225&&r.crit_chance_basis_points()==1000);
+    assert(r.magnet_range()==450&&r.crit_chance_basis_points()==1000);
     r.ranks[unsigned(Upgrade::CritChance)]=30;r.ranks[unsigned(Upgrade::Luck)]=20;
     assert(r.crit_chance_basis_points()==4875);
     unsigned crits=0;for(int i=0;i<10000;++i){auto damage=r.critical_power(100);assert(damage==100||damage==250);crits+=damage==250;}
     assert(crits>4650&&crits<5100);
-    r.ranks[unsigned(Upgrade::Magnet)]=30;assert(r.magnet_range()==3150);
-    unsigned money=0;for(int i=0;i<3;++i){r.phase=Phase::Upgrade;assert(r.pay_reroll(money));assert(r.banish(Upgrade(i==0?3:i==1?4:5)));}
+    r.ranks[unsigned(Upgrade::Magnet)]=30;assert(r.magnet_range()==6300);
+    unsigned money=0;
+    for(auto u:{Upgrade::Power,Upgrade::Haste,Upgrade::Reach,Upgrade::Heart,Upgrade::CritDamage,Upgrade::Knockback}){
+        r.phase=Phase::Upgrade;assert(r.pay_reroll(money));assert(r.banish(u));
+    }
+    assert(r.free_rerolls==0&&r.banishes==0);
     assert(!r.pay_reroll(money)&&r.reroll_cost()==50&&!r.banish(Upgrade::Magnet));
-    r.start(3,{},records.talents);assert(r.free_rerolls==3&&r.banishes==3&&r.paid_rerolls==0);
+    r.start(3,{},records.talents);assert(r.free_rerolls==6&&r.banishes==6&&r.paid_rerolls==0);
     r.start(3);assert(r.maximum_hearts==3&&r.crit_chance_basis_points()==0&&r.magnet_range()==150);
     int64_t value=99;
     for(auto setting:{ModeSetting::Sprint,ModeSetting::Jump,ModeSetting::Glide,ModeSetting::Gale}){
@@ -155,10 +159,23 @@ int main(){
         assert(t.dodge_basis_points()==(rank ? 500+125*(rank-1) : 0));}
     Records loaded;const auto bytes=records.encode();assert(loaded.decode(bytes)&&loaded.encode()==bytes);
     auto corrupt=bytes;corrupt[4]=99;assert(!loaded.decode(corrupt)&&loaded.encode()==bytes);
-    corrupt=bytes;corrupt[56]=6;assert(!loaded.decode(corrupt)); // Max Health exceeds cap.
+    corrupt=bytes;corrupt[56]=11;assert(!loaded.decode(corrupt)); // Max Health exceeds the new cap.
     corrupt=bytes;corrupt[76]=0;assert(!loaded.decode(corrupt)); // Glider without Manual Jump.
     corrupt=bytes;for(unsigned i=48;i<56;++i)corrupt[i]=0;assert(!loaded.decode(corrupt)); // Unfunded ranks.
     assert(!loaded.decode(std::span(bytes.data(),bytes.size()-1)));
+    // Existing fully spent saves keep their old ranks and can grow into the
+    // expanded caps once more points are earned; no migration/reset is needed.
+    auto oldCaps=records;oldCaps.total_xp=meta_threshold(73);
+    oldCaps.talents.ranks[unsigned(Talent::MaxHealth)]=5;
+    oldCaps.talents.ranks[unsigned(Talent::Magnet)]=5;
+    oldCaps.talents.ranks[unsigned(Talent::Rerolls)]=2;
+    oldCaps.talents.ranks[unsigned(Talent::Banishes)]=2;
+    Records restored;assert(restored.decode(oldCaps.encode()));
+    assert(restored.talents.ranks==oldCaps.talents.ranks&&restored.available_points()==0);
+    restored.total_xp=meta_threshold(99);
+    for(auto t:{Talent::MaxHealth,Talent::Magnet,Talent::Rerolls,Talent::Banishes})
+        while(restored.talents.can_buy(t))assert(restored.buy(t));
+    assert(restored.talents.ranks==records.talents.ranks&&restored.available_points()==0);
     auto legacyRecords=records;
     legacyRecords.talents.ranks[unsigned(Talent::CritChance)]=5;
     legacyRecords.talents.ranks[unsigned(Talent::BonusDamage)]=5;
