@@ -261,7 +261,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     a.bombArrow=weapon==Upgrade::Bow && s_run.rank(Upgrade::BombArrow);
     if (a.bombArrow && !prepare_bomb_arrow_model(a)) return false;
     a.hurricane=weapon==Upgrade::Boomerang && s_run.rank(Upgrade::Hurricane);
-    a.detonated=false;
+    a.detonated=false; a.manualFlight=manual_attack(link);
     a.weapon = index; a.age = 0; a.life = 100;
     a.bowVolleySlot=volleySlot;a.bowVolley=volley;a.arrowTargets=s_run.arrow_targets();
     a.returning = a.exploding = false; a.travel = 0;
@@ -270,7 +270,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     // Native daArrow_c::setKeepMatrix attaches the arrow to the left item
     // matrix. Its 180-degree local rotation does not change this origin.
     if (weapon == Upgrade::Bow) mDoMtx_multVecZero(link->getLeftItemMatrix(), &a.position);
-    cXyz delta = target - a.position;
+    cXyz delta = a.manualFlight ? manual_direction(link)*(target-a.position).abs() : target - a.position;
     if (weapon == Upgrade::Ball) {
         delta.y = 0;
         if (delta.abs() < 1.0f)
@@ -289,7 +289,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
         a.life = unsigned(std::ceil(s_run.radius(float(120 + 40 * a.hops))));
         if (initialTarget != kNone) {
             a.target=initialTarget; a.visited[a.visitedCount++]=initialTarget;
-        } else if (!next_boom_target(a, link, s_run.item_range(weapon))) return false;
+        } else if (!a.manualFlight && !next_boom_target(a, link, s_run.item_range(weapon))) return false;
     }
     if (weapon == Upgrade::Ball) {
         // Reach must not expire the projectile before its outbound/return legs.
@@ -362,7 +362,9 @@ void update_item_attack(Attack& a, daAlink_c* link) {
         if (weapon == Upgrade::Boomerang && !a.returning) {
             auto* target = actor_by_id(a.target);
             if (shield) a.returning = true;
-            else if (!target || target->health <= 0 || (target->eyePos - a.position).abs() <= a.radius || (!a.hurricane && a.collider.ChkAtHit())) {
+            else if ((a.manualFlight && a.target==kNone) ? (a.travel>=a.limit || a.collider.ChkAtHit()) :
+                     (!target || target->health <= 0 || (target->eyePos - a.position).abs() <= a.radius || (!a.hurricane && a.collider.ChkAtHit()))) {
+                a.manualFlight=false; // First leg follows the camera; earned hops keep native chaining.
                 if (a.hops && next_boom_target(a, link, s_run.boomerang_hop_range())) { --a.hops; a.collider.ResetAtHit(); }
                 else { a.returning = true; a.collider.ResetAtHit(); }
             }

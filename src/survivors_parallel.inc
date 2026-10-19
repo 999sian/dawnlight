@@ -7,7 +7,7 @@ float parallel_spin_base_radius(const daAlink_c* link) {
 }
 void update_parallel_pulse(Attack& a, daAlink_c* link) {
     a.position = link->current.pos + cXyz(0,65,0);
-    if (a.weapon == unsigned(Upgrade::ShieldAttack)) a.position += target_direction(link) * 100.f;
+    if (a.weapon == unsigned(Upgrade::ShieldAttack)) a.position += (a.manualFlight ? manual_direction(link) : target_direction(link)) * 100.f;
     for (auto key : a.emitters) if (auto* emitter=key?dComIfGp_particle_getEmitter(key):nullptr)
         emitter->setGlobalTranslation(a.position);
 }
@@ -26,9 +26,10 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     const bool spin=weapon==Upgrade::Spin;
     const float base=spin?parallel_spin_base_radius(link):60+3*s_run.rank(weapon);
     const float range=spin?s_run.area_radius(base):100+s_run.shield_radius();
-    if (!enemy_in_range(link,range)) return false;
+    if (!manual_attack(link) && !enemy_in_range(link,range)) return false;
     auto& a=s_attacks[spin?kSpinSlot:kShieldSlot];
     stop_attack(a);a={};
+    a.manualFlight=manual_attack(link);
     a.active=true;a.weapon=unsigned(weapon);a.life=6; // Six registered frames; minimum cooldown is six.
     a.radius=s_run.area_radius(base);
     // Keep pulse centers attached to Link without adding projectile movement.

@@ -18,9 +18,8 @@ bool try_jump_strike(daAlink_c* link) {
     if (s_meleeCooldown || s_cooldowns[unsigned(Upgrade::JumpStrike)]) return false;
     auto* target = melee_target(link);
     if (!target || !tracked(fopAcM_GetID(target)) || !s_run.roll_jump_strike()) return false;
-    const auto direction = target->current.pos - link->current.pos;
-    link->shape_angle.y = cM_atan2s(direction.x, direction.z);
-    link->current.angle.y = link->shape_angle.y;
+    // The nearby target only permits the skill; it never supplies movement.
+    link->current.angle.y = link->mMoveAngle;
     if (!link->procCutLargeJumpInit()) return false;
     s_swordAction = SwordAction::Jump;
     new_melee_swing();
@@ -31,6 +30,14 @@ bool try_jump_strike(daAlink_c* link) {
     s_cooldowns[unsigned(Upgrade::JumpStrike)] = s_run.jump_cooldown();
     s_meleeCooldown = s_run.cooldown(30);
     return true;
+}
+HookAction before_jump_target(ModContext*,void* args,void*,void*) {
+    auto* link=mods::arg<daAlink_c*>(args,0);
+    if(!link||!playable()||s_run.phase!=Phase::Running||fopAcM_GetID(link)!=s_player||
+       s_swordAction!=SwordAction::Jump||!jump_strike_pose(link)||jump_abilities_busy_for(link))return HOOK_CONTINUE;
+    // Native launch already set vertical speed/gravity. Skip target-derived yaw
+    // and horizontal launch speed; the movement adapter reads the stick instead.
+    return HOOK_SKIP_ORIGINAL;
 }
 bool update_jump_strike(daAlink_c* link) {
     if (s_swordAction != SwordAction::Jump) return false;

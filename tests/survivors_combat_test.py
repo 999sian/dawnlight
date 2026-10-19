@@ -50,6 +50,7 @@ struct cXyz {
     cXyz operator*(float f)const{return {x*f,y*f,z*f};}
     cXyz operator+(cXyz p)const{return {x+p.x,y+p.y,z+p.z};}
     cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-p.z};}
+    float abs()const{return std::sqrt(x*x+y*y+z*z);}
     float absXZ()const{return std::sqrt(x*x+z*z);}
 };
 struct csXyz {short x=0,y=0,z=0; csXyz(short a=0,short b=0,short c=0):x(a),y(b),z(c){}};
@@ -68,6 +69,8 @@ struct daAlink_c : fopAc_ac_c {
     enum {PROC_WAIT,PROC_MOVE,PROC_ATN_MOVE,PROC_ATN_ACTOR_WAIT,PROC_ATN_ACTOR_MOVE,
           PROC_WAIT_TURN,PROC_MOVE_TURN,PROC_CUT_NORMAL,PROC_CUT_TURN,PROC_CUT_FINISH,PROC_DAMAGE,PROC_JUMP,PROC_DODGE,PROC_CUT_LARGE_JUMP,PROC_CUT_LARGE_JUMP_LAND};
     int mProcID=PROC_WAIT,mEquipItem=0x103,field_0x2fde=0;
+    bool swordHeld=false,swordPressed=false;bool swordButton(){return swordHeld;}bool swordTrigger(){return swordPressed;}
+    struct{int mCutTurnChargeCheckTimer=0;}mProcVar5;
     bool wolf=false,model=true; void* mSwordModel=&model;
     struct {bool ground=true;bool ChkGroundHit(){return ground;}}mLinkAcch;
     struct Frame {float frame=0,rate=1;float getFrame(){return frame;}float getRate(){return rate;}void setRate(float r){rate=r;}}mUnderFrameCtrl[1],mUpperFrameCtrl[1];
@@ -114,6 +117,7 @@ daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 Run s_run;
 enum class SwordAction {None,Normal,Spin,Jump};
 SwordAction s_swordAction=SwordAction::None;
+bool s_waveManual=false,s_manualSwing=false;
 bool s_wavePending=false,s_allowDrop=false,s_active=true,arena=true,playing=true;
 unsigned s_meleeCooldown=0,s_player=7,s_comboStep=0,s_comboTimeout=0;
 bool s_autoSwordCall=false,s_trackMelee=false;unsigned s_meleeTarget=kNone;
@@ -133,6 +137,9 @@ struct dBgS_LinChk {void Set(const cXyz*,const cXyz*,daAlink_c*){}cXyz GetCross(
 bool blocked=false;
 struct World{bool LineCross(dBgS_LinChk*){return blocked;}}world;
 World& dComIfG_Bgsp(){return world;}
+float cM_ssin(short a){return std::sin(a*3.14159265f/32768);}float cM_scos(short a){return std::cos(a*3.14159265f/32768);}
+struct Camera{struct{cXyz center{100,0,0},eye{};cXyz Center(){return center;}cXyz Eye(){return eye;}}mCamera;}camera;
+bool cameraPresent=true;Camera* dComIfGp_getCamera(int){return cameraPresent?&camera:nullptr;}
 cXyz target_direction(daAlink_c*){return {0,0,1};}
 unsigned waves=0;std::vector<cXyz> waveDirections;
 void launch(daAlink_c*,unsigned weapon,cXyz direction){assert(weapon==0);++waves;waveDirections.push_back(direction);}
@@ -189,7 +196,7 @@ void mark_damage_critical(dCcU_AtInfo*,bool){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
 main = r'''
-void reset(){player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
+void reset(){player.swordHeld=player.swordPressed=false;s_waveManual=s_manualSwing=false;player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;
     player.field_0x3478=0;player.field_0x347c=10;player.field_0x3484=15;
     for(auto& id:player.field_0x3204)id=0;
@@ -254,13 +261,13 @@ int main(){
     // Reach extends native swept capsules each frame from fresh blade points,
     // clips extension at walls, and does not widen capsules or invent hit flags.
     reset();update_sword(&player);std::any swordArgs[]={&player};
-    for(unsigned reach:{1u,10u,30u}) {
+    for(unsigned reach:{0u,1u,10u,30u}) {
         s_run.ranks[unsigned(Upgrade::Reach)]=reach;
         player.mAtCps[0].radius=35;player.mAtCps[1].active=false;
         for(int frame=0;frame<3;++frame) {
             after_sword_collision(nullptr,swordArgs,nullptr,nullptr);
-            assert(player.mAtCps[0].end.z==s_run.radius(200));
-            assert(player.mAtCps[2].end.z==s_run.radius(190));
+            assert(player.mAtCps[0].end.z==2*s_run.radius(200));
+            assert(player.mAtCps[2].end.z==2*s_run.radius(190));
             assert(player.mAtCps[0].radius==35&&!player.mAtCps[1].active);
         }
     }
@@ -552,6 +559,37 @@ int main(){
     player.mProcID=daAlink_c::PROC_WAIT;s_meleeCooldown=0;update_sword(&player);
     assert(s_swordAction==SwordAction::Normal);
     reset();
+    // Twice the base acquisition distance, still bounded and blocked by walls.
+    reset();enemy.current.pos={0,0,550};assert(melee_target(&player)==&enemy);
+    s_meleeTarget=kNone;enemy.current.pos.z=570;assert(!melee_target(&player));
+    // Both a tap and a hold start owned melee with no target and retain cooldowns.
+    for(bool hold:{false,true}){
+        reset();s_enemies={};player.swordPressed=!hold;player.swordHeld=hold;
+        camera.mCamera.center={100,0,0};camera.mCamera.eye={};
+        assert(manual_attack(&player));update_sword(&player);
+        assert(player.normals==1&&s_manualSwing&&player.shape_angle.y==0x4000);
+        update_sword(&player);assert(player.normals==1&&s_meleeCooldown);
+        player.swordPressed=player.swordHeld=false;
+        track_melee_facing(&player);assert(player.shape_angle.y==0x4000);
+    }
+    reset();s_enemies={};player.swordPressed=true;s_run.ranks[0]=1;
+    update_sword_wave(&player);assert(s_wavePending&&s_waveManual);
+    player.swordPressed=false;camera.mCamera.center={0,30,40};
+    player.mUnderFrameCtrl[0].frame=player.field_0x3478;waveDirections.clear();
+    update_sword_wave(&player);assert(waveDirections.size()==1&&std::abs(waveDirections[0].y-.6f)<.001f&&std::abs(waveDirections[0].z-.8f)<.001f);
+    cameraPresent=false;player.shape_angle.y=0;assert(manual_direction(&player).z==1);cameraPresent=true;
+    camera.mCamera.center={};assert(manual_direction(&player).z==1);camera.mCamera.center={100,0,0};
+    player.swordHeld=true;playing=false;assert(!manual_attack(&player));playing=true;
+    s_run.phase=Phase::Upgrade;assert(!manual_attack(&player));s_run.phase=Phase::Running;
+    player.id=999;assert(!manual_attack(&player));player.id=7;
+    player.mProcVar5.mCutTurnChargeCheckTimer=3;
+    assert(before_manual_charge(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL&&player.mProcVar5.mCutTurnChargeCheckTimer==0);
+    arena=false;assert(before_manual_charge(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);arena=true;
+    // Owned Jump Strike never calls native target-derived launch adjustments.
+    reset();s_swordAction=SwordAction::Jump;player.mProcID=daAlink_c::PROC_CUT_LARGE_JUMP;
+    assert(before_jump_target(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
+    s_swordAction=SwordAction::None;assert(before_jump_target(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
+    reset();
     // Native random drops stay suppressed; only scoped reward creation bypasses the hook.
     fpc_ProcID result=0;assert(before_drop(nullptr,nullptr,&result,nullptr)==HOOK_SKIP_ORIGINAL && result==kNone);
     bool seen[8]{};
@@ -592,7 +630,7 @@ native_combo_functions = extract('daAlink_c::commonCutAction', native) + '\n' + 
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(native_combo + stubs + native_combo_functions + '\n'.join((root/'src/survivors_melee.inc').read_text() if name=='melee' else (root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else (root/'src/survivors_wave_cast.inc').read_text() if name=='wave_cast' else extract(name) for name in functions) + '\n' + main)
+    cpp.write_text(native_combo + stubs + (root/'src/survivors_manual_attack.inc').read_text() + native_combo_functions + '\n'.join((root/'src/survivors_melee.inc').read_text() if name=='melee' else (root/'src/survivors_targeting.inc').read_text() if name=='targeting' else (root/'src/survivors_jump_strike.inc').read_text() if name=='jump_strike' else (root/'src/survivors_wave_cast.inc').read_text() if name=='wave_cast' else extract(name) for name in functions) + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

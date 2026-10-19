@@ -22,7 +22,7 @@ struct cXyz{float x=0,y=0,z=0;cXyz operator-(cXyz p)const{return {x-p.x,y-p.y,z-
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
 struct daAlink_c{
- enum{PROC_WAIT,PROC_MOVE,PROC_CUT_TURN,PROC_CUT_NORMAL,PROC_CUT_FINISH,PROC_GUARD_ATTACK,PROC_GUARD_SLIP,PROC_GUARD_BREAK,PROC_DAMAGE,PROC_JUMP,PROC_DODGE,PROC_GET_ITEM,MODE_PLAYER_FLY};
+ enum{PROC_WAIT,PROC_MOVE,PROC_CUT_TURN,PROC_CUT_NORMAL,PROC_CUT_FINISH,PROC_GUARD_ATTACK,PROC_GUARD_SLIP,PROC_GUARD_BREAK,PROC_DAMAGE,PROC_JUMP,PROC_DODGE,PROC_GET_ITEM,PROC_CUT_LARGE_JUMP,PROC_CUT_LARGE_JUMP_LAND,MODE_PLAYER_FLY};
  bool sprintHeld=false;bool doButton(){return sprintHeld;}bool doTrigger(){return false;}bool checkInputOnR(){return sprintHeld;}
  unsigned id=7;int mProcID=PROC_WAIT;bool matching=true;
  struct{cXyz pos;struct{short y=0;}angle;}current;
@@ -45,9 +45,11 @@ float cM_scos(short a){return std::cos(a*3.141592653589793f/32768);}
 float cM_ssin(short a){return std::sin(a*3.141592653589793f/32768);}
 unsigned fopAcM_GetID(daAlink_c* p){return p->id;}
 bool playing=true;bool playable(){return playing;}unsigned s_player=7;Run s_run;
-enum class SwordAction{None,Normal,Spin};SwordAction s_swordAction=SwordAction::None;
+enum class SwordAction{None,Normal,Spin,Jump};SwordAction s_swordAction=SwordAction::None;
 struct{bool active=false;int animation=1;}s_ranged;
 void track_melee_facing(daAlink_c*){}
+bool abilityBusy=false;bool jump_abilities_busy_for(daAlink_c*){return abilityBusy;}
+bool jump_strike_pose(daAlink_c* p){return p->mProcID==daAlink_c::PROC_CUT_LARGE_JUMP||p->mProcID==daAlink_c::PROC_CUT_LARGE_JUMP_LAND;}
 bool normal_sword_proc(daAlink_c* p){return p->mProcID==daAlink_c::PROC_CUT_NORMAL||p->mProcID==daAlink_c::PROC_CUT_FINISH;}
 bool sword_action_available(daAlink_c* p){return p->mProcID==daAlink_c::PROC_WAIT||p->mProcID==daAlink_c::PROC_MOVE;}
 bool shield_pose(const daAlink_c* p){return p->mProcID==daAlink_c::PROC_GUARD_ATTACK||p->mProcID==daAlink_c::PROC_GUARD_SLIP||p->mProcID==daAlink_c::PROC_GUARD_BREAK;}
@@ -97,6 +99,18 @@ int main(){
    assert(link.speedF==20*stick&&link.current.pos.z==20*stick);
   }
  }
+ // Jump Strike stays in place without input and steers throughout launch,
+ // flight and landing. Native horizontal root/lunge motion is removed.
+ for(int proc:{daAlink_c::PROC_CUT_LARGE_JUMP,daAlink_c::PROC_CUT_LARGE_JUMP_LAND})
+ for(bool ground:{false,true})for(float stick:{0.f,.25f,1.f})for(short direction:{short(0),short(0x4000),short(-0x4000)}){
+  link.mProcID=proc;link.mLinkAcch.ground=ground;s_swordAction=SwordAction::Jump;
+  link.mMoveValue=stick;link.mMoveAngle=direction;link.current.pos={10,30,20};link.field_0x3798={10,30,20};
+  link.mNormalSpeed=90;before_auto_movement(nullptr,args,nullptr,nullptr);
+  previous={0,4,0};link.field_0x34d4={80,6,100};link.current.pos={99,35,99};
+  after_auto_movement(nullptr,args,nullptr,nullptr);link.native_motion(previous);
+  assert(link.current.pos.y==35&&std::abs(link.current.pos.x-(10+20*stick*cM_ssin(direction)))<.001f&&std::abs(link.current.pos.z-(20+20*stick*cM_scos(direction)))<.001f);
+ }
+ abilityBusy=true;link.mNormalSpeed=77;before_auto_movement(nullptr,args,nullptr,nullptr);assert(link.mNormalSpeed==77);abilityBusy=false;link.mLinkAcch.ground=true;
  // No correction during damage, jumps, item-get events, pause, another actor,
  // an airborne attack, or a dodge.
  link.mProcID=daAlink_c::PROC_CUT_NORMAL;link.mMoveValue=.03f;link.mNormalSpeed=8;

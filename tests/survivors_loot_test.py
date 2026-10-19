@@ -83,7 +83,7 @@ struct Collider {
 };
 struct Attack {
     unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0,arrowTargets=1;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
-    bool bombArrow=false,hurricane=false,detonated=false;bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
+    bool bombArrow=false,hurricane=false,detonated=false,manualFlight=false;bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
 };
@@ -99,6 +99,8 @@ struct Server {unsigned registrations=0;void Set(Collider* c){assert(c->active &
 Server* dComIfG_Ccsp(){return &server;}
 std::array<unsigned,4>queued{};
 bool queue_ranged(daAlink_c*,Upgrade w){++queued[unsigned(w)-8];return true;}
+bool manual=false;bool manual_attack(daAlink_c*){return manual;}
+cXyz manual_direction(daAlink_c*){return{0,0,1};}
 unsigned particles=0;
 std::vector<float>effectScales;
 unsigned dComIfGp_particle_set(unsigned,u16,const cXyz*,int*,const csXyz*,const cXyz* scale,int,void*,int,void*,void*,void*){
@@ -127,12 +129,22 @@ bool in_arena(){return arenaPresent;}bool transitioning(){return transition;}
 unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned r){rupees=r;}
 '''
 main = r'''
-void reset(){
+void reset(){manual=false;
     s_run.start(123);s_attacks=std::deque<Attack>(initial_projectile_slots);s_cooldowns={};s_chests={};s_mapChestPlaced={};s_loot.ready=true;s_map=placement=0;s_arenaMeshReady=true;
     player={};player.current.pos={};player.id=s_player=1;s_selectedChest=kChestCount;
     arenaPresent=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
 }
 int main(){
+    // Manual launch vectors use the camera, not hand offsets or nearest enemies.
+    reset();manual=true;s_enemies={};s_run.ranks[8]=s_run.ranks[9]=1;
+    player.hand={100,200,300};assert(launch_item(&player,Upgrade::Bow,{0,70,1000}));
+    assert(s_attacks[8].velocity.x==0&&s_attacks[8].velocity.y==0&&s_attacks[8].velocity.z==70);
+    assert(launch_item(&player,Upgrade::Boomerang,{0,70,1000}));
+    Attack* boom=nullptr;for(auto& a:s_attacks)if(a.active&&a.weapon==9)boom=&a;assert(boom&&boom->manualFlight&&boom->target==kNone);
+    manual=false; // A released button cannot retarget an in-flight first leg.
+    for(int i=0;i<5;++i){update_item_attack(*boom,&player);assert(!boom->returning&&boom->velocity.z==42);}
+    boom->travel=boom->limit;update_item_attack(*boom,&player);assert(boom->returning);
+    reset();particles=0;effectScales.clear();
     // Spawn at the current native hand matrix, independent of world height/facing.
     for(auto hand:{cXyz(28,146,31),cXyz(-71,340,99),cXyz(15,-40,-200)}) {
         reset();player.current.pos={50,10,50};player.hand=hand;s_run.ranks[8]=5;

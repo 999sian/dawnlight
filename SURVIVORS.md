@@ -16,7 +16,11 @@ your map, difficulty, settings and allocated talents remain unchanged.
   pause during jumps, Gale charging and gliding; released projectiles finish normally.
   Collect blue XP crystals and choose one of three power-ups at each level-up. Selection supports controller,
   keyboard and touch; menus and Get Item animations pause the run.
-- Start with three hearts and normal sword attacks. Unlock Sword Wave and
+- Press or hold the sword button to activate ready, unlocked attacks in the current
+  camera direction, even without a target. Holding repeats each attack on its own
+  cooldown; releasing restores automatic targeting. The native charged spin is
+  disabled, while the unlocked Survivors Spin Attack keeps its own cooldown.
+- Start with three hearts and normal sword attacks at twice the previous base melee range. Unlock Sword Wave and
   Spin Attack through level-ups. Passive upgrades, including Heart Container,
   remain available independently of other choices (maximum 20 hearts).
 - The HUD shows time, run level, score, XP and the next chest price. Inspect equipment
@@ -276,11 +280,14 @@ banish symbol at the top right of a card to remove that choice. Talents can add 
 | Red Potion | One equipment slot; adds filled bottles up to four, then refills empty ones. Rank 0 heals 1 heart. Potion Healing level-ups add ¼ heart per rank, up to 8½ hearts at rank 30. Use manually. |
 
 **Jump Strike:** 20% chance at an eligible normal melee attack, with a 6-second
-cooldown reduced by Haste. Uses the native quick jump attack and the original
-bomb shockwave on landing. Landing splash deals 30% of melee damage at rank 1,
+cooldown reduced by Haste. Requires a nearby enemy, but jumps in place without
+a target-directed lunge. Normal stick movement remains available through takeoff,
+airborne attack and landing; no stick input means no horizontal travel. Uses the
+native quick jump attack and the original bomb shockwave on landing. Landing splash deals 30% of melee damage at rank 1,
 +5 percentage points per rank (175% at rank 30), rounded to native whole damage.
 Direct sword contact deals normal melee damage; critical hits and Dark Link apply.
-**Reach** adds 7.5% linear melee/projectile range per rank. Spin, Bomb and Shield
+**Reach** adds 7.5% linear melee/projectile range per rank, including on top of
+the doubled starting normal sword range. Spin, Bomb and Shield
 radii use the square root of that factor, so their area grows approximately linearly.
 Jump Strike keeps the linear radius factor. Spin visuals follow the actual hitbox.
 Automatic item attacks, Sword Waves, Spin and Shield Attack have independent

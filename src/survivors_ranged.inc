@@ -30,7 +30,9 @@ void ranged_anime(daAlink_c* link, u16 animation, unsigned ticks) {
 bool queue_ranged(daAlink_c* link, Upgrade weapon) {
     if (!s_loot.ready || !playable() || !s_run.rank(weapon) || s_cooldowns[unsigned(weapon)]) return false;
     cXyz target;
-    if (!nearest_item_target(link, target, s_run.item_range(weapon))) return false;
+    const bool manual=manual_attack(link);
+    if(manual)target=manual_target(link,s_run.item_range(weapon));
+    else if (!nearest_item_target(link, target, s_run.item_range(weapon))) return false;
     if (weapon == Upgrade::Bow) {
         const unsigned count=s_run.bow_shots();
         // Grow the group index space as needed; never shorten or block a volley.
@@ -47,7 +49,8 @@ bool queue_ranged(daAlink_c* link, Upgrade weapon) {
         const float range=weapon==Upgrade::Ball ? std::min(s_run.item_range(weapon),s_run.radius(900.f)) : s_run.item_range(weapon);
         for (unsigned i=0; i<s_run.ranged_shots(); ++i) {
             cXyz destination; ActorId id=kNone;
-            if (!nearest_item_target(link,destination,range,std::span<const ActorId>(chosen.data(),i),&id) &&
+            if(manual)destination=manual_target(link,range);
+            else if (!nearest_item_target(link,destination,range,std::span<const ActorId>(chosen.data(),i),&id) &&
                 !nearest_item_target(link,destination,range,{},&id)) return false;
             if (!launch_item(link,weapon,destination,0,20,0,id)) return false;
             chosen[i]=id;
@@ -89,7 +92,7 @@ HookAction before_ranged_aim(ModContext*, void* args, void*, void*) {
     if (!s_ranged.active || !link || fopAcM_GetID(link) != s_player || !playable() ||
         !sword_action_available(link) || !link->checkUpperAnime(s_ranged.animation)) return HOOK_CONTINUE;
     if (!s_ranged.released) nearest_item_target(link, s_ranged.target, s_run.item_range(s_ranged.weapon));
-    const cXyz delta = s_ranged.target - link->current.pos - cXyz(0, 70, 0);
+    const cXyz delta = manual_attack(link) ? manual_direction(link) : s_ranged.target - link->current.pos - cXyz(0, 70, 0);
     link->shape_angle.y = cM_atan2s(delta.x, delta.z);
     link->mBodyAngle.y = 0;
     link->mBodyAngle.x = s_ranged.weapon == Upgrade::Ball ? 0 :

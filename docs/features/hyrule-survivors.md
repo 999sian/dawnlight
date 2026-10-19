@@ -66,7 +66,13 @@ Every arena hosts a twenty-minute run.
 Start with three hearts and automatic normal sword strikes. Sword Wave starts
 locked, like Spin Attack. Move, dodge and collect blue experience
 crystals while weapons attack automatically. Manual Jump remains available with
-your configured binding; manual sword attacks and arena exits are disabled.
+your configured binding; arena exits are disabled. Pressing or holding the mapped
+sword button activates ready, unlocked Survivors attacks in the current camera
+direction, including without an enemy target. Each ability retains its cooldown;
+holding repeats it when ready and releasing restores automatic targeting. Native
+charged spin attacks are suppressed; the independent Survivors Spin skill remains.
+Normal sword acquisition/retention distances and its blade collision length start
+at twice their previous base values, before Reach scaling.
 Normal strikes aim at nearby enemies and use Link's native sword animation and
 collision. They wait for the sword to be drawn and do not interrupt jumps, dodges,
 damage reactions or item actions.
@@ -74,7 +80,7 @@ Automatic strikes advance through the native four-hit combo, including its
 directional/lock-on variants and finisher. Follow-up strikes respect the native
 hit and cancel windows; interruptions or two seconds without a new strike reset
 the sequence. Normal swings, finishers and spin attacks all retain stick-controlled
-movement through the native ground and wall collision handling. During normal
+movement through the native ground and wall collision handling. During automatic normal
 swings and finishers, facing follows the same live enemy every frame after movement,
 without changing travel direction or camera lock-on. Dead, blocked, out-of-range
 or elevated targets are released; a nearby reachable target can replace them.
@@ -502,6 +508,13 @@ releasing the stick stops that travel. The correction also spans the return from
 a sword swing to locomotion and the remaining animation blend, avoiding a
 speed dip after normal attacks or Sword Wave. Native floor/wall collision, gravity,
 jumps, damage and item-get events retain their normal handling.
+Jump Strike also retains normal stick movement throughout launch, flight and
+landing. Its nearby enemy requirement and proc chance remain, but the native
+target-directed launch is skipped: without stick input, Link jumps in place.
+Manually fired projectiles use the camera direction at launch, including camera
+pitch (Ball and Chain retains its horizontal flight). A manual Sword Wave keeps
+its camera aim through the wind-up, even after a short tap is released. Boomerang
+flies its first leg in the camera direction before using its unlocked enemy hops.
 Sword, shield bash and item animations take turns; due item weapons rotate fairly.
 The automatic iron-ball animation bypasses native manual iron-ball action and
 aim transitions, so lock-on cannot cancel the throw before its release frame.
@@ -615,6 +628,13 @@ Before merging/releasing, test on Android and desktop:
    damage reaction or a gap between targets, and permits movement during finishers.
    Circle an enemy at full speed; verify facing tracks it through the hit window,
    a passing enemy does not steal the target, and walls/death release the lock.
+   Check doubled base sword reach before buying Reach. Tap/hold the sword button
+   with no enemies, turn/tilt the camera and verify ready skills fire in that
+   direction on their own cooldowns, with no native charge/spin on hold/release.
+   Check short-tap Sword Wave and Shield Attack, boomerang first-leg aim and
+   automatic targeting after release. Trigger Jump Strike near an enemy with
+   no stick input, then steer through takeoff, flight and landing into a wall;
+   verify there is no enemy-directed lunge and native wall/floor collision remains.
 8. Steer in every direction during Spin Attack, including into walls; verify
    native spin hits and that damage/dodges safely interrupt attacks.
 9. Collect heart and rupee drops; verify leveling up (including Heart Container)

@@ -184,6 +184,12 @@ DEFINE_HOOK(&fpcLf_Draw, SurvivorsTreasureDraw);
 DEFINE_HOOK(&daAlink_c::draw, SurvivorsDraw);
 DEFINE_HOOK(&daAlink_c::procCoDeadInit, SurvivorsDeath);
 DEFINE_HOOK(&daAlink_c::checkDoCutAction, SurvivorsManualAttack);
+constexpr auto kSurvivorsChargeCheck=static_cast<void (daAlink_c::*)()>(&daAlink_c::checkCutTurnCharge);
+DEFINE_HOOK(kSurvivorsChargeCheck, SurvivorsManualCharge);
+DEFINE_HOOK(&daAlink_c::procCutTurnChargeInit, SurvivorsChargeInit);
+DEFINE_HOOK(&daAlink_c::procCutTurnMoveInit, SurvivorsChargeMoveInit);
+DEFINE_HOOK(&daAlink_c::procCutTurnInit, SurvivorsNativeSpin);
+DEFINE_HOOK(&daAlink_c::setCutJumpSpeed, SurvivorsJumpTarget);
 DEFINE_HOOK(&daAlink_c::checkCutAction, SurvivorsSwordAttack);
 DEFINE_HOOK(&daAlink_c::setSwordAtCollision, SurvivorsSwordCollision);
 DEFINE_HOOK_SYMBOL("dBgS_LinChk::Set", void(dBgS_LinChk*, const cXyz*, const cXyz*, const fopAc_ac_c*),
@@ -250,6 +256,7 @@ unsigned s_comboStep = 0, s_comboTimeout = 0;
 bool s_autoSwordCall = false, s_trackMelee = false;
 ActorId s_meleeTarget = kNone;
 bool s_wavePending = false, s_allowDrop = false;
+bool s_waveManual = false, s_manualSwing = false;
 std::array<unsigned, unsigned(Upgrade::Rupees)> s_cooldowns{};
 void clear_loot();
 void clear_locomotion();
@@ -304,7 +311,7 @@ struct Attack {
     bool active = false;
     unsigned life = 0, weapon = 0, age = 0;
     bool returning = false, exploding = false, greatSpin = false;
-    bool hurricane=false, bombArrow=false, detonated=false;
+    bool hurricane=false, bombArrow=false, detonated=false, manualFlight=false;
     J3DModel* bombModel=nullptr;
     JKRSolidHeap* bombHeap=nullptr;
     float effectBaseRadius = 260.f;
@@ -677,7 +684,9 @@ void update_spawns(daAlink_c* link) {
         else { ++s_spawnFailures; break; }
     }
 }
+#include "survivors_manual_attack.inc"
 cXyz target_direction(daAlink_c* link) {
+    if(manual_attack(link))return manual_direction(link);
     float nearest = 1600 * 1600;
     cXyz result(cM_ssin(link->shape_angle.y), 0, cM_scos(link->shape_angle.y));
     const cXyz origin = link->current.pos + cXyz(0, 70, 0);
@@ -758,7 +767,7 @@ bool enemy_in_range(daAlink_c* link, float range) {
     return false;
 }
 void release_sword_wave(daAlink_c* link) {
-    const auto direction = target_direction(link);
+    const auto direction = s_waveManual ? manual_direction(link) : target_direction(link);
     for (unsigned i=0; i<s_run.ranged_shots(); ++i) {
         const float angle=s_run.wave_spread(i), sine=std::sin(angle), cosine=std::cos(angle);
         launch(link,0,cXyz(direction.x*cosine+direction.z*sine,direction.y,
@@ -774,6 +783,7 @@ bool begin_sword_combo(daAlink_c* link) {
     // Native recovery can clear its counter before our cooldown expires. Keep
     // the automatic sequence across that gap, but let native code pick each
     // directional/lock-on/hit-dependent swing and the fourth-hit finisher.
+    s_manualSwing=manual_attack(link);
     link->mComboCutCount = s_comboStep;
     struct Scope { Scope(){s_autoSwordCall=true;} ~Scope(){s_autoSwordCall=false;} } scope;
     if (!link->checkCutAction() || !normal_sword_proc(link)) return false;
@@ -829,7 +839,7 @@ void update_sword(daAlink_c* link) {
         s_comboStep = s_comboTimeout = 0;
         return;
     }
-    if (s_meleeCooldown || !melee_target(link)) return;
+    if (s_meleeCooldown || (!manual_attack(link) && !melee_target(link))) return;
     if (!link->checkItemSwordEquip()) {
         if (link->mEquipItem != dItemNo_NONE_e) return;
         // The pending item ID can survive an interrupted upper animation.
@@ -841,8 +851,8 @@ void update_sword(daAlink_c* link) {
     // normal combo and its occasional Jump Strike movement.
     if (try_jump_strike(link)) return;
     auto* target = melee_target(link);
-    if (!target) return;
-    const auto direction = target->current.pos - link->current.pos;
+    if (!target && !manual_attack(link)) return;
+    const auto direction = manual_attack(link) ? manual_direction(link) : target->current.pos - link->current.pos;
     link->shape_angle.y = cM_atan2s(direction.x, direction.z);
     link->current.angle.y = link->shape_angle.y;
     if (begin_sword_combo(link)) {
@@ -1457,6 +1467,9 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsTreasureDraw, before_treasure_draw);
     PRE(SurvivorsGetItem, before_treasure_get); POST(SurvivorsGetItem, after_treasure_get);
     PRE(SurvivorsDeath, before_death); PRE(SurvivorsManualAttack, before_cut);
+    PRE(SurvivorsManualCharge, before_manual_charge);
+    PRE(SurvivorsChargeInit, before_cut); PRE(SurvivorsChargeMoveInit, before_cut);
+    PRE(SurvivorsNativeSpin, before_cut); PRE(SurvivorsJumpTarget, before_jump_target);
     PRE(SurvivorsSwordAttack, before_sword_attack); PRE(SurvivorsDoor, before_cut);
     POST(SurvivorsPower, after_power);
     POST(SurvivorsSwordCollision, after_sword_collision);

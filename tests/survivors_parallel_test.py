@@ -43,7 +43,7 @@ constexpr int fpcNm_E_MM_MT_e=77;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 struct Effect{std::vector<uint64_t>bowVolleys;unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,12>effects;
 Effect& effect_for(Enemy&e){return effects[&e-enemies.data()];}
-struct Attack{unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0,arrowTargets=1;std::array<unsigned,enemy_capacity>ballVictims{};
+struct Attack{unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false,manualFlight=false;unsigned weapon=0,life=0,ballVictimCount=0,arrowTargets=1;std::array<unsigned,enemy_capacity>ballVictims{};
  Collider collider;Status status;std::array<unsigned,9>emitters{};float radius=0,effectBaseRadius=260;cXyz position,velocity;};
 std::deque<Attack>s_attacks(initial_projectile_slots);
 Run s_run;unsigned s_player=1,s_meleeSerial=1;
@@ -65,7 +65,9 @@ constexpr u16 ID_ZI_J_KAITENGIRID_A=21,ID_ZI_J_KAITENGIRID_B=22,ID_ZI_J_KAITENGI
 
 void stop_attack(Attack&a){for(auto k:a.emitters)emitters.erase(k);a.active=false;}
 float distance=100;bool enemy_in_range(daAlink_c*,float range){return distance<range;}
-cXyz target_direction(daAlink_c*){return{0,0,1};}
+bool manual=false;bool manual_attack(daAlink_c*){return manual;}
+cXyz manual_direction(daAlink_c*){return{1,0,0};}
+cXyz target_direction(daAlink_c*){return manual?cXyz(1,0,0):cXyz(0,0,1);}
 std::array<unsigned,unsigned(Upgrade::Rupees)>s_cooldowns{};unsigned waves=0;
 bool waveReady=true;
 void update_sword_wave(daAlink_c*){if(waveReady&&s_run.ranks[0]&&!s_cooldowns[0]){++waves;s_cooldowns[0]=s_run.cooldown(60);}}
@@ -126,6 +128,15 @@ int main(){
   assert(count==(level>=15?6u:2u));
   player.current.pos={20,30,40};update_parallel_pulse(a,&player);assert(a.position.y==95);
  }
+ // Manual pulses do not require a nearby target and still obey cooldowns.
+ distance=100000;manual=false;assert(!launch_parallel_pulse(&player,Upgrade::Spin));
+ manual=true;s_cooldowns={};s_run.ranks[1]=s_run.ranks[2]=1;s_run.shield=1;
+ update_parallel_skills(&player);assert(s_attacks[kSpinSlot].active&&s_attacks[kShieldSlot].active);
+ const auto spinLife=s_cooldowns[1],shieldLife=s_cooldowns[2];update_parallel_skills(&player);
+ assert(s_cooldowns[1]==spinLife&&s_cooldowns[2]==shieldLife);manual=false;distance=100;
+ // Releasing a tap cannot turn its still-active shield hitbox back to an enemy.
+ update_parallel_pulse(s_attacks[kShieldSlot],&player);
+ assert(s_attacks[kShieldSlot].position.x==player.current.pos.x+100&&s_attacks[kShieldSlot].position.z==player.current.pos.z);
  // Same-volley extra hits are quarter damage; separate/overlapping volleys
  // and different targets retain full first-hit damage, even on one frame.
  effects={};s_attacks=std::deque<Attack>(initial_projectile_slots);target.owner=&actors[0];s_run.ranks[unsigned(Upgrade::CritChance)]=0;
