@@ -74,6 +74,9 @@ struct e_rd_class{fopAc_ac_c enemy;Collider cc_sph[3];dCcU_AtInfo at_info;s16 da
 fixture=re.sub(r'enum class CombatText[^\n]+\n|void (?:combat_feedback|begin_damage_feedback|end_damage_feedback|mark_damage_critical)\([^\n]+\n', '', fixture)
 fixture+='DamageAmounts hit_damage_sources(const cCcD_Obj*);\n'
 fixture+=(root/'src/survivors_feedback.inc').read_text()
+fixture += r'''
+bool boss_blocks_from(const Enemy&,fopAc_ac_c*,const cXyz&){return false;}
+'''
 source = (root/'src/survivors.cpp').read_text()
 def function(name):
     match = re.search(r'^(?:bool|void) '+name+r'\([^;{}]*\)\s*\{', source, re.M)
@@ -85,9 +88,6 @@ fixture += r'''
 struct BulblinHit{bool critical=false;unsigned basePower=0,scaledPower=0;};BulblinHit* bulblin_power_hit(dCcU_AtInfo*){return nullptr;}
 bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
-'''
-fixture += r'''
-bool boss_blocks_from(const Enemy&,fopAc_ac_c*,const cXyz&){return false;}
 '''
 main = r'''
 void hit(e_ms_class& rat){

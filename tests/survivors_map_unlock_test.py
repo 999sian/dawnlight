@@ -117,7 +117,8 @@ int main(){
   assert(s_options.debug.unlock_all_maps);value.bool_value=false;toggle.set(nullptr,nullptr,&value);
  }else assert(controls.empty());
  controls.clear();assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
- auto reset=controls[5];assert(std::string(reset.label)=="Reset High Scores"&&!reset.is_disabled(nullptr,nullptr));
+ auto found=std::find_if(controls.begin(),controls.end(),[](const auto& control){return std::string(control.label)=="Reset High Scores";});
+ assert(found!=controls.end());auto reset=*found;assert(!reset.is_disabled(nullptr,nullptr));
  reset.on_pressed(nullptr,nullptr);assert(s_scoreResetDialog==91&&openedDialog.variant==UI_DIALOG_WARNING);
  assert(std::string(actions[0].label)=="No"&&std::string(actions[1].label)=="Yes"&&actions[1].keep_open);
  actions[0].on_pressed(nullptr,91,nullptr);assert(!s_scoreResetDialog&&s_records.encode()==original&&!writes);
