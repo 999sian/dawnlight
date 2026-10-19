@@ -189,7 +189,8 @@ bool next_boom_target(Attack& a, daAlink_c* link, float range) {
     float nearest = range * range; ActorId chosen = kNone;
     for (const auto& e : s_enemies) {
         if (!e.initialized || e.credited || e.retiring ||
-            std::find(a.visited.begin(), a.visited.begin() + a.visitedCount, e.id) != a.visited.begin() + a.visitedCount) continue;
+            std::find(a.visited.begin(), a.visited.begin() + a.visitedCount, e.id) != a.visited.begin() + a.visitedCount ||
+            (a.manualFlight && std::find(a.ballVictims.begin(),a.ballVictims.begin()+a.ballVictimCount,e.id)!=a.ballVictims.begin()+a.ballVictimCount)) continue;
         auto* actor = actor_by_id(e.id);
         if (!actor || actor->health <= 0) continue;
         const float distance = (actor->eyePos - a.position).abs2();
@@ -362,9 +363,9 @@ void update_item_attack(Attack& a, daAlink_c* link) {
         if (weapon == Upgrade::Boomerang && !a.returning) {
             auto* target = actor_by_id(a.target);
             if (shield) a.returning = true;
-            else if ((a.manualFlight && a.target==kNone) ? (a.travel>=a.limit || a.collider.ChkAtHit()) :
+            else if ((a.manualFlight && a.target==kNone) ? (a.travel>=a.limit || (!a.hurricane && a.collider.ChkAtHit())) :
                      (!target || target->health <= 0 || (target->eyePos - a.position).abs() <= a.radius || (!a.hurricane && a.collider.ChkAtHit()))) {
-                a.manualFlight=false; // First leg follows the camera; earned hops keep native chaining.
+                // First leg follows the camera; earned hops exclude prior manual-flight hits.
                 if (a.hops && next_boom_target(a, link, s_run.boomerang_hop_range())) { --a.hops; a.collider.ResetAtHit(); }
                 else { a.returning = true; a.collider.ResetAtHit(); }
             }

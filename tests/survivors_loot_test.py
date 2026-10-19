@@ -144,7 +144,19 @@ int main(){
     manual=false; // A released button cannot retarget an in-flight first leg.
     for(int i=0;i<5;++i){update_item_attack(*boom,&player);assert(!boom->returning&&boom->velocity.z==42);}
     boom->travel=boom->limit;update_item_attack(*boom,&player);assert(boom->returning);
-    reset();particles=0;effectScales.clear();
+    // First contact chains to a new enemy; Hurricane keeps its straight piercing leg.
+    for(bool hurricane:{false,true}){
+        reset();manual=true;s_run.ranks[9]=1;s_run.ranks[unsigned(Upgrade::Hurricane)]=hurricane;
+        Actor struck,next;struck.id=80;next.id=81;struck.eyePos={0,70,200};next.eyePos={200,70,400};
+        actors={{80,&struck},{81,&next}};s_enemies={};s_enemies[0]={80,true,false,false};s_enemies[1]={81,true,false,false};
+        assert(launch_item(&player,Upgrade::Boomerang,{0,70,1000}));
+        Attack* cast=nullptr;for(auto& a:s_attacks)if(a.active&&a.weapon==9)cast=&a;assert(cast);
+        manual=false;cast->position=struck.eyePos;cast->ballVictims[0]=80;cast->ballVictimCount=1;cast->collider.hit=true;
+        update_item_attack(*cast,&player);
+        if(hurricane){assert(cast->target==kNone&&!cast->returning&&cast->velocity.z==42);cast->travel=cast->limit;update_item_attack(*cast,&player);}
+        assert(cast->target==81&&cast->visitedCount==1&&cast->visited[0]==81&&!cast->hops);
+    }
+    actors.clear();s_enemies={};reset();particles=0;effectScales.clear();
     // Spawn at the current native hand matrix, independent of world height/facing.
     for(auto hand:{cXyz(28,146,31),cXyz(-71,340,99),cXyz(15,-40,-200)}) {
         reset();player.current.pos={50,10,50};player.hand=hand;s_run.ranks[8]=5;
