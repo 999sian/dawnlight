@@ -158,7 +158,7 @@ u32 dComIfGp_particle_set(u32 id,u16 effect,cXyz*,int*,const csXyz*,const cXyz* 
 void dComIfGp_particle_levelEmitterOnEventMove(u32){}
 struct Attack {bool active=true,greatSpin=false;float radius=65,effectBaseRadius=260;unsigned life=10;cXyz position,velocity;cCcD_Obj collider;std::array<u32,9>emitters{};};
 std::array<Attack,initial_projectile_slots>s_attacks;
-struct Effect{cCcD_Obj collider;unsigned damage=0;bool critical=false;};std::array<Effect,24>s_effects;
+struct Effect{cCcD_Obj collider;unsigned damage=0,fixedDamage=0;bool critical=false;};std::array<Effect,24>s_effects;
 void new_melee_swing(){}
 void cancel_ranged(){}
 constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;

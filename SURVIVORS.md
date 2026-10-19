@@ -351,13 +351,36 @@ across 36°, with each wave retaining its normal/Great Spin tier and hit dedupli
 Rarity is rolled before selecting an eligible upgrade: restricted power-ups do
 not promote common rolls to rare ones. Life Regen follows normal rarity units
 (Rare +3 ranks, Epic +4, Legendary +5); Multishot and Life Steal are the explicit
-unit exceptions. Cap overflow pays 20 rupees per unused unit. All reset per run.
+unit exceptions, together with the one-rank Legendary powers below. Cap overflow pays 20 rupees per unused unit. All reset per run.
+
+## Legendary weapon powers
+
+All six powers below have **one rank**, reset each run, and appear only on
+Legendary level-up cards. They require the corresponding weapon/family; Fire
+Edge works with the starting sword. A collected power no longer appears.
+
+| Power | Requirement | Effect |
+| --- | --- | --- |
+| Hurricane | Boomerang | Doubles the boomerang, wind visuals and hit radius. Incidental contacts do not interrupt its flight toward a chosen target; every crossed enemy takes damage once per throw. |
+| Fire Bomb | Bombs | Every explosion victim burns for 10% of normal bomb damage per second for five seconds, with native Fire Arrow burn particles. |
+| Bomb Arrow | Bow | Native bomb-arrow model. Each arrow explodes once at its first enemy contact for an additional 50% bow damage in a rank-5 bomb radius (230 before Reach). Piercing continues; each Multishot arrow owns its own explosion. |
+| Fire Edge | Starting melee | Burning sword blade. Normal hits, Spin, Shield Attack, Dual Wield secondary hits and Jump Strike ignite enemies for 10% normal melee damage per second for five seconds. |
+| Dark Aura | Dark Link | While transformed, ignite visible enemies within a base radius of 300 (scaled by Reach), with black flames. Each second deals 10% of their maximum run HP, including bosses. Burns continue for five seconds after leaving range or losing the form. |
+| Shockwave | Shield + Shield Attack | Each bash also releases a straight piercing wave for current melee damage. Its radius is 95 (rank-5 Ball and Chain), scaled by Reach; travels 1,350 units and stops at walls. |
+
+Different burn sources coexist. Reapplying the same source refreshes duration
+without stacking it or postponing ticks. Fire Bomb/Fire Edge snapshot normal
+weapon damage including active Dark Link, without a new critical roll. Dark
+Aura's max-HP damage receives no further damage multiplier. Fractional tenths
+carry between ticks, avoiding a minimum-one-damage inflation for weak weapons.
+Fire Arrows retain their existing independent burn progression. Bomb Arrow's
+explosion belongs to the Bow and does not trigger Fire Bomb.
 
 ## Rarities and Luck
 
 Each offered card rolls independently, including **free elite chests**. Rarity
 controls ranks/units of the chosen reward: **Common ×1, Uncommon ×2, Rare ×3,
-Epic ×4, Legendary ×5**, except Multishot (Epic ×1 / Legendary ×2) and Life Steal (Legendary ×1). Names and icon borders show the rarity. Units exceeding
+Epic ×4, Legendary ×5**, except Multishot (Epic ×1 / Legendary ×2) and all one-rank Legendary powers (Legendary ×1). Names and icon borders show the rarity. Units exceeding
 a reward's cap become 20 rupees each, subject to wallet capacity.
 
 Luck has **20 ranks** and resets each run. Rarity weighting gains +5% per rank;
@@ -391,7 +414,7 @@ boomerangs, bombs, ball-and-chain throws and sword waves allocate additional
 reusable slots as needed. Cooldowns, lifetimes and damage rules are unchanged.
 This increases possible memory/rendering load and needs in-game stress testing.
 
-Sword Wave always fires one projectile. At rank 15 it becomes a Great Spin
+Sword Wave fires one projectile before Multishot bonuses. At rank 15 it becomes a Great Spin
 projectile (base radius 65 → 100). Spin Attack becomes **Great Spin Attack**
 at rank 15 (base radius 260 → 400), including its displayed name. Both use the
 six native Great Spin effects, scaled to the hitbox with Reach.

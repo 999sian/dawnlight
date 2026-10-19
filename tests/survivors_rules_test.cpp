@@ -163,7 +163,7 @@ int main() {
     maximum.start(58);assert(maximum.luck_percent()==100&&maximum.eligible(Upgrade::Luck));
     for(unsigned rarity=0;rarity<5;++rarity) {
         for(unsigned u=0;u<unsigned(Upgrade::Rupees);++u)for(unsigned initial:{0u,4u}) {
-            Run r;r.start(13);r.shield=1;r.red_potion=true;r.master_sword=1;r.ranks[8]=1;r.ranks[u]=initial;
+            Run r;r.start(13);r.shield=1;r.red_potion=true;r.master_sword=1;r.ranks[8]=r.ranks[9]=r.ranks[10]=r.ranks[2]=1;r.dark_link=1;r.ranks[u]=initial;
             if(Upgrade(u)==Upgrade::DualWield){r.shield=0;r.dual_wield=initial;}
             // Weapons must be chest-unlocked first.
             if(!initial && ((u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)) || Upgrade(u)==Upgrade::DualWield))continue;

@@ -3,31 +3,39 @@
 struct EnemyEffect {
     ActorId id = kNone;
     unsigned burn = 0, pulse = ticks_per_second, pending = 0, meleeSerial = 0;
-    unsigned damage = 0, jumpSerial = 0;
+    unsigned damage = 0, jumpSerial = 0, fixedPending=0, fixedDamage=0;
+    std::array<LegendaryBurn,3> legendaryBurns{};
     std::vector<uint64_t> bowVolleys;
     bool pendingStagger = false, stagger = false;
     bool injected = false, pendingCritical = false, critical = false;
     cXyz velocity{}, knockStep{};
     unsigned knockFrames=0, knockCooldown=0;
     std::array<u32, 2> emitters{};
+    std::array<BlackFlameCallback,2> blackFlames{};
     dCcD_Stts status;
     dCcD_Sph collider;
 };
 std::array<EnemyEffect, enemy_capacity> s_effects;
+void clear_fire_edge();
 unsigned s_meleeSerial = 1, s_spreadSerial = 0;
 void stop_burn(EnemyEffect& effect) {
-    for (auto& key : effect.emitters) {
+    for (unsigned i=0;i<effect.emitters.size();++i) {
+        auto& key=effect.emitters[i];
         if (auto* emitter = key ? dComIfGp_particle_getEmitter(key) : nullptr) {
+            effect.blackFlames[i].unbind(emitter);
             emitter->stopCreateParticle(); emitter->quitImmortalEmitter();
             emitter->becomeInvalidEmitter();
         }
         key = 0;
     }
     effect.burn = 0; effect.pulse = ticks_per_second;
+    effect.legendaryBurns={};
 }
 void clear_enemy_effects() {
+    clear_fire_edge();
     for (auto& effect : s_effects) {
         stop_burn(effect); effect.id = kNone; effect.pending = effect.damage = effect.meleeSerial = 0;
+        effect.fixedPending=effect.fixedDamage=0;
         effect.injected = false; effect.pendingCritical = effect.critical = false;
         effect.knockStep=cXyz(0,0,0);effect.knockFrames=effect.knockCooldown=0;
         effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;effect.bowVolleys={};
@@ -45,12 +53,14 @@ EnemyEffect& effect_for(Enemy& enemy) {
     auto& effect = s_effects[unsigned(&enemy - s_enemies.data())];
     if (effect.id != enemy.id) {
         stop_burn(effect); effect.id = enemy.id;
-        effect.pending = effect.damage = effect.meleeSerial = 0; effect.injected = false; effect.pendingCritical = effect.critical = false;
+        effect.pending = effect.damage = effect.meleeSerial = 0;
+        effect.fixedPending=effect.fixedDamage=0; effect.injected = false; effect.pendingCritical = effect.critical = false;
         effect.knockStep=cXyz(0,0,0);effect.knockFrames=effect.knockCooldown=0;
         effect.jumpSerial=0;effect.pendingStagger=effect.stagger=false;effect.bowVolleys={};
     }
     return effect;
 }
+#include "survivors_legendary_status.inc"
 std::array<dCcD_Sph*, 3> enemy_spheres(fopAc_ac_c* actor, ProfileName profile) {
     if (profile == fpcNm_E_OC_e) {
         auto* e = static_cast<daE_OC_c*>(actor); return {&e->mSphs_cc[0], &e->mSphs_cc[1]};
@@ -73,10 +83,11 @@ void prepare_effect_hit(fopAc_ac_c* actor, Enemy& enemy) {
             sphere->ResetTgHit(); // A queued/accepted multihit cannot also hit via another capsule.
         else natural = true;
     }
-    if (!effect.pending || natural) return; // Preserve real hits; queued damage waits its turn.
+    if ((!effect.pending && !effect.fixedPending) || natural) return; // Preserve real hits; queued damage waits its turn.
     auto* link = daAlink_getAlinkActorClass();
     if (!link || fopAcM_GetID(link) != s_player) return;
     effect.damage = effect.pending; effect.pending = 0; effect.injected = true;
+    effect.fixedDamage=effect.fixedPending;effect.fixedPending=0;
     effect.critical=effect.pendingCritical; effect.pendingCritical=false;
     effect.stagger=effect.pendingStagger;effect.pendingStagger=false;
     effect.status.Init(120, 0xff, link);
@@ -99,7 +110,7 @@ void finish_effect_hit(fopAc_ac_c* actor, ProfileName profile) {
         profile == fpcNm_E_BA_e ? &reinterpret_cast<e_ba_class*>(actor)->mAtInfo :
         profile == fpcNm_E_RD_e ? &reinterpret_cast<e_rd_class*>(actor)->at_info : &static_cast<e_ms_class*>(actor)->mAtInfo;
     if (info->mpCollider == &effect.collider) info->mpCollider = nullptr;
-    effect.injected = false; effect.critical = false; effect.damage = 0;effect.stagger=false;
+    effect.injected = false; effect.critical = false; effect.damage = 0;effect.fixedDamage=0;effect.stagger=false;
 }
 void spread_melee_hit(fopAc_ac_c* primary) {
     if (!s_run.dual_wield || s_spreadSerial == s_meleeSerial) return;
@@ -125,6 +136,7 @@ void spread_melee_hit(fopAc_ac_c* primary) {
         bool critical=false;
         effect.pending += s_run.critical_power(s_run.melee_power(),&critical);
         effect.pendingCritical = effect.pendingCritical || critical;
+        if (s_run.rank(Upgrade::FireEdge)) effect.legendaryBurns[1].ignite(s_run.dark_power(s_run.melee_power()));
         if (auto* actor=actor_by_id(best->id)) queue_knockback(*best,actor,false);
     }
 }
@@ -154,21 +166,45 @@ void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
             break;
         }
     }
+    if (actor->health>0 && !effect_collider(info->mpCollider)) {
+        auto& effect=effect_for(*enemy);
+        bool melee=native_sword_collider(info->mpCollider) ||
+            (daAlink_getAlinkActorClass() && info->mpCollider==&daAlink_getAlinkActorClass()->mGuardAtCps);
+        Attack* bombArrow=nullptr;
+        for (auto& attack:s_attacks) if (info->mpCollider==&attack.collider) {
+            if (attack.weapon==unsigned(Upgrade::Bombs) && s_run.rank(Upgrade::FireBomb))
+                effect.legendaryBurns[0].ignite(s_run.dark_power(s_run.attack_power(unsigned(Upgrade::Bombs))));
+            melee=melee || attack.weapon==unsigned(Upgrade::Spin) || attack.weapon==unsigned(Upgrade::ShieldAttack);
+            if (attack.weapon==unsigned(Upgrade::Bow) && attack.bombArrow && !attack.detonated) bombArrow=&attack;
+            break;
+        }
+        if (melee && s_run.rank(Upgrade::FireEdge))
+            effect.legendaryBurns[1].ignite(s_run.dark_power(s_run.melee_power()));
+        // Allocation may grow the deque. Do it only after the traversal ends.
+        if (bombArrow) detonate_bomb_arrow(*bombArrow,actor->eyePos);
+    }
     if (s_swordAction == SwordAction::Normal && native_sword_collider(info->mpCollider)) spread_melee_hit(actor);
 }
 void update_enemy_effects() {
+    update_fire_edge();
+    update_dark_aura();
     for (unsigned i = 0; i < s_enemies.size(); ++i) {
         auto& enemy = s_enemies[i]; auto& effect = s_effects[i];
         auto* actor = actor_by_id(enemy.id);
         if (!in_arena() || !enemy.initialized || enemy.retiring || enemy.credited || !actor ||
             actor->health <= 0 || effect.id != enemy.id) {
-            stop_burn(effect); effect.pending = 0; effect.pendingCritical=effect.critical=false;
+            stop_burn(effect); effect.pending = effect.fixedPending = effect.fixedDamage = 0; effect.pendingCritical=effect.critical=false;
             effect.knockFrames=effect.knockCooldown=0;effect.knockStep=cXyz(0,0,0);continue;
         }
         update_knockback(enemy,actor);
-        if (!effect.burn) continue;
-        if (!--effect.pulse) { effect.pending += s_run.burn_damage(); effect.pulse = ticks_per_second; }
-        if (!--effect.burn) { stop_burn(effect); continue; }
+        for (auto& burn:effect.legendaryBurns) effect.fixedPending+=burn.tick();
+        if (effect.burn) {
+            if (!--effect.pulse) { effect.pending += s_run.burn_damage(); effect.pulse = ticks_per_second; }
+            --effect.burn;
+        }
+        const bool legendary=std::any_of(effect.legendaryBurns.begin(),effect.legendaryBurns.end(),
+            [](const auto& burn){return burn.remaining!=0;});
+        if (!effect.burn && !legendary) { stop_burn(effect); continue; }
         // Same native BURNS_A/B, trace callback, anchor fallback and scale as
         // baxlek/Fire-Arrows-Standalone. No external texture/model assets.
         effect.velocity = actor->speed;
@@ -183,6 +219,10 @@ void update_enemy_effects() {
                 emitter->setParticleCallBackPtr(dPa_control_c::getParticleTracePCB());
                 emitter->setUserWork(reinterpret_cast<uintptr_t>(&effect.velocity));
                 emitter->setGlobalScale(cXyz(3, 3, 3));
+                const bool black=effect.legendaryBurns[2].remaining!=0;
+                if (black) effect.blackFlames[j].bind(emitter);else effect.blackFlames[j].unbind(emitter);
+                emitter->setGlobalPrmColor(black?0:255,black?0:255,black?0:255);
+                emitter->setGlobalEnvColor(black?0:255,black?0:255,black?0:255);
             }
         }
     }

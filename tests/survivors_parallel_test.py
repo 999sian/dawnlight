@@ -12,6 +12,7 @@ fixture=r'''
 #include <unordered_map>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "survivors_projectiles.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned;using u8=unsigned char;using u16=unsigned short;using u32=unsigned;
 constexpr unsigned kNone=~0u;
@@ -43,8 +44,8 @@ daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 struct Effect{std::vector<uint64_t>bowVolleys;unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,12>effects;
 Effect& effect_for(Enemy&e){return effects[&e-enemies.data()];}
 struct Attack{unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0,arrowTargets=1;std::array<unsigned,enemy_capacity>ballVictims{};
- Collider collider;Status status;std::array<unsigned,9>emitters{};float radius=0;cXyz position,velocity;};
-std::array<Attack,initial_projectile_slots>s_attacks;
+ Collider collider;Status status;std::array<unsigned,9>emitters{};float radius=0,effectBaseRadius=260;cXyz position,velocity;};
+std::deque<Attack>s_attacks(initial_projectile_slots);
 Run s_run;unsigned s_player=1,s_meleeSerial=1;
 enum class SwordAction{None,Normal,Jump};SwordAction s_swordAction=SwordAction::Normal;
 bool native_sword_collider(const Collider*c){return c==&player.mAtSph||c==&player.mAtCps[0]||c==&player.mAtCps[1]||c==&player.mAtCps[2];}
@@ -127,7 +128,7 @@ int main(){
  }
  // Same-volley extra hits are quarter damage; separate/overlapping volleys
  // and different targets retain full first-hit damage, even on one frame.
- effects={};s_attacks={};target.owner=&actors[0];s_run.ranks[unsigned(Upgrade::CritChance)]=0;
+ effects={};s_attacks=std::deque<Attack>(initial_projectile_slots);target.owner=&actors[0];s_run.ranks[unsigned(Upgrade::CritChance)]=0;
  for(unsigned i=0;i<4;++i){auto&a=s_attacks[i];a.active=true;a.weapon=unsigned(Upgrade::Bow);a.collider.power=20;
   a.bowVolleySlot=i==2?101:100;a.bowVolley=i==2?101:100;}
  hit(&s_attacks[0].collider,&target);hit(&s_attacks[1].collider,&target);
@@ -141,7 +142,7 @@ int main(){
  // Duplicated target geometry consumes neither an extra target nor extra damage.
  s_run.start(123);
  for(unsigned rank=0;rank<=10;++rank){
-  effects={};s_attacks={};s_run.ranks[unsigned(Upgrade::Piercing)]=rank;
+  effects={};s_attacks=std::deque<Attack>(initial_projectile_slots);s_run.ranks[unsigned(Upgrade::Piercing)]=rank;
   for(unsigned i=0;i<actors.size();++i){actors[i].id=enemies[i].id=100+i;actors[i].health=100;}
   for(unsigned shot=0;shot<8;++shot){auto& arrow=s_attacks[shot];
    arrow.active=true;arrow.weapon=unsigned(Upgrade::Bow);arrow.collider.power=20;
@@ -152,6 +153,18 @@ int main(){
    }
    assert(arrow.ballVictimCount==rank+1);
   }
+ }
+ // One independently moving piercing shockwave per shield bash; direct
+ // melee damage reaches every target once, without using Shield's damage rank.
+ s_run.start(1);s_run.shield=1;s_run.ranks[2]=1;s_run.ranks[unsigned(Upgrade::Shockwave)]=1;
+ s_run.ranks[unsigned(Upgrade::Power)]=17;distance=100;
+ for(unsigned reach:{0u,5u,30u}){
+  effects={};s_attacks=std::deque<Attack>(initial_projectile_slots);s_run.ranks[unsigned(Upgrade::Reach)]=reach;
+  assert(launch_parallel_pulse(&player,Upgrade::ShieldAttack));
+  auto& wave=s_attacks.back();assert(wave.weapon==unsigned(Upgrade::Shockwave)&&wave.life==30);
+  assert(wave.radius==s_run.radius(95)&&wave.velocity.z==45&&wave.collider.power==s_run.melee_power());
+  for(unsigned i=0;i<actors.size();++i){target.owner=&actors[i];hit(&wave.collider,&target);hit(&wave.collider,&target);
+   assert(effects[i].pending==s_run.melee_power());}
  }
  distance=1e6;assert(!launch_parallel_pulse(&player,Upgrade::Spin));
 }

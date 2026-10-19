@@ -75,6 +75,7 @@ struct Collider {
     bool active=false,hit=false,shield=false;unsigned type=0,power=0,resets=0;float radius=0;
     cXyz pos,velocity;Status* status=nullptr;
     void Set(int){}void SetStts(Status* s){status=s;}void SetAtType(unsigned t){type=t;}
+    unsigned GetAtAtp(){return power;}
     int material=0;void SetAtAtp(unsigned p){power=p;}void SetAtMtrl(int m){material=m;}void OnAtNoConHit(){}
     void ResetAtHit(){hit=false;shield=false;++resets;}void OnAtSetBit(){active=true;}void OffAtSetBit(){active=false;}
     bool ChkAtHit(){return hit;}bool ChkAtShieldHit(){return shield;}
@@ -82,13 +83,14 @@ struct Collider {
 };
 struct Attack {
     unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0,arrowTargets=1;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
-    bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
+    bool bombArrow=false,hurricane=false,detonated=false;bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
 };
 constexpr int kAttackSource=0;constexpr unsigned kPaidChestCount=6,kSmallChestCount=6+map_chest_capacity,kChestCount=kSmallChestCount+elite_reward_capacity,kItemBegin=8,kSlotsPerItem=4;
 std::deque<Attack>s_attacks(initial_projectile_slots);
 bool prepare_projectile_model(Attack&, unsigned){return true;}
+bool prepare_bomb_arrow_model(Attack&){return true;}
 void stop_attack(Attack& a){a.active=false;a.collider.OffAtSetBit();a.emitters={};}
 unsigned cleared=0,closed=0;
 void clear_attacks(){++cleared;for(auto& a:s_attacks)stop_attack(a);}
@@ -190,6 +192,31 @@ int main(){
         player.current.pos.x=100;update_item_attack(a,&player);assert(a.velocity.x>0 && a.velocity.z<0);
         for(unsigned i=0;i<80 && a.active;++i)update_item_attack(a,&player);
         assert(!a.active);
+    }
+    // Hurricane ignores incidental contacts, retains its chosen hop target,
+    // and doubles both geometry and native wind particle scale.
+    reset();s_run.ranks[9]=1;s_run.ranks[unsigned(Upgrade::Hurricane)]=1;
+    assert(launch_item(&player,Upgrade::Boomerang,far.eyePos,0,20,0,far.id));
+    auto& hurricane=s_attacks[item_projectile_begin(1)];
+    assert(hurricane.hurricane&&hurricane.radius==126);hurricane.collider.hit=true;
+    const auto hops=hurricane.hops;effectScales.clear();update_item_attack(hurricane,&player);
+    assert(!hurricane.returning&&hurricane.target==far.id&&hurricane.hops==hops);
+    assert(effectScales.size()==2&&effectScales[0]==2&&effectScales[1]==2);
+    // Each Multishot arrow owns exactly one explosion; piercing budget is
+    // unchanged, and a level-5 bomb radius follows Reach independently of Bombs.
+    for(unsigned reach:{0u,5u,30u}){
+        reset();s_run.ranks[8]=18;s_run.ranks[unsigned(Upgrade::Reach)]=reach;
+        s_run.ranks[unsigned(Upgrade::BombArrow)]=1;s_run.ranks[unsigned(Upgrade::Piercing)]=10;
+        for(unsigned shot=0;shot<8;++shot){
+            assert(launch_item(&player,Upgrade::Bow,{0,70,600}));auto& arrow=s_attacks[8+shot];
+            assert(arrow.bombArrow&&!arrow.detonated&&arrow.arrowTargets==11);
+            const auto count=s_attacks.size();detonate_bomb_arrow(arrow,{0,70,500});
+            assert(arrow.active&&arrow.detonated&&arrow.arrowTargets==11&&s_attacks.size()==count+1);
+            auto& blast=s_attacks.back();assert(blast.weapon==unsigned(Upgrade::BombArrow)&&blast.exploding);
+            assert(blast.collider.power==10&&blast.radius==s_run.bomb_arrow_radius());
+            update_item_attack(blast,&player);assert(blast.collider.active);
+            detonate_bomb_arrow(arrow,{0,70,600});assert(s_attacks.size()==count+1);
+        }
     }
     // Maximum Reach still completes both legs before expiry.
     reset();s_run.ranks[11]=1;s_run.ranks[unsigned(Upgrade::Reach)]=30;
@@ -374,7 +401,7 @@ int main(){
     std::cout<<"Survivors loot: targeting, four projectile types, uncapped growth, placement and proximity behavior passed\n";
 }
 '''
-functions = ['nearest_item_target','next_boom_target','update_boom_wind','launch_item','explode_item','update_item_attack','fire_items',
+functions = ['nearest_item_target','next_boom_target','update_boom_wind','launch_item','explode_item','detonate_bomb_arrow','update_item_attack','fire_items',
              'spawn_chest','seed_map_chests','update_chests']
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'

@@ -29,6 +29,8 @@
 #include "d/d_msg_object.h"
 #include "d/d_msg_class.h"
 #include "JSystem/JMessage/control.h"
+#include "JSystem/JParticle/JPAResource.h"
+#include "JSystem/JParticle/JPABaseShape.h"
 #include "SSystem/SComponent/c_math.h"
 #include "d/actor/d_a_alink.h"
 #include "d/actor/d_a_midna.h"
@@ -298,6 +300,9 @@ struct Attack {
     bool active = false;
     unsigned life = 0, weapon = 0, age = 0;
     bool returning = false, exploding = false, greatSpin = false;
+    bool hurricane=false, bombArrow=false, detonated=false;
+    J3DModel* bombModel=nullptr;
+    JKRSolidHeap* bombHeap=nullptr;
     float effectBaseRadius = 260.f;
     ActorId target = kNone;
     unsigned hops = 0, visitedCount = 0;
@@ -865,6 +870,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 #include "survivors_ranged.inc"
 #include "survivors_treasure.inc"
 #include "survivors_inventory.inc"
+#include "survivors_black_flame.inc"
 #include "survivors_status.inc"
 #include "survivors_knockback.inc"
 void new_melee_swing() { ++s_meleeSerial; }
@@ -882,15 +888,15 @@ void update_weapons(daAlink_c* link) {
     for (auto& a : s_attacks) {
         if (!a.active) continue;
         a.status.Move();
-        if (a.weapon >= unsigned(Upgrade::Bow)) { update_item_attack(a, link); continue; }
+        if (a.weapon >= unsigned(Upgrade::Bow) && a.weapon != unsigned(Upgrade::Shockwave)) { update_item_attack(a, link); continue; }
         if (!a.life-- || a.collider.ChkAtShieldHit()) { stop_attack(a); continue; }
         if (a.weapon == unsigned(Upgrade::Spin) || a.weapon == unsigned(Upgrade::ShieldAttack))
             update_parallel_pulse(a, link);
         const cXyz next = a.position + a.velocity;
         dBgS_LinChk wall; wall.Set(&a.position, &next, link);
-        if (a.weapon == 0 && dComIfG_Bgsp().LineCross(&wall)) { stop_attack(a); continue; }
+        if ((a.weapon == 0 || a.weapon == unsigned(Upgrade::Shockwave)) && dComIfG_Bgsp().LineCross(&wall)) { stop_attack(a); continue; }
         a.position = next;
-        if (a.weapon == 0) update_wave_effects(a, link);
+        if (a.weapon == 0 || a.weapon == unsigned(Upgrade::Shockwave)) update_wave_effects(a, link);
         a.collider.SetC(a.position); a.collider.SetR(a.radius);
         a.collider.SetAtVec(a.velocity);
         dComIfG_Ccsp()->Set(&a.collider);
@@ -929,7 +935,7 @@ void after_power(ModContext*, void* args, void*, void*) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
         if (auto* hit=bulblin_power_hit(info)) hit->critical=effect.critical;
         mark_damage_critical(info,effect.critical);
-        info->mAttackPower = s_run.dark_power(effect.damage); return;
+        info->mAttackPower = s_run.dark_power(effect.damage) + effect.fixedDamage; return;
     }
     auto* link = daAlink_getAlinkActorClass();
     if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {

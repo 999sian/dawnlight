@@ -44,7 +44,9 @@ void clear_loot() {
     if (s_loot.heap && svc_hook && svc_hook->resolve &&
         svc_hook->resolve(mod_ctx, "J3DModel::forgetMtx", &address, nullptr) == MOD_OK && address) {
         auto forget = reinterpret_cast<ForgetModel>(address);
-        for (auto& a : s_attacks) if (a.modelHeap) {
+        for (auto& a : s_attacks) {
+            if (a.bombModel) forget(a.bombModel);
+            if (!a.modelHeap) continue;
             if (a.model) forget(a.model);
             if (a.wind) forget(a.wind);
         }
@@ -58,6 +60,8 @@ void clear_loot() {
         for (auto* model : s_loot.wind) if (model) forget(model);
     }
     for (auto& a : s_attacks) {
+        if (a.bombHeap) mDoExt_destroySolidHeap(a.bombHeap);
+        a.bombHeap=nullptr; a.bombModel=nullptr;
         if (a.modelHeap) mDoExt_destroySolidHeap(a.modelHeap);
         a.modelHeap = nullptr; a.model = a.wind = nullptr;
     }
@@ -202,9 +206,11 @@ bool next_boom_target(Attack& a, daAlink_c* link, float range) {
 void update_boom_wind(Attack& a, daAlink_c* link) {
     constexpr std::array<u16, 2> effects{0x1fe, 0x1ff}; // Native Gale Boomerang trails.
     const csXyz angle(0, cM_atan2s(a.velocity.x, a.velocity.z), 0);
+    const float size=a.hurricane ? 2.f : 1.f;
+    const cXyz scale(size,size,size);
     for (unsigned i = 0; i < effects.size(); ++i) {
         a.emitters[i] = dComIfGp_particle_set(a.emitters[i], effects[i], &a.position, &link->tevStr,
-            &angle, nullptr, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
+            &angle, &scale, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
     }
 }
 // Models cannot share deferred draw matrices. Each added projectile owns a
@@ -235,10 +241,27 @@ bool prepare_projectile_model(Attack& a, unsigned type) {
     mDoExt_adjustSolidHeap(a.modelHeap);
     return true;
 }
+// Native combined bomb-arrow model, with its own deferred draw matrices.
+bool prepare_bomb_arrow_model(Attack& a) {
+    if (a.bombModel) return true;
+    auto* data=static_cast<J3DModelData*>(dComIfG_getObjectRes(s_loot.linkArchive,0x1d));
+    if (!data) return false;
+    a.bombHeap=mDoExt_createSolidHeapFromGame(0x10000,0x20);
+    if (!a.bombHeap) return false;
+    auto* previous=mDoExt_setCurrentHeap(a.bombHeap);
+    a.bombModel=mDoExt_J3DModel__create(data,0x80000,0x11000084);
+    mDoExt_setCurrentHeap(previous);
+    if (!a.bombModel) { mDoExt_destroySolidHeap(a.bombHeap);a.bombHeap=nullptr;return false; }
+    mDoExt_adjustSolidHeap(a.bombHeap);return true;
+}
 bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0, unsigned volleySlot = 20, uint64_t volley = 0, ActorId initialTarget = kNone) {
     const unsigned index = unsigned(weapon), type = index - unsigned(Upgrade::Bow);
     auto& a = acquire_projectile(s_attacks, index, item_projectile_begin(type), item_initial_slots(type));
     if (!prepare_projectile_model(a, type)) return false;
+    a.bombArrow=weapon==Upgrade::Bow && s_run.rank(Upgrade::BombArrow);
+    if (a.bombArrow && !prepare_bomb_arrow_model(a)) return false;
+    a.hurricane=weapon==Upgrade::Boomerang && s_run.rank(Upgrade::Hurricane);
+    a.detonated=false;
     a.weapon = index; a.age = 0; a.life = 100;
     a.bowVolleySlot=volleySlot;a.bowVolley=volley;a.arrowTargets=s_run.arrow_targets();
     a.returning = a.exploding = false; a.travel = 0;
@@ -278,6 +301,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
         a.life = std::max(a.life, unsigned(std::ceil(distance / 70.0f)) + 1);
     }
     a.radius = weapon == Upgrade::Bow ? 35.0f : s_run.radius(weapon == Upgrade::Boomerang ? 63 : 55 + 8 * rank);
+    if (a.hurricane) a.radius*=2.f;
     if (weapon == Upgrade::Bombs) {
         // Discrete ballistic arc reaches the target in 30 simulation ticks.
         a.velocity = delta * (1.0f / 30); a.velocity.y += 1.4f * 29 / 2;
@@ -298,7 +322,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
 }
 void explode_item(Attack& a, daAlink_c* link) {
     a.exploding = true; a.life = 60; a.age = 0; a.velocity = cXyz(0, 0, 0);
-    a.radius = s_run.bomb_radius();
+    a.radius = a.weapon==unsigned(Upgrade::BombArrow) ? s_run.bomb_arrow_radius() : s_run.bomb_radius();
     a.collider.ResetAtHit(); a.collider.OnAtSetBit();
     // Complete native normal-bomb burst, including splash, debris and smoke.
     constexpr std::array<u16, 9> effects{0x161, 0x162, 0x163, 0x164, 0x165, 0x166, 0x167, 0x168, 0x1ec};
@@ -307,6 +331,18 @@ void explode_item(Attack& a, daAlink_c* link) {
     for (unsigned i = 0; i < effects.size(); ++i)
         a.emitters[i] = dComIfGp_particle_set(0, effects[i], &a.position, &link->tevStr,
                                             nullptr, &scale, 0xff, nullptr, -1, nullptr, nullptr, nullptr);
+}
+void detonate_bomb_arrow(Attack& arrow, const cXyz& point) {
+    if (!arrow.bombArrow || arrow.detonated) return;
+    arrow.detonated=true;
+    auto* link=daAlink_getAlinkActorClass();if (!link) return;
+    auto& blast=acquire_projectile(s_attacks,unsigned(Upgrade::BombArrow),0,0);
+    stop_attack(blast);blast={};blast.active=true;blast.weapon=unsigned(Upgrade::BombArrow);
+    blast.position=point;blast.status.Init(120,0xff,link);
+    blast.collider.Set(kAttackSource);blast.collider.SetStts(&blast.status);
+    blast.collider.SetAtType(AT_TYPE_NORMAL_SWORD);blast.collider.SetAtMtrl(dCcD_MTRL_NONE);
+    blast.collider.SetAtAtp(static_cast<u8>(std::max(1u,(unsigned(arrow.collider.GetAtAtp())+1)/2)));
+    blast.collider.OnAtNoConHit();explode_item(blast,link);
 }
 void update_item_attack(Attack& a, daAlink_c* link) {
     const auto weapon = static_cast<Upgrade>(a.weapon);
@@ -326,7 +362,7 @@ void update_item_attack(Attack& a, daAlink_c* link) {
         if (weapon == Upgrade::Boomerang && !a.returning) {
             auto* target = actor_by_id(a.target);
             if (shield) a.returning = true;
-            else if (!target || target->health <= 0 || (target->eyePos - a.position).abs() <= a.radius || a.collider.ChkAtHit()) {
+            else if (!target || target->health <= 0 || (target->eyePos - a.position).abs() <= a.radius || (!a.hurricane && a.collider.ChkAtHit())) {
                 if (a.hops && next_boom_target(a, link, s_run.boomerang_hop_range())) { --a.hops; a.collider.ResetAtHit(); }
                 else { a.returning = true; a.collider.ResetAtHit(); }
             }
@@ -345,6 +381,7 @@ void update_item_attack(Attack& a, daAlink_c* link) {
             a.ballVictimCount = 0;
             a.status.Init(120, 0xff, link); // Fresh pass: the last outbound victim can be hit again.
         }
+        if (weapon==Upgrade::Boomerang && a.hurricane) a.collider.ResetAtHit();
         if (a.returning) {
             cXyz delta = link->current.pos + cXyz(0, 70, 0) - a.position;
             if (weapon == Upgrade::Ball) delta.y = 0; // Keep the launch height on both passes.
@@ -475,12 +512,12 @@ void draw_loot() {
     }
     auto* link = daAlink_getAlinkActorClass();
     for (unsigned i = kItemBegin; i < s_attacks.size(); ++i) {
-        const auto& a = s_attacks[i]; if (!a.active || a.exploding || a.weapon < unsigned(Upgrade::Bow)) continue;
+        const auto& a = s_attacks[i]; if (!a.active || a.exploding || a.weapon < unsigned(Upgrade::Bow) || a.weapon > unsigned(Upgrade::Ball)) continue;
         const auto weapon = static_cast<Upgrade>(a.weapon);
         const auto yaw = weapon == Upgrade::Boomerang ? s16(a.age * 7000) : cM_atan2s(a.velocity.x, a.velocity.z);
         const auto pitch = weapon == Upgrade::Bow ? s16(-cM_atan2s(a.velocity.y, a.velocity.absXZ())) : s16(0);
-        draw_loot_model(a.model, a.position, yaw, pitch,
-            weapon == Upgrade::Bow ? 1 : s_run.radius(weapon == Upgrade::Boomerang ? 1.f : 1 + 0.08f * (s_run.rank(weapon) - 1)));
+        draw_loot_model(a.bombArrow ? a.bombModel : a.model, a.position, yaw, pitch,
+            weapon == Upgrade::Bow ? 1 : s_run.radius(weapon == Upgrade::Boomerang ? (a.hurricane ? 2.f : 1.f) : 1 + 0.08f * (s_run.rank(weapon) - 1)));
         if (weapon == Upgrade::Boomerang && s_loot.windAnim) {
             auto* model = a.wind;
             auto* data = model->getModelData(); auto* root = data->getJointNodePointer(0);
@@ -489,7 +526,7 @@ void draw_loot() {
             // Native callback casts userArea to daBoomerang_c; our model isn't an actor.
             joint->setCallBack(nullptr);
             s_loot.windAnim->entry(data, std::fmod(float(a.age), std::max(1.0f, s_loot.windAnim->getEndFrame())));
-            draw_loot_model(model, a.position, 0, 0, 1);
+            draw_loot_model(model, a.position, 0, 0, a.hurricane ? 2.f : 1.f);
             root->setMtxCalc(oldCalc); joint->setCallBack(oldCallback);
         }
         if (weapon == Upgrade::Ball && link) draw_chain(i, link, a.position);

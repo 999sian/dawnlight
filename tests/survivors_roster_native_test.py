@@ -84,7 +84,7 @@ Run s_run;bool arena=true;bool in_arena(){return arena;}
 bool arena_aggro(fopAc_ac_c* a,int p){return arena&&a&&a->profile==p;}
 struct Player:fopAc_ac_c {dCcD_Sph mGuardAtCps;}player;
 Player* daAlink_getAlinkActorClass(){return &player;}ActorId s_player=100;
-struct Effect {unsigned pending=0,damage=0,meleeSerial=0;bool injected=false,critical=false,pendingCritical=false,pendingStagger=false,stagger=false;
+struct Effect {unsigned pending=0,damage=0,meleeSerial=0,fixedPending=0,fixedDamage=0;bool injected=false,critical=false,pendingCritical=false,pendingStagger=false,stagger=false;
  dCcD_Stts status;dCcD_Sph collider;};
 std::array<Effect,enemy_capacity> effects;
 Effect& effect_for(Enemy& e){return effects[&e-s_enemies.data()];}
@@ -98,7 +98,7 @@ bool causes_stagger(const cCcD_Obj* a){return a==&player.mGuardAtCps;}
 unsigned calls=0,power=7,credits=0,disappears=0,deletes=0;bool injectedCritical=false;
 void cc_at_check(fopAc_ac_c* a,dCcU_AtInfo* info){++calls;assert(info->mPowerType==0);
  unsigned damage=power;
- for(auto& e:effects)if(info->mpCollider==&e.collider){damage=e.damage;injectedCritical=e.critical;}
+ for(auto& e:effects)if(info->mpCollider==&e.collider){damage=e.damage+e.fixedDamage;injectedCritical=e.critical;}
  a->health=std::max(0,a->health-int(damage));}
 void credit_death(Enemy& e,fopAc_ac_c*){if(!e.credited){++credits;e.credited=true;}}
 void fopAcM_createDisappear(fopAc_ac_c*,cXyz*,int,int,int){++disappears;}

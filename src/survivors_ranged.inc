@@ -111,6 +111,8 @@ void draw_ranged() {
         mDoMtx_stack_c::XYZrotM(cM_deg2s(-4), cM_deg2s(39), cM_deg2s(-9));
     }
     model->setBaseTRMtx(mDoMtx_stack_c::get());
+    const float size=s_ranged.weapon==Upgrade::Boomerang ? s_run.hurricane_scale() : 1.f;
+    model->setBaseScale(cXyz(size,size,size));
     auto* data = model->getModelData(); auto* root = data->getJointNodePointer(0);
     auto* previous = root->getMtxCalc();
     if (bow) {

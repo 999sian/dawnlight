@@ -145,7 +145,7 @@ daAlink_c* daAlink_getAlinkActorClass(){return nullptr;}
 bool native_sword_collider(const Collider*){return false;}
 struct Attack { Collider collider; };
 std::array<Attack,16> s_attacks;
-struct Effect{Collider collider;unsigned damage=0;bool critical=false;};std::array<Effect,24>s_effects;
+struct Effect{Collider collider;unsigned damage=0,fixedDamage=0;bool critical=false;};std::array<Effect,24>s_effects;
 constexpr int HIT_TYPE_LINK_HEAVY_ATTACK=9;
 struct dCcU_AtInfo { Collider* mpCollider; unsigned mAttackPower; int mHitType=0; };
 unsigned xp=0;

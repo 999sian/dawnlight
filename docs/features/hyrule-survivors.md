@@ -863,3 +863,44 @@ at intervals of (20 - Life Regen rank) seconds. Rank zero already regenerates;
 rank five shortens the interval to 15 seconds. Run pause/menu/death guards and the
 native maximum-life gauge apply. Full health does not accumulate healing, restart
 resets the interval, and ticks continue through the final boss beyond 20 minutes.
+
+
+### Single-rank Legendary weapon powers
+
+Append Hurricane, Fire Bomb, Bomb Arrow, Fire Edge, Dark Aura and Shockwave to
+run upgrades. Each is Legendary-only, grants one rank and requires its family
+(Fire Edge uses starting melee). Generic UI cards and collected-power previews
+show their effects and cap; talent save IDs are unchanged.
+
+Hurricane snapshots doubled boomerang collision/model/wind size and ignores
+incidental contacts when choosing when to hop. Existing per-projectile victim
+tracking damages every crossed enemy once. Bomb Arrow loads the native Alink
+0x1d model into a private per-projectile heap, preserves in-flight piercing,
+and creates one separate, deduplicated bomb explosion on first contact. Each
+Multishot arrow can explode; the burst is half bow power with rank-5 bomb area
+and Reach scaling. Models/cached matrices are released before archive teardown.
+
+Fire Bomb, Fire Edge and Dark Aura use separate run-local burn clocks. Rehits
+refresh their five-second lifetime without resetting pulse or stacking damage.
+Fixed-point tenths preserve low-damage ratios. Fire Edge covers native sword
+and jump colliders, parallel Spin/Shield and secondary Dual Wield hits; blade
+particles follow three points on the actual drawn sword. Fire Arrow status
+remains independent. Dark Aura checks form, range and line of sight, uses stored
+maximum run HP and preserves all five trailing pulses after exiting. Fixed burn
+damage bypasses later Dark/crit scaling in both native and extended damage paths.
+Black flame rendering wraps native emitter callbacks and restores particle blend
+state after drawing, without editing shared resources. Death, slot reuse,
+restart and unload clear the clocks, blade emitters and callback bindings.
+
+Shockwave allocates a stable independent projectile on each shield pulse, with
+current melee power and rank-5 Ball radius scaled by Reach. Normal spin particles
+match its collider size. It travels straight for 30 ticks at 45 units/tick, stops
+at walls and damages each enemy once. It does not occupy an item or body action.
+
+Regression coverage includes rarity floors/dependencies/caps, five exact burn
+pulses and refresh timing, aura form/range/LOS/max-HP isolation, melee families,
+private model allocation/reuse/release, eight separate bomb arrows, Hurricane
+flight/wind sizing, shockwave geometry and multi-target deduplication, and scoped
+black-particle rendering. Device verification: retest dense Multishot + Piercing
+explosions, black flame appearance with other visual mods, blade placement,
+Hurricane wind and Shockwave visuals, boss burns, restart and map transitions.

@@ -12,10 +12,12 @@ fixture = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast
 fixture = fixture.replace('#include <cassert>', '#include <cassert>\n#include <map>\n#include <cstdint>')
 fixture = fixture.replace('using s16=short;', 'using ActorId=unsigned;using u32=unsigned;using u16=unsigned short;constexpr ActorId kNone=~0u;\nusing s16=short;')
 fixture = fixture.replace('struct cXyz{float x=0,y=0,z=0;', '''struct cXyz{float x=0,y=0,z=0;
+ cXyz operator*(float n)const{return{x*n,y*n,z*n};}
+ float abs2()const{return x*x+y*y+z*z;}
  cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}
  float abs(cXyz b)const{auto d=*this-b;return std::sqrt(d.x*d.x+d.y*d.y+d.z*d.z);}''')
-fixture = fixture.replace('struct fopAc_ac_c{int id=2,health=50;', 'struct fopAc_ac_c{int id=2,health=50;cXyz eyePos{},speed{};')
+fixture = fixture.replace('struct fopAc_ac_c{int id=2,health=50;', 'struct fopAc_ac_c{int id=2,health=50;int field_0x560=100;cXyz eyePos{},speed{};')
 fixture = fixture.replace('struct Collider{', '''struct dCcD_Stts{void Init(int,int,fopAc_ac_c*){}};
 constexpr int kAttackSource=0,AT_TYPE_ARROW=1,HIT_TYPE_LINK_HEAVY_ATTACK=9;
 struct Collider{unsigned power=0;fopAc_ac_c* owner=nullptr;fopAc_ac_c* GetAc(){return owner;}
@@ -37,6 +39,9 @@ fixture = fixture.replace('Run s_run;int s_player=1;', 'Run s_run;ActorId s_play
 fixture = fixture.replace('struct dCcU_AtInfo{Collider* mpCollider;};', '')
 fixture = re.sub(r'void (?:prepare_effect_hit|finish_effect_hit|record_status_hit)\([^\n]+\n', '', fixture)
 fixture=fixture.replace('bool effect_staggers(const cCcD_Obj*){return false;}','')
+fixture=fixture.replace('struct daAlink_c:fopAc_ac_c{','struct daAlink_c:fopAc_ac_c{cXyz field_0x3498{},mSwordTopPos{};bool checkItemSwordEquip(){return true;}')
+fixture=fixture.replace('struct Attack{','struct Attack{bool bombArrow=false,detonated=false;')
+fixture+='void detonate_bomb_arrow(Attack& a,const cXyz&){a.detonated=true;}\n'
 fixture += r'''
 unsigned knockRequests=0;
 void queue_knockback(Enemy&,fopAc_ac_c*,bool){++knockRequests;}
@@ -46,9 +51,11 @@ struct dBgS_LinChk{cXyz target;void Set(const cXyz*,cXyz* to,daAlink_c*){target=
 struct Background{bool LineCross(dBgS_LinChk* line){return line->target.x==999;}} bg;
 Background& dComIfG_Bgsp(){return bg;}
 struct Emitter{bool stopped=false,deleted=false;uintptr_t user=0;cXyz scale;
+ void setGlobalPrmColor(unsigned r,unsigned,unsigned){black=r<20;}void setGlobalEnvColor(unsigned,unsigned,unsigned){}bool black=false;
  void stopCreateParticle(){stopped=true;}void quitImmortalEmitter(){}void becomeInvalidEmitter(){deleted=true;}
  bool isEnableDeleteEmitter(){return deleted;}void setParticleCallBackPtr(void*){}
  void setUserWork(uintptr_t p){user=p;}void setGlobalScale(cXyz s){scale=s;}};
+struct BlackFlameCallback{void bind(Emitter*){}void unbind(Emitter*){}};
 std::map<u32,Emitter> emitters;u32 nextKey=1;
 Emitter* dComIfGp_particle_getEmitter(u32 key){auto it=emitters.find(key);return it==emitters.end()?nullptr:&it->second;}
 u32 dComIfGp_particle_set(u32 key,u16,cXyz*,void*,void*){if(!key)key=nextKey++;emitters.try_emplace(key);return key;}

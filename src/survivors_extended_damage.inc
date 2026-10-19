@@ -167,10 +167,11 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
     if(ball==0)attack=nullptr;
     if(ball==1)enemy.hitCooldown=0;
     // Consume status damage only when it can be applied; real hits take priority.
-    if(!attack&&effect.pending&&!enemy.hitCooldown) {
+    if(!attack&&(effect.pending||effect.fixedPending)&&!enemy.hitCooldown) {
         auto* link=daAlink_getAlinkActorClass();
         if(link&&fopAcM_GetID(link)==s_player) {
             effect.damage=effect.pending;effect.pending=0;effect.injected=true;
+            effect.fixedDamage=effect.fixedPending;effect.fixedPending=0;
             effect.critical=effect.pendingCritical;effect.pendingCritical=false;
             effect.stagger=effect.pendingStagger;effect.pendingStagger=false;
             effect.status.Init(120,0xff,link);effect.collider.Set(kAttackSource);
@@ -192,7 +193,7 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
             }
             if(causes_stagger(attack))enemy.stagger=8;
         }
-        effect.injected=false;effect.damage=0;effect.critical=false;effect.stagger=false;
+        effect.injected=false;effect.damage=0;effect.fixedDamage=0;effect.critical=false;effect.stagger=false;
     }
     for(auto* target:body.targets)if(target)target->ResetTgHit();
     if(actor->health<=0) {

@@ -137,6 +137,12 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::Multishot: return "+" + number(run.extra_projectiles()) + " projectiles per ranged cast";
     case Upgrade::LifeRegen: return "0.25 hearts every " + seconds(run.life_regen_interval());
     case Upgrade::LifeSteal: return rank ? "0.25 hearts per defeated enemy" : "off";
+    case Upgrade::Hurricane: return rank ? "x2 Boomerang and wind size; piercing flight" : "off";
+    case Upgrade::FireBomb: return rank ? "10% bomb damage/s for 5 seconds" : "off";
+    case Upgrade::BombArrow: return rank ? "50% bow explosion; radius " + decimal(run.bomb_arrow_radius()) : "off";
+    case Upgrade::FireEdge: return rank ? "10% melee damage/s for 5 seconds" : "off";
+    case Upgrade::DarkAura: return rank ? "10% target max HP/s; radius " + decimal(run.dark_aura_radius()) : "off";
+    case Upgrade::Shockwave: return rank ? number(run.melee_power()) + " damage; radius " + decimal(run.shockwave_radius()) : "off";
     case Upgrade::Rupees: return "+20 rupees";
     default: return "Level " + number(rank);
     }

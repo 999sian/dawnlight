@@ -70,7 +70,7 @@ void* dComIfG_getObjectRes(const char* arc,int id){
     if(std::strcmp(arc,"Dalways")==0){if(id==7 || id==8)return missingLid?nullptr:&lidData;assert(id==12 || id==13);return &data[id==12?0:4];}
     if(id==0x13)return &lidData;
     if(id==0x34)return &data[0];
-    assert(id==0x1c || id==0x1f || id==0x1e);return &data[id==0x1c?1:id==0x1f?2:3];
+    assert(id==0x1c || id==0x1d || id==0x1f || id==0x1e);return &data[id==0x1c?1:id==0x1f?2:3];
 }
 void* dComIfGp_getAnmArchive(){return &lidData;}
 JKRSolidHeap* mDoExt_createSolidHeapFromGame(unsigned,int){if(failHeap)return nullptr;++heapCreates;return new JKRSolidHeap;}
@@ -110,7 +110,7 @@ namespace mDoMtx_stack_c{void transS(cXyz){}void YrotM(s16){}void XrotM(s16){}vo
 struct dKy_tevstr_c{};
 struct Light{void settingTevStruct(int,cXyz*,dKy_tevstr_c*){}void setLightTevColorType_MAJI(J3DModel*,dKy_tevstr_c*){}}g_env_light;
 void mDoExt_modelUpdateDL(J3DModel*){++draws;}
-struct Attack{JKRSolidHeap* modelHeap=nullptr;J3DModel* model=nullptr;J3DModel* wind=nullptr;bool active=false,exploding=false;unsigned weapon=0,age=0;cXyz position,velocity;};
+struct Attack{JKRSolidHeap* bombHeap=nullptr;J3DModel* bombModel=nullptr;bool bombArrow=false,hurricane=false;JKRSolidHeap* modelHeap=nullptr;J3DModel* model=nullptr;J3DModel* wind=nullptr;bool active=false,exploding=false;unsigned weapon=0,age=0;cXyz position,velocity;};
 std::deque<Attack>s_attacks(initial_projectile_slots);Run s_run;
 void cancel_treasure_demo(){}
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
@@ -163,8 +163,15 @@ int main(){
         if(type==1)assert(a.wind);
         auto count=heapCreates;assert(prepare_projectile_model(a,type)&&heapCreates==count);
     }
+    // Bomb arrows keep private model matrices even with dense Multishot,
+    // reuse their model, and release it before unloading the native archive.
+    for(auto& arrow:s_attacks)if(arrow.weapon==unsigned(Upgrade::Bow)){
+        assert(prepare_bomb_arrow_model(arrow)&&arrow.bombHeap&&arrow.bombModel);
+        arrow.bombArrow=true;auto creates=heapCreates;
+        assert(prepare_bomb_arrow_model(arrow)&&heapCreates==creates);
+    }
     draw_loot();clear_loot();assert(liveModels.empty()&&references==0);
-    for(auto&a:s_attacks)assert(!a.modelHeap&&!a.model&&!a.wind);
+    for(auto&a:s_attacks)assert(!a.modelHeap&&!a.model&&!a.wind&&!a.bombHeap&&!a.bombModel);
     assert(prepare_loot(&player));
     auto& a=s_attacks.back();failHeap=true;assert(!prepare_projectile_model(a,1));failHeap=false;
     failModel=int(modelsMade)+1;assert(!prepare_projectile_model(a,1)&&!a.modelHeap&&!a.model&&!a.wind);
@@ -175,6 +182,6 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
-    cpp.write_text(stubs+globals+'\n'.join(extract(n) for n in ['clear_loot','prepare_loot','prepare_projectile_model','draw_loot_model','draw_loot'])+draw+main)
+    cpp.write_text(stubs+globals+'\n'.join(extract(n) for n in ['clear_loot','prepare_loot','prepare_projectile_model','prepare_bomb_arrow_model','draw_loot_model','draw_loot'])+draw+main)
     subprocess.run(['c++','-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

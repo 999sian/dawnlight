@@ -11,6 +11,17 @@ void update_parallel_pulse(Attack& a, daAlink_c* link) {
     for (auto key : a.emitters) if (auto* emitter=key?dComIfGp_particle_getEmitter(key):nullptr)
         emitter->setGlobalTranslation(a.position);
 }
+void launch_shockwave(daAlink_c* link) {
+    auto& wave=acquire_projectile(s_attacks,unsigned(Upgrade::Shockwave),0,0);
+    stop_attack(wave);wave={};wave.active=true;wave.weapon=unsigned(Upgrade::Shockwave);
+    wave.life=30;wave.radius=s_run.shockwave_radius();wave.effectBaseRadius=260.f;
+    wave.position=link->current.pos+cXyz(0,65,0);
+    wave.velocity=target_direction(link)*45.f;
+    wave.status.Init(120,0xff,link);wave.collider.Set(kAttackSource);wave.collider.SetStts(&wave.status);
+    wave.collider.SetAtType(AT_TYPE_NORMAL_SWORD);wave.collider.SetAtMtrl(dCcD_MTRL_NONE);
+    wave.collider.SetAtAtp(static_cast<u8>(s_run.melee_power()));
+    wave.collider.OnAtNoConHit();wave.collider.ResetAtHit();wave.collider.OnAtSetBit();
+}
 bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     const bool spin=weapon==Upgrade::Spin;
     const float base=spin?parallel_spin_base_radius(link):60+3*s_run.rank(weapon);
@@ -36,6 +47,7 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
             a.emitters[i]=dComIfGp_particle_set(0,effects[i],&a.position,&link->tevStr,
                 nullptr,&scale,0xff,nullptr,-1,nullptr,nullptr,nullptr);
     }
+    if (!spin && s_run.rank(Upgrade::Shockwave)) launch_shockwave(link);
     return true;
 }
 void update_parallel_skills(daAlink_c* link) {

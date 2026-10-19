@@ -42,13 +42,14 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
     return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Rupees, Count };
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Hurricane, FireBomb, BombArrow, FireEdge, DarkAura, Shockwave, Rupees, Count };
 inline constexpr unsigned upgrade_cap(Upgrade u) {
     switch (u) {
     case Upgrade::Knockback: case Upgrade::Piercing: return 10;
     case Upgrade::Multishot: return 3;
     case Upgrade::LifeRegen: return 5;
-    case Upgrade::LifeSteal: return 1;
+    case Upgrade::LifeSteal: case Upgrade::Hurricane: case Upgrade::FireBomb: case Upgrade::BombArrow:
+    case Upgrade::FireEdge: case Upgrade::DarkAura: case Upgrade::Shockwave: return 1;
     case Upgrade::Luck: return 20;
     default: return 30;
     }
@@ -56,12 +57,12 @@ inline constexpr unsigned upgrade_cap(Upgrade u) {
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
 inline constexpr Rarity upgrade_min_rarity(Upgrade u) {
-    return u == Upgrade::LifeSteal ? Rarity::Legendary : u == Upgrade::Multishot ? Rarity::Epic :
+    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? Rarity::Legendary : u == Upgrade::Multishot ? Rarity::Epic :
         u == Upgrade::LifeRegen ? Rarity::Rare : Rarity::Common;
 }
 inline constexpr unsigned upgrade_units(Upgrade u, Rarity rarity) {
     if (rarity < upgrade_min_rarity(u)) return 0;
-    return u == Upgrade::LifeSteal ? 1 : u == Upgrade::Multishot ?
+    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? 1 : u == Upgrade::Multishot ?
         (rarity == Rarity::Legendary ? 2 : 1) : reward_units(rarity);
 }
 inline constexpr std::array rarity_names{"Common", "Uncommon", "Rare", "Epic", "Legendary"};
@@ -71,7 +72,7 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Rupees"};
+    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Hurricane", "Fire Bomb", "Bomb Arrow", "Fire Edge", "Dark Aura", "Shockwave", "Rupees"};
 inline constexpr std::array descriptions{
     "Piercing sword waves. Great Spin projectile with a larger radius from level 15.",
     "Automatic spin attack. Great Spin with a larger radius from level 15.",
@@ -95,7 +96,30 @@ inline constexpr std::array descriptions{
     "Add one projectile per level to Bow, Boomerang, Bombs, Ball and Chain and Sword Wave. Epic grants 1 level; Legendary grants 2; maximum level 3.",
     "Reduce passive regeneration interval by 1 second per level; maximum level 5. Rare or better. Stacks with the Life Regen talent.",
     "Restore a quarter heart for each defeated enemy. Legendary only; one level.",
+    "Double Boomerang size, wind effects and hit radius. It damages every enemy along its flight path.",
+    "Bomb explosions ignite every hit enemy for 10% of bomb damage each second for 5 seconds.",
+    "Bomb arrows explode once on their first enemy hit for 50% bow damage. Level-5 bomb radius scales with Reach; Piercing still works.",
+    "All melee hits ignite enemies for 10% normal melee damage each second for 5 seconds, including Spin, Dual Wield and Jump Strike.",
+    "While Dark Link is active, ignite nearby enemies with black flames. Each second deals 10% of target maximum HP; lingers 5 seconds outside the aura.",
+    "Shield Attack launches a piercing shockwave for current melee damage. Level-5 Ball and Chain width scales with Reach.",
     "Receive 20 rupees."};
+
+// A burn refresh extends its duration without delaying the next tick or stacking.
+// Store tenths of HP so 10% effects stay proportional even below ten damage.
+struct LegendaryBurn {
+    unsigned remaining=0, pulse=ticks_per_second, tenths=0, carry=5;
+    void ignite(unsigned damageTenths) {
+        if (!remaining) { pulse=ticks_per_second; carry=5; }
+        remaining=5*ticks_per_second; tenths=damageTenths;
+    }
+    unsigned tick() {
+        if (!remaining) return 0;
+        --remaining;
+        if (--pulse) return 0;
+        pulse=ticks_per_second; carry+=tenths;
+        const unsigned damage=carry/10; carry%=10; return damage;
+    }
+};
 
 struct RunOptions {
     unsigned enemy_hp = 1, enemy_damage = 1, enemy_speed = 1, horde = 1;
@@ -213,6 +237,11 @@ struct Run {
         if (u == Upgrade::PotionHealing && !red_potion) return false;
         if (u == Upgrade::JumpStrike && !master_sword) return false;
         if ((u == Upgrade::FireArrows || u == Upgrade::Piercing) && !rank(Upgrade::Bow)) return false;
+        if (u == Upgrade::Hurricane && !rank(Upgrade::Boomerang)) return false;
+        if (u == Upgrade::FireBomb && !rank(Upgrade::Bombs)) return false;
+        if (u == Upgrade::BombArrow && !rank(Upgrade::Bow)) return false;
+        if (u == Upgrade::DarkAura && !dark_link) return false;
+        if (u == Upgrade::Shockwave && (!shield || !rank(Upgrade::ShieldAttack))) return false;
         if (u == Upgrade::Multishot && !rank(Upgrade::Wave) && !rank(Upgrade::Bow) &&
             !rank(Upgrade::Boomerang) && !rank(Upgrade::Bombs) && !rank(Upgrade::Ball)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
@@ -493,6 +522,10 @@ struct Run {
     unsigned sword_bonus() const { return master_sword ? 2 + master_sword : 0; }
     unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0) + bonus_damage(); }
     float area_radius(float base) const { return base*std::sqrt(radius(1.f)); }
+    float hurricane_scale() const { return rank(Upgrade::Hurricane) ? 2.f : 1.f; }
+    float bomb_arrow_radius() const { return area_radius(170+12*5); }
+    float shockwave_radius() const { return radius(55+8*5); }
+    float dark_aura_radius() const { return radius(300.f); }
     float bomb_radius() const { return area_radius(170+12*rank(Upgrade::Bombs)); }
     float shield_radius() const { return area_radius(60+3*rank(Upgrade::ShieldAttack)); }
     float item_range(Upgrade weapon) const { return (weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range; }
