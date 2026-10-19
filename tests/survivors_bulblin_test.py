@@ -107,6 +107,13 @@ int main(){
  enemy.enemy.health=2;enemy.damage_timer=0;hit(enemy);assert(enemy.enemy.health==0&&enemy.action==21);
  enemy.enemy.id=99;enemy.enemy.health=40;enemy.damage_timer=0;enemy.one_hit_kill=0;hit(enemy);
  assert(enemy.enemy.health==0&&enemy.action==ACTION_A_DAMAGE);
+ // The preliminary power cache preserves the separate Dark Link bonus at cc_at_check.
+ s_run.start(1);s_run.dark_link=29;s_run.dark_remaining=100;
+ enemy.enemy.id=2;enemy.enemy.health=40;enemy.damage_timer=0;
+ for(auto& sphere:enemy.cc_sph)sphere.ResetTgHit();
+ bow.collider.power=10;enemy.cc_sph[0].SetTgHit(&bow.collider);hit(enemy);
+ assert(enemy.enemy.health==20&&s_run.damage.total()==20);
+ assert(s_run.damage.dealt[unsigned(DamageSource::Bow)]==10&&s_run.damage.dealt[unsigned(DamageSource::DarkLink)]==10);
  assert(s_bulblinHits.empty());
 }
 '''

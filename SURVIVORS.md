@@ -13,6 +13,25 @@ The Dusklight menu shortcut (keyboard, controller or three-finger tap) closes
 this setup menu and opens Dusklight. Closing Dusklight returns to setup;
 your map, difficulty, settings and allocated talents remain unchanged.
 
+## Run results
+
+The results screen puts damage first: active damaging abilities are sorted by
+actual damage dealt, with level, damage, DPS and a percentage bar. Abilities that
+dealt no damage are omitted. The side panel shows score, map high score, run
+level, elites, chests, meta progression and equipment. Save records or return to
+the hub using the bottom buttons.
+
+Damage counts enemy HP actually removed, excluding blocked hits and overkill.
+DPS divides by the full active run time; menus and other pauses do not inflate it.
+Simultaneous hits share the HP loss proportionally, rounded to whole HP while
+preserving the total. Critical damage remains with its ability. Passive upgrades
+have no separate rows: extra Dual Wield hits count as Sword Attack, Fire Arrows
+and Bomb Arrow as Bow, Fire Bomb as Bombs, and Fire Edge as the ability that
+ignited it. **Dark Link** separately shows its extra multiplier damage (including
+boosted burns) and its Dark Aura damage; those points are excluded from the other
+rows. Damage details belong to the completed run and reset for the next run;
+existing saved scores and talent progression keep their current format.
+
 ## Playing a run
 
 - Move and dodge while Link attacks automatically. Cliff jumps follow movement,

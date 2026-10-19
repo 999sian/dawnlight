@@ -41,7 +41,8 @@ Actor* actor_by_id(unsigned id){for(auto&a:actors)if(a.id==id)return &a;return n
 unsigned fopAcM_GetID(Actor*a){return a->id;}int fopAcM_GetName(Actor*a){return a->name;}
 constexpr int fpcNm_E_MM_MT_e=77;
 daAlink_c* daAlink_getAlinkActorClass(){return &player;}
-struct Effect{std::vector<uint64_t>bowVolleys;unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,12>effects;
+struct Effect{DamageQueue attribution;std::vector<uint64_t>bowVolleys;unsigned pending=0,meleeSerial=0,jumpSerial=0;bool pendingCritical=false,pendingStagger=false;};std::array<Effect,12>effects;
+void queue_effect_damage(Effect& e,DamageSource source,unsigned power){e.pending+=power;e.attribution.add(source,power);}
 Effect& effect_for(Enemy&e){return effects[&e-enemies.data()];}
 struct Attack{bool manualFlight=false,aimPending=false;unsigned bowVolleySlot=20;uint64_t bowVolley=0;bool active=false;unsigned weapon=0,life=0,ballVictimCount=0,arrowTargets=1;std::array<unsigned,enemy_capacity>ballVictims{};
  Collider collider;Status status;std::array<unsigned,9>emitters{};float radius=0,effectBaseRadius=260;cXyz position,velocity;};

@@ -22,6 +22,7 @@ struct BulblinHit {
     void* args=nullptr; e_rd_class* actor=nullptr;
     bool suppress=false,powerReady=false,critical=false;
     cCcD_Obj* collider=nullptr;
+    unsigned basePower=0,scaledPower=0;
     unsigned power=0; int hitType=0;
     s16 action=0,mode=0,oldAction=0,timers[4]{},knockbackAngle=0,spin=0;
     int animation=0;

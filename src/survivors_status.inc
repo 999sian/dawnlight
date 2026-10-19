@@ -1,6 +1,9 @@
 // Run-local burns and secondary melee hits enter the owned damage path:
 // native handlers for the original roster, the shared adapter for new species.
 struct EnemyEffect {
+    DamageQueue attribution;
+    DamageSource fireEdgeSource=DamageSource::Sword;
+    std::array<unsigned,2> burnBase{};
     ActorId id = kNone;
     unsigned burn = 0, pulse = ticks_per_second, pending = 0, meleeSerial = 0;
     unsigned damage = 0, jumpSerial = 0, fixedPending=0, fixedDamage=0;
@@ -16,6 +19,10 @@ struct EnemyEffect {
     dCcD_Sph collider;
 };
 std::array<EnemyEffect, enemy_capacity> s_effects;
+void queue_effect_damage(EnemyEffect& effect,DamageSource source,unsigned power,bool fixed=false) {
+    (fixed?effect.fixedPending:effect.pending)+=power;
+    effect.attribution.add(source,power,fixed);
+}
 void clear_fire_edge();
 unsigned s_meleeSerial = 1, s_spreadSerial = 0;
 void stop_burn(EnemyEffect& effect) {
@@ -34,7 +41,7 @@ void stop_burn(EnemyEffect& effect) {
 void clear_enemy_effects() {
     clear_fire_edge();
     for (auto& effect : s_effects) {
-        stop_burn(effect); effect.id = kNone; effect.pending = effect.damage = effect.meleeSerial = 0;
+        effect.attribution={};effect.burnBase={};effect.fireEdgeSource=DamageSource::Sword; stop_burn(effect); effect.id = kNone; effect.pending = effect.damage = effect.meleeSerial = 0;
         effect.fixedPending=effect.fixedDamage=0;
         effect.injected = false; effect.pendingCritical = effect.critical = false;
         effect.knockStep=cXyz(0,0,0);effect.knockFrames=effect.knockCooldown=0;
@@ -52,7 +59,7 @@ bool effect_staggers(const cCcD_Obj* collider) {
 EnemyEffect& effect_for(Enemy& enemy) {
     auto& effect = s_effects[unsigned(&enemy - s_enemies.data())];
     if (effect.id != enemy.id) {
-        stop_burn(effect); effect.id = enemy.id;
+        effect.attribution={};effect.burnBase={};effect.fireEdgeSource=DamageSource::Sword; stop_burn(effect); effect.id = enemy.id;
         effect.pending = effect.damage = effect.meleeSerial = 0;
         effect.fixedPending=effect.fixedDamage=0; effect.injected = false; effect.pendingCritical = effect.critical = false;
         effect.knockStep=cXyz(0,0,0);effect.knockFrames=effect.knockCooldown=0;
@@ -86,6 +93,7 @@ void prepare_effect_hit(fopAc_ac_c* actor, Enemy& enemy) {
     if ((!effect.pending && !effect.fixedPending) || natural) return; // Preserve real hits; queued damage waits its turn.
     auto* link = daAlink_getAlinkActorClass();
     if (!link || fopAcM_GetID(link) != s_player) return;
+    effect.attribution.consume();
     effect.damage = effect.pending; effect.pending = 0; effect.injected = true;
     effect.fixedDamage=effect.fixedPending;effect.fixedPending=0;
     effect.critical=effect.pendingCritical; effect.pendingCritical=false;
@@ -134,9 +142,12 @@ void spread_melee_hit(fopAc_ac_c* primary) {
         auto& effect = effect_for(*best); effect.meleeSerial = s_meleeSerial;
         // Roll once per secondary target before combining with non-critical burn ticks.
         bool critical=false;
-        effect.pending += s_run.critical_power(s_run.melee_power(),&critical);
+        queue_effect_damage(effect,DamageSource::DualWield,s_run.critical_power(s_run.melee_power(),&critical));
         effect.pendingCritical = effect.pendingCritical || critical;
-        if (s_run.rank(Upgrade::FireEdge)) effect.legendaryBurns[1].ignite(s_run.dark_power(s_run.melee_power()));
+        if (s_run.rank(Upgrade::FireEdge)) {
+            effect.fireEdgeSource=DamageSource::Sword;effect.burnBase[1]=s_run.melee_power();
+            effect.legendaryBurns[1].ignite(s_run.dark_power(s_run.melee_power()));
+        }
         if (auto* actor=actor_by_id(best->id)) queue_knockback(*best,actor,false);
     }
 }
@@ -170,16 +181,25 @@ void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
         auto& effect=effect_for(*enemy);
         bool melee=native_sword_collider(info->mpCollider) ||
             (daAlink_getAlinkActorClass() && info->mpCollider==&daAlink_getAlinkActorClass()->mGuardAtCps);
+        DamageSource meleeSource=DamageSource::Sword;
+        if(native_sword_collider(info->mpCollider))meleeSource=s_swordAction==SwordAction::Jump?DamageSource::Jump:
+            s_swordAction==SwordAction::Spin?DamageSource::Spin:DamageSource::Sword;
+        else if(melee)meleeSource=DamageSource::Shield;
         Attack* bombArrow=nullptr;
         for (auto& attack:s_attacks) if (info->mpCollider==&attack.collider) {
-            if (attack.weapon==unsigned(Upgrade::Bombs) && s_run.rank(Upgrade::FireBomb))
-                effect.legendaryBurns[0].ignite(s_run.dark_power(s_run.attack_power(unsigned(Upgrade::Bombs))));
+            if (attack.weapon==unsigned(Upgrade::Bombs) && s_run.rank(Upgrade::FireBomb)) {
+                effect.burnBase[0]=s_run.attack_power(unsigned(Upgrade::Bombs));
+                effect.legendaryBurns[0].ignite(s_run.dark_power(effect.burnBase[0]));
+            }
+            meleeSource=weapon_damage_source(attack.weapon);
             melee=melee || attack.weapon==unsigned(Upgrade::Spin) || attack.weapon==unsigned(Upgrade::ShieldAttack);
             if (attack.weapon==unsigned(Upgrade::Bow) && attack.bombArrow && !attack.detonated) bombArrow=&attack;
             break;
         }
-        if (melee && s_run.rank(Upgrade::FireEdge))
-            effect.legendaryBurns[1].ignite(s_run.dark_power(s_run.melee_power()));
+        if (melee && s_run.rank(Upgrade::FireEdge)) {
+            effect.fireEdgeSource=meleeSource;effect.burnBase[1]=s_run.melee_power();
+            effect.legendaryBurns[1].ignite(s_run.dark_power(effect.burnBase[1]));
+        }
         // Allocation may grow the deque. Do it only after the traversal ends.
         if (bombArrow) detonate_bomb_arrow(*bombArrow,actor->eyePos);
     }
@@ -193,13 +213,21 @@ void update_enemy_effects() {
         auto* actor = actor_by_id(enemy.id);
         if (!in_arena() || !enemy.initialized || enemy.retiring || enemy.credited || !actor ||
             actor->health <= 0 || effect.id != enemy.id) {
-            stop_burn(effect); effect.pending = effect.fixedPending = effect.fixedDamage = 0; effect.pendingCritical=effect.critical=false;
+            effect.attribution={};effect.burnBase={};effect.fireEdgeSource=DamageSource::Sword; stop_burn(effect); effect.pending = effect.fixedPending = effect.fixedDamage = 0; effect.pendingCritical=effect.critical=false;
             effect.knockFrames=effect.knockCooldown=0;effect.knockStep=cXyz(0,0,0);continue;
         }
         update_knockback(enemy,actor);
-        for (auto& burn:effect.legendaryBurns) effect.fixedPending+=burn.tick();
+        const std::array burnSources{DamageSource::Bombs,effect.fireEdgeSource,DamageSource::DarkAura};
+        for(unsigned b=0;b<burnSources.size();++b) {
+            auto& burn=effect.legendaryBurns[b];const unsigned power=burn.tick();
+            const unsigned base=b<2?effect.burnBase[b]:burn.tenths;
+            const unsigned bonus=base && burn.tenths>base ?
+                unsigned((uint64_t(power)*(burn.tenths-base)+burn.tenths/2)/burn.tenths):0;
+            queue_effect_damage(effect,burnSources[b],power-bonus,true);
+            queue_effect_damage(effect,DamageSource::DarkLink,bonus,true);
+        }
         if (effect.burn) {
-            if (!--effect.pulse) { effect.pending += s_run.burn_damage(); effect.pulse = ticks_per_second; }
+            if (!--effect.pulse) { queue_effect_damage(effect,DamageSource::FireArrows,s_run.burn_damage()); effect.pulse = ticks_per_second; }
             --effect.burn;
         }
         const bool legendary=std::any_of(effect.legendaryBurns.begin(),effect.legendaryBurns.end(),
@@ -226,4 +254,22 @@ void update_enemy_effects() {
             }
         }
     }
+}
+
+DamageAmounts hit_damage_sources(const cCcD_Obj* collider) {
+    if(!collider)return {};
+    for(const auto& effect:s_effects)if(collider==&effect.collider)
+        return effect.attribution.weights(effect.damage,s_run.dark_power(effect.damage),effect.fixedDamage);
+    DamageAmounts result{};
+    DamageSource source=DamageSource::Other;bool owned=false;
+    if(native_sword_collider(collider)) {
+        owned=true;
+        source=s_swordAction==SwordAction::Jump?DamageSource::Jump:
+            s_swordAction==SwordAction::Spin?DamageSource::Spin:DamageSource::Sword;
+    }
+    auto* link=daAlink_getAlinkActorClass();
+    if(link && collider==&link->mGuardAtCps){owned=true;source=DamageSource::Shield;}
+    for(const auto& attack:s_attacks)if(collider==&attack.collider){owned=true;source=weapon_damage_source(attack.weapon);break;}
+    if(owned)result[unsigned(source)]=1;
+    return result;
 }

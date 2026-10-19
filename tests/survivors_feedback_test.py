@@ -16,7 +16,8 @@ struct fopAc_ac_c{unsigned id=1;int health=20;cXyz eyePos{320,120,1000};struct{c
 struct daAlink_c:fopAc_ac_c{unsigned flags=0;short mDamageTimer=0;
  bool checkModeFlg(unsigned f){return flags&f;}void onModeFlg(unsigned f){flags|=f;}void offModeFlg(unsigned f){flags&=~f;}};
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}unsigned s_player=1;
-struct dCcU_AtInfo{unsigned mAttackPower=3;};
+DamageAmounts hit_damage_sources(const void*){DamageAmounts weights{};weights[0]=1;return weights;}
+struct dCcU_AtInfo{void* mpCollider=nullptr;unsigned mAttackPower=3;};
 Run s_run;bool arena=true,event=false,view=true,font=true;
 bool in_arena(){return arena;}bool playable(){return arena&&!event;}
 bool dComIfGp_event_runCheck(){return event;}bool dComIfGd_getView(){return view;}
@@ -55,6 +56,14 @@ int main(){
   s_run.phase=reason==3?Phase::Upgrade:Phase::Running;s_combatTexts[0].position.z=reason==4?-1:1000;
   draw_combat_feedback();assert(printed.empty());}
  event=false;s_run.phase=Phase::Running;
+ // Bonus attribution uses actual removed HP, including critical/base damage and overkill.
+ s_run.damage={};enemy.health=100;begin_damage_feedback(&args,&enemy,&info);
+ mark_damage_split(&info,20,26);enemy.health=74;end_damage_feedback(&args);
+ assert(s_run.damage.dealt[0]==20&&s_run.damage.dealt[unsigned(DamageSource::DarkLink)]==6);
+ begin_damage_feedback(&args,&enemy,&info);mark_damage_split(&info,20,26);enemy.health=-500;end_damage_feedback(&args);
+ assert(s_run.damage.total()==100);
+ s_run.phase=Phase::Victory;enemy.health=100;begin_damage_feedback(&args,&enemy,&info);enemy.health=0;end_damage_feedback(&args);
+ assert(s_run.damage.total()==100);s_run.phase=Phase::Running;
  // Scope the native no-reaction flag to checkDamageAction; damage still occurs.
  for(bool original:{false,true}){link.flags=original?0x4000000:0;link.mDamageTimer=0;
   begin_player_damage(&args,&link);suppress_player_reaction(&link);

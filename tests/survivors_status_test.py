@@ -71,6 +71,7 @@ struct e_rd_class{fopAc_ac_c enemy;Collider cc_sph[3];dCcU_AtInfo at_info;s16 da
 '''
 # Exercise actual critical feedback at the native damage boundary.
 fixture=re.sub(r'enum class CombatText[^\n]+\n|void (?:combat_feedback|begin_damage_feedback|end_damage_feedback|mark_damage_critical)\([^\n]+\n', '', fixture)
+fixture+='DamageAmounts hit_damage_sources(const cCcD_Obj*);\n'
 fixture+=(root/'src/survivors_feedback.inc').read_text()
 source = (root/'src/survivors.cpp').read_text()
 def function(name):
@@ -80,7 +81,7 @@ def function(name):
         depth += (source[i]=='{')-(source[i]=='}')
         if not depth:return source[match.start():i+1]
 fixture += r'''
-struct BulblinHit{bool critical=false;};BulblinHit* bulblin_power_hit(dCcU_AtInfo*){return nullptr;}
+struct BulblinHit{bool critical=false;unsigned basePower=0,scaledPower=0;};BulblinHit* bulblin_power_hit(dCcU_AtInfo*){return nullptr;}
 bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
@@ -169,7 +170,9 @@ int main(){
  for(int t=0;t<30;++t)update_enemy_effects();
  assert(s_effects[1].pending==4);
  ++s_meleeSerial;s_run.random=1;record_status_hit(&group[0],&sword);
- assert(s_effects[1].pending==15);group[1].health=50;hit(group[1]);
+ assert(s_effects[1].pending==15);group[1].health=50;s_run.damage={};hit(group[1]);
+ assert(s_run.damage.total()==30&&s_run.damage.dealt[unsigned(DamageSource::DarkLink)]==15);
+ assert(s_run.damage.dealt[unsigned(DamageSource::DualWield)]==11&&s_run.damage.dealt[unsigned(DamageSource::FireArrows)]==4);
  assert(group[1].health==20&&s_run.random==270369); // (11 melee + 4 burn) x2
  clear_enemy_effects();
 }

@@ -172,9 +172,10 @@ Service* svc_save=&service;
 Service* svc_actor=&service; ModContext* mod_ctx=nullptr;
 '''
 stubs += r'''
-struct BulblinHit{bool critical=false;};BulblinHit* bulblin_power_hit(dCcU_AtInfo*){return nullptr;}
+struct BulblinHit{bool critical=false;unsigned basePower=0,scaledPower=0;};BulblinHit* bulblin_power_hit(dCcU_AtInfo*){return nullptr;}
 bool reuse_bulblin_power(dCcU_AtInfo*){return false;}
 void mark_damage_critical(dCcU_AtInfo*,bool){}
+void mark_damage_split(dCcU_AtInfo*,unsigned,unsigned){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
 main = r'''

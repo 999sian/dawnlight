@@ -76,6 +76,8 @@ jobs:
           python3 tests/survivors_enemy_facing_test.py
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_progression_test.cpp -o /tmp/survivors-progression
           /tmp/survivors-progression
+          c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_damage_test.cpp -o /tmp/survivors-damage
+          /tmp/survivors-damage
           python3 tests/survivors_status_test.py
           python3 tests/survivors_potions_test.py
           python3 tests/survivors_treasure_test.py
@@ -255,6 +257,10 @@ jobs:
       - name: Test shared Survivors settings against SDK
         if: matrix.platform == 'linux-x86_64'
         run: |
+          python3 tests/survivors_results_test.py
+          CXX=clang++ python3 tests/survivors_results_test.py
+          clang++ -std=c++20 -Wall -Wextra -Werror tests/survivors_damage_test.cpp -o /tmp/survivors-damage-clang
+          /tmp/survivors-damage-clang
           python3 tests/survivors_map_unlock_test.py
           CXX=clang++ python3 tests/survivors_map_unlock_test.py
           python3 tests/survivors_settings_config_test.py

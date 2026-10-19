@@ -1,5 +1,6 @@
 #pragma once
 #include "survivors_debug.hpp"
+#include "survivors_damage.hpp"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -44,6 +45,21 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
 enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Hurricane, FireBomb, BombArrow, FireEdge, DarkAura, Shockwave, Rupees, Count };
+inline constexpr DamageSource weapon_damage_source(unsigned weapon) {
+    switch(Upgrade(weapon)) {
+    case Upgrade::Wave:return DamageSource::Wave;
+    case Upgrade::Spin:return DamageSource::Spin;
+    case Upgrade::JumpStrike:return DamageSource::Jump;
+    case Upgrade::Bow:return DamageSource::Bow;
+    case Upgrade::Boomerang:return DamageSource::Boomerang;
+    case Upgrade::Bombs:return DamageSource::Bombs;
+    case Upgrade::Ball:return DamageSource::Ball;
+    case Upgrade::ShieldAttack:return DamageSource::Shield;
+    case Upgrade::Shockwave:return DamageSource::Shockwave;
+    case Upgrade::BombArrow:return DamageSource::BombArrow;
+    default:return DamageSource::Other;
+    }
+}
 inline constexpr unsigned upgrade_cap(Upgrade u) {
     switch (u) {
     case Upgrade::Knockback: case Upgrade::Piercing: return 10;
@@ -167,6 +183,7 @@ struct Run {
     Phase phase = Phase::Loading;
     unsigned ticks = 0, kills = 0, level = 1, xp = 0;
     uint32_t random = 1;
+    DamageTotals damage;
     RunOptions options;
     Talents talents;
     unsigned timed_elites = 0, guard_elites = 0;

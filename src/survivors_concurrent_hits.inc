@@ -14,8 +14,10 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
     auto* link=daAlink_getAlinkActorClass();
     if(!link || fopAcM_GetID(link)!=s_player) return HOOK_CONTINUE;
     auto& effect=effect_for(*enemy);
+    DamageSource source=DamageSource::Other;
     unsigned base=0;bool owned=false,duplicate=false,stagger=false;
     for(auto& projectile:s_attacks) if(attack==&projectile.collider && projectile.active) {
+        source=weapon_damage_source(projectile.weapon);
         owned=true;base=projectile.collider.GetAtAtp();
         const auto end=projectile.ballVictims.begin()+projectile.ballVictimCount;
         duplicate=std::find(projectile.ballVictims.begin(),end,enemy->id)!=end ||
@@ -35,6 +37,7 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
     }
     if(!owned && native_sword_collider(attack) &&
        (s_swordAction==SwordAction::Normal || s_swordAction==SwordAction::Jump)) {
+        source=s_swordAction==SwordAction::Jump?DamageSource::Jump:DamageSource::Sword;
         owned=true;
         const bool splash=s_swordAction==SwordAction::Jump && attack==&link->mAtSph;
         auto& serial=splash?effect.jumpSerial:effect.meleeSerial;
@@ -44,7 +47,7 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
     if(!owned) return HOOK_CONTINUE;
     if(!duplicate) {
         bool critical=false;
-        effect.pending+=s_run.critical_power(base,&critical);
+        queue_effect_damage(effect,source,s_run.critical_power(base,&critical));
         effect.pendingCritical=effect.pendingCritical||critical;
         effect.pendingStagger=effect.pendingStagger||stagger;
         attack->SetAtHit(target); // Arrow stop, boomerang hop and native combo contact.

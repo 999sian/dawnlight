@@ -84,7 +84,7 @@ Run s_run;bool arena=true;bool in_arena(){return arena;}
 bool arena_aggro(fopAc_ac_c* a,int p){return arena&&a&&a->profile==p;}
 struct Player:fopAc_ac_c {dCcD_Sph mGuardAtCps;}player;
 Player* daAlink_getAlinkActorClass(){return &player;}ActorId s_player=100;
-struct Effect {unsigned pending=0,damage=0,meleeSerial=0,fixedPending=0,fixedDamage=0;bool injected=false,critical=false,pendingCritical=false,pendingStagger=false,stagger=false;
+struct Effect {DamageQueue attribution;unsigned pending=0,damage=0,meleeSerial=0,fixedPending=0,fixedDamage=0;bool injected=false,critical=false,pendingCritical=false,pendingStagger=false,stagger=false;
  dCcD_Stts status;dCcD_Sph collider;};
 std::array<Effect,enemy_capacity> effects;
 Effect& effect_for(Enemy& e){return effects[&e-s_enemies.data()];}

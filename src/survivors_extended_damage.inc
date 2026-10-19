@@ -170,6 +170,7 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
     if(!attack&&(effect.pending||effect.fixedPending)&&!enemy.hitCooldown) {
         auto* link=daAlink_getAlinkActorClass();
         if(link&&fopAcM_GetID(link)==s_player) {
+            effect.attribution.consume();
             effect.damage=effect.pending;effect.pending=0;effect.injected=true;
             effect.fixedDamage=effect.fixedPending;effect.fixedPending=0;
             effect.critical=effect.pendingCritical;effect.pendingCritical=false;

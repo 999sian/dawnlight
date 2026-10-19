@@ -410,6 +410,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_aggro.inc"
 #include "survivors_navigation.inc"
 #include "survivors_enemy_facing.inc"
+DamageAmounts hit_damage_sources(const cCcD_Obj* collider);
 #include "survivors_feedback.inc"
 #include "survivors_ground.inc"
 #include "survivors_pickups.inc"
@@ -989,7 +990,16 @@ void after_power(ModContext*, void* args, void*, void*) {
     if (!s_active) return;
     auto* info = mods::arg<dCcU_AtInfo*>(args, 0);
     if (!info || !info->mpCollider) return;
-    if (reuse_bulblin_power(info)) { mark_damage_critical(info,bulblin_power_hit(info)->critical); return; }
+    if (reuse_bulblin_power(info)) {
+        const auto* hit=bulblin_power_hit(info);mark_damage_critical(info,hit->critical);
+        if(hit->basePower)mark_damage_split(info,hit->basePower,hit->scaledPower);
+        return;
+    }
+    const auto scaled_power=[&](unsigned base) {
+        const auto scaled=s_run.dark_power(base);mark_damage_split(info,base,scaled);
+        if(auto* hit=bulblin_power_hit(info)){hit->basePower=base;hit->scaledPower=scaled;}
+        return s_run.player_damage(scaled);
+    };
     const auto critical_power = [&](unsigned base) {
         bool critical=false; const auto power=s_run.critical_power(base,&critical);
         if (auto* hit=bulblin_power_hit(info)) hit->critical=critical;
@@ -1006,13 +1016,13 @@ void after_power(ModContext*, void* args, void*, void*) {
     auto* link = daAlink_getAlinkActorClass();
     if (in_arena() && link && info->mpCollider == &link->mGuardAtCps) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Rat stun must not reset elite HP to one.
-        info->mAttackPower = s_run.player_damage(s_run.dark_power(critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack))))); return;
+        info->mAttackPower = scaled_power(critical_power(s_run.attack_power(unsigned(Upgrade::ShieldAttack)))); return;
     }
     if (native_sword_collider(info->mpCollider)) {
         info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK; // Keep cc_at_check from doubling the linear value for Master Sword.
         const auto base = s_swordAction == SwordAction::Jump && info->mpCollider == &link->mAtSph ?
             s_run.jump_splash_power() : s_swordAction == SwordAction::Spin ? s_run.attack_power(1) : s_run.melee_power();
-        info->mAttackPower = s_run.player_damage(s_run.dark_power(critical_power(base)));
+        info->mAttackPower = scaled_power(critical_power(base));
         return;
     }
     for (const auto& attack : s_attacks) {
@@ -1021,7 +1031,7 @@ void after_power(ModContext*, void* args, void*, void*) {
             // Keep native collision, defense, damage reactions and death handling,
             // but use a linear power value for our own weapons only.
             info->mHitType = HIT_TYPE_LINK_HEAVY_ATTACK;
-            info->mAttackPower = s_run.player_damage(s_run.dark_power(critical_power(info->mpCollider->GetAtAtp())));
+            info->mAttackPower = scaled_power(critical_power(info->mpCollider->GetAtAtp()));
             return;
         }
     }
@@ -1313,41 +1323,14 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_debug_ui.inc"
 #include "survivors_settings_config.inc"
 #include "survivors_hub.inc"
+#include "survivors_results.inc"
 
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
                        void*, ModError*) {
     if (s_run.phase == Phase::TreasureChoice) return build_treasure_choices(left, right);
     if (s_run.phase == Phase::Upgrade) return build_upgrade_choices(left, right);
-    char text[240];
     if (s_run.phase == Phase::Ready) return build_arena_choices(left, right);
-    std::snprintf(text, sizeof(text), "%s - %02u:%02u | %u kills | Level %u",
-        s_run.phase == Phase::Victory ? "Victory" : "Defeat", s_run.ticks / 1800,
-        s_run.ticks / 30 % 60, s_run.kills, s_run.level);
-    svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
-    std::snprintf(text,sizeof(text),"Score %u | Map high score %u | Difficulty x%.2f",
-        s_run.score(),s_records.high_scores[s_map],s_run.options.score_percent()/100.f);
-    svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
-    std::snprintf(text,sizeof(text),"Survival %us | Normal kills %u | Timed elites %u | Other elites %u",
-        std::min(s_run.ticks,s_run.run_duration())/ticks_per_second,s_run.normal_kills(),s_run.timed_elites,s_run.guard_elites);
-    svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
-    std::snprintf(text,sizeof(text),"Meta level %u | XP %llu / %u | Unlock Points %u (+%u this run)",
-        s_records.level(),static_cast<unsigned long long>(s_records.level_xp()),s_records.next_level_xp(),
-        s_records.available_points(),meta_levels(s_records.total_xp)-meta_levels(s_records.total_xp-std::min<uint64_t>(s_records.total_xp,s_run.score())));
-    svc_ui->pane_add_text(mod_ctx,left,text,nullptr);
-    std::snprintf(text, sizeof(text), "Sword Wave %u | %s %u | Shield Attack %u",
-        s_run.ranks[0], s_run.upgrade_name(Upgrade::Spin), s_run.ranks[1], s_run.ranks[2]);
-    svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
-    std::snprintf(text, sizeof(text), "Bow %u | Boomerang %u | Bombs %u | Ball and Chain %u | Chests %u",
-        s_run.rank(Upgrade::Bow), s_run.rank(Upgrade::Boomerang), s_run.rank(Upgrade::Bombs),
-        s_run.rank(Upgrade::Ball), s_run.chests_opened);
-    svc_ui->pane_add_text(mod_ctx, left, text, nullptr);
-    svc_ui->pane_add_text(mod_ctx, right, s_storeFailed ?
-        "Records could not be stored. Retry saving before leaving this mode." :
-        "Save records before quitting. The native save screen writes your Survivors records to this mode's separate save file. "
-        "Runs are not resumed mid-combat; loading returns to the Darknut Arena hub.", nullptr);
-    auto result = button(left, "Save records", save_results);
-    if (result == MOD_OK) result = button(left, "New run", replay);
-    return result;
+    return build_results(left,right);
 }
 void open_window() {
     if (s_window || ui_visible() || (s_run.phase==Phase::Ready && s_hubMenu==HubMenu::None)) return;
@@ -1356,6 +1339,7 @@ void open_window() {
     auto& tab=tabs[0];
     tab.title = s_run.phase == Phase::TreasureChoice ? (s_run.starting_item_pending ? "Choose a starting item" : "Choose a treasure") :
         s_run.phase == Phase::Upgrade ? "Choose an upgrade" : "Hyrule Survivors";
+    if(s_run.phase==Phase::Victory || s_run.phase==Phase::Defeat)tab.title="Results";
     tab.build = build_window;
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
     desc.tabs = tabs; desc.tab_count = 1;
@@ -1375,6 +1359,7 @@ void open_window() {
     }
     if (s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Upgrade) desc.rcss = kTreasureStyle;
     if (s_run.phase == Phase::Ready) desc.rcss = kArenaStyle;
+    if (s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) desc.rcss = kResultsStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
         if(s_hubClosingWindow==handle)s_hubClosingWindow=0;
         if (s_window == handle) { s_window = 0; s_menuDocument = nullptr; hub_menu_closed(); }

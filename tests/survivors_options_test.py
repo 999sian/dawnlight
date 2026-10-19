@@ -63,6 +63,7 @@ UiWindowHandle s_window=0,s_refreshChoices=0;
 bool ui_visible(){return false;}
 std::vector<std::string> tabNames;
 ModResult build_window(ModContext*,UiWindowHandle,UiElementHandle,UiElementHandle,void*,ModError*){return MOD_OK;}
+const char* kResultsStyle="results";
 ModResult update_arena_tab(ModContext*,void*,ModError*){return MOD_OK;}
 ModResult update_talent_tab(ModContext*,void*,ModError*){return MOD_OK;}
 ModResult build_talents(ModContext*,UiWindowHandle,UiElementHandle,UiElementHandle,void*,ModError*){return MOD_OK;}
