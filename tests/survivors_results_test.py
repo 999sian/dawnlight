@@ -34,6 +34,10 @@ int main(){
  s_run.ranks[unsigned(Upgrade::Bow)]=12;s_run.ranks[unsigned(Upgrade::FireEdge)]=1;
  s_run.damage.dealt[unsigned(DamageSource::Bow)]=900;s_run.damage.dealt[unsigned(DamageSource::FireEdge)]=100;
  assert(build_results(1,2)==MOD_OK&&texts.size()==3&&classes.size()==5);
+ // The real window installs this stylesheet outside build_results. Exercise
+ // that dependency here too: every assigned class must have a style rule.
+ const std::string stylesheet=kResultsStyle;
+ for(const auto& name:classes)assert(stylesheet.find("."+name+" {")!=std::string::npos);
  auto table=texts[0];assert(table.find("VICTORY")!=std::string::npos&&table.find("02:00")!=std::string::npos);
  assert(table.find("Hero's Bow")<table.find("Sword Attack"));
  assert(table.find("90.0%")!=std::string::npos&&table.find("7.5")!=std::string::npos&&table.find("1,000")!=std::string::npos);
