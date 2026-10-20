@@ -526,6 +526,9 @@ void draw_loot_model(J3DModel* model, cXyz pos, s16 yaw, s16 pitch, float scale)
 #include "survivors_chain.inc"
 void draw_loot() {
     if (!s_loot.ready) return;
+    // This runs inside Link's draw dispatcher, but chests and flying projectiles
+    // are world objects. Held weapons are submitted separately by draw_ranged.
+    const dark_link::WorldModelDrawScope worldModels;
     for (unsigned i = 0; i < s_chests.size(); ++i) {
         const auto& c = s_chests[i]; if (!c.active) continue;
         auto* data = s_loot.chests[i]->getModelData();

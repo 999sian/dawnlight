@@ -1,3 +1,4 @@
+#include "fierce_deity_equipment_scope.hpp"
 #include "platform_compat.hpp"
 #include "Z2AudioLib/Z2AudioMgr.h"
 #include "survivors.hpp"

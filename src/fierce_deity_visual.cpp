@@ -1,3 +1,4 @@
+#include "fierce_deity_equipment_scope.hpp"
 #include "fierce_deity.hpp"
 #include "dual_wield.hpp"
 #include "service_imports.hpp"

@@ -22,6 +22,8 @@ def extract(name):
 
 
 stubs=r'''
+#include "fierce_deity_equipment_scope.hpp"
+namespace dark_link = dawnlight::dark_link;
 #include <cassert>
 #include <cmath>
 #include <cstring>
@@ -110,7 +112,10 @@ void draw_chain(unsigned,daAlink_c*,cXyz){}
 namespace mDoMtx_stack_c{void transS(cXyz){}void YrotM(s16){}void XrotM(s16){}void* get(){return nullptr;}}
 struct dKy_tevstr_c{};
 struct Light{void settingTevStruct(int,cXyz*,dKy_tevstr_c*){}void setLightTevColorType_MAJI(J3DModel*,dKy_tevstr_c*){}}g_env_light;
-void mDoExt_modelUpdateDL(J3DModel*){++draws;}
+bool expectWorldDraw=false;
+void mDoExt_modelUpdateDL(J3DModel*){
+    assert(dark_link::WorldModelDrawScope::active()==expectWorldDraw);++draws;
+}
 struct Attack{JKRSolidHeap* bombHeap=nullptr;J3DModel* bombModel=nullptr;bool bombArrow=false,hurricane=false;JKRSolidHeap* modelHeap=nullptr;J3DModel* model=nullptr;J3DModel* wind=nullptr;bool active=false,exploding=false;unsigned weapon=0,age=0;cXyz position,velocity;};
 std::deque<Attack>s_attacks(initial_projectile_slots);Run s_run;
 void cancel_treasure_demo(){}
@@ -141,11 +146,15 @@ int main(){
     assert(currentHeap==&defaultHeap);
     const auto creations=heapCreates;assert(prepare_loot(&player) && heapCreates==creations);
     s_chests[0].active=true;s_chests[1].active=true;s_chests[1].opening=true;s_chests[1].age=45;
+    expectWorldDraw=true;
+    s_chests[kSmallChestCount].active=true; // Large elite reward shares the exclusion.
     const auto before=data[0].root.getMtxCalc();draw_loot();
-    assert(draws==2 && data[0].root.getMtxCalc()==before);
+    assert(!dark_link::WorldModelDrawScope::active());
+    assert(draws==3 && data[0].root.getMtxCalc()==before);
     s_attacks[item_projectile_begin(1)].active=true;s_attacks[item_projectile_begin(1)].weapon=unsigned(Upgrade::Boomerang);s_attacks[item_projectile_begin(1)].age=40;
     auto oldCallback=data[0].root.getCallBack();draw_loot();
     assert(data[0].root.getCallBack()==oldCallback&&data[0].root.getMtxCalc()==before);
+    expectWorldDraw=false;
     s_selectedChest=0;s_chests[0].reward=ChestReward::MasterSword;
     leafdraw_class process;int result=0;auto beforeDraw=draws;
     placeholder.matrix=reinterpret_cast<void*>(123);placeholder.scale={0.5f,0.5f,0.5f};
@@ -171,7 +180,7 @@ int main(){
         arrow.bombArrow=true;auto creates=heapCreates;
         assert(prepare_bomb_arrow_model(arrow)&&heapCreates==creates);
     }
-    draw_loot();clear_loot();assert(liveModels.empty()&&references==0);
+    expectWorldDraw=true;draw_loot();expectWorldDraw=false;clear_loot();assert(liveModels.empty()&&references==0);
     for(auto&a:s_attacks)assert(!a.modelHeap&&!a.model&&!a.wind&&!a.bombHeap&&!a.bombModel);
     assert(prepare_loot(&player));
     auto& a=s_attacks.back();failHeap=true;assert(!prepare_projectile_model(a,1));failHeap=false;
