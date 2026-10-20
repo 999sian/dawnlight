@@ -173,7 +173,7 @@ struct RunOptions {
         return unsigned(ability)<manual_aim.size()&&manual_aim[unsigned(ability)];
     }
     bool manual_enabled(Upgrade weapon) const { return manual_enabled(manual_ability(weapon)); }
-    unsigned twilit_rank() const { return std::clamp(enemy_hp,1u,10u)+std::clamp(enemy_damage,1u,10u)+std::clamp(enemy_speed,1u,3u)+std::clamp(horde,1u,5u); }
+    unsigned twilit_rank() const { return std::clamp(enemy_hp,1u,10u)+std::clamp(enemy_damage,1u,10u)+std::clamp(enemy_speed,1u,3u)+std::clamp(horde,1u,5u)-4; }
     unsigned score_percent() const {
         return 100+10*(std::clamp(enemy_hp,1u,10u)-1)+15*(std::clamp(enemy_damage,1u,10u)-1)+
             25*(std::clamp(enemy_speed,1u,3u)-1)+10*(std::clamp(horde,1u,5u)-1);
@@ -652,7 +652,7 @@ struct HighScoreRun {
         put(run.twilit_rank());put(run.endless_start);put(run.normal_score);
         return words;
     }
-    bool decode(std::span<const uint32_t,word_count> words) {
+    bool decode(std::span<const uint32_t,word_count> words, unsigned version=11) {
         if(!words[0]) {
             if(std::any_of(words.begin(),words.end(),[](auto word){return word!=0;}))return false;
             *this={};return true;
@@ -677,7 +677,12 @@ struct HighScoreRun {
             total+=damage;
         }
         r.rank_snapshot=get();r.endless_start=get();r.normal_score=get();
-        if(!r.rank_snapshot)r.rank_snapshot=r.options.twilit_rank(); // v8/v9 migration
+        // Older snapshots either omitted rank or stored the unadjusted sum.
+        if(version<10)r.rank_snapshot=r.options.twilit_rank();
+        else if(version==10) {
+            if(r.rank_snapshot!=r.options.twilit_rank()+4)return false;
+            r.rank_snapshot-=4;
+        }
         if(r.rank_snapshot!=r.options.twilit_rank() || (r.endless && r.endless_start>r.ticks) ||
            (!r.endless && (r.endless_start || r.normal_score)))return false;
         *this=next;return true;
@@ -729,7 +734,7 @@ struct Records {
         if(!best.present() || run.score()>best.score)best={run,run.score(),level(),available_points()};
     }
     std::array<uint8_t,byte_count> encode() const {
-        std::array<uint32_t,word_count> words{0x56525348,10,runs,wins,best_ticks,best_kills,best_level};
+        std::array<uint32_t,word_count> words{0x56525348,11,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
@@ -748,7 +753,7 @@ struct Records {
         std::array<uint32_t,word_count> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==v8_byte_count)||(words[1]==9 && bytes.size()==v9_byte_count)||(words[1]==10 && bytes.size()==byte_count)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==v8_byte_count)||(words[1]==9 && bytes.size()==v9_byte_count)||((words[1]==10 || words[1]==11) && bytes.size()==byte_count)))return false;
         Records next;
         // Legacy saves have aggregate wins only; scores also include defeats.
         if(words[1]>=7){
@@ -770,7 +775,7 @@ struct Records {
                     std::copy_n(words.begin()+offset,20+30,snapshot.begin());
                     std::copy_n(words.begin()+offset+20+30,2*18,snapshot.begin()+20+unsigned(Upgrade::Rupees));
                 } else std::copy_n(words.begin()+offset,words[1]==9?HighScoreRun::legacy_word_count:snapshot.size(),snapshot.begin());
-                if(!best.decode(snapshot) || (best.present() && (best.cheated()!=bool(category%2) || best.run.endless!=(category>=2))))return false;
+                if(!best.decode(snapshot,words[1]) || (best.present() && (best.cheated()!=bool(category%2) || best.run.endless!=(category>=2))))return false;
                 offset+=words[1]==8?v8_score_words:words[1]==9?HighScoreRun::legacy_word_count:HighScoreRun::word_count;
             }
         }

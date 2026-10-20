@@ -1423,3 +1423,10 @@ slots, duplicate rewards, independent records, no double XP, v9 migration and HU
 GX/color-state restoration. Device checks: win -> continue, native Save records
 then continue, repeated bosses and drops, pause during minute boundary, death/Game
 Over and voluntary End Run, reload all four records, D-pad/touch score navigation.
+
+
+Records v11 normalizes Twilit Rank to the sum of difficulty increments above x1
+(0–24). v10 snapshots are validated against the old sum and converted by subtracting
+four; v8/v9 snapshots derive the new rank from their stored options. Scores, XP,
+map clears and all four record categories remain unchanged. HUD rank/skull are
+hidden at rank 0 while the clock remains visible. Difficulty/results still show 0.

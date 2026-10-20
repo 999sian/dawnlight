@@ -611,10 +611,11 @@ at the normal victory is subtracted from the later award; one continued run stil
 counts as one run/win. Reset High Scores clears all four categories without
 locking maps. Existing v8/v9 normal records migrate with no score changes.
 
-**Twilit Rank** is Enemy HP + Enemy Damage + Enemy Speed + Horde (4–28). Difficulty
+**Twilit Rank** is Enemy HP + Enemy Damage + Enemy Speed + Horde − 4 (0–24). Difficulty
 shows it below the four controls, followed by their effects and effective reward
 multipliers. The rank itself adds no extra bonus: score and talent XP keep the
 existing additive difficulty formula (x1.00–x4.15). Horde divides normal-kill score
 and normal-enemy run-XP/loot opportunities by its setting; elite run XP stays x1.
-The HUD shows the elapsed time, a skull and rank using the boss-name font. Both
+The HUD shows elapsed time using the boss-name font; skull and rank appear only
+above rank 0. Four x1 settings give rank 0. Both
 Victory/Defeat results and all saved score snapshots retain the rank.

@@ -10,6 +10,7 @@ void draw_run_rank_hud(float x) {
     else std::snprintf(text,sizeof(text),"%02u:%02u / %02u:00",s_run.ticks/1800,s_run.ticks/30%60,s_run.run_duration()/1800);
     J2DPrint clock(font,JUtility::TColor(255,240,210,255),JUtility::TColor(230,190,150,255));
     clock.setFontSize(18,18);clock.printReturn(text,230,26,HBIND_CENTER,VBIND_TOP,x-150,40,255);
+    if(!s_run.twilit_rank())return;
     // A small skull silhouette avoids relying on a missing Unicode glyph in RubyFont.
     graf->setup2D();
     const auto tl=graf->mColorTL,tr=graf->mColorTR,bl=graf->mColorBL,br=graf->mColorBR;
