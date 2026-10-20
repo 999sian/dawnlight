@@ -1406,7 +1406,6 @@ int create_pedestal(void* ptr) {
         // entrySolidHeap has already released failed allocations. This model
         // was never drawn; do not pass its stale pointer to teardown helpers.
         self->sword=nullptr;
-        if(self->equipment)svc_log->warn(mod_ctx,"Survivors: equipment chest model/heap initialization failed");
         return cPhs_ERROR_e;
     }
     float minY=0;
@@ -1430,7 +1429,6 @@ int create_pedestal(void* ptr) {
     self->collision.SetH(self->equipment?120:62);
     if(!self->survivors) {self->trials.init(self);sTrials=&self->trials;}
     self->ready=true;
-    if(self->equipment)svc_log->info(mod_ctx,"Survivors: equipment chest actor ready");
     return cPhs_COMPLEATE_e;
 }
 int delete_pedestal(void* ptr) {
@@ -1663,8 +1661,7 @@ void update_survivors_pedestal(bool enabled) {
 void update_survivors_equipment_chest(bool enabled,const cXyz& position,s16 yaw) {
     if(!enabled) {remove_actor(sSurvivorsChest);return;}
     if(!sRegistration || pending_or_live(sSurvivorsChest) || !survivors_hub_active())return;
-    if(spawn(sProfile,position,yaw,2,sSurvivorsChest)!=MOD_OK)
-        svc_log->warn(mod_ctx,"Survivors: equipment chest actor spawn failed; retrying");
+    spawn(sProfile,position,yaw,2,sSurvivorsChest);
 }
 bool survivors_equipment_chest_anchor(cXyz& position) {
     auto* actor=actor_by_id(sSurvivorsChest);

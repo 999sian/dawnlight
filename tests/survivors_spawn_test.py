@@ -103,13 +103,9 @@ int main(){
    assert((params.base.parameters&0x00fe0fff)==(original&0x00fe0fff));
   }
  }
- // Capture only the authored large chest in the hub, retaining native placement/yaw.
- s_map=0;s_hub=true;params.room_no=51;info.procname=fpcNm_TBOX_e;
- params.base.parameters=1u<<20;params.base.position={111,22,333};params.base.angle.y=456;
+ // Native story chests remain filtered; the hub chest uses its own actor.
+ s_map=0;params.room_no=51;info.procname=fpcNm_TBOX_e;
  assert(before_arena_stage_actor(nullptr,spawnArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
- assert(s_gearChestLocated&&s_gearChestPosition.x==111&&s_gearChestPosition.y==22&&s_gearChestPosition.z==333&&s_gearChestYaw==456);
- clear_arena_geometry();assert(!s_gearChestLocated);s_hub=false;
- before_arena_stage_actor(nullptr,spawnArgs,nullptr,nullptr);assert(!s_gearChestLocated);
  assert(native_entrance_demo(0)); // The old override entered this path.
  s_map=0;clear_arena_geometry();daAlink_c link;std::any moveArgs[]={&link};
  // Native entrance crosses an exit curtain from outside into the room. Applying
@@ -196,7 +192,7 @@ functions = '\n'.join(extract(n) for n in ['add_exit_box','arena_story_actor','b
 globals = source[source.index('std::vector<barriers::Wall>'):source.index('void add_exit_box')]
 with tempfile.TemporaryDirectory() as tmp:
     cpp,binary=Path(tmp)/'test.cpp',Path(tmp)/'test'
-    cpp.write_text(fixture+'\nbool s_gearChestLocated=false;cXyz s_gearChestPosition;s16 s_gearChestYaw=0;\n'+'enum{'+','.join(names)+'};\n'+globals+functions+loading+
+    cpp.write_text(fixture+'enum{'+','.join(names)+'};\n'+globals+functions+loading+
         'bool native_entrance_demo(int start_mode){return '+entry_condition+';}\n'+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)

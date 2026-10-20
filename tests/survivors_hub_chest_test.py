@@ -48,7 +48,6 @@ namespace mDoMtx_stack_c{float y=0;int yaw=0;void transS(float,float height,floa
 void fopAcM_SetMtx(fopAc_ac_c*,void*){}
 int fopAcM_entrySolidHeap(fopAc_ac_c* a,int(*fn)(fopAc_ac_c*),int size){assert(size==0x10000);++heapCreates;return !heapFail&&fn(a);}
 void* mod_ctx=nullptr;
-struct Log{void info(void*,const char*){}void warn(void*,const char*){}}logger;auto* svc_log=&logger;
 void forget(J3DModel* p){assert(p==&model);++forgets;}
 int resolveSymbol(void*,const char* name,void** p,void*){assert(std::string(name)=="J3DModel::forgetMtx");*p=reinterpret_cast<void*>(&forget);return MOD_OK;}
 struct Hook{decltype(&resolveSymbol) resolve;}hook{resolveSymbol};auto* svc_hook=&hook;

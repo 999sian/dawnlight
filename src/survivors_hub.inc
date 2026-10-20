@@ -15,47 +15,6 @@ HookAction before_hub_door(ModContext*,void* args,void* result,void*) {
     *static_cast<s32*>(result)=0;
     return HOOK_SKIP_ORIGINAL;
 }
-bool hub_chest_record(const stage_tresure_data_class& entry, bool largeOnly) {
-    char name[9]{};std::memcpy(name,entry.name,8);
-    const auto* info=dStage_searchName(name);
-    if(!info || (info->procname!=fpcNm_TBOX_e && info->procname!=fpcNm_TBOX2_e))return false;
-    const auto shape=(entry.base.parameters>>20)&0xf;
-    if(largeOnly && shape!=1 && shape!=2)return false;
-    s_gearChestPosition=entry.base.position;s_gearChestYaw=entry.base.angle.y;
-    s_gearChestLocated=true;return true;
-}
-void locate_hub_gear_chest() {
-    if(s_gearChestLocated || !s_hub || s_map!=0 || !in_arena())return;
-    auto* room=dComIfGp_roomControl_getStatusRoomDt(arenas[0].room);
-    auto* treasures=room?room->getTresure():nullptr;
-    // getTresure() exposes ONLY common TRES. TRE0..TREe (and ACT layers) are
-    // decoded separately; a chest on an inactive story layer never reaches
-    // our actor-create hook either. Read their placement from the loaded room
-    // archive and render our own chest, ignoring native switches/open flags.
-    auto* file=static_cast<dStage_fileHeader*>(dComIfG_getStageRes(
-        dComIfG_getRoomArcName(arenas[0].room),"room.dzr"));
-    for(bool largeOnly : {true,false}) {
-        if(treasures && treasures->m_entries)
-            for(int i=0;i<treasures->num;++i)
-                if(hub_chest_record(treasures->m_entries[i],largeOnly))return;
-        if(!file)continue;
-        for(int i=0;i<file->m_chunkCount;++i) {
-            const auto& node=file->m_nodes[i];
-            const auto* tag=reinterpret_cast<const char*>(&node.m_tag);
-            const bool layer=(tag[3]>='0' && tag[3]<='9') || (tag[3]>='a' && tag[3]<='e');
-            const bool treasure=std::memcmp(tag,"TRE",3)==0 && (tag[3]=='S' || layer);
-            const bool actor=std::memcmp(tag,"ACT",3)==0 && (tag[3]=='R' || layer);
-            const bool object=std::memcmp(tag,"TGOB",4)==0;
-            if(!treasure && !actor && !object)continue;
-            // The native loader has relocated every chunk before the hub's
-            // Ready phase. Keep OffsetPtr/BE conversion (Windows/ARM included).
-            const auto* entries=static_cast<const stage_tresure_data_class*>(node.m_offset);
-            if(!entries)continue;
-            for(int j=0;j<node.m_entryNum;++j)
-                if(hub_chest_record(entries[j],largeOnly))return;
-        }
-    }
-}
 bool hub_chest_floor(cXyz& position,const daAlink_c* link) {
     // Use the same static-room ground query as the working sword pedestal.
     // Run spawn filters (water/ground codes/room ownership) are not hub rules.
@@ -66,30 +25,11 @@ bool hub_chest_floor(cXyz& position,const daAlink_c* link) {
     position.y=height;return true;
 }
 void update_hub(daAlink_c* link) {
-    locate_hub_gear_chest();
     const bool enabled=s_run.phase==Phase::Ready && !s_hubDeparture;
     if(enabled) {
-        // Unlike the old loot-model path, a missing vanilla placement must not
-        // prevent creation. The pedestal is at (0,0); keep its A prompt clear.
-        if(!s_gearChestLocated) {
-            s_gearChestPosition=cXyz(500,link->current.pos.y,0);s_gearChestYaw=0;
-            s_gearChestLocated=true;
-            svc_log->warn(mod_ctx,"Survivors: no native chest placement; using hub position beside the sword");
-        }
-        cXyz floor=s_gearChestPosition;
-        bool grounded=hub_chest_floor(floor,link);
-        if(!grounded && (floor.x!=500 || floor.z!=0)) {
-            floor=cXyz(500,link->current.pos.y,0);
-            grounded=hub_chest_floor(floor,link);
-            if(grounded) {
-                s_gearChestYaw=0;
-                svc_log->warn(mod_ctx,"Survivors: native chest position has no floor; using hub position beside the sword");
-            }
-        }
-        if(grounded) {
-            s_gearChestPosition=floor;
-            update_survivors_equipment_chest(true,floor,s_gearChestYaw);
-        }
+        // Fixed hub placement beside the central sword, clear of its A prompt.
+        cXyz position(500,0,0);
+        if(hub_chest_floor(position,link))update_survivors_equipment_chest(true,position,0);
     } else update_survivors_equipment_chest(false,{},0);
     update_survivors_pedestal(s_run.phase==Phase::Ready && !s_hubDeparture);
     if(!s_hubDeparture || s_hubClosingWindow || ui_visible() || s_progressSaving || s_hubSaveRequested)return;

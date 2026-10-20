@@ -78,44 +78,12 @@ int fopAcM_orderDoorEvent(fopAc_ac_c* a,fopAc_ac_c* b,u16 priority,u16 flags){
 main=r'''
 int main(){
  s_run.phase=Phase::Ready;
- // Resolve the room's authored chest even when actor creation never ran.
- locate_hub_gear_chest();assert(!s_gearChestLocated);
- stage_tresure_data_class entries[2]{};std::memcpy(entries[0].name,"small",5);std::memcpy(entries[1].name,"large",5);
- entries[0].base.position={11,22,33};entries[1].base.position={111,222,333};entries[1].base.angle.y=456;
- entries[1].base.parameters=2u<<20;table={2,entries};
- s_hub=false;locate_hub_gear_chest();assert(!s_gearChestLocated);s_hub=true;
- s_map=1;locate_hub_gear_chest();assert(!s_gearChestLocated);s_map=0;
- update_hub(&link);assert(s_gearChestLocated&&s_gearChestPosition.x==111&&s_gearChestYaw==456);
- assert(chestActor.active&&chestActor.position.z==333);
- assert(s_gearChestPosition.y==40&&chestActor.position.y==40);
- table={};s_gearChestLocated=false;chestActor={};
- // A chest on an inactive layer is absent from getTresure() and never creates
- // an actor. Prefer its large chest over an earlier small common chest.
- archiveReady=true;roomFile.m_chunkCount=3;
- std::memcpy(&roomFile.m_nodes[0].m_tag,"TRES",4);
- roomFile.m_nodes[0].m_entryNum=1;roomFile.m_nodes[0].m_offset=&entries[0];
- std::memcpy(&roomFile.m_nodes[1].m_tag,"TREa",4);
- roomFile.m_nodes[1].m_entryNum=1;roomFile.m_nodes[1].m_offset=&entries[1];
- std::memcpy(&roomFile.m_nodes[2].m_tag,"RPAT",4);
- roomFile.m_nodes[2].m_entryNum=99; // Not an actor table: never dereference it.
- floorReady=false;update_hub(&link);
- assert(s_gearChestLocated&&s_gearChestPosition.x==111&&!chestActor.active);
+ // The fixed hub chest waits for ground and stays beside the central sword.
+ floorReady=false;update_hub(&link);assert(!chestActor.active);
  floorReady=true;update_hub(&link);
- assert(chestActor.active&&chestActor.position.y==40&&chestActor.yaw==456);
- // Actor chunks have the same placement layout. Non-chest actors are ignored.
- s_gearChestLocated=false;roomFile.m_chunkCount=1;
- std::memcpy(&roomFile.m_nodes[0].m_tag,"ACTe",4);
- roomFile.m_nodes[0].m_entryNum=2;roomFile.m_nodes[0].m_offset=entries;
- locate_hub_gear_chest();assert(s_gearChestLocated&&s_gearChestPosition.x==111);
- s_gearChestLocated=false;std::memcpy(&roomFile.m_nodes[0].m_tag,"TGOB",4);
- locate_hub_gear_chest();assert(s_gearChestLocated&&s_gearChestPosition.x==111);
- archiveReady=false;table={};s_gearChestLocated=false;chestActor={};
- // Regression for the reported save: no native chest records at all. A real
- // independent chest still gets a floor-projected location beside the sword.
- update_hub(&link);assert(chestActor.active&&chestActor.position.x==500&&chestActor.position.y==40);
+ assert(chestActor.active&&chestActor.position.x==500&&chestActor.position.z==0);
+ assert(chestActor.position.y==40&&chestActor.yaw==0);
  s_hubDeparture=true;update_hub(&link);assert(!chestActor.active);s_hubDeparture=false;
-
-
 
  // Loading the save never opens a window and Ready leaves Link executable.
  assert(!visible&&s_hubMenu==HubMenu::None&&!pause_run_actor(false));
@@ -212,7 +180,6 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
  cpp.write_text(fixture+'''
-bool s_gearChestLocated=false; cXyz s_gearChestPosition; s16 s_gearChestYaw=0;
 bool floorReady=true;
 struct dBgS_ObjGndChk{void SetPos(cXyz*){}};
 struct Ground{float GroundCross(dBgS_ObjGndChk*){return floorReady?40:-1.e9f;}}ground;
@@ -221,19 +188,7 @@ struct GearChest {bool active=false;cXyz position;s16 yaw=0;}chestActor;
 void update_survivors_equipment_chest(bool enabled,const cXyz& p,s16 yaw){
  chestActor.active=enabled;if(enabled){chestActor.position=p;chestActor.yaw=yaw;}
 }
-constexpr int fpcNm_TBOX_e=9,fpcNm_TBOX2_e=10;
-struct stage_tresure_data_class {char name[8]{};struct {unsigned parameters=0;cXyz position;struct{s16 y=0;}angle;}base;};
-struct dStage_nodeHeader{unsigned m_tag=0;int m_entryNum=0;const stage_tresure_data_class* m_offset=nullptr;};
-struct dStage_fileHeader{int m_chunkCount=0;dStage_nodeHeader m_nodes[3];}roomFile;
-bool archiveReady=false;
-const char* dComIfG_getRoomArcName(int n){assert(n==51);return "Room51";}
-void* dComIfG_getStageRes(const char* a,const char* f){assert(std::string(a)=="Room51"&&std::string(f)=="room.dzr");return archiveReady?&roomFile:nullptr;}
-struct TreasureTable{int num=0;stage_tresure_data_class* m_entries=nullptr;}table;
-struct Room{TreasureTable* getTresure(){return &table;}}room;
-Room* dComIfGp_roomControl_getStatusRoomDt(int n){assert(n==51);return &room;}
-struct Info{int procname;};
-Info* dStage_searchName(const char* name){static Info info;info.procname=std::strcmp(name,"small")==0||std::strcmp(name,"large")==0?fpcNm_TBOX_e:0;return &info;}
-'''+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','hub_chest_record','locate_hub_gear_chest','hub_chest_floor','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
+'''+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','hub_chest_floor','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),'-I',str(root/'include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors hub: free movement, native door gating, save/close, cancellation, routing and recovery passed')
