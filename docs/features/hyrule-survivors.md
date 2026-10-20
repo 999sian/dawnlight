@@ -1197,7 +1197,15 @@ Link's burn/smoke effect. No game assets are embedded in the mod.
 Knockback distance is ten times the previous value, retaining the same duration,
 elite reduction, non-additive hit handling and wall/cliff checks. Phantom Zant
 cannot enter heavy-hit stagger during attack modes 0–2: health damage and lethal
-hits still work normally.
+hits still work normally. After processing HP damage, clear the independent
+`mWarpCylCollider` hit and `mBombArrowHit` latch before native actor execution.
+These previously bypassed the custom stagger protection: native `damage_check`
+can switch to WAIT/11 and animation 0x13, causing the charging child ball to
+destroy itself. Clearing both triggers also covers inlined native reaction paths
+without relying on the standalone damage hook. No animation or charge clock is
+restarted, and reactions outside the charge are unchanged. Regression coverage
+includes both triggers separately/together, direct and queued damage in all
+three charge modes, native warp fallback, lethal hits and non-charge behavior.
 
 Elite loot checks the floor up to 20,000 units below a flying corpse before
 validating the landing footprint. Its fallback cache starts at the validated

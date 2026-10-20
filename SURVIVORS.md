@@ -263,7 +263,9 @@ fire breath and recovery, adapted to ground combat without tower rails or traps.
 Death Sword uses native sword strikes and both magic shots and is visible to human
 Link. Twilit Bloat retains its electric charge, flight and retreat. Phantom Zant
 teleports between safe map positions and uses native projectile volleys and portals
-summoning Shadow Keese/Shadow Beasts. Darkhammer spins, throws and retrieves his
+summoning Shadow Keese/Shadow Beasts. During his projectile charge, nonlethal hits
+cannot stagger or trigger his native warp reaction (including bomb arrows); HP
+damage and lethal hits still apply. Darkhammer spins, throws and retrieves his
 ball and chain. Puppet Zelda retains her sword charge, triangle and energy-ball
 attacks. King Bulblin fights on foot with his axe; Ganondorf uses his native sword
 duel. Darknut sheds armor as his run HP falls and uses the native sword throw and
