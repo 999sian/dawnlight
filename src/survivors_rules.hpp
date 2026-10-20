@@ -672,6 +672,11 @@ struct Records {
     std::array<HighScoreRun,5> ranked{}, cheated{};
     const HighScoreRun& high_score(unsigned map,bool assisted) const { return (assisted?cheated:ranked)[map]; }
     void clear_high_scores() { high_scores={};ranked={};cheated={}; }
+    void delete_high_score(unsigned map,bool assisted) {
+        if(map>=high_scores.size())return;
+        (assisted?cheated:ranked)[map]={};
+        high_scores[map]=std::max(ranked[map].score,cheated[map].score);
+    }
     static constexpr unsigned word_count=34+10*HighScoreRun::word_count;
     static constexpr unsigned byte_count=4*word_count;
     static constexpr unsigned v8_score_words=20+30+2*18;

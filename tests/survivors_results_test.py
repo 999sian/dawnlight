@@ -19,6 +19,7 @@ std::string treasure_rml_escape(const std::string& in){std::string out;for(char 
 unsigned treasure_item(ChestReward,const Run&){return 0x43;}
 const char* reward_name(ChestReward,const Run&){return "Ball & Chain";}
 void close_high_score(ModContext*,void*){}
+void request_delete_score(ModContext*,void*){}
 void save_results(ModContext*,void*){}void replay(ModContext*,void*){}
 std::vector<std::string> texts,classes,labels;std::vector<UiPressedFn> callbacks;std::vector<UiElementHandle> parents;unsigned rows=2;
 struct Service{
@@ -63,13 +64,14 @@ int main(){
  }
  assert(stylesheet.find(".sr-integrity { font-size: 13dp; color: #ff4545;")!=std::string::npos);
  s_run.start(3);assert(!s_run.modded&&!s_run.options.allow_cheats);
- // An archived result renders only the saved run, with read-only navigation.
+ // An archived result renders only the saved run, with navigation and deletion.
  HighScoreRun archived;archived.run.start(10);archived.run.phase=Phase::Victory;archived.run.modded=true;
  archived.run.damage.dealt[unsigned(DamageSource::DarkLink)]=123456;archived.run.dark_link=4;
  archived.score=87654;archived.meta_level=29;archived.unlock_points=28;
  const auto liveDamage=s_run.damage.dealt;const auto livePhase=s_run.phase;const auto records=s_records.encode();
  texts.clear();labels.clear();callbacks.clear();assert(build_results(1,2,&archived,2)==MOD_OK);
- assert(texts.size()==2&&labels==std::vector<std::string>{"Back to maps"}&&callbacks[0]==close_high_score);
+ assert(texts.size()==2&&(labels==std::vector<std::string>{"Back to maps","Delete Score"}));
+ assert(callbacks[0]==close_high_score&&callbacks[1]==request_delete_score);
  assert(texts[0].find(arenas[2].name)!=std::string::npos&&texts[0].find("123,456")!=std::string::npos);
  assert(texts[0].find("Modded")!=std::string::npos&&texts[1].find("87,654")!=std::string::npos);
  assert(texts[1].find("<span>29</span>")!=std::string::npos&&texts[1].find("<span>28</span>")!=std::string::npos);

@@ -146,7 +146,16 @@ ModResult build_results(UiElementHandle left,UiElementHandle right,const HighSco
     result=svc_ui->elem_set_class(mod_ctx,mainBody,"sr-body",true);if(result!=MOD_OK)return result;
     result=svc_ui->pane_add_rml(mod_ctx,right,results_loadout_rml(archived,map).c_str(),&sideBody);if(result!=MOD_OK)return result;
     result=svc_ui->elem_set_class(mod_ctx,sideBody,"sr-body",true);if(result!=MOD_OK)return result;
-    if(archived)return button(left,"Back to maps",close_high_score);
+    if(archived) {
+        UiRowDesc desc=UI_ROW_DESC_INIT;UiElementHandle row=0;
+        result=svc_ui->pane_add_row(mod_ctx,left,&desc,&row);if(result!=MOD_OK)return result;
+        result=svc_ui->elem_set_class(mod_ctx,row,"sr-actions",true);if(result!=MOD_OK)return result;
+        result=svc_ui->elem_set_class(mod_ctx,row,"sr-actions-first",true);if(result!=MOD_OK)return result;
+        result=button(row,"Back to maps",close_high_score);if(result!=MOD_OK)return result;
+        result=svc_ui->pane_add_row(mod_ctx,left,&desc,&row);if(result!=MOD_OK)return result;
+        result=svc_ui->elem_set_class(mod_ctx,row,"sr-actions",true);if(result!=MOD_OK)return result;
+        return button(row,"Delete Score",request_delete_score);
+    }
     result=svc_ui->pane_add_text(mod_ctx,left,s_storeFailed?
         "Records could not be stored. Retry Save records or Return to hub.":
         "Save records before quitting. Return to hub keeps your progress and lets you prepare another run.",nullptr);

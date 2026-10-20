@@ -302,6 +302,7 @@ dMenu_Collect2D_c* s_powerupsMenu = nullptr;
 void close_powerup_window();
 void close_score_windows();
 void close_high_score(ModContext*,void*);
+void request_delete_score(ModContext*,void*);
 ActorId s_player = kNone;
 fpc_ProcID s_savePrompt = kNone;
 bool s_victory=false, s_deathPending=false, s_deathDismiss=false;

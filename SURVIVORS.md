@@ -104,8 +104,13 @@ Each map has two independent high scores: **Ranked** for runs without Allow
 Cheats or other active mods, and **Cheated** for runs with either condition.
 Select a score in the Maps tab to reopen that run's result screen, including its
 damage breakdown, equipment, integrity flags and awarded score. This view is
-read-only; it does not restart the run or award XP again. Ties keep the original
+an archived snapshot; it does not restart the run or award XP again. Ties keep the original
 record. Empty lists show a dash; even a completed zero-score run can be opened.
+
+**Delete Score** at the bottom of each archived result screen deletes only that
+map’s selected Ranked or Cheated record after **Yes / No** confirmation (default
+No). Success returns to the map list; a failed write retains the score and offers
+retry. Other records, unlocked maps, talents, XP and lifetime statistics remain.
 
 **Reset High Scores** is in the normal Survivors Settings tab (also mirrored in
 Dawnlight Settings). It is available in a loaded Survivors hub and asks for

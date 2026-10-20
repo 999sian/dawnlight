@@ -1,8 +1,10 @@
 // Score browsing is a separate window: the hub's live Run never changes.
 UiWindowHandle s_scoreWindow=0;
 UiDialogHandle s_scoreResetDialog=0;
+UiDialogHandle s_scoreDeleteDialog=0;
 HighScoreRun s_scoreView;
 unsigned s_scoreMap=0;
+bool s_scoreAssisted=false;
 std::array<bool,2> s_scoreCategories{false,true};
 std::array<UiElementHandle,2> s_scoreButtons{};
 std::array<std::string,2> s_scoreLabels{};
@@ -11,7 +13,12 @@ bool scores_editable() {
     return s_active && s_gameStarted && s_saveReady && s_loaded && s_hub &&
         s_run.phase==Phase::Ready && settings_editable();
 }
+void close_score_delete_dialog() {
+    const auto dialog=s_scoreDeleteDialog;s_scoreDeleteDialog=0;
+    if(dialog)svc_ui->dialog_close(mod_ctx,dialog);
+}
 void close_high_score(ModContext*,void*) {
+    close_score_delete_dialog();
     const auto handle=s_scoreWindow;s_scoreWindow=0;
     if(handle)svc_ui->window_close(mod_ctx,handle);
 }
@@ -25,13 +32,15 @@ void open_high_score(ModContext*,void* data) {
     if(!scores_editable() || s_scoreWindow || s_requestedMap>=arenas.size())return;
     const auto& best=s_records.high_score(s_requestedMap,*static_cast<bool*>(data));
     if(!best.present())return;
-    s_scoreView=best;s_scoreMap=s_requestedMap;
+    s_scoreView=best;s_scoreMap=s_requestedMap;s_scoreAssisted=*static_cast<bool*>(data);
     UiTabDesc tab=UI_TAB_DESC_INIT;tab.title=best.cheated()?"Cheated high score":"Ranked high score";
     tab.build=[](ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
         return build_results(left,right,&s_scoreView,s_scoreMap);
     };
     UiWindowDesc desc=UI_WINDOW_DESC_INIT;desc.tabs=&tab;desc.tab_count=1;desc.rcss=kResultsStyle;
-    desc.on_closed=[](ModContext*,UiWindowHandle handle,void*){if(s_scoreWindow==handle)s_scoreWindow=0;};
+    desc.on_closed=[](ModContext*,UiWindowHandle handle,void*){
+        if(s_scoreWindow==handle){s_scoreWindow=0;close_score_delete_dialog();}
+    };
     if(svc_ui->window_push(mod_ctx,&desc,&s_scoreWindow)!=MOD_OK)s_scoreWindow=0;
 }
 std::string score_label(unsigned category) {
@@ -64,6 +73,37 @@ ModResult build_score_controls(UiElementHandle pane) {
     }
     return MOD_OK;
 }
+bool score_deletable() {
+    return scores_editable() && s_scoreWindow && s_scoreMap<arenas.size() &&
+        s_scoreView.present() && s_records.high_score(s_scoreMap,s_scoreAssisted).encode()==s_scoreView.encode();
+}
+void confirm_delete_score(ModContext*,UiDialogHandle dialog,void*) {
+    if(dialog!=s_scoreDeleteDialog || !score_deletable())return;
+    auto next=s_records;next.delete_high_score(s_scoreMap,s_scoreAssisted);
+    const auto bytes=next.encode();
+    s_storeFailed=svc_save->set_blob(mod_ctx,kBlob,bytes.data(),bytes.size())!=MOD_OK;
+    if(s_storeFailed) {
+        svc_ui->dialog_set_body(mod_ctx,dialog,"<p>The score could not be stored. Nothing was deleted. Choose Yes to retry or No to cancel.</p>");
+        return;
+    }
+    s_records=next;s_progressSaved=false;s_hubSaveRequested=true;
+    close_high_score(nullptr,nullptr);
+    update_score_controls();
+}
+void request_delete_score(ModContext*,void*) {
+    if(!score_deletable() || s_scoreDeleteDialog || s_scoreResetDialog)return;
+    UiDialogAction actions[2]={UI_DIALOG_ACTION_INIT,UI_DIALOG_ACTION_INIT};
+    actions[0].label="No";
+    actions[0].on_pressed=[](ModContext*,UiDialogHandle handle,void*){if(s_scoreDeleteDialog==handle)s_scoreDeleteDialog=0;};
+    actions[1].label="Yes";actions[1].on_pressed=confirm_delete_score;actions[1].keep_open=true;
+    actions[1].is_disabled=[](ModContext*,void*){return !score_deletable();};
+    const auto body="<p>Permanently delete the "+std::string(s_scoreAssisted?"Cheated":"Ranked")+
+        " high score for "+treasure_rml_escape(arenas[s_scoreMap].name)+
+        " and its run summary?</p><p>Other scores, unlocked maps, talents, XP and lifetime statistics will be kept.</p>";
+    UiDialogDesc desc=UI_DIALOG_DESC_INIT;desc.title="Delete Score?";desc.variant=UI_DIALOG_WARNING;
+    desc.body_rml=body.c_str();desc.actions=actions;desc.action_count=2;desc.on_dismiss=actions[0].on_pressed;
+    if(svc_ui->dialog_push(mod_ctx,&desc,&s_scoreDeleteDialog)!=MOD_OK)s_scoreDeleteDialog=0;
+}
 void confirm_reset_scores(ModContext*,UiDialogHandle dialog,void*) {
     if(dialog!=s_scoreResetDialog || !scores_editable())return;
     auto next=s_records;next.clear_high_scores();
@@ -77,7 +117,7 @@ void confirm_reset_scores(ModContext*,UiDialogHandle dialog,void*) {
     s_scoreResetDialog=0;svc_ui->dialog_close(mod_ctx,dialog);
 }
 void request_reset_scores(ModContext*,void*) {
-    if(!scores_editable() || s_scoreResetDialog)return;
+    if(!scores_editable() || s_scoreResetDialog || s_scoreDeleteDialog)return;
     // The host focuses the first action; cancellation and the default are No.
     UiDialogAction actions[2]={UI_DIALOG_ACTION_INIT,UI_DIALOG_ACTION_INIT};
     actions[0].label="No";

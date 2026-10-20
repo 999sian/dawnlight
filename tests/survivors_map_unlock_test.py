@@ -59,6 +59,7 @@ unsigned treasure_item(ChestReward,const Run&){return 0x43;}
 const char* reward_name(ChestReward,const Run&){return "Sword";}
 void save_results(ModContext*,void*){assert(false);}void replay(ModContext*,void*){assert(false);}
 void close_high_score(ModContext*,void*);
+void request_delete_score(ModContext*,void*);
 ModResult button(UiElementHandle pane,const char* label,UiPressedFn callback){UiControlDesc c=UI_CONTROL_DESC_INIT;c.label=label;c.on_pressed=callback;return svc_ui->pane_add_control(nullptr,pane,&c,nullptr);}
 void start_run(ModContext*,void*){}
 void store_option_config(){}
@@ -104,7 +105,8 @@ int main(){
  for(bool& category:s_scoreCategories){
   open_high_score(nullptr,&category);assert(s_scoreWindow==90);
   controls.clear();assert(openedTab.build(nullptr,90,1,2,nullptr,nullptr)==MOD_OK);
-  assert(controls.size()==1&&std::string(controls[0].label)=="Back to maps");
+  assert(controls.size()==2&&std::string(controls[0].label)=="Back to maps");
+  assert(std::string(controls.back().label)=="Delete Score"&&controls.back().on_pressed==request_delete_score);
   assert(s_scoreView.cheated()==category&&s_scoreView.run.damage.dealt==clean.damage.dealt);
   controls[0].on_pressed(nullptr,nullptr);assert(!s_scoreWindow);
   assert(s_run.phase==live.phase&&s_run.damage.dealt==live.damage.dealt&&s_records.encode()==original&&!writes);
@@ -145,9 +147,57 @@ int main(){
  assert(saved.encode()==expected.encode()&&s_records.map_unlocked(0)&&s_records.cleared_maps);
  update_arena_tab(nullptr,nullptr,nullptr);
  assert(text[s_scoreButtons[0]]=="Ranked: —"&&text[s_scoreButtons[1]]=="Cheated: —");
+ // Individual deletion affects only the captured map/category, persists atomically,
+ // and never changes the live run, map clears, talents or lifetime totals.
+ assert(s_records.decode(original));
+ for(unsigned map=0;map<arenas.size();++map){
+  s_records.finish(clean,map);s_records.finish(assisted,map);
+ }
+ for(unsigned map=0;map<arenas.size();++map)for(bool& category:s_scoreCategories){
+  s_requestedMap=map;open_high_score(nullptr,&category);assert(s_scoreWindow);
+  const auto before=s_records;const auto oldWrites=writes;
+  request_delete_score(nullptr,nullptr);assert(s_scoreDeleteDialog&&openedDialog.variant==UI_DIALOG_WARNING);
+  assert(std::string(actions[0].label)=="No"&&std::string(actions[1].label)=="Yes"&&actions[1].keep_open);
+  actions[0].on_pressed(nullptr,91,nullptr);assert(!s_scoreDeleteDialog&&s_scoreWindow&&writes==oldWrites);
+  request_delete_score(nullptr,nullptr);openedDialog.on_dismiss(nullptr,91,nullptr);
+  assert(!s_scoreDeleteDialog&&s_records.encode()==before.encode());
+  request_delete_score(nullptr,nullptr);
+  s_progressSaving=true;assert(actions[1].is_disabled(nullptr,nullptr));
+  actions[1].on_pressed(nullptr,91,nullptr);assert(writes==oldWrites);s_progressSaving=false;
+  // A stale view cannot delete a replacement record.
+  ++(category?s_records.cheated:s_records.ranked)[map].score;
+  actions[1].on_pressed(nullptr,91,nullptr);assert(writes==oldWrites);s_records=before;
+  failSave=true;actions[1].on_pressed(nullptr,91,nullptr);
+  assert(s_storeFailed&&s_scoreDeleteDialog&&s_scoreWindow&&s_records.encode()==before.encode());
+  assert(text[91].find("Nothing was deleted")!=std::string::npos);
+  // Changing the map selection behind the modal must not change the deletion target.
+  s_requestedMap=(map+1)%arenas.size();
+  failSave=false;actions[1].on_pressed(nullptr,91,nullptr);
+  assert(!s_scoreDeleteDialog&&!s_scoreWindow&&!s_storeFailed&&s_hubSaveRequested);
+  auto expected=before;expected.delete_high_score(map,category);
+  assert(s_records.encode()==expected.encode()&&saved.encode()==expected.encode());
+  assert(!s_records.high_score(map,category).present());
+  assert(s_records.high_score(map,!category).encode()==before.high_score(map,!category).encode());
+  for(unsigned other=0;other<arenas.size();++other)if(other!=map) {
+   assert(s_records.ranked[other].encode()==before.ranked[other].encode());
+   assert(s_records.cheated[other].encode()==before.cheated[other].encode());
+  }
+  assert(s_records.cleared_maps==before.cleared_maps&&s_records.total_xp==before.total_xp);
+  assert(s_records.talents.ranks==before.talents.ranks&&s_records.runs==before.runs&&s_records.wins==before.wins);
+  assert(s_records.best_ticks==before.best_ticks&&s_records.best_kills==before.best_kills&&s_records.best_level==before.best_level);
+  assert(s_run.phase==live.phase&&s_run.damage.dealt==live.damage.dealt);
+  const auto written=writes;confirm_delete_score(nullptr,91,nullptr);assert(writes==written);
+ }
+ // Closing the archived window also closes its confirmation and invalidates callbacks.
+ s_records.finish(clean,0);s_requestedMap=0;open_high_score(nullptr,&s_scoreCategories[0]);
+ request_delete_score(nullptr,nullptr);assert(s_scoreDeleteDialog);
+ const auto beforeClose=s_records.encode();const auto writesBeforeClose=writes;
+ openedWindow.on_closed(nullptr,s_scoreWindow,nullptr);
+ assert(!s_scoreDeleteDialog&&!s_scoreWindow);
+ confirm_delete_score(nullptr,91,nullptr);assert(writes==writesBeforeClose&&s_records.encode()==beforeClose);
  // Teardown invalidates dialogs, archived views and all child control handles.
  request_reset_scores(nullptr,nullptr);close_score_windows();
- confirm_reset_scores(nullptr,91,nullptr);assert(writes==2&&!s_scoreResetDialog&&!s_scoreWindow&&!s_scoreButtons[0]);
+ confirm_reset_scores(nullptr,91,nullptr);assert(writes==writesBeforeClose&&!s_scoreResetDialog&&!s_scoreDeleteDialog&&!s_scoreWindow&&!s_scoreButtons[0]);
 
 }
 '''
