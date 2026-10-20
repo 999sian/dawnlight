@@ -48,6 +48,7 @@ bool s_victory=false,s_deathPending=false;unsigned s_victoryTicks=0;
 #include <vector>
 #include "survivors_roster.hpp"
 #include "survivors_rules.hpp"
+#include "survivors_hud_layout.hpp"
 using namespace dawnlight::survivors;
 using f32=float; using GXTevStageID=int; using GXBlendMode=int; using GXBlendFactor=int;
 using Mtx=float[3][4];
@@ -58,7 +59,7 @@ prefix += 'enum { GX_MAX_TEVSTAGE=16, ' + ', '.join(constants) + ' };\n'
 prefix += '\n'.join('template<class... T> void '+name+'(T...){}' for name in noops)
 stubs = r'''
 unsigned packetBytes=0, expectedBytes=0, boxes=0, labels=0, texGens=0;
-bool textureCoordinates=false;
+bool textureCoordinates=false;std::vector<std::array<float,2>> vertices;
 void GXClearVtxDesc(){textureCoordinates=false;}
 void GXSetVtxDesc(int attr,int type){if(attr==GX_VA_TEX0)textureCoordinates=type==GX_DIRECT;}
 void GXSetNumTexGens(unsigned n){texGens=n;}
@@ -67,7 +68,7 @@ void GXBegin(int,int,unsigned vertices){
     // fillBox uses F32 XYZ + RGBA8. Font TEX0 is two direct U16 coordinates.
     expectedBytes=vertices*(12+4+(textureCoordinates?4:0));
 }
-void GXPosition3f32(float,float,float){packetBytes+=12;}
+void GXPosition3f32(float x,float y,float){packetBytes+=12;vertices.push_back({x,y});}
 void GXColor1u32(unsigned){packetBytes+=4;}
 void GXEnd(){assert(packetBytes==expectedBytes && "GX vertex packet length mismatch");++boxes;}
 namespace JGeometry {
@@ -102,10 +103,11 @@ void* JKRGetNameResource(const char* name,MapArchive* archive){
  assert(archive==&mapArchive&&std::string(name)=="tt_map_icon_boss_ci8_32_00.bti");
  ++skullLookups;return hasSkullTexture?&skullTexture:nullptr;
 }
+std::array<float,4> skullGeometry{};
 struct J2DPicture {
  explicit J2DPicture(ResTIMG* image){assert(image==&skullTexture);}
  void draw(float x,float y,float w,float h,bool a,bool b,bool c){
-  assert(x==392&&y==40&&w==20&&h==20&&!a&&!b&&!c);++skulls;textureCoordinates=true;
+  assert(!a&&!b&&!c);skullGeometry={x,y,w,h};++skulls;textureCoordinates=true;
  }
 };
 struct JUTResFont {void setGX();} font,ruby;
@@ -114,11 +116,12 @@ bool hasFont=true, arena=true, transition=false, window=false, hasGraf=true;
 JUTResFont* mDoExt_getMesgFont(){return hasFont?&font:nullptr;}
 JUTResFont* mDoExt_getRubyFont(){return hasFont?&ruby:nullptr;}
 enum {HBIND_CENTER,VBIND_TOP};
+struct DrawText {std::string text;float x,y,size;};std::vector<DrawText> textPositions;
 struct J2DPrint {
-    JUTResFont* face;
+    JUTResFont* face;float size=0;
     J2DPrint(JUTResFont* f,JUtility::TColor c,JUtility::TColor):face(f){textColor=c;f->setGX();}
-    void setFontSize(float,float){}
-    void printReturn(const char* t,float,float,int,int,float,float,int){printed.emplace_back(t);++labels;if(face==&ruby)++rubyLabels;}
+    void setFontSize(float x,float){size=x;}
+    void printReturn(const char* t,float width,float,int,int,float x,float y,int){textPositions.push_back({t,x+width*.5f,y,size});printed.emplace_back(t);++labels;if(face==&ruby)++rubyLabels;}
 };
 
 using ActorId=unsigned;constexpr ActorId kNone=~0u;
@@ -133,13 +136,22 @@ struct Enemy {ActorId id=kNone;bool elite=false,initialized=true,dormant=false,r
 std::array<Enemy,8> s_enemies;
 struct dMeter2Draw_c {} meter;
 namespace mods {template<class T>T arg(void*,unsigned){return &meter;}}
-unsigned bossBars=0;float bossPercentage=0;bool barAvailable=true;
+unsigned bossBars=0;float bossPercentage=0;bool barAvailable=true;std::array<float,4> bossGeometry{};
 bool draw_boss_health_meter(dMeter2Draw_c*,float percentage,float x,float y,float w,float h){
- assert(x==144&&y==120&&w==320&&h==24);
+ bossGeometry={x,y,w,h};
  if(!barAvailable)return false;
  ++bossBars;bossPercentage=percentage;textureCoordinates=true;return true;
 }
 struct ModContext {};
+unsigned s_hudEditorWindow=0,nativeWindow=0,nativePause=0;
+bool pauseFlag=false,scenePause=false;
+unsigned dMeter2Info_getWindowStatus(){return nativeWindow;}
+unsigned dMeter2Info_getPauseStatus(){return nativePause;}
+bool dComIfGp_isPauseFlag(){return pauseFlag;}
+struct dScnPly_c {static bool isPause(){return scenePause;}};
+auto hudValues=hud_defaults;
+HudPlacement hud_position(HudPart part,float center){return hud_placement(center,hudValues[unsigned(part)]);}
+
 int potion_slot(){return -1;}
 Run s_run;bool s_chestsExhausted=false; unsigned s_spawnFailures=0;
 bool saving=false;bool save_modal_active(){return saving;}
@@ -189,6 +201,29 @@ int main(){
     draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels);s_deathPending=false;
     s_run.phase=Phase::Running;saving=true;boxes=labels=rubyLabels=0;
     draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels&&!rubyLabels);saving=false;
+    // All native menu opening/active/closing states hide every overlay, even
+    // when the UI service reports no document (Collection is native).
+    for(bool inHub:{false,true})for(unsigned state:{1u,2u,3u,4u,5u,10u}) {
+        hub=inHub;nativeWindow=state;boxes=labels=prices=feedback=hubLabels=0;
+        draw_hud(nullptr,nullptr,nullptr,nullptr);
+        assert(!boxes&&!labels&&!prices&&!feedback&&!hubLabels);nativeWindow=0;
+    }
+    hub=false;
+    for(unsigned reason=0;reason<3;++reason) {
+        nativePause=reason==0;pauseFlag=reason==1;scenePause=reason==2;
+        boxes=labels=prices=feedback=0;draw_hud(nullptr,nullptr,nullptr,nullptr);
+        assert(!boxes&&!labels&&!prices&&!feedback);
+    }
+    nativePause=0;pauseFlag=scenePause=false;
+    // Preview works behind its transparent UI, in the hub and with rank 0,
+    // without emitting world labels or changing run/encounter state.
+    s_hudEditorWindow=1;window=hub=true;s_run.phase=Phase::Ready;
+    const auto ticksBefore=s_run.ticks;const auto targetBefore=s_bossHudTarget;
+    boxes=labels=prices=feedback=0;draw_hud(nullptr,nullptr,nullptr,nullptr);
+    assert(boxes==2&&labels&&bossPercentage==65&&!prices&&!feedback);
+    assert(s_run.phase==Phase::Ready&&s_run.ticks==ticksBefore&&s_bossHudTarget==targetBefore);
+    nativeWindow=3;boxes=labels=0;draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels);nativeWindow=0;
+    s_hudEditorWindow=0;window=hub=false;s_run.phase=Phase::Running;
     // Only live, initialized elites appear. Prefer the nearest initially and
     // keep it stable as another elite walks closer; timed bosses take priority.
     assert(!boss_hud_target());
@@ -222,13 +257,36 @@ int main(){
         s_run.phase=reason==4?Phase::Loading:reason==5?Phase::Ready:Phase::Running;boxes=labels=0;
         draw_hud(nullptr,nullptr,nullptr,nullptr);assert(boxes==0 && labels==0);
     }
+    arena=hasGraf=hasFont=true;transition=window=false;s_hudEditorWindow=1;
+    hudValues[unsigned(HudPart::BossBar)]={20,200,150};
+    hudValues[unsigned(HudPart::Rank)]={-100,170,200};
+    draw_hud(nullptr,nullptr,nullptr,nullptr);
+    assert((bossGeometry==std::array<float,4>{84,200,480,36}));
+    assert((skullGeometry==std::array<float,4>{140,170,40,40}));
+    // Every requested element uses its own anchor and uniform scale in production drawing.
+    s_run.start(4);s_run.phase=Phase::Ready;
+    for(unsigned i=0;i<hudValues.size();++i)hudValues[i]={10+20*i,200+10*i,100+10*i};
+    vertices.clear();textPositions.clear();draw_hud(nullptr,nullptr,nullptr,nullptr);
+    const auto near=[](float a,float b){assert(std::abs(a-b)<.001f);};
+    const auto checkText=[&](HudPart part,const char* prefix,float size,float offset=0.f,float xOffset=0.f){
+        const auto p=hud_position(part,304);
+        auto found=std::find_if(textPositions.rbegin(),textPositions.rend(),[&](const auto& t){return t.text.starts_with(prefix);});
+        assert(found!=textPositions.rend());near(found->x,p.x+xOffset*p.scale);near(found->y,p.y+offset*p.scale);near(found->size,size*p.scale);
+    };
+    checkText(HudPart::Timer,"00:00",18);checkText(HudPart::Rank,"1",18,0,10.5f);
+    checkText(HudPart::Level,"Level",14);checkText(HudPart::Score,"Score",14);checkText(HudPart::ExpText,"XP",14);
+    checkText(HudPart::Info,"Next chest:",14,54);checkText(HudPart::BossName,"Darknut",20);
+    const auto xpPos=hud_position(HudPart::ExpBar,304);
+    assert(vertices.size()==8);near(vertices[0][0],xpPos.x-160*xpPos.scale);near(vertices[0][1],xpPos.y);
+    near(vertices[2][0],xpPos.x+160*xpPos.scale);near(vertices[2][1],xpPos.y+6*xpPos.scale);
+    hudValues=hud_defaults;
     std::cout<<"Survivors HUD: native font/box vertex packets, messages and render gates passed\n";
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(prefix + stubs + '\nbool survivors_hub_active(){return false;} void draw_hub_labels(){} void draw_chest_prices(){} void draw_combat_feedback(){}\n' + native + '\n' + function(source, 'void label(') + '\n' +
+    cpp.write_text(prefix + stubs + '\nbool hub=false;unsigned hubLabels=0,prices=0,feedback=0;bool survivors_hub_active(){return hub;} void draw_hub_labels(){++hubLabels;} void draw_chest_prices(){++prices;} void draw_combat_feedback(){++feedback;}\n' + native + '\n' + function(source, 'void label(') + '\n' +
                    (root/'src/survivors_boss_hud.inc').read_text() + '\n' + function(source, 'void draw_hud(') + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)

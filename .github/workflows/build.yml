@@ -371,6 +371,8 @@ jobs:
       - name: Test Survivors HUD native vertex layout
         if: matrix.platform == 'linux-x86_64'
         run: |
+          python3 tests/survivors_hud_editor_test.py
+          CXX=clang++ python3 tests/survivors_hud_editor_test.py
           python3 tests/survivors_hud_test.py dusklight
           CXX=clang++ python3 tests/survivors_hud_test.py dusklight
           python3 tests/combat_meter_test.py

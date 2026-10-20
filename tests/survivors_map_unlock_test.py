@@ -22,6 +22,7 @@ bool s_restart=false,s_progressSaving=false,s_hubDeparture=false,s_arenaMeshRead
 bool s_storeFailed=false,s_progressSaved=true,s_hubSaveRequested=false,failSave=false;
 bool s_active=true,s_gameStarted=true,s_saveReady=true,s_loaded=true,s_hub=true;
 unsigned s_map=0;unsigned s_requestedMap=0;UiWindowHandle s_window=1,s_refreshChoices=0;
+void open_hud_editor(ModContext*,void*){}
 ModContext* mod_ctx=nullptr;constexpr const char* kBlob="test";
 std::vector<UiControlDesc> controls;
 std::vector<std::string> classes;

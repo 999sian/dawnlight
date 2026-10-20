@@ -23,7 +23,8 @@ fixture=r'''
 #define svc_ui test_ui
 #define svc_hook test_hook
 #define svc_log test_log
-void close_score_windows(){} void close_debug_notice(){}
+void close_score_windows(){} void close_hud_editor(){}
+void close_debug_notice(){}
 using namespace dawnlight::survivors;
 using dusk::ui::NavCommand;
 ModContext* mod_ctx=nullptr;

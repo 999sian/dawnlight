@@ -1471,3 +1471,31 @@ red-potion drinking. Level-up and passive upgrade/talent regeneration direct lif
 writes remain intact, including regeneration reward eligibility and intervals.
 Hide unusable Life Steal reward offers; keep existing ranks for run history.
 Normal runs and other modes retain their healing rules.
+
+
+### HUD visibility, independent layout and native boss caps
+
+Gate the entire Survivors HUD submission on native WindowStatus/PauseStatus,
+as well as save-modal and transition state; native Collection is not a UI-service
+document. This gate precedes hub labels, chest prices, combat feedback, victory
+and normal run HUD drawing.
+
+Register 27 presentation-only ConfigService integers under survivors-hud-*:
+X/Y/scale for Timer, Rank, EXP bar, Info, Level, Score, EXP text, Boss name and
+Boss bar. Defaults retain the previous anchors; Level/Score/XP become independent
+labels. Read persisted values with bounded X/Y and 10–400% scale, including after
+settings import. These preferences never enter RunOptions or high-score records.
+
+The HUD-Editor uses a stacked public UiService window and document-local
+transparent RCSS. Its element selector and three steppers stay in the navigation
+pane; the help pane remains replaceable. Render a nonmutating sample boss/rank
+and EXP fill while editing, even in the hub. Native Collection and save guards
+still take priority. Closing/resetting the owning Survivors UI closes the editor;
+its destruction callback checks handle identity before clearing state. Back
+restores the underlying settings through the host's normal stack behavior.
+
+For placed boss meters, scale the parent uniformly by height. Extend only the
+base and fill and translate the right cap to reach the requested width, retaining
+native cap dimensions and aspect ratio. Restore all pane positions, sizes,
+scales, alpha, visibility and fill colors after drawing; other combat meters keep
+their existing placement and rendering path.

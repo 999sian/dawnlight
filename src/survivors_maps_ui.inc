@@ -267,6 +267,11 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
     result=build_reset_scores(left);
     if(result!=MOD_OK)return result;
     control=UI_CONTROL_DESC_INIT;
+    control.label="HUD-Editor";control.on_pressed=open_hud_editor;
+    control.help_rml="Move and resize Survivors HUD elements with a transparent live preview.";
+    result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
+    if(result!=MOD_OK)return result;
+    control=UI_CONTROL_DESC_INIT;
     control.kind=UI_CONTROL_GROUP;control.label="Manual aiming abilities";
     control.help_rml="Choose which abilities follow the reticle during manual aiming. Disabled abilities keep their automatic targeting.";
     control.on_pressed=open_manual_aim_settings;

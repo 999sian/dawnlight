@@ -94,11 +94,16 @@ ScreenBounds drawn;
 void J2DScreen::draw(float,float,J2DGrafContext* g){
     ++screenDraws;assert(g==&graf);
     drawn=combat_meter_bounds(current);
+    for(auto* cap:{current->mpMagicFrameL,current->mpMagicFrameR}) {
+        const auto b=pane_screen_bounds(cap);
+        assert(std::abs((b.right-b.left)/(b.bottom-b.top)-12.f/20.f)<.001f);
+        assert(cap->width==12.f && cap->height==20.f);
+    }
     for(auto* p:{current->mpMagicParent,current->mpMagicBase,current->mpMagicFrameL,
         current->mpMagicMeter,current->mpMagicFrameR})assert(p->pane.visible&&p->alpha==1);
     assert(current->mpMagicMeter->pane.black==JUtility::TColor(255,100,100,255));
     assert(current->mpMagicMeter->pane.white==JUtility::TColor(210,0,0,255));
-    assert(std::abs(current->mpMagicMeter->width-current->mpMagicMeter->initWidth*expectedRatio)<.001f);
+    assert(std::abs(current->mpMagicMeter->width-current->mpMagicBase->width*expectedRatio)<.001f);
 }
 '''
 fixture += '\nnamespace dawnlight {\n' + '\n'.join(function(s) for s in [
@@ -126,15 +131,15 @@ int main(){
             assert(panes[i].pane.black==JUtility::TColor(13)&&panes[i].pane.white==JUtility::TColor(27));
         }
     };
-    for(float health:{-10.f,0.f,1.f,25.f,100.f,150.f}){
+    for(float size:{.5f,1.f,2.f})for(float width:{320.f,500.f})for(float health:{-10.f,0.f,1.f,25.f,100.f,150.f}){
         expectedRatio=std::clamp(health,0.f,100.f)/100;
         const unsigned resets=graf.resets;
-        assert(draw_boss_health_meter(&meter,health,144,120,320,24));
+        assert(draw_boss_health_meter(&meter,health,144,120,width*size,24*size));
         assert(std::abs(drawn.left-144)<.001f&&std::abs(drawn.top-120)<.001f);
-        assert(std::abs(drawn.right-464)<.001f&&std::abs(drawn.bottom-144)<.001f);
+        assert(std::abs(drawn.right-(144+width*size))<.001f&&std::abs(drawn.bottom-(120+24*size))<.001f);
         assert(graf.resets==resets+2&&!fadeDraws&&!heartPlacements);verifyRestored();
     }
-    assert(screenDraws==6);
+    assert(screenDraws==36);
     assert(!draw_boss_health_meter(nullptr,50,0,0,320,24));
     assert(!draw_boss_health_meter(&meter,50,0,0,0,24));
     hasGraf=false;assert(!draw_boss_health_meter(&meter,50,0,0,320,24));verifyRestored();hasGraf=true;
@@ -143,7 +148,7 @@ int main(){
     for(auto style:{CombatMeterStyle::Stamina,CombatMeterStyle::StaminaExhausted,CombatMeterStyle::FierceDeity}){
         draw_combat_meter(&meter,50,style,1);verifyRestored();
     }
-    assert(fadeDraws==3&&heartPlacements==3&&screenDraws==6);
+    assert(fadeDraws==3&&heartPlacements==3&&screenDraws==36);
     std::cout<<"Combat meters: boss placement, red fill, clamps, GX reset, pane restoration and existing paths passed\n";
 }
 '''

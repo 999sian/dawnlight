@@ -657,3 +657,21 @@ healing pickups retire. Life Steal stops healing and no longer appears as a new
 reward. Passive Life Regen (including talents and upgrade rewards), level-up full
 healing and owned Red Potion bottles remain available. Potion Healing ranks
 still apply, and difficulty/Endless HP, damage and movement scaling continue.
+
+
+### Survivors HUD editor
+
+Open **Settings → HUD-Editor** from either Survivors menu or Dawnlight's
+Survivors tab. The transparent window previews the HUD while you adjust each
+of these nine elements independently: Timer, Twilit Rank, EXP-Bar, Info-Texts,
+Level-Text, Score text, EXP-text, Boss-Name and Boss-Bar. Choose an element,
+then change X Position, Y Position and Scale; Reset selected element restores
+its defaults. X is relative to the screen center, Y to the top, in native HUD
+units. Info-Texts share a position and continue to leave space for a visible boss.
+The preview always includes a sample boss and a nonzero rank.
+
+Changes apply immediately, persist automatically, and participate in Dawnlight's
+global settings export/import. They do not affect difficulty, scores or run
+integrity. Boss bar ends retain their proportions: only the center is extended.
+All Survivors overlays, including chest prices, Crit/Block/Dodge and hub labels,
+are hidden during native Collection, map/ring menus and pause transitions.

@@ -12,6 +12,7 @@
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
 #include "survivors_rules.hpp"
+#include "survivors_hud_layout.hpp"
 #include "survivors_multistrike.hpp"
 #include "survivors_enemy_hits.hpp"
 #include "d/d_msg_scrn_explain.h"
@@ -265,6 +266,7 @@ bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 unsigned s_saveStartTicks = 0;
 Run s_run;
 RunOptions s_options;
+#include "survivors_hud_config.inc"
 UiDialogHandle s_debugNotice=0;
 void close_debug_notice() {
     const auto handle=s_debugNotice;s_debugNotice=0;
@@ -505,6 +507,7 @@ void clear_attacks() {
     for (auto& a : s_attacks) stop_attack(a);
 }
 void close_window() {
+    close_hud_editor();
     close_debug_notice();
     close_score_windows();
     s_menuDocument = s_talentDocument = nullptr;
@@ -1351,58 +1354,68 @@ void after_draw(ModContext*, void*, void*, void*) {
     draw_arena_barriers();
 
 }
-void label(const char* text, float x, float y, float size) {
+void label(const char* text, float x, float y, float size, float width=550) {
     auto* font = mDoExt_getMesgFont(); if (!font) return;
     J2DPrint shadow(font, JUtility::TColor(0,0,0,230), JUtility::TColor(0,0,0,230));
     shadow.setFontSize(size, size);
-    shadow.printReturn(text, 550, size + 8, HBIND_CENTER, VBIND_TOP, x - 274, y + 1, 255);
+    shadow.printReturn(text, width, size + 8, HBIND_CENTER, VBIND_TOP, x - width*.5f + 1, y + 1, 255);
     J2DPrint print(font, JUtility::TColor(180,245,255,255), JUtility::TColor(255,240,195,255));
     print.setFontSize(size, size);
-    print.printReturn(text, 550, size + 8, HBIND_CENTER, VBIND_TOP, x - 275, y, 255);
+    print.printReturn(text, width, size + 8, HBIND_CENTER, VBIND_TOP, x - width*.5f, y, 255);
 }
 #include "survivors_prices.inc"
 #include "survivors_feedback_draw.inc"
 #include "survivors_boss_hud.inc"
 void draw_hud(ModContext*, void* args, void*, void*) {
-    if(save_modal_active())return;
-    if(survivors_hub_active()) {draw_hub_labels();return;}
-    if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
+    // Native Collection, ring/map submenus and their opening/closing transitions
+    // are not UI-service documents. Suppress every Survivors overlay together.
+    if(save_modal_active() || dMeter2Info_getWindowStatus()!=0 || dMeter2Info_getPauseStatus()!=0) return;
+    const bool preview=s_hudEditorWindow!=0;
+    if(transitioning() || (!preview && (dComIfGp_isPauseFlag() || dScnPly_c::isPause())))return;
+    if(!preview && survivors_hub_active()) {draw_hub_labels();return;}
+    if (!preview && (!in_arena() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready)) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
     graf->setup2D();
-    if (s_deathPending || s_run.phase==Phase::Defeat) return;
-    draw_chest_prices();
-    draw_combat_feedback();
+    if (!preview && (s_deathPending || s_run.phase==Phase::Defeat)) return;
+    if(!preview) {draw_chest_prices();draw_combat_feedback();}
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
-    if (s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
+    if (!preview && s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
     char text[180];
-    draw_run_rank_hud(x);
-    std::snprintf(text, sizeof(text), "Level %u   Score %u   XP %u / %u", s_run.level, s_run.score(), s_run.xp, s_run.required_xp());
-    label(text, x, 62, 14);
-    // J2DPrint enables direct TEX0 attributes. fillBox emits only position and
-    // color, so reset the vertex layout before its quads or the GX FIFO reads
-    // subsequent command bytes as missing texture coordinates.
+    draw_run_rank_hud(x,preview);
+    const auto drawText=[&](HudPart part,float size,float offset=0.f) {
+        const auto p=hud_position(part,x);
+        label(text,p.x,p.y+offset*p.scale,size*p.scale,550*p.scale);
+    };
+    std::snprintf(text,sizeof(text),"Level %u",s_run.level);drawText(HudPart::Level,14);
+    std::snprintf(text,sizeof(text),"Score %u",s_run.score());drawText(HudPart::Score,14);
+    std::snprintf(text,sizeof(text),"XP %u / %u",s_run.xp,s_run.required_xp());drawText(HudPart::ExpText,14);
+    // Text enables direct TEX0; reset GX before submitting untextured quads.
     graf->setup2D();
-    const float fraction = std::min(1.0f, float(s_run.xp) / float(s_run.required_xp()));
+    const float fraction = preview ? .6f : std::min(1.0f, float(s_run.xp) / float(s_run.required_xp()));
+    const auto xp=hud_position(HudPart::ExpBar,x);
     const auto oldTL = graf->mColorTL, oldTR = graf->mColorTR;
     const auto oldBR = graf->mColorBR, oldBL = graf->mColorBL;
     graf->setColor(JUtility::TColor(12, 25, 32, 210));
-    graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x + 160, 88));
+    graf->fillBox(JGeometry::TBox2<f32>(xp.x-160*xp.scale,xp.y,xp.x+160*xp.scale,xp.y+6*xp.scale));
     graf->setColor(JUtility::TColor(80, 220, 245, 240));
-    graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x - 160 + 320 * fraction, 88));
+    graf->fillBox(JGeometry::TBox2<f32>(xp.x-160*xp.scale,xp.y,xp.x+(-160+320*fraction)*xp.scale,xp.y+6*xp.scale));
     graf->setColor(oldTL, oldTR, oldBR, oldBL);
-    const float bossOffset = draw_boss_hud(mods::arg<dMeter2Draw_c*>(args, 0), x) ? 54.0f : 0.0f;
-    if (!s_chestsExhausted && s_run.chest_rewards_left(potion_slot() >= 0))
+    const float bossOffset = draw_boss_hud(mods::arg<dMeter2Draw_c*>(args, 0), x, preview) ? 54.0f : 0.0f;
+    if (preview || (!s_chestsExhausted && s_run.chest_rewards_left(potion_slot() >= 0)))
         std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
     else std::snprintf(text, sizeof(text), "No chest rewards available");
-    label(text, x, 96 + bossOffset, 14);
+    drawText(HudPart::Info,14,bossOffset);
     if (s_run.horde_remaining) {
         std::snprintf(text,sizeof(text),"HORDE!  3x enemy spawns  %us",(s_run.horde_remaining+29)/30);
-        label(text,x,118 + bossOffset,17);
+        drawText(HudPart::Info,17,22+bossOffset);
     }
-    if (s_spawnFailures >= 10)
-        label("Waiting for a clear enemy spawn position", x, (s_run.horde_remaining ? 140 : 118) + bossOffset, 13);
+    if (s_spawnFailures >= 10) {
+        std::snprintf(text,sizeof(text),"Waiting for a clear enemy spawn position");
+        drawText(HudPart::Info,13,(s_run.horde_remaining?44:22)+bossOffset);
+    }
     graf->setup2D();
 }
+
 void select_upgrade(ModContext*, void* data) {
     const unsigned choice = *static_cast<unsigned*>(data);
     if (s_run.phase != Phase::Upgrade || choice >= 3) return;
@@ -1487,6 +1500,7 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_talents.inc"
 #include "survivors_results.inc"
 #include "survivors_scores_ui.inc"
+#include "survivors_hud_editor.inc"
 #include "survivors_maps_ui.inc"
 #include "survivors_debug_ui.inc"
 #include "survivors_settings_config.inc"
@@ -1644,6 +1658,8 @@ ModResult initialize_survivors(ModError* error) {
     if(result!=MOD_OK)return result;
     result=initialize_option_config();
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Hyrule Survivors settings");
+    result=initialize_hud_config();
+    if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Survivors HUD settings");
     result=initialize_midna_dialog();
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Hyrule Survivors Midna dialog");
     initialize_menu_handoff();
