@@ -35,7 +35,10 @@ void update_knockback(Enemy& enemy, fopAc_ac_c* actor) {
     cXyz destination=floor+effect.knockStep;
     if (!walkable_spawn_path(floor,destination,20)) { effect.knockFrames=0;return; }
     cXyz next=actor->current.pos+effect.knockStep;
-    if (std::abs(actor->current.pos.y-floor.y)<=60) next.y=destination.y;
+    // Follow a safe slope without snapping a low-flying or leaping actor down
+    // to the floor. Keep its current height above the floor and native velocity;
+    // knockback must not end a leap or alter the attack/animation clock.
+    if (std::abs(actor->current.pos.y-floor.y)<=60) next.y+=destination.y-floor.y;
     const cXyz delta=next-actor->current.pos;
     actor->current.pos=next;
     actor->old.pos+=delta;

@@ -179,7 +179,7 @@ until the native maximum of 20 hearts. Weapons, Fire Arrows, Shield Attack and
 ordinary passives have up to 30 levels; Luck retains its 20-rank cap and the new power-ups use the caps above. Rupees remain available after the
 other upgrades reach their caps. Native enemy defense and death reactions still apply. Ordinary nonlethal hits
 keep their hit effects and damage but do not interrupt enemy movement or attacks.
-Shield Attack and Ball and Chain use a bounded horizontal push instead of native launches. Its base never grows with weapon ranks, damage or Reach; only Knockback adds distance. Six short steps, a twelve-tick repeat delay, non-additive simultaneous hits and terrain checks limit movement. Living knocked-down
+Shield Attack and Ball and Chain use a bounded horizontal push instead of native launches. Its base never grows with weapon ranks, damage or Reach; only Knockback adds distance. Six short steps, a twelve-tick repeat delay, non-additive simultaneous hits and terrain checks limit movement. Knockback itself changes position only: native velocity and action/animation clocks continue. Preserve height above the floor during low jumps or flight, including when following a safe slope. Suppress the native Bokoblin finishing-blow knockdown and restore attention flags at one remaining HP; only actual lethal damage keeps the death reaction. Living knocked-down
 Bokoblins keep their target spheres enabled before collision registration, so
 normal attacks and abilities can still hit during knockback, prone and get-up
 animations. Rats keep their real hit cooldown instead of resetting it each frame

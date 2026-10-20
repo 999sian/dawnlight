@@ -137,7 +137,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::CritDamage: return crit_multiplier(run) + " critical damage";
     case Upgrade::PotionHealing: return potion_healing(run) + " per red potion";
     case Upgrade::Luck: return "+" + number(5*rank) + "% rarity weight; " + crit_chance(run) + " crit; +" + number(std::min(50u,10*rank)) + "% drops";
-    case Upgrade::Knockback: return decimal(run.knockback_distance(false,false)) + " push distance; heavy " + decimal(run.knockback_distance(true,false)) + "; elites 50%";
+    case Upgrade::Knockback: return decimal(run.knockback_distance(false,false)) + " push distance; heavy " + decimal(run.knockback_distance(true,false)) + "; no interruption; bosses/elites immune";
     case Upgrade::Piercing: return number(run.arrow_targets()) + " targets per arrow";
     case Upgrade::Multishot: return "+" + number(run.extra_projectiles()) + " projectiles per ranged cast";
     case Upgrade::LifeRegen: return "0.25 hearts every " + seconds(run.life_regen_interval());

@@ -446,7 +446,7 @@ the menu shows the effective chance including current Luck.
 
 | Power-up | Cap | Rarity / effect |
 | --- | ---: | --- |
-| Knockback | 10 | Any rarity. +4 units of horizontal push per rank on direct attacks. Ball and Shield Attack have a fixed 24-unit base independent of their weapon ranks, Power and Reach. |
+| Knockback | 10 | Any rarity. +40 units of horizontal push per rank on direct attacks, without interrupting enemy actions. Ball and Shield Attack have a fixed 240-unit base independent of their weapon ranks, Power and Reach. |
 | Piercing | 10 | Requires Bow. Each rank lets every arrow damage one additional distinct enemy (up to 11 total). Includes every Multishot arrow. |
 | Multishot | 3 | Epic grants 1 rank; Legendary grants 2. Each rank adds one projectile/chain to Bow, Boomerang, Bombs, Ball and Chain, Sword Wave and Lightning Strike. |
 | Multi Strike | 3 | Requires Dual Wield. Epic grants 1 rank; Legendary grants 2. Each rank adds one sequential activation of Sword Attack (including its splash), Spin Attack, Sword Wave and Lightning Strike. |
@@ -456,9 +456,11 @@ the menu shows the effective chance including current Luck.
 
 Knockback runs over six simulation ticks, with twelve ticks between pushes.
 Simultaneous hits take the strongest push instead of adding them. Elites and
-bosses receive half distance; the maximum heavy push is 64 units (32 for elites).
+bosses are immune; the maximum heavy push is 640 units.
 Walls, arena barriers and unsafe ledges stop displacement. Native heavy launches
-on living ordinary enemies are suppressed in favor of this bounded movement.
+on living ordinary enemies are suppressed in favor of this bounded movement,
+including Bokoblins with one HP remaining. Attacks, animation timers and native
+velocity continue; pushes preserve airborne height instead of snapping to the floor.
 Burn ticks do not apply a second push. Damage still has no shared iFrame gate.
 
 Multishot chooses different visible targets in range for Boomerang, Bombs and
