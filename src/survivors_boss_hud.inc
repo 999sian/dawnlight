@@ -11,17 +11,16 @@ void draw_run_rank_hud(float x) {
     J2DPrint clock(font,JUtility::TColor(255,240,210,255),JUtility::TColor(230,190,150,255));
     clock.setFontSize(18,18);clock.printReturn(text,230,26,HBIND_CENTER,VBIND_TOP,x-150,40,255);
     if(!s_run.twilit_rank())return;
-    // A small skull silhouette avoids relying on a missing Unicode glyph in RubyFont.
+    // Reuse the native map boss texture. Do not retain archive-backed pointers:
+    // opening/closing the dungeon map can clear its resource cache.
     graf->setup2D();
-    const auto tl=graf->mColorTL,tr=graf->mColorTR,bl=graf->mColorBL,br=graf->mColorBR;
-    graf->setColor(JUtility::TColor(255,240,210,255));
-    graf->fillBox(JGeometry::TBox2<f32>(x+90,42,x+104,52));
-    graf->fillBox(JGeometry::TBox2<f32>(x+93,52,x+101,57));
-    graf->setColor(JUtility::TColor(12,25,32,255));
-    graf->fillBox(JGeometry::TBox2<f32>(x+92,46,x+96,50));
-    graf->fillBox(JGeometry::TBox2<f32>(x+98,46,x+102,50));
-    graf->fillBox(JGeometry::TBox2<f32>(x+96,52,x+98,55));
-    graf->setColor(tl,tr,br,bl);
+    if(auto* archive=dComIfGp_getDmapResArchive()) {
+        if(auto* texture=static_cast<ResTIMG*>(JKRGetNameResource("tt_map_icon_boss_ci8_32_00.bti",archive))) {
+            J2DPicture skull(texture);
+            skull.draw(x+88,40,20,20,false,false,false);
+        }
+    }
+    graf->setup2D();
     std::snprintf(text,sizeof(text),"%u",s_run.twilit_rank());
     J2DPrint rank(font,JUtility::TColor(255,240,210,255),JUtility::TColor(230,190,150,255));
     rank.setFontSize(18,18);rank.printReturn(text,45,26,HBIND_CENTER,VBIND_TOP,x+108,40,255);

@@ -113,16 +113,16 @@ inline constexpr std::array descriptions{
     "Arrows pass through one additional enemy per level, damaging every target. Applies to every arrow, including Multishot; maximum level 10.",
     "Add one projectile/chain per level to Bow, Boomerang, Bombs, Ball and Chain, Sword Wave and Lightning Strike. Epic grants 1 level; Legendary grants 2; maximum level 3.",
     "Reduce passive regeneration interval by 1 second per level; maximum level 5. Rare or better. Stacks with the Life Regen talent.",
-    "Restore a quarter heart on kills by Sword Attack, Dual Wield splash, Spin, Sword Wave, Jump Strike or Lightning Strike. Includes repeated/projectile hits; excludes burns. Legendary only; one level.",
+    "Sword kills restore health. Damage over time does not trigger healing.",
     "Double Boomerang size, wind effects and hit radius. It damages every enemy along its flight path.",
     "Bomb explosions ignite every hit enemy for 10% of bomb damage each second for 5 seconds.",
     "Bomb arrows explode once on their first enemy hit for 50% bow damage. Level-5 bomb radius scales with Reach; Piercing still works.",
     "All melee hits ignite enemies for 10% normal melee damage each second for 5 seconds, including Spin, Dual Wield and Jump Strike.",
     "While Dark Link is active, ignite nearby enemies with black flames. Each second deals 10% of target maximum HP; lingers 5 seconds outside the aura.",
     "Shield Attack launches a piercing shockwave for current melee damage. Level-5 Ball and Chain width scales with Reach.",
-    "Melee hits have a 20% chance to trigger chain lightning, increased by Luck up to 60%. Boomerang damage/cooldown scaling, double hops and five times hop speed. Master Sword adds 1 damage per two sword levels. Reach has double effect.",
+    "Melee hits can release chain lightning that jumps between enemies. Luck increases its trigger chance.",
     "Unlock or upgrade the Master Sword. Increases sword ability damage and Lightning Strike damage; Light Sword from level 5.",
-    "Repeat Sword Attack (including Dual Wield splash), Spin Attack, Sword Wave and Lightning Strike once more per level. Requires Dual Wield. Epic grants 1 level; Legendary grants 2; maximum level 3.",
+    "Repeat Sword Attack, Spin Attack, Sword Wave and Lightning Strike. Requires Dual Wield.",
     "Receive 20 rupees."};
 
 // A burn refresh extends its duration without delaying the next tick or stacking.

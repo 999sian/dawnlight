@@ -125,8 +125,8 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::JumpStrike: return rank ? number(run.jump_splash_percent()) + "% melee splash (" + number(run.jump_splash_power()) + " damage); 20% trigger; " + seconds(run.jump_cooldown()) + " cooldown" : "off";
     case Upgrade::DualWield: return number(run.melee_targets()) + " targets; +" + number(run.melee_speed_percent()-100) + "% melee speed; +" + decimal(run.melee_crit_bonus()/100.f) + "% melee crit";
     case Upgrade::MasterSword: return "Level " + number(run.master_sword) + "; sword damage +" + number(run.sword_bonus()) + "; lightning +" + number(run.master_sword/2);
-    case Upgrade::MultiStrike: return "+" + number(run.multi_strikes()) + " sequential activations per melee/spin/wave/lightning cast";
-    case Upgrade::Lightning: return rank ? number(run.lightning_power()) + " damage; " + seconds(run.item_cooldown(upgrade)) + " cooldown; " + number(run.lightning_hops()) + " hops; range " + decimal(run.lightning_hop_range()) + "; 20% on melee hit; " + number(run.ranged_shots()) + " chains" : "off";
+    case Upgrade::MultiStrike: return "+" + number(run.multi_strikes()) + " extra attacks per activation";
+    case Upgrade::Lightning: return rank ? number(run.lightning_power()) + " damage; " + seconds(run.item_cooldown(upgrade)) + " cooldown; " + number(run.lightning_hops()) + " hops; range " + decimal(run.lightning_hop_range()) + "; " + number(run.lightning_proc_chance()) + "% on melee hit; " + number(run.ranged_shots()) + " chains" : "off";
     case Upgrade::Power: return "+" + number(rank) + " damage";
     case Upgrade::Haste: return "-" + number(100 - run.cooldown_percent()) + "% cooldown";
     case Upgrade::Reach: { char value[160];std::snprintf(value,sizeof(value),"+%.1f%% melee/jump/lightning range; +%.1f%% other range; x%.2f Spin radius; x%.2f Bomb/Shield radius",15.f*rank,7.5f*rank,run.melee_area_radius(1.f),std::sqrt(run.radius(1.f)));return value; }
@@ -141,7 +141,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::Piercing: return number(run.arrow_targets()) + " targets per arrow";
     case Upgrade::Multishot: return "+" + number(run.extra_projectiles()) + " projectiles per ranged cast";
     case Upgrade::LifeRegen: return "0.25 hearts every " + seconds(run.life_regen_interval());
-    case Upgrade::LifeSteal: return rank ? "0.25 hearts per sword-family kill (no burns)" : "off";
+    case Upgrade::LifeSteal: return rank ? "0.25 hearts per sword kill" : "off";
     case Upgrade::Hurricane: return rank ? "x2 Boomerang and wind size; piercing flight" : "off";
     case Upgrade::FireBomb: return rank ? "10% bomb damage/s for 5 seconds" : "off";
     case Upgrade::BombArrow: return rank ? "50% bow explosion; radius " + decimal(run.bomb_arrow_radius()) : "off";
@@ -158,6 +158,16 @@ inline std::string upgrade_description(Upgrade upgrade, const Run& run) {
     if (upgrade == Upgrade::DualWield) return item_description(ChestReward::OrdonSword,run);
     if (upgrade >= Upgrade::Bow && upgrade <= Upgrade::Ball)
         return item_description(ChestReward(unsigned(upgrade) - unsigned(Upgrade::Bow)), run);
+    if(upgrade==Upgrade::Lightning) {
+        if(!run.rank(upgrade))return std::string(descriptions[unsigned(upgrade)])+"\nLocked";
+        return std::string(descriptions[unsigned(upgrade)])+
+            "\nDamage " + number(run.lightning_power()) + " | Interval " + seconds(run.item_cooldown(upgrade))+
+            "\nChance " + number(run.lightning_proc_chance()) + "% | Extra targets " + number(run.lightning_hops())+
+            "\nJump range " + decimal(run.lightning_hop_range()) + " | Chains " + number(run.ranged_shots());
+    }
+    if(upgrade==Upgrade::LifeSteal)return std::string(descriptions[unsigned(upgrade)])+
+        "\nHealing: " + upgrade_value(upgrade,run)+
+        "\nApplies to Sword Attack, Dual Wield splash, Spin Attack, Sword Wave, Jump Strike and Lightning Strike.";
     std::string text = descriptions[unsigned(upgrade)];
     if (upgrade == Upgrade::Wave || upgrade == Upgrade::Spin || upgrade == Upgrade::ShieldAttack) {
         text += "\nDamage " + number(run.attack_power(unsigned(upgrade)));
@@ -188,6 +198,20 @@ inline std::vector<ItemChange> upgrade_changes(Upgrade upgrade, const Run& befor
             changes.push_back({"Radius", before.rank(upgrade) ? number(unsigned(before.shield_radius())) : "off",
                                number(unsigned(after.shield_radius()))});
         }
+    } else if(upgrade==Upgrade::Lightning) {
+        const auto add=[&](const char* label,const std::string& a,const std::string& b){
+            if(!before.rank(upgrade) || a!=b)changes.push_back({label,before.rank(upgrade)?a:"off",b});
+        };
+        add("Damage",number(before.lightning_power()),number(after.lightning_power()));
+        add("Interval",seconds(before.item_cooldown(upgrade)),seconds(after.item_cooldown(upgrade)));
+        add("Extra targets",number(before.lightning_hops()),number(after.lightning_hops()));
+        add("Jump range",decimal(before.lightning_hop_range()),decimal(after.lightning_hop_range()));
+        add("Trigger chance",number(before.lightning_proc_chance())+"%",number(after.lightning_proc_chance())+"%");
+        add("Chains",number(before.ranged_shots()),number(after.ranged_shots()));
+    } else if(upgrade==Upgrade::LifeSteal) {
+        changes.push_back({"Healing per sword kill",before.rank(upgrade)?"0.25 hearts":"off","0.25 hearts"});
+    } else if(upgrade==Upgrade::MultiStrike) {
+        changes.push_back({"Extra attacks",number(before.multi_strikes()),number(after.multi_strikes())});
     } else changes.push_back({"Effect", upgrade_value(upgrade, before), upgrade_value(upgrade, after)});
     return changes;
 }

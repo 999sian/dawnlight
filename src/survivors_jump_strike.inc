@@ -16,9 +16,10 @@ void clear_jump_effects() {
 }
 bool try_jump_strike(daAlink_c* link) {
     if (s_meleeCooldown || s_cooldowns[unsigned(Upgrade::JumpStrike)]) return false;
-    auto* target = melee_target(link);
+    cXyz targetPoint;
+    auto* target = melee_target(link, &targetPoint);
     if (!target || !tracked(fopAcM_GetID(target)) || !s_run.roll_jump_strike()) return false;
-    const cXyz facing=manual_skill(link,Upgrade::JumpStrike)?manual_direction(link):target->current.pos-link->current.pos;
+    const cXyz facing=manual_skill(link,Upgrade::JumpStrike)?manual_direction(link):targetPoint-link->current.pos;
     link->shape_angle.y=cM_atan2s(facing.x,facing.z);
     // The nearby target only permits the skill; it never supplies movement.
     link->current.angle.y = link->mMoveAngle;

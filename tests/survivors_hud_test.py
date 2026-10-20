@@ -94,6 +94,20 @@ struct J2DGrafContext {
         mColorTL=a;mColorTR=b;mColorBR=c;mColorBL=d;
     }
 } context;
+unsigned skulls=0,skullLookups=0;bool hasMapArchive=true,hasSkullTexture=true;
+struct ResTIMG{} skullTexture;
+struct MapArchive{} mapArchive;
+MapArchive* dComIfGp_getDmapResArchive(){return hasMapArchive?&mapArchive:nullptr;}
+void* JKRGetNameResource(const char* name,MapArchive* archive){
+ assert(archive==&mapArchive&&std::string(name)=="tt_map_icon_boss_ci8_32_00.bti");
+ ++skullLookups;return hasSkullTexture?&skullTexture:nullptr;
+}
+struct J2DPicture {
+ explicit J2DPicture(ResTIMG* image){assert(image==&skullTexture);}
+ void draw(float x,float y,float w,float h,bool a,bool b,bool c){
+  assert(x==392&&y==40&&w==20&&h==20&&!a&&!b&&!c);++skulls;textureCoordinates=true;
+ }
+};
 struct JUTResFont {void setGX();} font,ruby;
 unsigned rubyLabels=0;std::vector<std::string> printed;unsigned textColor=0;
 bool hasFont=true, arena=true, transition=false, window=false, hasGraf=true;
@@ -149,10 +163,13 @@ int main(){
 
     // Baseline displays only the clock; the first difficulty step adds skull/rank.
     s_run.start(42);hasFont=true;printed.clear();rubyLabels=boxes=0;
-    draw_run_rank_hud(304);assert(rubyLabels==1&&boxes==0);
+    draw_run_rank_hud(304);assert(rubyLabels==1&&boxes==0&&skulls==0&&skullLookups==0);
     assert(printed[0].find("00:00")!=std::string::npos);
     s_run.options.enemy_hp=2;printed.clear();rubyLabels=boxes=0;
-    draw_run_rank_hud(304);assert(rubyLabels==2&&boxes==5&&printed[1]=="1");
+    draw_run_rank_hud(304);assert(rubyLabels==2&&boxes==0&&skulls==1&&printed[1]=="1");
+    hasMapArchive=false;draw_run_rank_hud(304);assert(skulls==1&&skullLookups==1);hasMapArchive=true;
+    hasSkullTexture=false;draw_run_rank_hud(304);assert(skulls==1&&skullLookups==2);hasSkullTexture=true;
+    draw_run_rank_hud(304);assert(skulls==2&&skullLookups==3);
     s_run.start(42);s_run.options.enemy_hp=10;s_run.options.enemy_damage=10;
     s_run.options.enemy_speed=3;s_run.options.horde=5;s_run.phase=Phase::Victory;s_run.continue_endless();
     printed.clear();rubyLabels=0;hasFont=true;draw_hud(nullptr,nullptr,nullptr,nullptr);

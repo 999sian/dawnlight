@@ -101,6 +101,7 @@
 #include "res/Object/E_fm.h"
 #include "d/d_item.h"
 #include "d/d_meter2_draw.h"
+#include "JSystem/J2DGraph/J2DPicture.h"
 #include "d/d_meter2_info.h"
 #include "d/d_s_play.h"
 #include "f_op/f_op_actor_mng.h"
@@ -1002,9 +1003,10 @@ void update_sword(daAlink_c* link) {
     // Other abilities run independently; this scheduler owns only the native
     // normal combo and its occasional Jump Strike movement.
     if (!s_multiStrike.count(StrikeSeries::Sword) && try_jump_strike(link)) return;
-    auto* target = melee_target(link);
+    cXyz targetPoint;
+    auto* target = melee_target(link, &targetPoint);
     if (!target && !manual_sword(link)) return;
-    const auto direction = manual_sword(link) ? manual_direction(link) : target->current.pos - link->current.pos;
+    const auto direction = manual_sword(link) ? manual_direction(link) : targetPoint - link->current.pos;
     link->shape_angle.y = cM_atan2s(direction.x, direction.z);
     link->current.angle.y = link->shape_angle.y;
     if (begin_sword_combo(link)) {

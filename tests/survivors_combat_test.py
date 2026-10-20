@@ -66,6 +66,14 @@ struct cCcD_Obj {
     void OffAtSetBit(){active=false;} void ResetAtHit(){hit=false;}
 };
 struct fopAc_ac_c {unsigned id=7;int health=10;cXyz eyePos;struct {cXyz pos;csXyz angle;}current;};
+constexpr int fpcNm_E_YMB_e=101,fpcNm_B_DS_e=102;
+struct dCcD_Sph {
+ cXyz center;float radius=0;bool target=true;
+ const cXyz& GetC()const{return center;}float GetR()const{return radius;}
+ bool ChkTgSet()const{return target;}
+};
+struct daE_YMB_c:fopAc_ac_c{dCcD_Sph field_0x82c[2],field_0x1324;} bloat;
+struct daB_DS_c:fopAc_ac_c{dCcD_Sph mHeadSph[5],mBreathAtSph;} stallord;
 constexpr int dItemNo_NONE_e=255,dItemNo_HEART_e=0,dItemNo_GREEN_RUPEE_e=1,dItemNo_BLUE_RUPEE_e=2,dItemNo_YELLOW_RUPEE_e=3,dItemNo_RED_RUPEE_e=4,dItemNo_PURPLE_RUPEE_e=5,dItemNo_ORANGE_RUPEE_e=6,dItemNo_SILVER_RUPEE_e=7;
 HookAction before_sword_attack(ModContext*,void*,void*,void*);
 struct daAlink_c : fopAc_ac_c {
@@ -126,7 +134,7 @@ unsigned s_meleeCooldown=0,s_player=7,s_comboStep=0,s_comboTimeout=0;
 bool s_autoSwordCall=false,s_trackMelee=false;unsigned s_meleeTarget=kNone;
 std::array<unsigned,unsigned(Upgrade::Rupees)>s_cooldowns{};
 bool in_arena(){return arena;} bool playable(){return arena && playing;}
-struct Enemy {unsigned id=kNone;bool initialized=false,retiring=false,credited=false;};
+struct Enemy {unsigned id=kNone;bool initialized=false,retiring=false,credited=false;int profile=0;};
 std::array<Enemy,enemy_capacity>s_enemies;
 Enemy* tracked(unsigned id){for(auto& e:s_enemies)if(e.id==id&&e.initialized)return &e;return nullptr;}
 bool abilityBusy=false;bool jump_abilities_busy_for(daAlink_c*){return abilityBusy;}
@@ -135,7 +143,7 @@ fopAc_ac_c potActor; bool potCarried=false;
 struct ArenaPot{unsigned id=kNone;bool initialized=false,retiring=false,broken=false;};
 std::array<ArenaPot,1>s_pots;
 bool fopAcM_checkCarryNow(fopAc_ac_c*){return potCarried;}bool fopAcM_checkHookCarryNow(fopAc_ac_c*){return false;}
-fopAc_ac_c* actor_by_id(unsigned id){return id==enemy.id?&enemy:id==enemy2.id?&enemy2:id==potActor.id?&potActor:nullptr;}
+fopAc_ac_c* actor_by_id(unsigned id){return id==bloat.id?&bloat:id==stallord.id?&stallord:id==enemy.id?&enemy:id==enemy2.id?&enemy2:id==potActor.id?&potActor:nullptr;}
 struct dBgS_LinChk {void Set(const cXyz*,const cXyz*,daAlink_c*){}cXyz GetCross(){return {0,70,250};}};
 bool blocked=false;
 struct World{bool LineCross(dBgS_LinChk*){return blocked;}}world;
@@ -208,7 +216,7 @@ struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
 stubs += "\nvoid update_lightning(daAlink_c*){}\nvoid apply_treasure_inventory(daAlink_c*,ChestReward,const Run&,unsigned){}\nvoid sync_survivors_inventory(){}\nDamageAmounts hit_damage_sources(const cCcD_Obj* c){DamageAmounts d{};d[unsigned(c==&player.mGuardAtCps?DamageSource::Shield:DamageSource::Sword)]=1;return d;}\n"
 main = r'''
-void reset(){s_multiStrike={};player.swordHeld=player.swordPressed=false;s_waveManual=s_manualSwing=false;player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
+void reset(){bloat={};bloat.id=91;stallord={};stallord.id=92;s_multiStrike={};player.swordHeld=player.swordPressed=false;s_waveManual=s_manualSwing=false;player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;
     player.field_0x3478=0;player.field_0x347c=10;player.field_0x3484=15;
     for(auto& id:player.field_0x3204)id=0;
@@ -593,6 +601,37 @@ int main(){
     enemy.current.pos.z=428;assert(melee_target(&player)==&enemy);
     enemy.current.pos.z=430;assert(!melee_target(&player));
     s_meleeTarget=kNone;enemy.current.pos.z=365;assert(!melee_target(&player));
+    // Joint-relative body surfaces, including the elevated head, determine reach.
+    // Real native radii: Bloat 180/240; Stallord 300/350/270/190/190.
+    reset();s_enemies={};s_enemies[0]={91,true,false,false,fpcNm_E_YMB_e};
+    bloat.current.pos={0,450,900};bloat.eyePos=bloat.current.pos;
+    bloat.field_0x82c[1]={{500,70,0},240,true};
+    cXyz contact;assert(melee_target(&player,&contact)==&bloat);
+    assert(std::abs(contact.x-260)<.01f&&contact.z==0);
+    update_sword(&player);assert(player.normals==1&&player.shape_angle.y==0x4000);
+    bloat.field_0x82c[1].center={0,70,500};track_melee_facing(&player);
+    assert(player.shape_angle.y==0); // Follow the animated body, not actor origin.
+    blocked=true;assert(!melee_target(&player));blocked=false;
+    bloat.field_0x82c[1].target=false;assert(!melee_target(&player));
+    bloat.field_0x1324={{0,70,100},360,true};assert(!melee_target(&player)); // Electric field is not a body.
+    bloat.field_0x82c[1]={{0,70,605},240,true};s_meleeTarget=kNone;
+    assert(!melee_target(&player));
+    s_run.ranks[unsigned(Upgrade::Reach)]=1;assert(melee_target(&player)==&bloat);
+    reset();s_enemies={};s_enemies[0]={92,true,false,false,fpcNm_B_DS_e};
+    stallord.current.pos={0,320,900};stallord.eyePos=stallord.current.pos;
+    stallord.mHeadSph[1]={{0,320,600},350,true};
+    assert(melee_target(&player,&contact)==&stallord); // Surface gap 300, origin > 900.
+    assert(std::abs(contact.z-276.923f)<.01f);
+    update_sword(&player);assert(player.normals==1);
+    stallord.mHeadSph[1].center={0,1200,100};assert(!melee_target(&player)); // Too high.
+    stallord.mHeadSph[1].radius=0;stallord.mBreathAtSph={{0,70,100},500,true};
+    assert(!melee_target(&player)); // Breath cannot extend sword acquisition.
+    for(unsigned i=0;i<5;++i) {
+        stallord.mHeadSph[i]={{0,70,450},190,true};assert(melee_target(&player)==&stallord);
+        stallord.mHeadSph[i].radius=0;s_meleeTarget=kNone;
+    }
+    stallord.mHeadSph[0]={{0,70,0},300,true};assert(melee_target(&player)==&stallord);
+    s_enemies[0].retiring=true;assert(!melee_target(&player));
     // Disabling individual skills keeps held attack from bypassing their target gates.
     reset();s_enemies={};player.swordHeld=true;s_run.options.manual_aim[unsigned(ManualAbility::Sword)]=false;
     update_sword(&player);assert(!player.normals);
