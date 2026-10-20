@@ -211,6 +211,7 @@ void update_treasure_choice(daAlink_c* link) {
 }
 HookAction before_chest_action(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
+    if(link && hub_gear_interaction(link))return HOOK_CONTINUE;
     if (!link || !in_arena() || s_run.phase != Phase::Running || fopAcM_GetID(link) != s_player) return HOOK_CONTINUE;
     for (unsigned i = 0; i < s_chests.size(); ++i) {
         if (!chest_interactable(s_chests[i], link)) continue;

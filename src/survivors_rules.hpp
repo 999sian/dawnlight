@@ -1,4 +1,5 @@
 #pragma once
+#include "survivors_gear.hpp"
 #include "survivors_debug.hpp"
 #include "survivors_damage.hpp"
 #include <algorithm>
@@ -197,6 +198,12 @@ struct Run {
     unsigned endless_start=0, normal_score=0, rank_snapshot=0;
     RunOptions options;
     Talents talents;
+    GearItem gear_sword{}, gear_tunic{}; // Frozen at run start; inventory edits are hub-only.
+    void equip_gear(const GearInventory& gear) {
+        gear_sword=gear.equipped(GearKind::Sword);gear_tunic=gear.equipped(GearKind::Tunic);
+        maximum_hearts=std::min(20u,talents.starting_hearts()+gear_tunic.first);
+    }
+    unsigned dodge_basis_points() const { return std::min(10000u,talents.dodge_basis_points()+gear_tunic.second*100u); }
     unsigned timed_elites = 0, guard_elites = 0;
     unsigned drop_progress = 0, maximum_hearts = 3;
     unsigned master_sword = 0, shield = 0, dual_wield = 0, dark_link = 0;
@@ -263,7 +270,7 @@ struct Run {
         uint32_t roll;do {roll=next_random()-1;} while(roll>=limit);
         return roll%10000<std::min(10000u,chance);
     }
-    unsigned melee_crit_bonus() const { return std::min(30u,dual_wield)*100; }
+    unsigned melee_crit_bonus() const { return std::min(30u,dual_wield)*100+gear_sword.second*100; }
     unsigned critical_power(unsigned base, bool* critical=nullptr, bool melee=false) {
         const bool hit=base && roll_chance(std::min(10000u,crit_chance_basis_points()+(melee?melee_crit_bonus():0)));
         if (critical) *critical=hit;
@@ -370,7 +377,7 @@ struct Run {
     unsigned burn_duration() const { return (3 + (std::max(1u, rank(Upgrade::FireArrows)) - 1) / 3) * ticks_per_second; }
     unsigned bonus_damage() const { return talents.rank(Talent::BonusDamage); }
     unsigned melee_power() const { return 3 + rank(Upgrade::Power) + sword_bonus() + bonus_damage(); }
-    unsigned melee_speed_percent() const { return 100 + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield)/2 + 5*talents.rank(Talent::MeleeHaste); }
+    unsigned melee_speed_percent() const { return 100 + gear_sword.third + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield)/2 + 5*talents.rank(Talent::MeleeHaste); }
     float melee_speed() const { return melee_speed_percent()/100.f; }
     unsigned melee_cooldown() const { return std::max(6u, 30*cooldown_percent()/melee_speed_percent()); }
     unsigned life_regen_interval() const { return (20-std::min(5u,talents.rank(Talent::LifeRegen))-std::min(5u,rank(Upgrade::LifeRegen)))*ticks_per_second; }
@@ -613,7 +620,7 @@ struct Run {
     }
     unsigned block_chance() const { return std::min(10u, shield) * 5; }
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }
-    unsigned sword_bonus() const { return master_sword ? 2 + master_sword : 0; }
+    unsigned sword_bonus() const { return gear_sword.first + (master_sword ? 2 + master_sword : 0); }
     unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0) + bonus_damage(); }
     float area_radius(float base) const { return base*std::sqrt(radius(1.f)); }
     float hurricane_scale() const { return rank(Upgrade::Hurricane) ? 2.f : 1.f; }
@@ -630,7 +637,7 @@ struct Run {
     float melee_radius(float base) const { return 1.3f * melee_reach(base); }
     unsigned multi_strikes() const { return dual_wield ? std::min(3u,rank(Upgrade::MultiStrike)) : 0; }
     unsigned lightning_hops() const { return rank(Upgrade::Lightning) ? 2*std::min(10u,1+(rank(Upgrade::Lightning)-1)/3) : 0; }
-    unsigned lightning_power() const { return attack_power(unsigned(Upgrade::Lightning))+master_sword/2; }
+    unsigned lightning_power() const { return attack_power(unsigned(Upgrade::Lightning))+master_sword/2+gear_sword.first; }
     float lightning_hop_range() const { return melee_reach(800.f); }
     static constexpr float lightning_speed=42.f*5;
     static constexpr unsigned lightning_chance=2000;

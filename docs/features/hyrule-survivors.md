@@ -1525,3 +1525,12 @@ base and fill and translate the right cap to reach the requested width, retainin
 native cap dimensions and aspect ratio. Restore all pane positions, sizes,
 scales, alpha, visibility and fill colors after drawing; other combat meters keep
 their existing placement and rendering path.
+
+
+### Persistent boss equipment
+
+See `SURVIVORS.md` for drop odds, independent stat weights, rarity thresholds and bonus scope. `survivors_gear.hpp` owns the 20-slot rules and explicit 92-byte little-endian/checksummed v1 blob (`survivors-gear`). Missing blobs migrate to empty inventory; malformed blobs are preserved and cannot be overwritten through this feature. Mutations stage successfully before replacing live state; hub close uses the existing native background save. Run snapshots copy equipped bonuses once; no equipment swaps during combat.
+
+`credit_death` rolls once after its credit latch for scheduled bosses only, before final-boss victory cleanup. Debug and cleanup cannot award persistent equipment. Hub placement captures the room-local authored large TBOX position and yaw before story actors are filtered; the existing private large-chest model pool renders it. Collection reuses native Poe/Letters cursor cells and restores owned menu state on deletion/mode teardown. Draw-time textures are reacquired each frame; no native item flags or resource tables are changed. The two Collection hook targets already exist in Dawnlight's Dual Wield backend.
+
+Runtime verification remains required: visible hub chest placement, all controller/touch/mouse/keyboard inventory controls, all supported Collection layouts/languages, icon presentation, four-second HUD notices (also after the final boss), save/reload and slot switching on physical devices. Unit tests and native packaging do not certify in-game rendering.

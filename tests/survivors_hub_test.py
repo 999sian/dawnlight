@@ -171,7 +171,12 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+'\n'+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
+ cpp.write_text(fixture+'''
+bool s_gearChestLocated=false; cXyz s_gearChestPosition; s16 s_gearChestYaw=0;
+constexpr unsigned kSmallChestCount=0;
+struct GearChest {bool active=false,free=false;cXyz position;s16 yaw=0;};
+std::array<GearChest,1> s_chests;bool prepare_loot(daAlink_c*){return true;}
+'''+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),'-I',str(root/'include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors hub: free movement, native door gating, save/close, cancellation, routing and recovery passed')

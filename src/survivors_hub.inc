@@ -16,6 +16,10 @@ HookAction before_hub_door(ModContext*,void* args,void* result,void*) {
     return HOOK_SKIP_ORIGINAL;
 }
 void update_hub(daAlink_c* link) {
+    if(s_gearChestLocated && s_run.phase==Phase::Ready && !s_hubDeparture && prepare_loot(link)) {
+        auto& chest=s_chests[kSmallChestCount];chest.active=true;chest.free=true;
+        chest.position=s_gearChestPosition;chest.yaw=s_gearChestYaw;
+    }
     update_survivors_pedestal(s_run.phase==Phase::Ready && !s_hubDeparture);
     if(!s_hubDeparture || s_hubClosingWindow || ui_visible() || s_progressSaving || s_hubSaveRequested)return;
     if(s_hubDoorStarted) {
@@ -89,6 +93,7 @@ void draw_hub_labels() {
     graf->setup2D();
     cXyz anchor;
     if(survivors_pedestal_anchor(anchor))hub_label("Talents",anchor+cXyz(0,230,0));
+    if(s_gearChestLocated)hub_label("Equipment",s_gearChestPosition+cXyz(0,200,0));
     fpcM_Search(draw_hub_exit_label,nullptr);
     graf->setup2D();
     if(s_storeFailed)label("Progress save failed. Retry Save progress at the sword.",

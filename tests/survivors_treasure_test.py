@@ -497,7 +497,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
-    cpp.write_text(fixture+source+main)
+    cpp.write_text(fixture+"\nbool hub_gear_interaction(daAlink_c*){return false;}\n"+source+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
 print('Survivors treasure: affordability, native interaction, item demo, single commit and cleanup passed')

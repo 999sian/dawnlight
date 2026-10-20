@@ -686,3 +686,16 @@ global settings export/import. They do not affect difficulty, scores or run
 integrity. Boss bar ends retain their proportions: only the center is extended.
 All Survivors overlays, including chest prices, Crit/Block/Dodge and hub labels,
 are hidden during native Collection, map/ring menus and pause transitions.
+
+
+## Persistent boss equipment
+
+Every scheduled boss, including repeated Endless bosses, has a fixed 20% chance to award permanent equipment directly to the inventory: 50% Sword / 50% Tunic. Luck does not change these odds. Ordinary enemies, stationary guard elites and the victory cleanup wave do not award equipment. Debug runs award none. A successful award displays **Weapon found!** or **Tunic found!** for four gameplay seconds. A full inventory displays a warning and never replaces an existing item.
+
+Open the large chest at the original large-chest position in the Darknut Arena hub with A. The inventory contains 20 shared slots, arranged in four rows of five. New items occupy the first empty slot, from top left to bottom right. Controller/keyboard navigation and touch/mouse activation use native UI controls. Confirm equips one Sword or one Tunic, replacing the previous item of that kind; both equipped items remain in their inventory slots and are marked **Equipped**. Toggle the Banish symbol, then select an item to permanently delete it (also unequipping it if necessary). Closing the inventory saves progress through the existing native background-save flow. A failed storage write leaves the previous inventory intact.
+
+Swords roll **+1–5 sword damage**, **+1–5 percentage points of melee critical chance** and **+1–5% melee attack speed**. Damage applies to melee/dual-wield splash, Spin, Sword Wave, Jump Strike and Lightning Strike. Critical chance uses the existing melee family, including Shield Attack and Lightning Strike. Attack speed increases the native melee animation rate and reduces its attack interval. Tunics roll **+1–5 starting maximum hearts** (within the existing 20-heart cap) and **+1–5 percentage points of dodge chance**. Bonuses are captured at run start and retained in Endless; newly found equipment cannot change an active build.
+
+Each stat independently rolls 1 / 2 / 3 / 4 / 5 with **50 / 25 / 15 / 8 / 2%** probability. Rarity is derived from the mean of all stats: Common below 2, Uncommon from 2, Rare from 3, Epic from 4, Legendary from 4.5. Rarity is descriptive and does not multiply the rolled stats again.
+
+Collection displays the equipped Sword in the Poe Souls cell and the Tunic in the Letters cell. Selecting either shows its rarity and stats in the native information box. These are Survivors-only replacements; story inventory flags and other modes are unchanged. The separate versioned equipment blob is per save slot and does not change existing progression/high-score formats; high-score resets do not delete equipment. Save records/native saving flushes boss rewards just like other run progression.
