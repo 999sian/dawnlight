@@ -308,7 +308,7 @@ struct Run {
     bool eligible(Upgrade u) const {
         if (u >= Upgrade::Count || banned_upgrades[unsigned(u)]) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && banned_items[unsigned(u)-unsigned(Upgrade::Bow)]) return false;
-        if (restricted_healing() && (u==Upgrade::LifeRegen || u==Upgrade::LifeSteal)) return false;
+        if (restricted_healing() && u==Upgrade::LifeSteal) return false;
         if (u == Upgrade::Rupees) return true;
         if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
         if (u == Upgrade::MultiStrike && !owns(ChestReward::OrdonSword)) return false;
@@ -376,7 +376,7 @@ struct Run {
     unsigned life_regen_interval() const { return (20-std::min(5u,talents.rank(Talent::LifeRegen))-std::min(5u,rank(Upgrade::LifeRegen)))*ticks_per_second; }
     bool restricted_healing() const { return endless && ticks>=40*60*ticks_per_second; }
     bool life_steal_active() const { return !restricted_healing() && rank(Upgrade::LifeSteal); }
-    bool life_regen_due() const { return !restricted_healing() && phase==Phase::Running && ticks && ticks%life_regen_interval()==0; }
+    bool life_regen_due() const { return phase==Phase::Running && ticks && ticks%life_regen_interval()==0; }
     unsigned auto_rupees() const { return ticks && ticks%(5*ticks_per_second)==0 ? talents.rank(Talent::AutoRupees) : 0; }
     unsigned jump_splash_percent() const {
         const auto level = std::min(30u, rank(Upgrade::JumpStrike));

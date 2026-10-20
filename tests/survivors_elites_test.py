@@ -306,11 +306,11 @@ int main(){
  ++s_run.xp;after_player(nullptr,levelArgs,nullptr,nullptr);
  assert(life==12&&lifeWrites==1&&s_run.phase==Phase::Upgrade);
  after_player(nullptr,levelArgs,nullptr,nullptr);assert(lifeWrites==1);
- // Endless 40:00 suppresses regen, but the very same frame can still fully heal a level-up.
+ // Endless 40:00 preserves passive regen and full level-up healing.
  fresh(0);s_run.endless=true;s_run.ticks=40*60*ticks_per_second-1;life=1;lifeWrites=0;
- after_player(nullptr,levelArgs,nullptr,nullptr);assert(life==1&&!lifeWrites);
+ after_player(nullptr,levelArgs,nullptr,nullptr);assert(life==2&&lifeWrites==1);
  s_run.xp=s_run.required_xp();after_player(nullptr,levelArgs,nullptr,nullptr);
- assert(life==12&&s_run.phase==Phase::Upgrade&&lifeWrites==1);
+ assert(life==12&&s_run.phase==Phase::Upgrade&&lifeWrites==2);
  // Quarter-heart regeneration uses active time, every rank, and preserves native max life.
  for(unsigned rank=0;rank<=5;++rank) {
   fresh(0);life=4;lifeWrites=0;s_run.talents.ranks[unsigned(Talent::LifeRegen)]=rank;
@@ -329,6 +329,12 @@ int main(){
   s_run.ticks=4*interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==12&&lifeWrites==3);
   life=5;s_run.ticks=(duration/interval+1)*interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);
   assert(life==6); // Still regenerates during the last boss beyond 20 minutes.
+  // Talent and upgrade regeneration retain their combined interval beyond 40:00.
+  s_run.endless=true;s_run.ranks[unsigned(Upgrade::LifeRegen)]=rank;
+  const auto endlessInterval=s_run.life_regen_interval();
+  assert(endlessInterval==(20-2*rank)*ticks_per_second);
+  life=4;lifeWrites=0;s_run.ticks=(40*60*ticks_per_second/endlessInterval+1)*endlessInterval-1;
+  after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==5&&lifeWrites==1);
   life=0;s_run.ticks=interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==0&&s_run.phase==Phase::Defeat);
  }
  finishes=0;life=12;

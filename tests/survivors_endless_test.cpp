@@ -8,7 +8,9 @@ int main() {
   Run run;run.start(1);run.endless=endless;run.ticks=ticks;run.ranks[unsigned(Upgrade::LifeSteal)]=1;
   const bool restricted=endless&&ticks>=40*60*ticks_per_second;
   assert(run.restricted_healing()==restricted&&run.life_steal_active()==!restricted);
-  if(restricted){assert(!run.life_regen_due()&&!run.eligible(Upgrade::LifeRegen));for(unsigned i=0;i<10000;++i){assert(run.roll_drop()!=Run::Drop::Heart);assert(run.roll_pot_drop()!=Run::PotDrop::HeartPiece);}}
+  assert(run.eligible(Upgrade::LifeRegen));
+  assert(run.life_regen_due()==(ticks%run.life_regen_interval()==0));
+  if(restricted){for(unsigned i=0;i<10000;++i){assert(run.roll_drop()!=Run::Drop::Heart);assert(run.roll_pot_drop()!=Run::PotDrop::HeartPiece);}}
  }
 
     RunOptions options;

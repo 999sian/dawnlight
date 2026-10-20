@@ -140,7 +140,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::Knockback: return decimal(run.knockback_distance(false,false)) + " push distance; heavy " + decimal(run.knockback_distance(true,false)) + "; no interruption; bosses/elites immune";
     case Upgrade::Piercing: return number(run.arrow_targets()) + " targets per arrow";
     case Upgrade::Multishot: return "+" + number(run.extra_projectiles()) + " projectiles per ranged cast";
-    case Upgrade::LifeRegen: if(run.restricted_healing())return "Disabled after Endless 40:00";return "0.25 hearts every " + seconds(run.life_regen_interval());
+    case Upgrade::LifeRegen: return "0.25 hearts every " + seconds(run.life_regen_interval());
     case Upgrade::LifeSteal: if(run.restricted_healing())return "Disabled after Endless 40:00";return rank ? "0.25 hearts per sword kill" : "off";
     case Upgrade::Hurricane: return rank ? "x2 Boomerang and wind size; piercing flight" : "off";
     case Upgrade::FireBomb: return rank ? "10% bomb damage/s for 5 seconds" : "off";

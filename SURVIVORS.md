@@ -653,7 +653,7 @@ compile-time release switch still hides the tab and neutralizes all Debug featur
 In Endless Mode, every normal and shadow archer volley contains three native
 arrows using Hard Mode's horizontal fan (center and +/-0x900 yaw).
 At **40:00 total run time**, heart and heart-piece drops stop and remaining
-healing pickups retire. Life Steal and all Life Regen (including talents) stop
-healing; those upgrades no longer appear as new rewards. Only level-up full
-healing and owned Red Potion bottles can restore health. Potion Healing ranks
+healing pickups retire. Life Steal stops healing and no longer appears as a new
+reward. Passive Life Regen (including talents and upgrade rewards), level-up full
+healing and owned Red Potion bottles remain available. Potion Healing ranks
 still apply, and difficulty/Endless HP, damage and movement scaling continue.

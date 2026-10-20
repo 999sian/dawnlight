@@ -1466,7 +1466,8 @@ per enemy and capacity for three projectiles per enemy.
 
 At 40*60*ticks_per_second total elapsed ticks in Endless, reject new heart and
 heart-piece pickups and retire remaining ones before native pickup execution.
-Suppress Life Steal, upgrade/talent regeneration and positive native item life
-counts except scoped owned red-potion drinking. Level-up direct life writes
-remain intact. Hide newly unusable Life Steal/Regen reward offers; keep existing
-ranks for run history. Normal runs and other modes retain their healing rules.
+Suppress Life Steal and positive native item life counts except scoped owned
+red-potion drinking. Level-up and passive upgrade/talent regeneration direct life
+writes remain intact, including regeneration reward eligibility and intervals.
+Hide unusable Life Steal reward offers; keep existing ranks for run history.
+Normal runs and other modes retain their healing rules.

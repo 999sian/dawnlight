@@ -1,5 +1,5 @@
 // Scale native red-potion drinking. From Endless 40:00, only this native
-// recovery path remains allowed; level-ups set life directly.
+// recovery path remains allowed; level-ups and passive regen set life directly.
 daAlink_c* s_potionDrinker = nullptr;
 HookAction before_potion_drink(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
