@@ -14,6 +14,7 @@ fixture=r'''
 bool s_victory=false,s_deathPending=false;
 
 #include <any>
+#include <cstring>
 #include <cassert>
 #include <string>
 #include <vector>
@@ -77,6 +78,17 @@ int fopAcM_orderDoorEvent(fopAc_ac_c* a,fopAc_ac_c* b,u16 priority,u16 flags){
 main=r'''
 int main(){
  s_run.phase=Phase::Ready;
+ // Resolve the room's authored chest even when actor creation never ran.
+ locate_hub_gear_chest();assert(!s_gearChestLocated);
+ stage_tresure_data_class entries[2]{};std::memcpy(entries[0].name,"small",5);std::memcpy(entries[1].name,"large",5);
+ entries[0].base.position={11,22,33};entries[1].base.position={111,222,333};entries[1].base.angle.y=456;
+ entries[1].base.parameters=2u<<20;table={2,entries};
+ s_hub=false;locate_hub_gear_chest();assert(!s_gearChestLocated);s_hub=true;
+ s_map=1;locate_hub_gear_chest();assert(!s_gearChestLocated);s_map=0;
+ update_hub(&link);assert(s_gearChestLocated&&s_gearChestPosition.x==111&&s_gearChestYaw==456);
+ assert(s_chests[0].active&&s_chests[0].position.z==333);
+ table={};s_gearChestLocated=false;
+
  // Loading the save never opens a window and Ready leaves Link executable.
  assert(!visible&&s_hubMenu==HubMenu::None&&!pause_run_actor(false));
  assert(pause_run_actor(true));visible=true;assert(pause_run_actor(false));visible=false;
@@ -175,8 +187,15 @@ with tempfile.TemporaryDirectory() as tmp:
 bool s_gearChestLocated=false; cXyz s_gearChestPosition; s16 s_gearChestYaw=0;
 constexpr unsigned kSmallChestCount=0;
 struct GearChest {bool active=false,free=false;cXyz position;s16 yaw=0;};
-std::array<GearChest,1> s_chests;bool prepare_loot(daAlink_c*){return true;}
-'''+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
+std::array<GearChest,1> s_chests;bool prepare_hub_loot(){return true;}
+constexpr int fpcNm_TBOX_e=9,fpcNm_TBOX2_e=10;
+struct stage_tresure_data_class {char name[8]{};struct {unsigned parameters=0;cXyz position;struct{s16 y=0;}angle;}base;};
+struct TreasureTable{int num=0;stage_tresure_data_class* m_entries=nullptr;}table;
+struct Room{TreasureTable* getTresure(){return &table;}}room;
+Room* dComIfGp_roomControl_getStatusRoomDt(int n){assert(n==51);return &room;}
+struct Info{int procname;};
+Info* dStage_searchName(const char* name){static Info info;info.procname=std::strcmp(name,"small")==0||std::strcmp(name,"large")==0?fpcNm_TBOX_e:0;return &info;}
+'''+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','locate_hub_gear_chest','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),'-I',str(root/'include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors hub: free movement, native door gating, save/close, cancellation, routing and recovery passed')

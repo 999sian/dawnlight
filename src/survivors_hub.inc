@@ -15,8 +15,31 @@ HookAction before_hub_door(ModContext*,void* args,void* result,void*) {
     *static_cast<s32*>(result)=0;
     return HOOK_SKIP_ORIGINAL;
 }
+void locate_hub_gear_chest() {
+    if(s_gearChestLocated || !s_hub || s_map!=0 || !in_arena())return;
+    // Room TRES survives native actor/save/switch filtering. Do not depend on
+    // dStage_actorCreate being called for an unopened large chest this visit.
+    auto* room=dComIfGp_roomControl_getStatusRoomDt(arenas[0].room);
+    auto* treasures=room?room->getTresure():nullptr;
+    if(!treasures || !treasures->m_entries)return;
+    const stage_tresure_data_class* chosen=nullptr;
+    for(int i=0;i<treasures->num;++i) {
+        const auto& entry=treasures->m_entries[i];
+        char name[9]{};std::memcpy(name,entry.name,8);
+        const auto* info=dStage_searchName(name);
+        if(!info || (info->procname!=fpcNm_TBOX_e && info->procname!=fpcNm_TBOX2_e))continue;
+        if(!chosen)chosen=&entry;
+        const auto shape=(entry.base.parameters>>20)&0xf;
+        if(shape==1 || shape==2){chosen=&entry;break;}
+    }
+    if(chosen) {
+        s_gearChestPosition=chosen->base.position;s_gearChestYaw=chosen->base.angle.y;
+        s_gearChestLocated=true;
+    }
+}
 void update_hub(daAlink_c* link) {
-    if(s_gearChestLocated && s_run.phase==Phase::Ready && !s_hubDeparture && prepare_loot(link)) {
+    locate_hub_gear_chest();
+    if(s_gearChestLocated && s_run.phase==Phase::Ready && !s_hubDeparture && prepare_hub_loot()) {
         auto& chest=s_chests[kSmallChestCount];chest.active=true;chest.free=true;
         chest.position=s_gearChestPosition;chest.yaw=s_gearChestYaw;
     }

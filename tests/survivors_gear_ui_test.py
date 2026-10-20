@@ -83,8 +83,13 @@ int main(){
  assert(hub_gear_interaction(&player)&&s_gearWindow&&!mDoCPd_c::pad.mPressedButtonFlags);close_gear_window();
  s_gearChestPosition={0,0,500};assert(!hub_gear_interaction(&player));
  s_run.start(123);s_run.debug_run=true;auto rng=s_run.random;drop_boss_gear();assert(s_run.random==rng);
+ // The explicit override awards equipment in Debug, without changing ranked gates.
+ s_run.options.debug.max_equipment_drop_rate=1;
+ for(unsigned i=0;i<100;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();assert(s_gearNoticeTicks&&s_gear.items[0].kind!=GearKind::Empty);}
+ assert(s_run.earned_meta_xp()==0);
+ s_run.options.debug.max_equipment_drop_rate=0;
  unsigned drops=0,swords=0,tunics=0;
- s_run.debug_run=false;for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){++drops;assert(s_gearNoticeTicks==120);if(s_gear.items[0].kind==GearKind::Sword)++swords;else ++tunics;}}
+ s_run.debug_run=false;s_run.options.debug.max_equipment_drop_rate=1;for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){++drops;assert(s_gearNoticeTicks==120);if(s_gear.items[0].kind==GearKind::Sword)++swords;else ++tunics;}}
  assert(drops>5600&&drops<6400&&swords>2700&&swords<3300&&tunics>2700&&tunics<3300);
  for(auto& item:s_gear.items)item=sword;auto full=s_gear;while(true){s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks)break;}
  assert(s_gear==full&&std::string(s_gearNotice)=="Equipment inventory full!");

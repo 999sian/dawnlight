@@ -9,6 +9,8 @@ using namespace dawnlight::survivors;
 int main(){
  assert(!debug_session_enabled);debug_session_enabled=true;
  RunOptions options;assert(!options.debug.unlock_all_maps);
+ assert(!options.debug.max_equipment_drop_rate);
+ options.debug.max_equipment_drop_rate=5;options.debug.clamp();assert(options.debug.max_equipment_drop_rate==unsigned(debug_enabled));
  options.debug.unlock_all_maps=true;options.debug.clamp();assert(options.debug.unlock_all_maps==debug_enabled);
  options.debug={4,10,1,1,5};Run run;run.start(71,options);
  assert(run.run_duration()==(debug_enabled?5u:20u)*60*30);

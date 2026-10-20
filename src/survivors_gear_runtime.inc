@@ -30,8 +30,10 @@ bool store_gear(const GearInventory& next) {
 }
 void drop_boss_gear() {
     // Called only after the kill credit latch. Cleanup/victory-wave kills and
-    // debug runs never create persistent equipment. Luck does not change 20%.
-    if(s_run.debug_run || !s_run.roll_chance(2000))return;
+    // ordinary debug runs never create equipment. The explicit test override
+    // permits saved equipment, but never restores scores/XP/map unlocks.
+    const bool maximum=s_run.debug_run && s_run.debug_options().max_equipment_drop_rate;
+    if((s_run.debug_run && !maximum) || (!maximum && !s_run.roll_chance(2000)))return;
     auto random=[](unsigned n){
         const uint32_t limit=UINT32_MAX-UINT32_MAX%n;
         uint32_t value;do{value=s_run.next_random()-1;}while(value>=limit);

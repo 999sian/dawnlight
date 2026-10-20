@@ -14,11 +14,13 @@ inline bool debug_session_enabled = false;
 struct DebugOptions {
     unsigned minimum_rarity=0, player_damage=1, infinite_rerolls=0, infinite_banishes=0, run_minutes=20;
     bool unlock_all_maps=false;
+    unsigned max_equipment_drop_rate=0;
     void clamp() {
         if (!debug_enabled) { *this={}; return; }
         minimum_rarity=std::min(4u,minimum_rarity);
         player_damage=std::clamp(player_damage,1u,10u);
         infinite_rerolls=std::min(1u,infinite_rerolls);infinite_banishes=std::min(1u,infinite_banishes);
+        max_equipment_drop_rate=std::min(1u,max_equipment_drop_rate);
         if (run_minutes!=5 && run_minutes!=10) run_minutes=20;
     }
 };

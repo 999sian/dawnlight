@@ -61,7 +61,7 @@ HookAction before_arena_stage_actor(ModContext*, void* args, void*, void*) {
     const bool local=params->room_no==arena().room || params->room_no==-1;
     if (s_map==3) capture_elite_site(info->procname,*params);
     if(s_hub && s_map==0 && local && (info->procname==fpcNm_TBOX_e || info->procname==fpcNm_TBOX2_e) &&
-       ((params->base.parameters>>20)&0xf)==1) {
+       (((params->base.parameters>>20)&0xf)==1 || ((params->base.parameters>>20)&0xf)==2)) {
         s_gearChestLocated=true;s_gearChestPosition=params->base.position;s_gearChestYaw=params->base.angle.y;
     }
     bool skip=arena_story_actor(info->procname);

@@ -117,7 +117,7 @@ int main(){
  }
  controls.clear();assert(build_debug(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
  if(debug_enabled){
-  assert(controls.size()==7);debug_session_enabled=true;auto toggle=controls[6];
+  assert(controls.size()==8);debug_session_enabled=true;auto toggle=controls[7];
   assert(toggle.kind==UI_CONTROL_TOGGLE&&std::string(toggle.label)=="Unlock all maps");
   UiControlValue value=UI_CONTROL_VALUE_INIT;value.bool_value=true;toggle.set(nullptr,nullptr,&value);
   assert(s_options.debug.unlock_all_maps);value.bool_value=false;toggle.set(nullptr,nullptr,&value);

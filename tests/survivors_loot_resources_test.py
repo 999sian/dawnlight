@@ -187,11 +187,18 @@ int main(){
     failModel=int(modelsMade)+1;assert(!prepare_projectile_model(a,1)&&!a.modelHeap&&!a.model&&!a.wind);
     failModel=-1;assert(prepare_projectile_model(a,1));clear_loot();
     assert(prepare_loot(&player));clear_loot();assert(heapCreates==heapDestroys);
+    // A hub chest does not need Link's sword or any weapon animation archive.
+    player.mpSwMModel=nullptr;auto beforeHubModels=modelsMade;
+    waiting=true;assert(!prepare_hub_loot()&&references==1);waiting=false;
+    assert(prepare_hub_loot()&&modelsMade==beforeHubModels+1&&references==1);
+    assert(s_loot.chests[kSmallChestCount]&&!s_loot.bow&&!s_loot.masterSword&&!s_loot.linkArchive);
+    s_chests[kSmallChestCount].active=true;expectWorldDraw=true;draw_loot();expectWorldDraw=false;
+    clear_loot();assert(liveModels.empty()&&references==0&&heapCreates==heapDestroys);
     std::cout<<"Survivors loot resources: async load, failures, heap ownership, shared animation and cleanup passed\n";
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp';binary=Path(tmp)/'test'
-    cpp.write_text(stubs+globals+'\n'.join(extract(n) for n in ['clear_loot','prepare_loot','prepare_projectile_model','prepare_bomb_arrow_model','draw_loot_model','draw_loot'])+draw+main)
+    cpp.write_text(stubs+globals+'\n'.join(extract(n) for n in ['clear_loot','prepare_hub_loot','prepare_loot','prepare_projectile_model','prepare_bomb_arrow_model','draw_loot_model','draw_loot'])+draw+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(binary)],check=True)
     subprocess.run([str(binary)],check=True)
