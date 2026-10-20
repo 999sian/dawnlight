@@ -1371,6 +1371,11 @@ rank-dependent cooldown and damage curves at its own rank, twice its hop count
 (2–20), five times its hop speed (210 units/tick), and twice Reach's incremental
 range bonus. Master Sword adds `floor(rank / 2)` damage. Power, Haste, Crit,
 Dark Link, Knockback and Multishot apply; Boomerang-only Hurricane does not.
+Multishot produces 1/2/3/4 independent chains. Initial target assignments and later
+hops share a per-cast reservation history: prefer reachable enemies with the fewest
+assignments, then distance, so in-flight chains do not all pick the same enemy.
+Each Multi Strike repeat has its own history; each individual chain still hits a
+given enemy at most once. Histories are released when the cast finishes or is cleared.
 All chain legs validate live targets, line of sight, boss blocks and per-chain
 visited IDs; a dead initial victim can still lead to the next live target.
 Native Link electricity is imported into private common-bank resources by the

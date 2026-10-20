@@ -7,6 +7,7 @@ fixture=r'''
 #include <cmath>
 #include <deque>
 #include <map>
+#include <memory>
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned;using u32=unsigned;using u16=unsigned short;
@@ -21,6 +22,7 @@ struct cXyz {
 };
 struct fopAc_ac_c{ActorId id=0;int health=100;cXyz eyePos;};
 struct daAlink_c:fopAc_ac_c{int tevStr=0;}player;
+daAlink_c* daAlink_getAlinkActorClass(){return &player;}
 struct Enemy{ActorId id=kNone;bool initialized=false,retiring=false,credited=false,dormant=true;};
 std::array<Enemy,30>s_enemies;std::array<fopAc_ac_c,30>actors;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id==id)return &e;return nullptr;}
@@ -86,11 +88,50 @@ int main(){
  fresh(25);s_run.ranks[unsigned(Upgrade::Lightning)]=30;proc();
  for(unsigned i=0;i<150;++i)update_lightning(&player);
  for(unsigned i=0;i<21;++i){assert(effects[i].pending==32);}assert(!effects[21].pending&&!active());
+ // Every Multishot rank increases chain count; starts are unique when reachable.
+ for(unsigned shots=0;shots<=3;++shots){
+  fresh(10);for(unsigned i=0;i<10;++i)actors[i].eyePos={float(i)*70,0,0};
+  s_run.ranks[unsigned(Upgrade::Multishot)]=shots;proc();assert(active()==1+shots);
+  std::array<bool,30>seen{};
+  for(const auto& bolt:s_lightning)if(bolt.active){assert(!seen[bolt.target-1]);seen[bolt.target-1]=true;}
+  update_lightning(&player);
+  // Assigned first legs are reserved even before arrival: each hop prefers
+  // unassigned enemies over another chain's closer starting target.
+  for(const auto& bolt:s_lightning)if(bolt.active&&bolt.visitedCount>1){
+   assert(!seen[bolt.target-1]);seen[bolt.target-1]=true;
+  }
+ }
+ // Maximum hops keep the full four-chain budget and release shared cast state.
+ fresh(25);for(unsigned i=0;i<25;++i)actors[i].eyePos={float(i)*20,0,0};
+ s_run.ranks[unsigned(Upgrade::Lightning)]=30;s_run.ranks[unsigned(Upgrade::Multishot)]=3;proc();
+ std::weak_ptr<LightningTargets> cast;
+ for(const auto& b:s_lightning)if(b.active){cast=b.targets;break;}
+ for(unsigned i=0;i<150;++i)update_lightning(&player);
+ unsigned total=0;for(const auto& e:effects)total+=e.pending;
+ assert(total==4*21*32&&!active()&&cast.expired());
+ for(const auto& b:s_lightning)if(b.visitedCount==21)
+  for(unsigned i=0;i<b.visitedCount;++i)for(unsigned j=i+1;j<b.visitedCount;++j)assert(b.visited[i]!=b.visited[j]);
+ // A lone target still receives all four independent chains, once per chain.
+ fresh(1);s_run.ranks[unsigned(Upgrade::Multishot)]=3;proc();
+ for(unsigned i=0;i<30;++i)update_lightning(&player);
+ assert(effects[0].pending==12&&!active());
+ // Fallback balances reuse after exhausting the reachable candidates.
+ fresh(2);s_run.ranks[unsigned(Upgrade::Multishot)]=3;proc();
+ unsigned initial[2]{};for(const auto& b:s_lightning)if(b.active)++initial[b.target-1];
+ assert(initial[0]==2&&initial[1]==2);
+ for(unsigned i=0;i<40;++i)update_lightning(&player);
+ assert(effects[0].pending==12&&effects[1].pending==12&&!active());
+ // Extra chains obey the same range, guard, death and wall exclusions.
+ fresh(6);for(unsigned i=0;i<6;++i)actors[i].eyePos={float(i)*100,0,0};
+ actors[1].health=0;blocked=3;wallAt=450;
+ s_run.ranks[unsigned(Upgrade::Multishot)]=3;proc();
+ for(const auto& b:s_lightning)if(b.active)assert(b.target==1||b.target==4||b.target==5);
  fresh();s_run.dual_wield=1;s_run.ranks[unsigned(Upgrade::MultiStrike)]=3;s_run.ranks[unsigned(Upgrade::Multishot)]=3;
  proc();assert(active()==16);update_lightning(&player);
- assert(effects[0].pending>=12&&effects[0].pending<=24); // only four initial chains; repeats are deferred
+ assert(effects[0].pending>=6&&effects[0].pending<=12); // Two starts here; two at the other reachable target. Repeats deferred.
  for(unsigned i=0;i<60;++i)update_lightning(&player);
- assert(effects[0].pending>=48&&effects[0].pending<=96&&!active());
+ assert(effects[0].pending>=24&&effects[0].pending<=96&&!active());
+ for(const auto& bolt:s_lightning)assert(!bolt.targets);
  fresh();proc();update_lightning(&player);clear_lightning();assert(!active());
  auto old=effects[0].pending;for(unsigned i=0;i<100;++i)update_lightning(&player);assert(effects[0].pending==old);
 }

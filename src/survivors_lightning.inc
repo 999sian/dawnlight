@@ -1,5 +1,15 @@
 // Chain lightning is a run-owned hit sequence, not a native enemy actor. Every
 // leg checks line of sight and every target is remembered once per chain.
+// Shared by the simultaneous Multishot chains of one cast, not by delayed
+// Multi Strike repeats. Reserve on selection so in-flight bolts spread too.
+struct LightningTargets {
+    std::array<ActorId,84> assigned{}; // Four chains, each initial hit + 20 hops.
+    unsigned count=0;
+    unsigned uses(ActorId id) const {
+        return unsigned(std::count(assigned.begin(),assigned.begin()+count,id));
+    }
+    void reserve(ActorId id) { if(count<assigned.size())assigned[count++]=id; }
+};
 struct LightningBolt {
     bool active=false;
     unsigned delay=0,life=0,hops=0,visitedCount=0,power=0,flash=0;
@@ -8,6 +18,7 @@ struct LightningBolt {
     cXyz position{},legFrom{},flashFrom{},flashTo{};
     std::array<ActorId,21> visited{};
     std::array<u32,2> emitters{};
+    std::shared_ptr<LightningTargets> targets;
 };
 std::deque<LightningBolt> s_lightning;
 void stop_lightning(LightningBolt& bolt) {
@@ -17,30 +28,12 @@ void stop_lightning(LightningBolt& bolt) {
         }
         key=0;
     }
-    bolt.active=false;bolt.flash=0;
+    bolt.active=false;bolt.flash=0;bolt.targets.reset();
 }
 void clear_lightning() { for(auto& bolt:s_lightning)stop_lightning(bolt); }
-void trigger_lightning(fopAc_ac_c* primary) {
-    if(s_run.phase!=Phase::Running || !primary || !s_run.rank(Upgrade::Lightning) || s_cooldowns[unsigned(Upgrade::Lightning)] ||
-       !s_run.roll_chance(s_run.lightning_proc_chance()))return;
-    auto* owner=tracked(fopAcM_GetID(primary));
-    if(!owner || owner->retiring || owner->credited)return;
-    s_cooldowns[unsigned(Upgrade::Lightning)]=s_run.item_cooldown(Upgrade::Lightning);
-    // Multishot produces separate chains; Multi Strike repeats the complete cast.
-    // Neither a chain contact nor a repeat can recursively trigger this proc.
-    for(unsigned repeat=0;repeat<=s_run.multi_strikes();++repeat)for(unsigned shot=0;shot<s_run.ranged_shots();++shot) {
-        auto slot=std::find_if(s_lightning.begin(),s_lightning.end(),[](const auto& bolt){return !bolt.active;});
-        if(slot==s_lightning.end()){s_lightning.emplace_back();slot=std::prev(s_lightning.end());}
-        auto& bolt=*slot;bolt={};bolt.active=true;bolt.delay=repeat*4;
-        bolt.target=owner->id;bolt.position=bolt.legFrom=primary->eyePos;
-        bolt.hops=s_run.lightning_hops();bolt.range=s_run.lightning_hop_range();bolt.power=s_run.lightning_power();
-        bolt.visited[bolt.visitedCount++]=owner->id;
-        bolt.life=unsigned(std::ceil((bolt.hops+1)*(bolt.range/Run::lightning_speed+2)))+12;
-    }
-}
-bool next_lightning_target(LightningBolt& bolt,daAlink_c* link) {
-    if(!bolt.hops)return false;
-    Enemy* best=nullptr;float distance=bolt.range*bolt.range;
+bool select_lightning_target(LightningBolt& bolt,daAlink_c* link) {
+    if(bolt.visitedCount==bolt.visited.size())return false;
+    Enemy* best=nullptr;float distance=bolt.range*bolt.range;unsigned fewest=~0u;
     const auto end=bolt.visited.begin()+bolt.visitedCount;
     for(auto& enemy:s_enemies) {
         if(!enemy.initialized || enemy.retiring || enemy.credited ||
@@ -48,14 +41,48 @@ bool next_lightning_target(LightningBolt& bolt,daAlink_c* link) {
         auto* actor=actor_by_id(enemy.id);
         if(!actor || actor->health<=0 || boss_blocks_from(enemy,actor,bolt.position))continue;
         const float d=actor->eyePos.abs2(bolt.position);
-        if(d>=distance)continue;
+        if(d>=bolt.range*bolt.range)continue;
+        const unsigned uses=bolt.targets?bolt.targets->uses(enemy.id):0;
+        if(uses>fewest || (uses==fewest && d>=distance))continue;
         dBgS_LinChk wall;wall.Set(&bolt.position,&actor->eyePos,link);
         if(dComIfG_Bgsp().LineCross(&wall))continue;
-        best=&enemy;distance=d;
+        best=&enemy;distance=d;fewest=uses;
     }
-    if(!best || bolt.visitedCount==bolt.visited.size())return false;
-    bolt.target=best->id;bolt.visited[bolt.visitedCount++]=best->id;--bolt.hops;
+    if(!best)return false;
+    bolt.target=best->id;bolt.visited[bolt.visitedCount++]=best->id;
+    if(bolt.targets)bolt.targets->reserve(best->id);
     bolt.legFrom=bolt.position;return true;
+}
+bool next_lightning_target(LightningBolt& bolt,daAlink_c* link) {
+    if(!bolt.hops || !select_lightning_target(bolt,link))return false;
+    --bolt.hops;return true;
+}
+void trigger_lightning(fopAc_ac_c* primary) {
+    if(s_run.phase!=Phase::Running || !primary || !s_run.rank(Upgrade::Lightning) || s_cooldowns[unsigned(Upgrade::Lightning)] ||
+       !s_run.roll_chance(s_run.lightning_proc_chance()))return;
+    auto* owner=tracked(fopAcM_GetID(primary));
+    if(!owner || owner->retiring || owner->credited)return;
+    auto* link=daAlink_getAlinkActorClass();if(!link)return;
+    s_cooldowns[unsigned(Upgrade::Lightning)]=s_run.item_cooldown(Upgrade::Lightning);
+    // Multishot produces separate chains; Multi Strike repeats the complete cast.
+    // Neither a chain contact nor a repeat can recursively trigger this proc.
+    for(unsigned repeat=0;repeat<=s_run.multi_strikes();++repeat) {
+        auto targets=std::make_shared<LightningTargets>();
+        for(unsigned shot=0;shot<s_run.ranged_shots();++shot) {
+            auto slot=std::find_if(s_lightning.begin(),s_lightning.end(),[](const auto& bolt){return !bolt.active;});
+            if(slot==s_lightning.end()){s_lightning.emplace_back();slot=std::prev(s_lightning.end());}
+            auto& bolt=*slot;bolt={};bolt.active=true;bolt.delay=repeat*4;bolt.targets=targets;
+            bolt.position=bolt.legFrom=primary->eyePos;
+            bolt.hops=s_run.lightning_hops();bolt.range=s_run.lightning_hop_range();bolt.power=s_run.lightning_power();
+            // The first chain starts at the melee victim. Additional chains
+            // prefer other reachable bodies before reusing an assigned target.
+            if(!shot || !select_lightning_target(bolt,link)) {
+                bolt.target=owner->id;bolt.visited[bolt.visitedCount++]=owner->id;
+                targets->reserve(owner->id);
+            }
+            bolt.life=unsigned(std::ceil((bolt.hops+1)*(bolt.range/Run::lightning_speed+2)))+12;
+        }
+    }
 }
 void update_lightning(daAlink_c* link) {
     for(auto& bolt:s_lightning) {

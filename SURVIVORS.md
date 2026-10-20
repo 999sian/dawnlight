@@ -465,7 +465,11 @@ no Boomerang equipment is required. Power, Haste, critical upgrades, Dark Link,
 Knockback and Multishot apply. Its hop count is twice Boomerang's (2 at level 1,
 20 at level 30), and propagation travels at 210 units/tick versus 42.
 Reach gives double range growth; Master Sword adds `floor(sword level / 2)` damage.
-Each chain remembers its targets, respects walls and boss blocks, and cannot
+Multishot adds one complete chain per rank (1/2/3/4 chains). Each cast distributes
+initial targets and subsequent hops across reachable enemies before reusing targets;
+when reuse is needed, prefer the least-targeted enemy, then the nearest. Multi Strike
+repeats start a fresh target distribution. Each chain remembers its own targets,
+respects walls and boss blocks, and cannot
 trigger further chains. Native electric sparks and a jagged cyan/white arc show
 its path. Lightning appears as its own damage row in Results.
 
