@@ -344,6 +344,7 @@ void resolve_manual_projectiles(dCamera_c*);
 void draw_hub_labels();
 void interrupt_auto_actions(daAlink_c*);
 void finish(bool won);
+void continue_endless(ModContext*,void*);
 void replay(ModContext*, void*);
 void clear_enemy_effects();
 bool effect_collider(const cCcD_Obj*);
@@ -375,7 +376,7 @@ struct Enemy {
     ActorId id = kNone;
     ProfileName profile = 0;
     bool initialized = false, credited = false, retiring = false, elite = false;
-    unsigned age = 0;
+    unsigned age = 0, endlessMinute = 0;
     int eliteSlot = -1;
     bool dormant = false, idleAnimation = false;
     cXyz lootPosition{}, spawnPosition{};
@@ -718,7 +719,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
     if (e.elite) { drop_elite_chest(e, actor); queue_exp_magnet(e, actor); }
     // The scheduled final boss ends combat even if an earlier elite survived.
     // Its own kill, damage and loot have already been credited exactly once.
-    if (e.elite && e.eliteSlot==int(timed_elite_count)-1) begin_victory(actor->current.pos);
+    if (!s_run.endless && e.elite && e.eliteSlot==int(timed_elite_count)-1) begin_victory(actor->current.pos);
 }
 void update_orbs(daAlink_c* link) {
     const float range = magnet_range();
@@ -791,13 +792,13 @@ void update_spawns(daAlink_c* link) {
         // Guards and scheduled elites persist until killed; cleanup grants no loot.
         if (!e.elite && !e.retiring && e.age > 5400) e.retiring = true;
     }
-    if (s_run.ticks <= s_run.run_duration() && s_run.ticks % s_run.boss_interval() == 0) s_spawnCooldown = 0;
+    if ((s_run.endless || s_run.ticks <= s_run.run_duration()) && s_run.ticks % s_run.boss_interval() == 0) s_spawnCooldown = 0;
     for (const auto& encounter : s_eliteEncounters)
         if (encounter.defeated && encounter.respawnAt == s_run.ticks) s_spawnCooldown = 0;
     if (s_spawnCooldown) { --s_spawnCooldown; return; }
     s_spawnCooldown = s_run.spawn_interval();
     update_elite_spawns(link);
-    if (s_run.ticks >= s_run.run_duration() || population>=s_run.target_population()) { s_spawnFailures=0; return; }
+    if ((!s_run.endless && s_run.ticks >= s_run.run_duration()) || population>=s_run.target_population()) { s_spawnFailures=0; return; }
     for (unsigned i=0; i<s_run.spawn_batch() && population<s_run.target_population(); ++i) {
         if (spawn_enemy(link,false)) { ++population; s_spawnFailures=0; }
         else { ++s_spawnFailures; break; }
@@ -1364,10 +1365,8 @@ void draw_hud(ModContext*, void* args, void*, void*) {
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
     if (s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
     char text[180];
-    std::snprintf(text, sizeof(text), "%02u:%02u / %02u:00   Level %u   Score %u",
-        s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.run_duration()/1800, s_run.level, s_run.score());
-    label(text, x, 40, 17);
-    std::snprintf(text, sizeof(text), "XP %u / %u", s_run.xp, s_run.required_xp());
+    draw_run_rank_hud(x);
+    std::snprintf(text, sizeof(text), "Level %u   Score %u   XP %u / %u", s_run.level, s_run.score(), s_run.xp, s_run.required_xp());
     label(text, x, 62, 14);
     // J2DPrint enables direct TEX0 attributes. fillBox emits only position and
     // color, so reset the vertex layout before its quads or the GX FIFO reads
@@ -1439,6 +1438,23 @@ void start_run(ModContext*, void*) {
        s_restart || !s_arenaMeshReady || !map_available(s_requestedMap) || !actor_by_id(s_hubDoor))return;
     s_hubDeparture=true;s_hubDoorStarted=false;s_hubDoorTicks=0;
     close_window(); // Save and fully hide the UI before ordering the native door event.
+}
+void continue_endless(ModContext*,void*) {
+    if(s_run.phase!=Phase::Victory || s_run.endless || !s_resultsStored || s_restart ||
+       s_saveRequested || s_savePrompt!=kNone || s_progressSaving || transitioning())return;
+    // Retry staging the victory checkpoint before resuming. Never double-award it.
+    const auto bytes=s_records.encode();
+    s_storeFailed=svc_save->set_blob(mod_ctx,kBlob,bytes.data(),bytes.size())!=MOD_OK;
+    if(s_storeFailed){s_refreshChoices=s_window;close_window();return;} // Rebuild with the save-error message.
+    if(!s_run.continue_endless())return;
+    close_window();reset_ending();
+    s_resultsStored=false;s_spawnCooldown=0;s_spawnFailures=0;
+    reset_elite_encounters();
+    for(unsigned i=0;i<timed_elite_count;++i)
+        s_eliteEncounters[i].respawnAt=(s_run.endless_start/elite_interval+i+1)*elite_interval;
+    const bool wasModded=s_run.modded;
+    begin_survivors_integrity(s_run.options.allow_cheats,s_run.modded);
+    s_run.modded=s_run.modded||wasModded;
 }
 void replay(ModContext*, void*) { close_window(); s_requestedMap = s_map; s_restart = true; }
 #include "survivors_post_run_save.inc"

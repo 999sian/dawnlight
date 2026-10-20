@@ -85,12 +85,13 @@ std::string results_damage_rml(const Run& run=s_run,unsigned map=s_map) {
     const auto total=run.damage.total();
     const double seconds=std::max(1u,run.ticks)/double(ticks_per_second);
     std::string rml="<div class=\"sr-heading\">"+std::string(run.phase==Phase::Victory?"VICTORY":"DEFEAT")+"</div>";
+    rml+="<div class=\"sr-section\">Twilit Rank "+number(run.twilit_rank())+"</div>";
     if(run.options.allow_cheats || run.modded) {
         const std::string labels=std::string(run.options.allow_cheats?"Cheated":"")+
             (run.options.allow_cheats && run.modded?" \xE2\x80\xA2 ":"")+(run.modded?"Modded":"");
         rml="<div class=\"sr-integrity\">"+labels+"</div>"+rml;
     }
-    rml+="<div class=\"sr-subtitle\">"+treasure_rml_escape(arenas[map].name)+" \xE2\x80\xA2 "+result_time(run.ticks)+"</div>";
+    rml+="<div class=\"sr-subtitle\">"+std::string(run.endless?"Endless Mode · ":"")+treasure_rml_escape(arenas[map].name)+" \xE2\x80\xA2 "+result_time(run.ticks)+"</div>";
     rml+="<div class=\"sr-metrics\">";
     const auto metric=[&](const char* label,const std::string& value){
         rml+="<div class=\"sr-metric\"><span class=\"sr-value\">"+value+"</span><span class=\"sr-label\">"+label+"</span></div>";
@@ -120,14 +121,14 @@ std::string results_loadout_rml(const HighScoreRun* archived=nullptr,unsigned ma
     const Run& run=archived?archived->run:s_run;
     const auto score=archived?archived->score:run.score();
     const bool assisted=run.options.allow_cheats || run.modded;
-    const auto best=archived?score:s_records.high_score(map,assisted).score;
+    const auto best=archived?score:s_records.high_score(map,assisted,run.endless).score;
     std::string rml="<div class=\"sr-section\">Run summary</div>";
     const auto stat=[&](const char* label,const std::string& value){rml+="<div class=\"sr-stat\"><span>"+std::string(label)+"</span><span>"+value+"</span></div>";};
-    stat("Score",result_number(score));stat(assisted?"Cheated high score":"Ranked high score",result_number(best));
+    stat(run.endless?"Endless Score":"Score",result_number(score));stat(assisted?"Cheated high score":"Ranked high score",result_number(best));
     stat("Difficulty","x"+result_decimal(run.options.score_percent()/100.0,2));
-    stat("Level reached",number(run.level));stat("Timed elites",number(run.timed_elites)+" / 4");
+    stat("Level reached",number(run.level));stat("Timed elites",number(run.timed_elites)+(run.endless?"":" / 4"));
     stat("Other elites",number(run.guard_elites));stat("Chests opened",number(run.chests_opened));
-    stat("XP earned",result_number(score));stat("Meta level",number(archived?archived->meta_level:s_records.level()));
+    stat("XP earned",result_number(run.endless?score-std::min(score,run.normal_score):score));stat("Meta level",number(archived?archived->meta_level:s_records.level()));
     stat("Unlock points",number(archived?archived->unlock_points:s_records.available_points()));
     rml+="<div class=\"sr-section\">Equipment</div>";
     for(unsigned i=0;i<unsigned(ChestReward::Count);++i) {
@@ -169,5 +170,11 @@ ModResult build_results(UiElementHandle left,UiElementHandle right,const HighSco
     // between these actions through Pane's existing vertical navigator.
     result=svc_ui->pane_add_row(mod_ctx,left,&rowDesc,&row);if(result!=MOD_OK)return result;
     result=svc_ui->elem_set_class(mod_ctx,row,"sr-actions",true);if(result!=MOD_OK)return result;
-    return button(row,"Return to hub",replay);
+    result=button(row,"Return to hub",replay);if(result!=MOD_OK)return result;
+    if(s_run.phase==Phase::Victory && !s_run.endless) {
+        result=svc_ui->pane_add_row(mod_ctx,left,&rowDesc,&row);if(result!=MOD_OK)return result;
+        result=svc_ui->elem_set_class(mod_ctx,row,"sr-actions",true);if(result!=MOD_OK)return result;
+        return button(row,"Continue in Endless Mode",continue_endless);
+    }
+    return MOD_OK;
 }

@@ -42,7 +42,7 @@ struct e_ba_class{fopAc_ac_c enemy;Morf morph;Morf* mpMorf=&morph;Sphere mSph;};
 struct e_ms_class:fopAc_ac_c{Morf morph;Morf* mpModelMorf=&morph;Sphere mSph1,mSph2;};
 struct e_rd_class{fopAc_ac_c enemy;Sphere cc_sph[3];};
 struct Enemy{ActorId id=kNone;ProfileName profile=0;bool initialized=false,credited=false,retiring=false,elite=false;
- unsigned age=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{},spawnPosition{};unsigned species=0;};
+ unsigned age=0,endlessMinute=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{},spawnPosition{};unsigned species=0;};
 std::array<Enemy,enemy_capacity>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id!=kNone&&e.id==id)return &e;return nullptr;}
 Run s_run;bool arenaPresent=true;bool in_arena(){return arenaPresent;}
@@ -126,6 +126,15 @@ int main(){
  assert(bok.health==344&&bok.field_0x560==344);
  guard={};guard.profile=fpcNm_E_OC_e;guard.elite=guard.dormant=true;
  initialize_enemy(&guard,&bok);assert(bok.health==905); // late respawn
+ // Existing injured enemies scale once per Endless minute, preserving their HP fraction.
+ s_run.phase=Phase::Victory;assert(s_run.continue_endless());
+ Enemy endlessEnemy;endlessEnemy.profile=fpcNm_E_OC_e;
+ initialize_enemy(&endlessEnemy,&bok);const int initialHp=bok.field_0x560;
+ bok.health=initialHp/2;s_run.ticks+=1800;initialize_enemy(&endlessEnemy,&bok);
+ assert(bok.field_0x560==int(std::ceil(initialHp*1.1)));
+ const auto scaledHp=bok.health;initialize_enemy(&endlessEnemy,&bok);assert(bok.health==scaledHp);
+ bok.health=0;s_run.ticks+=1800;initialize_enemy(&endlessEnemy,&bok);assert(bok.health==0);
+ s_run.endless=false;
  // Native arrows are not enemies/loot sources. They remain owned after shooter deletion.
  s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=fpcNm_E_RD_e;
  std::any args[]={s16(fpcNm_E_ARROW_e),ActorId(42)};ActorId arrowId=100;

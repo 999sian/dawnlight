@@ -141,12 +141,17 @@ int main(){
             s_run.phase=phase;s_run.ticks=ticks;s_run.horde_remaining=horde;s_run.xp=4;s_spawnFailures=failures;hasFont=availableFont;
             boxes=labels=0;textureCoordinates=true;
             draw_hud(nullptr,nullptr,nullptr,nullptr);
-            assert(boxes==2 && !textureCoordinates && texGens==0);
+            assert(boxes==(availableFont?7u:2u) && !textureCoordinates && texGens==0);
             assert(context.mColorTL==1 && context.mColorTR==2 && context.mColorBR==3 && context.mColorBL==4);
             assert((labels!=0)==availableFont);
         }
     }
 
+    s_run.start(42);s_run.options.enemy_hp=10;s_run.options.enemy_damage=10;
+    s_run.options.enemy_speed=3;s_run.options.horde=5;s_run.phase=Phase::Victory;s_run.continue_endless();
+    printed.clear();rubyLabels=0;hasFont=true;draw_hud(nullptr,nullptr,nullptr,nullptr);
+    assert(rubyLabels==2&&printed[0].find("Endless")!=std::string::npos&&printed[1]=="28");
+    s_run.start(42);
     // Victory uses the boss font, a red ceiling-rounded 10-second timer,
     // and restores GX vertex descriptors for the next native HUD element.
     s_run.phase=Phase::Running;s_victory=true;hasFont=true;
@@ -173,7 +178,7 @@ int main(){
     actors[1].health=25;assert(boss_hud_target()==&s_enemies[1]);
     hasFont=true;s_run.phase=Phase::Running;bossBars=rubyLabels=0;
     draw_hud(nullptr,nullptr,nullptr,nullptr);
-    assert(bossBars==1&&bossPercentage==25&&rubyLabels==2&&!textureCoordinates);
+    assert(bossBars==1&&bossPercentage==25&&rubyLabels==4&&!textureCoordinates);
     assert(!std::strcmp(boss_hud_name(s_enemies[1].species),"Darknut"));
     for(const auto& roster:map_rosters)for(auto species:roster.elites)
         assert(std::strcmp(boss_hud_name(unsigned(species)),"Elite"));

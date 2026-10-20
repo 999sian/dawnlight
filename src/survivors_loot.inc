@@ -166,6 +166,8 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
     auto& encounter=s_eliteEncounters[enemy.eliteSlot];
     if (encounter.defeated) return;
     encounter.defeated=true;
+    if(s_run.endless && unsigned(enemy.eliteSlot)<timed_elite_count)
+        encounter.respawnAt=std::max(encounter.respawnAt+timed_elite_count*elite_interval,s_run.ticks+1);
     if (unsigned(enemy.eliteSlot)>=timed_elite_count)
         encounter.respawnAt=s_run.ticks+guard_respawn_interval;
     // A guard slot rewards its first confirmed kill only, including relocation.

@@ -12,6 +12,8 @@ fixture=r'''
 #include "mods/svc/ui.h"
 #define svc_ui test_ui
 using namespace dawnlight::survivors;
+std::string number(unsigned n){return std::to_string(n);}
+std::string result_decimal(double n,int=1){return std::to_string(n);}
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* p,int i){return std::any_cast<T>(static_cast<std::any*>(p)[i]);}
  template<class T>T& arg_ref(void* p,int i){return std::any_cast<T&>(static_cast<std::any*>(p)[i]);}}
@@ -79,6 +81,8 @@ struct Service{
   *handle=1;return MOD_OK;
  }
 
+ ModResult elem_set_rml(ModContext*,UiElementHandle,const char*){return MOD_OK;}
+ ModResult pane_add_rml(ModContext*,UiElementHandle,const char*,UiElementHandle* handle){if(handle)*handle=99;return MOD_OK;}
  ModResult elem_set_class(ModContext*,UiElementHandle,const char*,bool){return MOD_OK;}
  ModResult pane_add_control(ModContext*,UiElementHandle pane,const UiControlDesc* c,UiElementHandle*){controls.push_back(*c);controlPanes.push_back(pane);return MOD_OK;}
  ModResult pane_add_text(ModContext*,UiElementHandle,const char*,UiElementHandle*){return MOD_OK;}
@@ -224,10 +228,10 @@ int main(){
 '''
 core=(root/'src/survivors.cpp').read_text()
 window=core[core.index('void open_window() {'):core.index('ModResult activated(')]
-ui=(root/'src/survivors_maps_ui.inc').read_text().split('struct RunOptionControl',1)[1]
+ui=(root/'src/survivors_maps_ui.inc').read_text().split('UiElementHandle s_difficultySummary',1)[1]
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+'bool extended_locomotion(fopAc_ac_c*,int){return false;}\n'+(root/'src/survivors_options.inc').read_text()+'struct RunOptionControl'+ui+(root/'src/survivors_debug_ui.inc').read_text()+window+main)
+ cpp.write_text(fixture+'bool extended_locomotion(fopAc_ac_c*,int){return false;}\n'+(root/'src/survivors_options.inc').read_text()+'UiElementHandle s_difficultySummary'+ui+(root/'src/survivors_debug_ui.inc').read_text()+window+main)
  for enabled in [0,1]:
   subprocess.run([os.environ.get('CXX','c++'),f'-DDAWNLIGHT_SURVIVORS_DEBUG={enabled}','-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True)

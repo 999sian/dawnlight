@@ -1391,3 +1391,35 @@ Record format 9 appends three upgrade ranks and a Lightning damage bucket.
 The v8 migration explicitly copies all old ranks and damage counters without
 shifting their IDs, preserving both highscore categories, scores, map clears,
 meta XP and talents. Versions 1–7 retain their prior migration behavior.
+
+
+### Endless continuation and records v10
+
+Victory results can resume the live Run after staging its normal checkpoint.
+The continuation does not call Run::start, reload the arena, reset inventory or
+reroll upgrades. Clear the ending presentation and re-arm the existing four boss
+slots at +5/+10/+15/+20 minutes, repeating each slot every 20 minutes. A still-live
+boss blocks its own slot; failed/unloaded actors retry without duplicate rewards.
+New lives reset the timed-slot chest reward latch. EXP magnets use reusable drop
+slots in Endless instead of the original one-per-scheduled-boss bookkeeping.
+
+Run stores Endless start time, the already-awarded normal score and Twilit Rank.
+Each active minute adds a multiplicative 10% HP/damage/locomotion bonus. Paused
+menus do not advance it. Apply HP growth once to living actors, preserving their
+HP fraction; never revive killed/retiring actors. New HP extrapolates the last
+normal map-curve segment and applies the Endless factor. Native signed HP/damage
+limits remain; saturate before conversion. Normal mode curves/caps are unchanged.
+
+Records v10 adds two five-map Endless lists beside Ranked/Cheated and appends
+rank/start/checkpoint words to each result snapshot. Explicit v8/v9 migrations
+preserve previous scores, integrity, damage rows, talents, map clears and lifetime
+statistics; old rank is derived from stored difficulty. Ending Endless records
+only its additional talent XP and does not increment the run/win count twice.
+Individual deletion/reset operate on the selected normal/Endless category.
+
+Validation covers live-build continuation, failed checkpoint writes, save/modal
+guards, sticky Modded status, minute boundaries, HP extrapolation, repeated boss
+slots, duplicate rewards, independent records, no double XP, v9 migration and HUD
+GX/color-state restoration. Device checks: win -> continue, native Save records
+then continue, repeated bosses and drops, pause during minute boundary, death/Game
+Over and voluntary End Run, reload all four records, D-pad/touch score navigation.

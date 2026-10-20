@@ -585,3 +585,36 @@ actual elapsed time. The HUD displays the chosen timer.
 `src/survivors_debug.hpp`. This is the single enable/disable switch. It removes
 the tab and forces every debug setting back to the defaults above, including
 stale run/menu values. The switch is currently `1` for development testing.
+
+
+## Endless Mode and Twilit Rank
+
+After clearing a map, the Victory results offer **Continue in Endless Mode**.
+The normal victory record is kept. Continue with the same weapons, upgrades,
+inventory, level and run clock. The run ends on defeat or End Run, not at a time
+limit. Each complete minute after continuing compounds enemy HP, incoming damage
+and movement speed by **x1.10** (two minutes: x1.21). New spawns also continue the
+map HP curve beyond 20 minutes using its last segment; existing wounded enemies
+receive each minute bonus once, preserving their remaining-health fraction.
+Native HP/damage representation remains limited to 32,767; extreme movement
+multipliers are bounded to prevent invalid physics values.
+
+The map's four timed bosses repeat in order every five minutes (also when the
+normal run used a shortened debug timer). An occupied boss slot waits for its
+previous boss to die. Repeated bosses give fresh reward chests/EXP magnets; normal
+spawns, Horde rolls, pots and eligible map guards continue.
+
+Each map shows **Endless Score** beside both its Ranked and Cheated normal score.
+Click it for the saved run's damage breakdown, Twilit Rank and Delete Score action.
+Endless score includes the normal segment and its victory bonus. Talent XP paid
+at the normal victory is subtracted from the later award; one continued run still
+counts as one run/win. Reset High Scores clears all four categories without
+locking maps. Existing v8/v9 normal records migrate with no score changes.
+
+**Twilit Rank** is Enemy HP + Enemy Damage + Enemy Speed + Horde (4–28). Difficulty
+shows it below the four controls, followed by their effects and effective reward
+multipliers. The rank itself adds no extra bonus: score and talent XP keep the
+existing additive difficulty formula (x1.00–x4.15). Horde divides normal-kill score
+and normal-enemy run-XP/loot opportunities by its setting; elite run XP stays x1.
+The HUD shows the elapsed time, a skull and rank using the boss-name font. Both
+Victory/Defeat results and all saved score snapshots retain the rank.

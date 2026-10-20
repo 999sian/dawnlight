@@ -65,7 +65,7 @@ void move_pickup(RunPickup& pickup, fopAc_ac_c* actor) {
 // Rendered like ordinary XP, without a native story-item actor or Get Item event.
 void queue_exp_magnet(const Enemy& enemy, fopAc_ac_c* actor) {
     unsigned slot=0;
-    if (enemy.elite) {
+    if (enemy.elite && !s_run.endless) {
         if (enemy.eliteSlot<0 || unsigned(enemy.eliteSlot)>=timed_elite_count) return;
         slot=unsigned(enemy.eliteSlot);
     } else {

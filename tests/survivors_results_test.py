@@ -20,6 +20,7 @@ unsigned treasure_item(ChestReward,const Run&){return 0x43;}
 const char* reward_name(ChestReward,const Run&){return "Ball & Chain";}
 void close_high_score(ModContext*,void*){}
 void request_delete_score(ModContext*,void*){}
+void continue_endless(ModContext*,void*){}
 void save_results(ModContext*,void*){}void replay(ModContext*,void*){}
 std::vector<std::string> texts,classes,labels;std::vector<UiPressedFn> callbacks;std::vector<UiElementHandle> parents;unsigned rows=2;
 struct Service{
@@ -35,17 +36,18 @@ int main(){
  s_run.start(1);s_run.phase=Phase::Victory;s_run.ticks=3600;s_run.kills=200;
  s_run.ranks[unsigned(Upgrade::Bow)]=12;s_run.ranks[unsigned(Upgrade::FireEdge)]=1;
  s_run.damage.dealt[unsigned(DamageSource::Bow)]=900;s_run.damage.dealt[unsigned(DamageSource::FireEdge)]=100;
- assert(build_results(1,2)==MOD_OK&&texts.size()==3&&classes.size()==7);
+ assert(build_results(1,2)==MOD_OK&&texts.size()==3&&classes.size()==8);
  // The real window installs this stylesheet outside build_results. Exercise
  // that dependency here too: every assigned class must have a style rule.
  const std::string stylesheet=kResultsStyle;
  for(const auto& name:classes)assert(stylesheet.find("."+name+" {")!=std::string::npos);
  auto table=texts[0];assert(table.find("VICTORY")!=std::string::npos&&table.find("02:00")!=std::string::npos);
+ assert(table.find("Twilit Rank 4")!=std::string::npos);
  assert(table.find("Hero's Bow")<table.find("Sword Attack"));
  assert(table.find("90.0%")!=std::string::npos&&table.find("7.5")!=std::string::npos&&table.find("1,000")!=std::string::npos);
  assert(table.find("Fire Edge")==std::string::npos&&texts[1].find("Power-ups")==std::string::npos);
  assert(texts[1].find("Ball &amp; Chain")!=std::string::npos);
- assert((labels==std::vector<std::string>{"Save records","Return to hub"}));
+ assert((labels==std::vector<std::string>{"Save records","Return to hub","Continue in Endless Mode"}));
  assert(callbacks[0]==save_results&&callbacks[1]==replay);assert(parents[0]!=parents[1]);
  s_run.dark_link=4;s_run.damage.dealt[unsigned(DamageSource::DarkLink)]=250;
  table=results_damage_rml();assert(table.find("Dark Link")!=std::string::npos&&table.find("1,250")!=std::string::npos);

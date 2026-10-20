@@ -127,6 +127,21 @@ int main(){
   }
  }
 
+ // Endless repeats the four map bosses every five minutes, including debug runs.
+ for(unsigned minutes:{5u,20u}){
+  fresh(0);s_run.options.debug.run_minutes=minutes;s_run.ticks=s_run.run_duration();
+  s_run.phase=Phase::Victory;assert(s_run.continue_endless());
+  for(unsigned i=0;i<4;++i)s_eliteEncounters[i].respawnAt=s_run.endless_start+(i+1)*elite_interval;
+  for(unsigned n=0;n<12;++n){
+   s_run.ticks=s_run.endless_start+(n+1)*elite_interval-1;update_elite_spawns(&player);assert(waves()==0);
+   ++s_run.ticks;update_elite_spawns(&player);assert(waves()==1);
+   for(auto& enemy:s_enemies)if(enemy.id!=kNone){
+    assert(enemy.eliteSlot==int(n%4));drop_elite_chest(enemy,&player);enemy={};
+   }
+   const auto count=s_chestSequence;update_elite_spawns(&player);assert(waves()==0&&s_chestSequence==count);
+  }
+  s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns>0);
+ }
  // Compact arenas have no map guards, even with captured doors or large floor.
  for(unsigned map:{0u,4u}){fresh(map);add_floor(10000);door(2000,0);assert(s_eliteDoorSites.size()==1);
   for(unsigned minute=0;minute<20;++minute){s_run.ticks=minute*60*30;update_elite_spawns(&player);

@@ -53,6 +53,12 @@ jobs:
           /tmp/survivors-rules-test
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_sword_rewards_test.cpp -o /tmp/survivors-sword-rewards
           /tmp/survivors-sword-rewards
+          c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_endless_test.cpp -o /tmp/survivors-endless
+          /tmp/survivors-endless
+          clang++ -std=c++20 -Wall -Wextra -Werror tests/survivors_endless_test.cpp -o /tmp/survivors-endless-clang
+          /tmp/survivors-endless-clang
+          python3 tests/survivors_endless_runtime_test.py
+          CXX=clang++ python3 tests/survivors_endless_runtime_test.py
           python3 tests/survivors_lightning_test.py
           CXX=clang++ python3 tests/survivors_lightning_test.py
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_maps_test.cpp -o /tmp/survivors-maps-test

@@ -12,6 +12,7 @@ fixture=r'''
 #include <map>
 #include <set>
 #include <vector>
+struct { double endless_factor()const{return 1.0;} }s_run;
 using ActorId=unsigned;using ProfileName=int;using s16=short;constexpr ActorId kNone=~0u;
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* a,unsigned i){return std::any_cast<T>(static_cast<std::any*>(a)[i]);}}

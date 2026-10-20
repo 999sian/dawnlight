@@ -135,6 +135,11 @@ int main(){
  assert(s_run.phase==Phase::Victory&&s_resultsStored&&save.writes==1&&s_records.wins==1);
  assert(s_run.kills==1&&s_run.damage.total()==damage&&s_run.ticks==ticks&&pickupsRetired==1);
  finish(true);finish(false);assert(save.writes==1);
+ // The repeated final-boss slot does not trigger a second victory sweep in Endless.
+ fresh();s_run.phase=Phase::Victory;assert(s_run.continue_endless());
+ s_enemies[0]={0,0,false,false,true,true,3};actors[0].health=0;
+ credit_death(s_enemies[0],&actors[0]);
+ assert(!s_victory&&s_run.phase==Phase::Running&&s_run.timed_elites==1&&chests==1&&!save.writes);
  // Native defeat must neither heal nor pause Link before his death animation.
  fresh();life=0;int result=0;
  assert(before_death(nullptr,nullptr,&result,nullptr)==HOOK_CONTINUE);

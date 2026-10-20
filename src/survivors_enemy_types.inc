@@ -2,6 +2,14 @@
 void initialize_enemy(Enemy* enemy, fopAc_ac_c* actor) {
     if (!enemy || !actor) return;
     if (enemy->initialized) {
+        const auto minute=s_run.endless_minutes();
+        if(!enemy->retiring && !enemy->credited && actor->health>0 && minute>enemy->endlessMinute) {
+            const double factor=std::pow(1.1,double(std::min(1000u,minute-enemy->endlessMinute)));
+            const int maximum=std::min(32767.0,std::ceil(actor->field_0x560*factor));
+            // Preserve damage already taken as a fraction; do not heal on scaling.
+            actor->health=std::max(1, int((int64_t(actor->health)*maximum)/std::max(1,int(actor->field_0x560))));
+            actor->field_0x560=maximum;enemy->endlessMinute=minute;
+        }
         // Guards can wait from minute zero until late in the run. Keep untouched
         // dormant guards current; a hit wakes them or lowers HP, freezing growth.
         if (enemy->elite && enemy->dormant && !enemy->retiring && !enemy->credited &&
@@ -10,7 +18,7 @@ void initialize_enemy(Enemy* enemy, fopAc_ac_c* actor) {
                 s_run.enemy_health(native_roster[enemy->species].hp, true, s_map));
         return;
     }
-    enemy->initialized = true;
+    enemy->initialized = true;enemy->endlessMinute=s_run.endless_minutes();
     if (extended_enemy(enemy->profile)) {initialize_extended_enemy(*enemy,actor);return;}
     if (enemy->elite) {
         // These native matrix paths use HIO scale, ignoring actor scale.

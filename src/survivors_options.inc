@@ -11,14 +11,17 @@ HookAction before_enemy_speed(ModContext*, void* args, void*, void*) {
     if(enemy->stagger)return HOOK_CONTINUE;
     // Boss locomotion and charges gain 50%; ordinary difficulty retains its
     // conservative locomotion whitelist. Bloat has no Acch call (own hook).
+    const float endlessSpeed=float(std::min(32767.0,s_run.endless_factor()));
     if(boss) {
-        actor->current.pos.x+=actor->speed.x*.5f;
-        actor->current.pos.z+=actor->speed.z*.5f;
+        const float extra=1.5f*endlessSpeed-1.f;
+        actor->current.pos.x+=actor->speed.x*extra;
+        actor->current.pos.z+=actor->speed.z*extra;
         if(enemy->profile==fpcNm_E_YC_e||enemy->profile==fpcNm_E_HZELDA_e||enemy->profile==fpcNm_E_KR_e)
-            actor->current.pos.y+=actor->speed.y*.5f;
+            actor->current.pos.y+=actor->speed.y*extra;
         acch->OnLineCheck();
     }
-    if(s_run.options.enemy_speed==1)return HOOK_CONTINUE;
+    const float movement=float(std::min(32767.f,s_run.options.enemy_speed*(boss?1.f:endlessSpeed)));
+    if(movement==1.f)return HOOK_CONTINUE;
     // Whitelist locomotion, not a numeric range which also contains attacks.
     // Bokoblin attack root motion is separate from speed and must stay native,
     // including the frame transitioning from attack back to the find state.
@@ -45,7 +48,7 @@ HookAction before_enemy_speed(ModContext*, void* args, void*, void*) {
         const bool bowRun=bulblin->action==5 && (bulblin->mode==1 || bulblin->mode==2) && bulblin->anm==0x32;
         if ((!chase && !bowRun) || bulblin->jump_z!=0 || bulblin->field_0x9f0>0.1f) return HOOK_CONTINUE;
     } else if (!extended_locomotion(actor,enemy->profile) || enemy->stagger) return HOOK_CONTINUE;
-    const float extra=float(std::clamp(s_run.options.enemy_speed,1u,3u)-1)*(boss?1.5f:1.f);
+    const float extra=(movement-1.f)*(boss?1.5f*endlessSpeed:1.f);
     // Add only horizontal locomotion velocity before native wall correction.
     // Do not multiply animation translations, collision pushes, falls or teleports.
     actor->current.pos.x+=actor->speed.x*extra;
@@ -62,11 +65,11 @@ HookAction before_enemy_damage(ModContext*, void* args, void*, void*) {
         auto* attacker=target.ChkTgHit() ? target.GetTgHitAc() : nullptr;
         const auto* enemy=attacker ? tracked(fopAcM_GetID(attacker)) : nullptr;
         if (attacker && active_enemy_arrow(fopAcM_GetID(attacker))) {
-            mods::arg_ref<int>(args,1)=std::min(mods::arg<int>(args,1),32767)*int(s_run.options.enemy_damage)*int(enemy_damage_factor(fopAcM_GetID(attacker)));
+            mods::arg_ref<int>(args,1)=int(s_run.incoming_damage(unsigned(mods::arg<int>(args,1)),enemy_damage_factor(fopAcM_GetID(attacker))));
             break;
         }
         if (!enemy || !enemy->initialized || enemy->retiring) continue;
-        mods::arg_ref<int>(args,1)=std::min(mods::arg<int>(args,1),32767)*int(s_run.options.enemy_damage)*int(enemy_damage_factor(fopAcM_GetID(attacker)));
+        mods::arg_ref<int>(args,1)=int(s_run.incoming_damage(unsigned(mods::arg<int>(args,1)),enemy_damage_factor(fopAcM_GetID(attacker))));
         break;
     }
     return HOOK_CONTINUE;
