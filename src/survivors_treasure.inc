@@ -77,9 +77,33 @@ void cancel_treasure_demo() {
     }
     s_selectedChest = kChestCount;
 }
+void roll_treasure_offers(Chest& chest, bool bottles) {
+    chest.powerups=s_run.chest_powerups_enabled(bottles);
+    chest.chosenPowerup=Upgrade::Count;
+    if (chest.powerups) {
+        Run preview=s_run;preview.roll_upgrades();
+        s_run.random=preview.random;
+        chest.powerupOffers=preview.offers;chest.rarities=preview.offer_rarities;
+        chest.offers.fill(ChestReward::Count);
+    } else {
+        chest.offers=s_run.roll_chest_offers(bottles);
+        for(auto& rarity:chest.rarities)rarity=s_run.roll_rarity();
+        chest.powerupOffers.fill(Upgrade::Count);
+    }
+}
+bool treasure_offers_valid(const Chest& chest) {
+    if (chest.powerups!=s_run.chest_powerups_enabled(potion_slot()>=0)) return false;
+    for (unsigned i=0;i<3;++i) {
+        if (chest.powerups) {
+            const auto upgrade=chest.powerupOffers[i];
+            if (s_run.eligible(upgrade) && chest.rarities[i]>=upgrade_min_rarity(upgrade)) return true;
+        } else if (s_run.chest_eligible(chest.offers[i],potion_slot()>=0)) return true;
+    }
+    return false;
+}
 bool chest_interactable(const Chest& chest, daAlink_c* link) {
     if (!chest.active || chest.opening || !s_loot.ready || (s_run.phase != Phase::Running && s_run.phase != Phase::TreasureChoice) ||
-        !playable() || s_treasure.item != kNone || !s_run.chest_rewards_left(potion_slot() >= 0) ||
+        !playable() || s_treasure.item != kNone || !s_run.chest_rewards_available(potion_slot() >= 0) ||
         (dComIfGs_getRupee() < s_run.chest_price(chest.free,chest.fixed)) || link->checkWolf() || dComIfGs_getLife() == 0) return false;
     const cXyz delta = chest.position - link->current.pos;
     // Auto-aim/spin changes facing; it must never hide a nearby Open action.
@@ -93,16 +117,11 @@ bool begin_treasure_choice(unsigned index, daAlink_c* link) {
     auto* layer = link->layer_tag.layer;
     if (!layer || layer == fpcLy_RootLayer() || fpcLy_IsDeletingMesg(layer)) return false;
     auto& chest = s_chests[index];
-    // Preserve offers on cancel. Reroll only when every cached reward became unusable.
-    if (std::none_of(chest.offers.begin(), chest.offers.end(), [](ChestReward reward) {
-            return s_run.chest_eligible(reward, potion_slot() >= 0);
-        })) {
-        chest.offers = s_run.roll_chest_offers(potion_slot() >= 0);
-        for (auto& rarity : chest.rarities) rarity = s_run.roll_rarity();
-    }
-    if (std::none_of(chest.offers.begin(), chest.offers.end(), [](ChestReward reward) {
-            return s_run.chest_eligible(reward, potion_slot() >= 0);
-        })) return false;
+    // Preserve valid offers on cancel, but switch old item chests when the
+    // item pool is exhausted by caps, bans or unavailable bottle slots.
+    if (!treasure_offers_valid(chest)) roll_treasure_offers(chest,potion_slot()>=0);
+    if (!treasure_offers_valid(chest)) return false;
+    chest.chosenPowerup=Upgrade::Count;
     s_selectedChest = index; s_chosenTreasure = ChestReward::Count;
     s_run.phase = Phase::TreasureChoice;
     clear_attacks();
@@ -190,17 +209,49 @@ bool grant_starting_item(daAlink_c* link) {
     dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(),rupees));
     s_run=preview;sync_survivors_inventory();finish_starting_item_choice();return true;
 }
+bool grant_treasure_powerup(daAlink_c* link) {
+    if (s_selectedChest>=s_chests.size()) return false;
+    auto& chest=s_chests[s_selectedChest];
+    if (!chest.powerups || !chest_interactable(chest,link)) return false;
+    const auto found=std::find(chest.powerupOffers.begin(),chest.powerupOffers.end(),chest.chosenPowerup);
+    if (found==chest.powerupOffers.end() || chest.chosenPowerup==Upgrade::Count) return false;
+    Run preview=s_run;preview.phase=Phase::Treasure;
+    preview.maximum_hearts=dComIfGs_getMaxLife()/5;
+    const unsigned oldHearts=preview.rank(Upgrade::Heart);
+    unsigned rupees=dComIfGs_getRupee();
+    const auto rarity=chest.rarities[unsigned(found-chest.powerupOffers.begin())];
+    if (!preview.buy_chest_powerup(rupees,chest.chosenPowerup,rarity,chest.free,chest.fixed,potion_slot()>=0)) return false;
+    if (chest.chosenPowerup==Upgrade::Heart)
+        dComIfGs_setMaxLife(std::min(100u,unsigned(dComIfGs_getMaxLife())+5*(preview.rank(Upgrade::Heart)-oldHearts)));
+    dComIfGs_setRupee(std::min<unsigned>(dComIfGs_getRupeeMax(),rupees));
+    s_run=preview;chest={};s_selectedChest=kChestCount;s_chosenTreasure=ChestReward::Count;
+    // A chest grants the reward, not a level or the level-up's full heal.
+    // Preserve earned XP: if a real level-up is queued, show it next.
+    s_run.level_up();
+    return true;
+}
 void select_treasure(ModContext*, void* data) {
     const auto choice = *static_cast<unsigned*>(data);
     if (s_run.phase != Phase::TreasureChoice || s_chosenTreasure != ChestReward::Count ||
         s_selectedChest >= s_chests.size() || choice >= 3) return;
-    const auto reward = s_chests[s_selectedChest].offers[choice];
+    auto& chest=s_chests[s_selectedChest];
+    if (chest.powerups) {
+        const auto upgrade=chest.powerupOffers[choice];
+        if (!s_run.chest_powerups_enabled(potion_slot()>=0) || !s_run.eligible(upgrade) || chest.rarities[choice]<upgrade_min_rarity(upgrade)) return;
+        chest.chosenPowerup=upgrade;s_chosenTreasure=ChestReward::Powerup;
+        close_window();return; // Commit only after the modal has closed.
+    }
+    const auto reward = chest.offers[choice];
     if (!s_run.chest_eligible(reward, potion_slot() >= 0)) return;
     s_chosenTreasure = reward;
     close_window(); // Defer native actor/event creation until the UI has closed.
 }
 void update_treasure_choice(daAlink_c* link) {
     if (s_run.phase != Phase::TreasureChoice || s_chosenTreasure == ChestReward::Count || !playable()) return;
+    if (s_chosenTreasure==ChestReward::Powerup) {
+        if (!grant_treasure_powerup(link)) dismiss_treasure_choice();
+        return;
+    }
     if(s_run.starting_item_pending) {
         if(!grant_starting_item(link))s_chosenTreasure=ChestReward::Count;
         return;

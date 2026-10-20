@@ -8,6 +8,9 @@ struct Chest {
     s16 yaw = 0;
     unsigned age = 0;
     uint64_t spawnOrder = 0;
+    bool powerups = false;
+    Upgrade chosenPowerup = Upgrade::Count;
+    std::array<Upgrade,3> powerupOffers{Upgrade::Count,Upgrade::Count,Upgrade::Count};
     ChestReward reward = ChestReward::Count;
     std::array<ChestReward, 3> offers{ChestReward::Count, ChestReward::Count, ChestReward::Count};
     std::array<Rarity, 3> rarities{};
@@ -511,7 +514,7 @@ void update_chests(daAlink_c* link) {
     if (s_run.phase != Phase::Running || !prepare_loot(link)) return;
     seed_map_chests(link);
     if (s_chestDelay) { --s_chestDelay; return; }
-    if (!s_run.chest_rewards_left(potion_slot() >= 0)) return;
+    if (!s_run.chest_rewards_available(potion_slot() >= 0)) return;
     s_chestDelay = spawn_chest(link) ? (25 + s_run.next_random() % 21) * ticks_per_second : 3 * ticks_per_second;
 }
 void draw_loot_model(J3DModel* model, cXyz pos, s16 yaw, s16 pitch, float scale) {

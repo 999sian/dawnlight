@@ -4,6 +4,59 @@
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
+    // Fallback depends on available equipment improvements, never a four-slot minimum.
+    static_assert(unsigned(ChestReward::Count)==9); // Persistent inventory layout stays unchanged.
+    for(unsigned slots=0;slots<=4;++slots) {
+        Run chest;chest.start(42);
+        for(unsigned i=0;i<slots;++i)chest.ranks[unsigned(Upgrade::Bow)+i]=30;
+        assert(chest.chest_powerups_enabled()==(slots==4));
+        for(unsigned i=slots;i<unsigned(ChestReward::Count);++i)chest.banned_items[i]=true;
+        assert(chest.chest_powerups_enabled()&&chest.chest_rewards_available());
+        if(slots) {
+            chest.ranks[unsigned(Upgrade::Bow)]=29;
+            assert(!chest.chest_powerups_enabled());
+            chest.banned_items[unsigned(ChestReward::Bow)]=true;
+            assert(chest.chest_powerups_enabled());
+        }
+        chest.starting_item_pending=true;assert(!chest.chest_powerups_enabled());
+    }
+    for(auto item:{ChestReward::MasterSword,ChestReward::OrdonSword,ChestReward::Shield,ChestReward::DarkLink}) {
+        Run chest;chest.start(42);chest.banned_items.fill(true);chest.banned_items[unsigned(item)]=false;
+        chest.master_sword=30;chest.dual_wield=30;chest.shield=10;chest.dark_link=30;
+        chest.red_potion=true;chest.ranks[unsigned(Upgrade::PotionHealing)]=30;
+        assert(chest.chest_powerups_enabled());
+        if(item==ChestReward::MasterSword)--chest.master_sword;
+        if(item==ChestReward::OrdonSword)--chest.dual_wield;
+        if(item==ChestReward::Shield)--chest.shield;
+        if(item==ChestReward::DarkLink)--chest.dark_link;
+        assert(!chest.chest_powerups_enabled());chest.banned_items[unsigned(item)]=true;
+        assert(chest.chest_powerups_enabled());
+    }
+    {
+        Run chest;chest.start(42);chest.banned_items.fill(true);
+        chest.banned_items[unsigned(ChestReward::RedPotion)]=false;chest.red_potion=true;
+        assert(!chest.chest_powerups_enabled(true)); // An available native refill remains an item reward.
+        assert(chest.chest_powerups_enabled(false)); // Full bottles use the same empty-item-pool condition.
+        chest.banned_items[unsigned(ChestReward::RedPotion)]=true;
+        assert(chest.chest_powerups_enabled(true));
+    }
+    for(unsigned kind=0;kind<3;++kind) {
+        Run chest;chest.start(42);chest.banned_items.fill(true);chest.phase=Phase::Treasure;
+        unsigned wallet=100;chest.ranks[unsigned(Upgrade::Power)]=29;
+        assert(chest.buy_chest_powerup(wallet,Upgrade::Power,Rarity::Legendary,kind==1,kind==2));
+        assert(wallet==100-(kind==1?0:kind==2?40:20)+80);
+        assert(chest.rank(Upgrade::Power)==30&&chest.chests_opened==(kind==0?1u:0u));
+        assert(chest.level==1&&chest.xp==0&&chest.phase==Phase::Running);
+        const auto saved=wallet;
+        assert(!chest.buy_chest_powerup(wallet,Upgrade::Power,Rarity::Common,true,false)&&wallet==saved);
+        chest.phase=Phase::Treasure;chest.dual_wield=1;
+        assert(!chest.buy_chest_powerup(wallet,Upgrade::MultiStrike,Rarity::Rare,true,false));
+        assert(chest.buy_chest_powerup(wallet,Upgrade::MultiStrike,Rarity::Epic,true,false));
+        chest.phase=Phase::Treasure;chest.banned_upgrades.fill(true);
+        assert(!chest.chest_rewards_available());
+        assert(!chest.buy_chest_powerup(wallet,Upgrade::Count,Rarity::Common,true,false));
+    }
+
     // Fixed map/time curves, rounded once with difficulty. Final boss budgets
     // are absolute, separate from normal/elite HP, and do not grow after 20m.
     Run hp;hp.start(1);

@@ -335,6 +335,15 @@ attacks and offers three items; choose one to receive it through the native Get
 Item animation. Cancelling preserves offers. Opened chests disappear; free elite
 chests never raise the paid-chest price.
 
+When the item reward pool is empty (all remaining options capped, banished or
+unavailable), chests offer normal **level-up rewards** instead. This also works
+with fewer than four equipped items. The same availability check controls the
+HUD: **No chest rewards available** appears only if neither reward pool has an
+eligible choice. Bottle refills retain their existing availability rules.
+Fallback rewards use normal rarity, caps, rerolls, banishes and icons; they grant
+no extra XP level or full heal. Paid, fixed-price and free chests keep their prices.
+The starting-item talent remains an item-only choice.
+
 Equip up to **four chest items**; their icons (or empty slots) appear above the
 choices. Red Potion uses one shared slot for all bottles, retained even when
 they are empty. Passive power-ups have no

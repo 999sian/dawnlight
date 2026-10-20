@@ -541,8 +541,15 @@ It starts at rank 0 with one heart of healing. The unlocked Potion Healing power
 adds a quarter heart per rank, up to 8.5 hearts at rank 30. Refills retain this rank;
 only the red-potion drinking call changes healing, preserving other pickups and native bottle consumption.
 
-Maxed weapons, a rank-5 Master Sword, an owned offhand sword and a 50% shield are excluded. New chests stop
-spawning only while no useful reward is available. Each run resets the separate
+Maxed and banished items are excluded. When `chest_rewards_left(bottles)` is
+false, existing and new chests offer the ordinary level-up pool instead, without
+a minimum equipped-item count. The starting-item talent is exempt. The HUD's
+empty-reward notice and spawn/interact gates now require both pools to be empty.
+Rarity, upgrade caps, banishes, overflow rupees and all chest prices are preserved.
+Fallback grants happen once after the choice modal closes, with no native item
+actor, XP level or full heal; pending earned XP is still processed. Cancellation
+preserves cached offers unless their mode changed or all choices became invalid.
+New chests stop spawning only while neither pool has a useful reward. Each run resets the separate
 Survivors inventory, sword/shield ranks, Dual Wield unlock, chest prices and weapon ranks, with
 a giant wallet (at least 1000 capacity) and zero rupees.
 

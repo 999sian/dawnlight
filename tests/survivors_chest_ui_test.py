@@ -14,7 +14,10 @@ inventory = (root / 'src/survivors_inventory.inc').read_text()
 changes = inventory[inventory.index('std::vector<ItemChange> treasure_changes'):inventory.index('bool prepare_treasure_message')]
 actions=(root/'src/survivors_choice_actions.inc').read_text()
 header=actions[actions.index('ModResult add_choice_header('):actions.index('ModResult add_choice_actions(')]
-source = (root / 'src/survivors_choice_ui.inc').read_text() + header + (root / 'src/survivors_chest_ui.inc').read_text()
+powerups=(root/'src/survivors_powerups.inc').read_text()
+icons=powerups[powerups.index('ChestReward powerup_item('):powerups.index('HookAction before_powerup_icon(')]
+card=powerups[powerups.index('std::string powerup_card_rml('):powerups.index('ModResult build_upgrade_choices(')]
+source = (root / 'src/survivors_choice_ui.inc').read_text() + header + 'constexpr const char* kPowerupScrollIcon="item://item/92?dawnlight-survivors-powerup";\n'+icons+card+(root / 'src/survivors_chest_ui.inc').read_text()
 fixture = r'''
 #include <cassert>
 #include <map>
@@ -34,7 +37,7 @@ Run s_run;unsigned rupees=500,selected=99,banished=99;
 void reroll_choices(ModContext*,void*){}
 void banish_choice(ModContext*,void* data){banished=*static_cast<unsigned*>(data);}
 unsigned dComIfGs_getRupee(){return rupees;}
-struct Chest {bool free=false,fixed=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
+struct Chest {bool powerups=false;Upgrade chosenPowerup=Upgrade::Count;std::array<Upgrade,3> powerupOffers{Upgrade::Count,Upgrade::Count,Upgrade::Count};bool free=false,fixed=false;std::array<ChestReward,3> offers;std::array<Rarity,3> rarities{};};
 std::array<Chest,2>s_chests;unsigned s_selectedChest=0;
 std::array<unsigned,3>s_choices{0,1,2};
 void select_treasure(ModContext*,void* data){selected=*static_cast<unsigned*>(data);}
@@ -193,6 +196,16 @@ int main(){
    if(e.css=="survivors-reroll")assert(e.text=="Reroll: 50 rupees");
  }
  assert(exhausted==3);
+ // Fallback cards reuse the level-up renderer, correct indices, caps and pure previews.
+ fresh();s_run.banned_items.fill(true);s_chests[0].powerups=true;
+ s_chests[0].powerupOffers={Upgrade::Power,Upgrade::Heart,Upgrade::Rupees};
+ s_chests[0].rarities={Rarity::Common,Rarity::Rare,Rarity::Legendary};
+ const auto fallbackRng=s_run.random;assert(build_treasure_choices(1,2)==MOD_OK);
+ unsigned fallbackCards=0;
+ for(const auto& [id,e]:elements)if(e.css=="survivors-treasure-pick"){
+   e.pressed(nullptr,e.data);assert(selected==fallbackCards++);
+ }
+ assert(fallbackCards==3&&s_run.random==fallbackRng&&rupees==500&&s_run.rank(Upgrade::Power)==0);
  fresh();failControl=true;assert(build_treasure_choices(1,2)==MOD_UNAVAILABLE&&s_run.chests_opened==0);
  fresh();s_selectedChest=2;assert(build_treasure_choices(1,2)==MOD_INVALID_ARGUMENT);
 }

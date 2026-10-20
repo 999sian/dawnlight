@@ -148,7 +148,7 @@ void dMeter2Info_setShield(int item,bool){equippedShield=item;}
 void dMeter2Info_setSword(int item,bool){equippedSword=item;}
 void dComIfGs_setBButtonItemKey(int item){assert(item==equippedSword);}
 bool s_hub=false,s_hubDeparture=false,s_hubDoorStarted=false;Run s_run;unsigned rupees=0;int s_player=1;
-struct Chest{bool active=false,opening=false,free=false,fixed=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};std::array<Rarity,3> rarities{};};
+struct Chest{bool powerups=false;Upgrade chosenPowerup=Upgrade::Count;std::array<Upgrade,3> powerupOffers{Upgrade::Count,Upgrade::Count,Upgrade::Count};bool active=false,opening=false,free=false,fixed=false;cXyz position{};unsigned age=0;ChestReward reward=ChestReward::Count;std::array<ChestReward,3> offers{ChestReward::Count,ChestReward::Count,ChestReward::Count};std::array<Rarity,3> rarities{};};
 constexpr unsigned kChestCount=2;unsigned s_selectedChest=kChestCount;
 std::array<Chest,2>s_chests;
 struct {bool ready=true;}s_loot;
@@ -164,6 +164,7 @@ bool midna_dialog_busy(){return false;}
 bool playable(){return mode&&!stageChange&&!running&&!paused&&!ui_visible();}
 void close_window(){window=0;}
 bool sword_action_available(daAlink_c* link){return link->mProcID==daAlink_c::PROC_WAIT;}
+unsigned testMaxLife=15;unsigned dComIfGs_getMaxLife(){return testMaxLife;}void dComIfGs_setMaxLife(unsigned value){testMaxLife=value;}
 unsigned dComIfGs_getRupeeMax(){return 10000;}
 unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned n){rupees=n;}
 void clear_attacks(){++cleared;}
@@ -171,7 +172,7 @@ void clear_attacks(){++cleared;}
 main=r'''
 
 void fresh(){
-    bottles.fill(dItemNo_NONE_e);equippedSword=swordGrants=potionGrants=0;
+    testMaxLife=15;bottles.fill(dItemNo_NONE_e);equippedSword=swordGrants=potionGrants=0;
     s_run.start(123);s_treasure={};s_chests={};s_chests[0].active=true;s_chests[0].position={0,0,100};
     s_chosenTreasure=ChestReward::Count;s_selectedChest=kChestCount;rupees=100;s_loot.ready=true;
     prop={};player={};player.id=1;event.mPt2=-1;
@@ -189,6 +190,39 @@ bool open_first(Rarity rarity=Rarity::Common){
 }
 void accept(){event.mPt2=prop.id;prop.eventInfo.command=true;running=true;}
 int main(){
+    // Existing item chests switch to level-up rewards; cancel preserves offers and RNG.
+    fresh();s_run.banned_items.fill(true);s_run.ranks[unsigned(Upgrade::Bow)]=30;
+    assert(begin_treasure_choice(0,&player)&&s_chests[0].powerups);
+    const auto offers=s_chests[0].powerupOffers;const auto rng=s_run.random;
+    dismiss_treasure_choice();assert(begin_treasure_choice(0,&player));
+    assert(s_chests[0].powerupOffers==offers&&s_run.random==rng);
+    s_chests[0].powerupOffers={Upgrade::Power,Upgrade::Heart,Upgrade::Count};
+    s_chests[0].rarities.fill(Rarity::Common);unsigned power=0;
+    select_treasure(nullptr,&power);window=9;update_treasure_choice(&player);
+    assert(rupees==100&&s_run.rank(Upgrade::Power)==0&&created==0);
+    window=0;update_treasure_choice(&player);update_treasure_choice(&player);
+    assert(rupees==80&&s_run.rank(Upgrade::Power)==1&&s_run.chests_opened==1);
+    assert(!s_chests[0].active&&created==0&&s_run.level==1&&s_run.xp==0&&testMaxLife==15);
+    // Full native event lifecycle is unnecessary for level-up rewards; stale choices never charge.
+    for(unsigned failure=0;failure<3;++failure){
+        fresh();s_run.banned_items.fill(true);assert(begin_treasure_choice(0,&player));
+        s_chests[0].powerupOffers.fill(Upgrade::Heart);s_chests[0].rarities.fill(Rarity::Common);
+        select_treasure(nullptr,&power);
+        if(failure==0)rupees=0;
+        if(failure==1)blocked=true;
+        if(failure==2)s_run.banned_upgrades[unsigned(Upgrade::Heart)]=true;
+        update_treasure_choice(&player);
+        assert(s_run.phase==Phase::Running&&s_chests[0].active&&s_run.rank(Upgrade::Heart)==0&&testMaxLife==15);
+        assert(rupees==(failure==0?0u:100u));
+    }
+    fresh();s_run.banned_items.fill(true);s_chests[0].free=true;rupees=0;
+    assert(begin_treasure_choice(0,&player));s_chests[0].powerupOffers.fill(Upgrade::Heart);
+    s_chests[0].rarities.fill(Rarity::Common);select_treasure(nullptr,&power);update_treasure_choice(&player);
+    assert(testMaxLife==20&&s_run.rank(Upgrade::Heart)==1&&rupees==0&&s_run.chests_opened==0);
+    fresh();s_run.banned_items.fill(true);s_run.xp=s_run.required_xp();
+    assert(begin_treasure_choice(0,&player));s_chests[0].powerupOffers.fill(Upgrade::Power);
+    s_chests[0].rarities.fill(Rarity::Common);select_treasure(nullptr,&power);update_treasure_choice(&player);
+    assert(s_run.level==2&&s_run.phase==Phase::Upgrade&&s_run.xp==0&&s_run.rank(Upgrade::Power)==1);
     fresh();int result=0;
     begin_starting_item_choice();assert(s_run.phase==Phase::Running&&s_selectedChest==kChestCount);
     Talents starting;starting.ranks[unsigned(Talent::StartingItem)]=1;
@@ -242,7 +276,7 @@ int main(){
         if(reason==4)s_loot.ready=false;
         if(reason==5)paused=true;
         if(reason==6)stageChange=true;
-        if(reason==7){for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=30;s_run.dual_wield=30;s_run.dark_link=30;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
+        if(reason==7){s_run.banned_upgrades.fill(true);for(unsigned i=8;i<12;++i)s_run.ranks[i]=30;s_run.master_sword=30;s_run.dual_wield=30;s_run.dark_link=30;s_run.shield=10;bottles.fill(dItemNo_RED_BOTTLE_e);}
         assert(!open_first()&&created==0&&rupees==100);
     }
     // Cancel and reopen retain the same offers and never charge or reroll.
@@ -407,7 +441,8 @@ int main(){
     assert(open_first());accept();update_treasure_demo(&player);
     assert(potionGrants==5&&potion_slot()==-1&&rupees==830);
     s_chests[0].active=true;s_chests[0].position={0,0,100};
-    assert(!open_first()); // Four full bottles: no wasted paid reward.
+    assert(begin_treasure_choice(0,&player)&&s_chests[0].powerups); // Full bottles switch to normal level-up rewards.
+    dismiss_treasure_choice();assert(rupees==830);
     bottles[2]=dItemNo_EMPTY_BOTTLE_e;
     assert(open_first());accept();update_treasure_demo(&player);
     assert(bottles[2]==dItemNo_RED_BOTTLE_e&&potionGrants==6&&rupees==765);
