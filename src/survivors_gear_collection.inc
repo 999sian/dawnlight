@@ -12,7 +12,7 @@ void restore_gear_collection() {
     }
     s_gearCollection=nullptr;s_gearNativePanes={};
 }
-GearItem collection_gear(unsigned i) {return s_gear.equipped(i==0?GearKind::Sword:GearKind::Tunic);}
+GearItem collection_gear(unsigned i) {return s_gear.equipped(i==0?GearSlot::Weapon:GearSlot::Tunic);}
 void gear_collection_slots(dMenu_Collect2D_c* menu) {
     if(!in_arena() || !menu || !menu->mpScreen)return;
     if(s_gearCollection!=menu) {
@@ -51,6 +51,17 @@ HookAction before_gear_collection_draw(ModContext*,void* args,void*,void*) {
     for(auto* pane:s_gearNativePanes)if(pane)pane->hide();
     return HOOK_CONTINUE;
 }
+// Native ItemIcon archive indices from dItem_data / dMeter2Info.
+unsigned gear_collection_texture(GearItem item) {
+    switch(item.family()) {
+    case GearFamily::Sword:return 0x70;
+    case GearFamily::Bow:return 0x69;
+    case GearFamily::Boomerang:return 0x62;
+    case GearFamily::Bombs:return 0x0c;
+    case GearFamily::Ball:return 0x20;
+    default:return 0x6b;
+    }
+}
 void after_gear_collection_draw(ModContext*,void* args,void*,void*) {
     auto* menu=mods::arg<dMenu_Collect2D_c*>(args,0);
     if(!in_arena() || menu!=s_gearCollection || !menu->mpLinkPm)return;
@@ -61,8 +72,7 @@ void after_gear_collection_draw(ModContext*,void* args,void*,void*) {
         pane->show();
         if(collection_gear(i).kind==GearKind::Empty)continue;
         auto* archive=dComIfGp_getItemIconArchive();
-        const auto* texture=archive?static_cast<ResTIMG*>(archive->getResource('TIMG',
-            i==0?"tt_kokirinoken_s3_tc.bti":"tt_itumonofuku_s3tc.bti")):nullptr;
+        const auto* texture=archive?static_cast<ResTIMG*>(archive->getIdxResource(gear_collection_texture(collection_gear(i)))):nullptr;
         if(!texture)continue;
         Mtx matrix;const auto a=menu->mpLinkPm->getGlobalVtx(pane,&matrix,0,false,0);
         const auto b=menu->mpLinkPm->getGlobalVtx(pane,&matrix,3,false,0);

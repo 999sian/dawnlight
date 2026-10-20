@@ -31,7 +31,7 @@ const char* gear_name(GearItem g){return g.kind==GearKind::Sword?"Sword":"Tunic"
 std::string gear_description(GearItem g){return "Stats "+std::to_string(g.first);}
 struct Graf{void setup2D(){}}graf;Graf* dComIfGp_getCurrentGrafPort(){return &graf;}
 struct ResTIMG{}tex;bool textureAvailable=true;unsigned lookups=0,draws=0;
-struct Archive{void* getResource(unsigned,const char* name){++lookups;assert(std::string(name)=="tt_kokirinoken_s3_tc.bti"||std::string(name)=="tt_itumonofuku_s3tc.bti");return textureAvailable?&tex:nullptr;}}archive;
+struct Archive{void* getIdxResource(unsigned index){++lookups;assert(index==0x70||index==0x6b||index==0x69||index==0x62||index==0x0c||index==0x20);return textureAvailable?&tex:nullptr;}}archive;
 Archive* dComIfGp_getItemIconArchive(){return &archive;}
 struct J2DPicture{explicit J2DPicture(const ResTIMG* t){assert(t==&tex);}void setAlpha(u8){}void draw(float,float,float w,float h,bool,bool,bool){assert(w==48&&h==48);++draws;}};
 '''
@@ -52,6 +52,10 @@ int main(){
  menu.mCursorX=0;menu.mCursorY=5;menu.mSubWindowOpenCheck=1;after_gear_collection_action(nullptr,args,nullptr,nullptr);assert(menu.mSubWindowOpenCheck==1);
  textureAvailable=false;before_gear_collection_draw(nullptr,args,nullptr,nullptr);after_gear_collection_draw(nullptr,args,nullptr,nullptr);assert(draws==2&&poe.visible);
  textureAvailable=true;before_gear_collection_draw(nullptr,args,nullptr,nullptr);after_gear_collection_draw(nullptr,args,nullptr,nullptr);assert(draws==4&&lookups==6);
+ for(auto kind:{GearKind::HerosBow,GearKind::StormBoomerang,GearKind::BombBag,GearKind::IronBall}) {
+  s_gear.items[0]={kind,1,1,1};assert(s_gear.equipped(GearSlot::Weapon).kind==kind);
+  const auto count=draws;before_gear_collection_draw(nullptr,args,nullptr,nullptr);after_gear_collection_draw(nullptr,args,nullptr,nullptr);assert(draws==count+2);
+ }
  before_gear_collection_delete(nullptr,args,nullptr,nullptr);assert(!s_gearCollection&&menu.field_0x22d[1][4]==17&&menu.field_0x22d[3][4]==1&&!poe.visible);
  arena=false;after_gear_collection_screen(nullptr,args,nullptr,nullptr);assert(!s_gearCollection&&menu.field_0x22d[1][4]==17);
 }

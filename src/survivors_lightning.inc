@@ -116,7 +116,7 @@ void update_lightning(daAlink_c* link) {
         auto& effect=effect_for(*enemy);bool critical=false;
         queue_effect_damage(effect,DamageSource::Lightning,s_run.critical_power(bolt.power,&critical,true));
         effect.attribution.swordPending=true;effect.pendingCritical=effect.pendingCritical||critical;
-        enemy->dormant=false;queue_knockback(*enemy,actor,false);
+        enemy->dormant=false;queue_knockback(*enemy,actor,false,DamageSource::Lightning);
         if(!next_lightning_target(bolt,link))bolt.target=kNone;
     }
 }

@@ -2,7 +2,7 @@ constexpr const char* kGearStyle=R"(
 window { width: 96%; max-width: 1150dp; }
 window content pane { padding: 12dp; font-size: 16dp; }
 ui-row.gear-row { gap: 8dp; margin-bottom: 8dp; align-items: stretch; }
-ui-row.gear-cell { display: block; position: relative; flex: 1 1 0; min-width: 0; height: 94dp; }
+ui-row.gear-cell { display: block; position: relative; flex: 1 1 0; min-width: 0; height: 112dp; }
 .gear-copy { pointer-events: none; text-align: center; padding: 6dp; font-size: 12dp; }
 .gear-copy * { pointer-events: none; }
 .gear-copy img { display: block; width: 44dp; height: 44dp; margin: 0 auto 4dp; }
@@ -12,19 +12,32 @@ button.gear-pick:not(:disabled):hover, button.gear-pick:not(:disabled):focus-vis
 button.gear-pick:selected { border-color: #71ed9a; color: transparent; background-color: #50e08518; }
 button.gear-banish { font-family: var(--font-family-icons); color: #ff7373; }
 @media (max-width: 640dp) { window content pane { padding: 6dp; font-size: 13dp; }
-ui-row.gear-row { gap: 4dp; } ui-row.gear-cell { height: 78dp; }
+ui-row.gear-row { gap: 4dp; } ui-row.gear-cell { height: 100dp; }
 .gear-copy img { width: 32dp; height: 32dp; } .gear-copy { font-size: 10dp; padding: 3dp; } }
 )";
 std::array<unsigned,GearInventory::capacity> s_gearSlots{};
 std::array<UiElementHandle,GearInventory::capacity> s_gearCards{},s_gearButtons{};
 UiElementHandle s_gearDetails=0,s_gearHint=0;
 bool s_gearBanish=false;
-const char* gear_name(GearItem item) {return item.kind==GearKind::Sword?"Sword":item.kind==GearKind::Tunic?"Tunic":"Empty slot";}
+const char* gear_name(GearItem item) {return item.definition().name;}
+const char* gear_icon(GearItem item) {
+    switch(item.family()) {
+    case GearFamily::Sword:return "28";
+    case GearFamily::Bow:return "43";
+    case GearFamily::Boomerang:return "40";
+    case GearFamily::Bombs:return "70";
+    case GearFamily::Ball:return "42";
+    default:return "2f";
+    }
+}
 std::string gear_description(GearItem item) {
     if(item.kind==GearKind::Empty)return "Empty slot";
-    std::string text=std::string(rarity_names[item.rarity()])+" "+gear_name(item)+"\n";
-    if(item.kind==GearKind::Sword)text+="+"+number(item.first)+" sword damage\n+"+number(item.second)+"% melee critical chance\n+"+number(item.third)+"% melee attack speed";
-    else text+="+"+number(item.first)+" max hearts\n+"+number(item.second)+"% dodge chance";
+    std::string text=std::string(rarity_names[item.rarity()])+" "+gear_name(item);
+    for(const auto& affix:item.definition().affixes)if(affix.stat!=GearStat::None)
+        text+="\n+"+number(item.bonus(affix.stat))+(affix.percent?"% ":" ")+affix.label;
+    if(item.kind==GearKind::Tunic)text+="\nAdded on top of talent and level-up bonuses. Maximum hearts remain capped at 20.";
+    if(item.is_weapon() && item.family()!=GearFamily::Sword)
+        text+="\nActive after acquiring this weapon in the run. Equipment bonuses stack beyond level-up and item caps.";
     return text;
 }
 std::string gear_rml(GearItem item) {
@@ -39,9 +52,9 @@ bool gear_editable() {
 void refresh_gear_ui() {
     for(unsigned i=0;i<s_gearCards.size();++i) {
         const auto item=s_gear.items[i];
-        const bool equipped=s_gear.sword==i||s_gear.tunic==i;
+        const bool equipped=s_gear.weapon==i||s_gear.tunic==i;
         std::string rml="<div class=\"gear-copy\">";
-        if(item.kind!=GearKind::Empty)rml+="<img src=\"item://item/"+std::string(item.kind==GearKind::Sword?"28":"2f")+"\"/><span style=\"color: "+rarity_colors[item.rarity()]+";\">"+gear_name(item)+"</span>";
+        if(item.kind!=GearKind::Empty)rml+="<img src=\"item://item/"+std::string(gear_icon(item))+"\"/><span style=\"color: "+rarity_colors[item.rarity()]+";\">"+gear_name(item)+"</span>";
         else rml+="<br/>Empty";
         rml+="<br/>"+std::string(equipped?"Equipped":"")+"</div>";
         if(s_gearCards[i])svc_ui->elem_set_rml(mod_ctx,s_gearCards[i],rml.c_str());
@@ -49,7 +62,7 @@ void refresh_gear_ui() {
     }
     if(s_gearHint)svc_ui->elem_set_rml(mod_ctx,s_gearHint,s_gearBanish?
         "<span style=\"color: #ff7373;\">Banish active: select an item to permanently delete it. Equipped items are also unequipped.</span>":
-        "Select a slot and press A / Confirm to equip. One Sword and one Tunic can be equipped. Banish deletes items. Changes save when you close this inventory.");
+        "Select a slot and press A / Confirm to equip. One Weapon and one Tunic can be equipped. Banish deletes items. Changes save when you close this inventory.");
 }
 void select_gear(ModContext*,void* data) {
     if(!s_gearWindow || !gear_editable())return;
@@ -82,7 +95,7 @@ ModResult build_gear_window(ModContext*,UiWindowHandle,UiElementHandle left,UiEl
             UiControlDesc control=UI_CONTROL_DESC_INIT;
             const auto name="Slot "+number(i+1);control.label=name.c_str();control.user_data=&s_gearSlots[i];control.on_pressed=select_gear;
             control.is_disabled=[](ModContext*,void*){return !gear_editable();};
-            control.is_selected=[](ModContext*,void* data){const auto slot=*static_cast<unsigned*>(data);return s_gear.sword==slot||s_gear.tunic==slot;};
+            control.is_selected=[](ModContext*,void* data){const auto slot=*static_cast<unsigned*>(data);return s_gear.weapon==slot||s_gear.tunic==slot;};
             result=svc_ui->pane_add_control(mod_ctx,cell,&control,&s_gearButtons[i]);if(result!=MOD_OK)return result;
             svc_ui->elem_set_class(mod_ctx,s_gearButtons[i],"gear-pick",true);
         }

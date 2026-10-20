@@ -40,6 +40,6 @@ void drop_boss_gear() {
     auto next=s_gear;
     if(next.add(item)==GearInventory::none)s_gearNotice="Equipment inventory full!";
     else if(!store_gear(next))s_gearNotice="Equipment save failed!";
-    else s_gearNotice=item.kind==GearKind::Sword?"Weapon found!":"Tunic found!";
+    else s_gearNotice=item.is_weapon()?"Weapon found!":"Tunic found!";
     s_gearNoticeTicks=4*ticks_per_second;
 }

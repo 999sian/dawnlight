@@ -82,7 +82,7 @@ struct Collider {
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
 struct Attack {bool manualFlight=false,aimPending=false;float aimSpread=0;
-    unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0,arrowTargets=1;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,11>visited{};
+    unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0,arrowTargets=1;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,13>visited{};
     bool bombArrow=false,hurricane=false,detonated=false;bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
     std::array<unsigned,9>emitters{};
@@ -458,6 +458,36 @@ int main(){
     auto& aimedBall=s_attacks[item_projectile_begin(3)];assert(aimedBall.manualFlight&&aimedBall.velocity.y>0);
     aimedBall.position={0,350,400};aimedBall.travel=aimedBall.limit;update_item_attack(aimedBall,&player);
     assert(aimedBall.returning&&aimedBall.velocity.y<0);
+    // Equipment adds beyond the normal Boomerang cap: twelve hops, thirteen
+    // distinct victims; faster outbound/return flights keep the whole path alive.
+    reset();actors.clear();s_enemies={};s_run.ranks[9]=30;
+    s_run.gear_weapon={GearKind::HurricaneBoomerang,5,2,5};
+    std::array<Actor,13> equipmentChain;
+    for(unsigned i=0;i<equipmentChain.size();++i) {
+        auto& enemy=equipmentChain[i];enemy.id=10+i;enemy.eyePos={0,70,150.f+150*i};
+        actors[enemy.id]=&enemy;s_enemies[i]={enemy.id,true,false,false};
+    }
+    assert(launch_item(&player,Upgrade::Boomerang,equipmentChain[0].eyePos));
+    auto& equipmentBoom=s_attacks[28];assert(equipmentBoom.hops==12&&std::abs(equipmentBoom.velocity.abs()-52.5f)<.001f);
+    for(unsigned tick=0;tick<500&&!equipmentBoom.returning;++tick)update_item_attack(equipmentBoom,&player);
+    assert(equipmentBoom.returning&&equipmentBoom.visitedCount==13&&std::abs(equipmentBoom.velocity.abs()-68.75f)<.001f);
+    for(unsigned i=0;i<13;++i)for(unsigned j=i+1;j<13;++j)assert(equipmentBoom.visited[i]!=equipmentBoom.visited[j]);
+    for(unsigned tick=0;tick<500&&equipmentBoom.active;++tick)update_item_attack(equipmentBoom,&player);
+    assert(!equipmentBoom.active&&equipmentBoom.life>0);
+    reset();s_run.ranks[8]=1;s_run.ranks[unsigned(Upgrade::Piercing)]=10;
+    s_run.gear_weapon={GearKind::SharpshooterBow,5,5,2};
+    assert(launch_item(&player,Upgrade::Bow,{0,70,1700}));
+    auto& equipmentArrow=s_attacks[8];assert(equipmentArrow.arrowTargets==13&&equipmentArrow.collider.power==8&&equipmentArrow.limit>1400);
+    reset();s_run.ranks[11]=1;s_run.gear_weapon={GearKind::IronBall,5,5,5};
+    assert(launch_item(&player,Upgrade::Ball,{0,70,400}));assert(std::abs(s_attacks[36].limit-1125)<.001f);
+    reset();s_run.ranks[11]=1;s_run.gear_weapon={GearKind::BreakerBall,5,5,5};
+    assert(launch_item(&player,Upgrade::Ball,{0,70,400}));
+    auto& equipmentBall=s_attacks[36];assert(std::abs(equipmentBall.velocity.abs()-50)<.001f);
+    equipmentBall.travel=equipmentBall.limit;equipmentBall.position={0,70,400};update_item_attack(equipmentBall,&player);
+    assert(equipmentBall.returning&&std::abs(equipmentBall.velocity.abs()-68.75f)<.001f);
+    reset();s_run.ranks[10]=1;s_run.gear_weapon={GearKind::BombBag,5,5,5};
+    assert(launch_item(&player,Upgrade::Bombs,{0,70,400}));auto& equipmentBomb=s_attacks[32];
+    assert(equipmentBomb.collider.power==8);explode_item(equipmentBomb,&player);assert(std::abs(equipmentBomb.radius-200.2f)<.001f);
     std::cout<<"Survivors loot: targeting, four projectile types, uncapped growth, placement and proximity behavior passed\n";
 }
 '''

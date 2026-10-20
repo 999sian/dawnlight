@@ -41,7 +41,7 @@ ModResult build_debug(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
         control.kind=setting.choices==kDebugSwitch?UI_CONTROL_TOGGLE:setting.choices?UI_CONTROL_SELECT:UI_CONTROL_NUMBER;
         control.label=setting.label;control.user_data=&setting;
         if(setting.field==&DebugOptions::max_equipment_drop_rate)
-            control.help_rml="100% equipment drop chance per boss, including Debug runs. Sword/Tunic stays 50/50; stats remain random. Equipment is saved. Scores, Survivors XP and permanent map unlocks remain disabled. Default: off.";
+            control.help_rml="100% equipment drop chance per boss, including Debug runs. Weapon/Tunic stays 50/50; all ten weapon variants and stats remain random. Equipment is saved. Scores, Survivors XP and permanent map unlocks remain disabled. Default: off.";
         control.options=control.kind==UI_CONTROL_TOGGLE?nullptr:setting.choices;control.option_count=control.kind==UI_CONTROL_TOGGLE?0:setting.count;
         control.min=1;control.max=10;control.step=1;control.prefix=setting.choices?nullptr:"x";
         control.get=[](ModContext*,void* data,UiControlValue* value) {

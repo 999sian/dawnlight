@@ -198,10 +198,10 @@ struct Run {
     unsigned endless_start=0, normal_score=0, rank_snapshot=0;
     RunOptions options;
     Talents talents;
-    GearItem gear_sword{}, gear_tunic{}; // Frozen at run start; inventory edits are hub-only.
+    GearItem gear_weapon{}, gear_tunic{}; // Frozen at run start; inventory edits are hub-only.
     void equip_gear(const GearInventory& gear) {
-        gear_sword=gear.equipped(GearKind::Sword);gear_tunic=gear.equipped(GearKind::Tunic);
-        maximum_hearts=std::min(20u,talents.starting_hearts()+gear_tunic.first);
+        gear_weapon=gear.equipped(GearSlot::Weapon);gear_tunic=gear.equipped(GearSlot::Tunic);
+        maximum_hearts=std::min(20u,talents.starting_hearts()+gear_tunic.bonus(GearStat::Hearts));
     }
     unsigned dodge_basis_points() const { return std::min(10000u,talents.dodge_basis_points()+gear_tunic.second*100u); }
     unsigned timed_elites = 0, guard_elites = 0;
@@ -270,9 +270,39 @@ struct Run {
         uint32_t roll;do {roll=next_random()-1;} while(roll>=limit);
         return roll%10000<std::min(10000u,chance);
     }
-    unsigned melee_crit_bonus() const { return std::min(30u,dual_wield)*100+gear_sword.second*100; }
-    unsigned critical_power(unsigned base, bool* critical=nullptr, bool melee=false) {
-        const bool hit=base && roll_chance(std::min(10000u,crit_chance_basis_points()+(melee?melee_crit_bonus():0)));
+    static GearFamily gear_family(Upgrade weapon) {
+        switch(weapon) {
+        case Upgrade::Bow:return GearFamily::Bow;
+        case Upgrade::Boomerang:return GearFamily::Boomerang;
+        case Upgrade::Bombs:return GearFamily::Bombs;
+        case Upgrade::Ball:return GearFamily::Ball;
+        default:return GearFamily::None;
+        }
+    }
+    unsigned gear_bonus(GearFamily family, GearStat stat) const {
+        if(gear_weapon.family()!=family)return 0;
+        // Equipment specializes a build; run weapons still come from chests.
+        if(family!=GearFamily::Sword) {
+            const auto weapon=family==GearFamily::Bow?Upgrade::Bow:family==GearFamily::Boomerang?Upgrade::Boomerang:
+                family==GearFamily::Bombs?Upgrade::Bombs:family==GearFamily::Ball?Upgrade::Ball:Upgrade::Count;
+            if(weapon==Upgrade::Count || !rank(weapon))return 0;
+        }
+        return gear_weapon.bonus(stat);
+    }
+    unsigned gear_bonus(Upgrade weapon, GearStat stat) const {return gear_bonus(gear_family(weapon),stat);}
+    unsigned gear_knockback_percent(DamageSource source) const {
+        const auto family=sword_kill_source(source)?GearFamily::Sword:source==DamageSource::Bombs?GearFamily::Bombs:
+            source==DamageSource::Ball?GearFamily::Ball:GearFamily::None;
+        return gear_bonus(family,GearStat::Knockback);
+    }
+    float item_flight_speed(Upgrade weapon, bool returning=false) const {
+        const float base=returning?55.f:weapon==Upgrade::Bow?70.f:weapon==Upgrade::Ball?40.f:42.f;
+        return base*(1.f+gear_bonus(weapon,GearStat::FlightSpeed)/100.f);
+    }
+    float ball_range() const {return radius(900.f)*(1.f+gear_bonus(Upgrade::Ball,GearStat::Reach)/100.f);}
+    unsigned melee_crit_bonus() const { return std::min(30u,dual_wield)*100+gear_bonus(GearFamily::Sword,GearStat::Crit)*100; }
+    unsigned critical_power(unsigned base, bool* critical=nullptr, bool melee=false, bool bow=false) {
+        const bool hit=base && roll_chance(std::min(10000u,crit_chance_basis_points()+(melee?melee_crit_bonus():0)+(bow?gear_bonus(Upgrade::Bow,GearStat::Crit)*100:0)));
         if (critical) *critical=hit;
         if (!hit) return base;
         // Native health/damage are integral; round once, before Dark Link.
@@ -377,9 +407,13 @@ struct Run {
     unsigned burn_duration() const { return (3 + (std::max(1u, rank(Upgrade::FireArrows)) - 1) / 3) * ticks_per_second; }
     unsigned bonus_damage() const { return talents.rank(Talent::BonusDamage); }
     unsigned melee_power() const { return 3 + rank(Upgrade::Power) + sword_bonus() + bonus_damage(); }
-    unsigned melee_speed_percent() const { return 100 + gear_sword.third + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield)/2 + 5*talents.rank(Talent::MeleeHaste); }
+    unsigned melee_speed_percent() const { return 100 + gear_bonus(GearFamily::Sword,GearStat::Speed) + 5*std::min(upgrade_cap(Upgrade::DualWield),dual_wield)/2 + 5*talents.rank(Talent::MeleeHaste); }
     float melee_speed() const { return melee_speed_percent()/100.f; }
-    unsigned melee_cooldown() const { return std::max(6u, 30*cooldown_percent()/melee_speed_percent()); }
+    unsigned melee_cooldown() const {
+        const unsigned normalSpeed=melee_speed_percent()-gear_bonus(GearFamily::Sword,GearStat::Speed);
+        const unsigned normal=std::max(6u,30*cooldown_percent()/normalSpeed);
+        return std::max(1u,normal*normalSpeed/melee_speed_percent());
+    }
     unsigned life_regen_interval() const { return (20-std::min(5u,talents.rank(Talent::LifeRegen))-std::min(5u,rank(Upgrade::LifeRegen)))*ticks_per_second; }
     bool restricted_healing() const { return endless && ticks>=40*60*ticks_per_second; }
     bool life_steal_active() const { return !restricted_healing() && rank(Upgrade::LifeSteal); }
@@ -397,9 +431,9 @@ struct Run {
     unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 10) : 1; }
     unsigned extra_projectiles() const { return std::min(3u,rank(Upgrade::Multishot)); }
     unsigned ranged_shots() const { return 1 + extra_projectiles(); }
-    unsigned arrow_targets() const { return 1 + std::min(10u,rank(Upgrade::Piercing)); }
-    float knockback_distance(bool heavy, bool elite) const {
-        return ((heavy ? 240.f : 0.f) + 40.f*std::min(10u,rank(Upgrade::Knockback))) * (elite ? 0.f : 1.f);
+    unsigned arrow_targets() const { return 1 + std::min(10u,rank(Upgrade::Piercing))+gear_bonus(Upgrade::Bow,GearStat::Piercing); }
+    float knockback_distance(bool heavy, bool elite, DamageSource source=DamageSource::Other) const {
+        return ((heavy ? 240.f : 0.f) + 40.f*std::min(10u,rank(Upgrade::Knockback))) * (elite ? 0.f : 1.f) * (1.f+gear_knockback_percent(source)/100.f);
     }
     unsigned bow_base_shots() const { const auto level=rank(Upgrade::Bow); return !level ? 0 : level>=20 ? 5 : level>=10 ? 3 : 1; }
     unsigned bow_shots() const { return bow_base_shots() ? bow_base_shots()+extra_projectiles() : 0; }
@@ -423,7 +457,7 @@ struct Run {
             (index%2 ? -int(index) : int(index+1));
         return float(halfSteps)*(5.625f*3.14159265358979323846f/180.f);
     }
-    unsigned boomerang_hops() const { return rank(Upgrade::Boomerang) ? std::min(10u,1+(rank(Upgrade::Boomerang)-1)/3) : 0; }
+    unsigned boomerang_hops() const { return rank(Upgrade::Boomerang) ? std::min(10u,1+(rank(Upgrade::Boomerang)-1)/3)+gear_bonus(Upgrade::Boomerang,GearStat::Hops) : 0; }
     bool owns(ChestReward reward) const {
         if (reward<=ChestReward::Ball) return rank(chest_weapon(reward))!=0;
         if (reward==ChestReward::MasterSword) return master_sword!=0;
@@ -534,7 +568,8 @@ struct Run {
     unsigned item_cooldown(Upgrade weapon) const {
         const unsigned base = weapon==Upgrade::Bow?75:(weapon==Upgrade::Boomerang || weapon==Upgrade::Lightning)?85:weapon==Upgrade::Bombs?110:100;
         const unsigned floor=weapon==Upgrade::Bow?20:(weapon==Upgrade::Boomerang || weapon==Upgrade::Lightning)?30:weapon==Upgrade::Bombs?45:40;
-        return std::max(floor,cooldown(base*100/(100+5*(std::max(1u,rank(weapon))-1)/2)));
+        const unsigned normal=std::max(floor,cooldown(base*100/(100+5*(std::max(1u,rank(weapon))-1)/2)));
+        return std::max(1u,normal*100/(100+gear_bonus(weapon,GearStat::Speed)));
     }
     bool tick(bool playable) {
         if (phase != Phase::Running || !playable) return false;
@@ -620,24 +655,24 @@ struct Run {
     }
     unsigned block_chance() const { return std::min(10u, shield) * 5; }
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }
-    unsigned sword_bonus() const { return gear_sword.first + (master_sword ? 2 + master_sword : 0); }
-    unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : 0) + bonus_damage(); }
+    unsigned sword_bonus() const { return gear_bonus(GearFamily::Sword,GearStat::Damage) + (master_sword ? 2 + master_sword : 0); }
+    unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : gear_bonus(Upgrade(weapon),GearStat::Damage)) + bonus_damage(); }
     float area_radius(float base) const { return base*std::sqrt(radius(1.f)); }
     float hurricane_scale() const { return rank(Upgrade::Hurricane) ? 2.f : 1.f; }
     float bomb_arrow_radius() const { return area_radius(170+12*5); }
     float shockwave_radius() const { return radius(55+8*5); }
     float dark_aura_radius() const { return radius(300.f); }
-    float bomb_radius() const { return area_radius(170+12*rank(Upgrade::Bombs)); }
+    float bomb_radius() const { return area_radius(170+12*rank(Upgrade::Bombs))*(1.f+gear_bonus(Upgrade::Bombs,GearStat::BlastRadius)/100.f); }
     float shield_radius() const { return area_radius(60+3*rank(Upgrade::ShieldAttack)); }
-    float item_range(Upgrade weapon) const { return (weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range; }
-    float boomerang_hop_range() const { return radius(800.f); }
+    float item_range(Upgrade weapon) const { return ((weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range)*(1.f+gear_bonus(weapon,GearStat::Reach)/100.f); }
+    float boomerang_hop_range() const { return radius(800.f)*(1.f+gear_bonus(Upgrade::Boomerang,GearStat::HopReach)/100.f); }
     float radius(float base) const { return base * (1.0f + 0.075f * rank(Upgrade::Reach)); }
-    float melee_reach(float base) const { return base * (1.f + .15f * rank(Upgrade::Reach)); }
-    float melee_area_radius(float base) const { return base * (1.f + 2.f*(std::sqrt(radius(1.f))-1.f)); }
+    float melee_reach(float base) const { return base * (1.f + .15f * rank(Upgrade::Reach))*(1.f+gear_bonus(GearFamily::Sword,GearStat::Reach)/100.f); }
+    float melee_area_radius(float base) const { return base * (1.f + 2.f*(std::sqrt(radius(1.f))-1.f))*(1.f+gear_bonus(GearFamily::Sword,GearStat::Reach)/100.f); }
     float melee_radius(float base) const { return 1.3f * melee_reach(base); }
     unsigned multi_strikes() const { return dual_wield ? std::min(3u,rank(Upgrade::MultiStrike)) : 0; }
     unsigned lightning_hops() const { return rank(Upgrade::Lightning) ? 2*std::min(10u,1+(rank(Upgrade::Lightning)-1)/3) : 0; }
-    unsigned lightning_power() const { return attack_power(unsigned(Upgrade::Lightning))+master_sword/2+gear_sword.first; }
+    unsigned lightning_power() const { return attack_power(unsigned(Upgrade::Lightning))+master_sword/2+gear_bonus(GearFamily::Sword,GearStat::Damage); }
     float lightning_hop_range() const { return melee_reach(800.f); }
     static constexpr float lightning_speed=42.f*5;
     static constexpr unsigned lightning_chance=2000;

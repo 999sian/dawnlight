@@ -31,7 +31,7 @@ ActorId fopAcM_GetID(fopAc_ac_c* a){return a->id;}
 struct Effect{unsigned pending=0;DamageQueue attribution;bool pendingCritical=false;};std::array<Effect,30>effects;
 Effect& effect_for(Enemy& enemy){return effects[&enemy-s_enemies.data()];}
 void queue_effect_damage(Effect& e,DamageSource source,unsigned power){e.pending+=power;e.attribution.add(source,power);}
-unsigned pushes=0;void queue_knockback(Enemy&,fopAc_ac_c*,bool){++pushes;}
+unsigned pushes=0;void queue_knockback(Enemy&,fopAc_ac_c*,bool,DamageSource){++pushes;}
 ActorId blocked=kNone;bool boss_blocks_from(const Enemy& e,fopAc_ac_c*,const cXyz&){return e.id==blocked;}
 struct dBgS_LinChk{cXyz from,to;void Set(const cXyz* a,const cXyz* b,daAlink_c*){from=*a;to=*b;}};
 float wallAt=1.e10;struct Bg{bool LineCross(dBgS_LinChk* w){return w->from.x<wallAt&&w->to.x>=wallAt;}} bg;

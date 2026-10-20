@@ -64,7 +64,7 @@ void initialize_ui(){
 fixture=fixture.replace('UiWindowClosedFn onClosed=nullptr;','void (*onClosed)(ModContext*,UiWindowHandle,void*)=nullptr;')
 main=r'''
 int main(){
- initialize_ui();s_run.phase=Phase::Ready;load_gear();assert(s_gearWritable&&s_gear.sword==20);
+ initialize_ui();s_run.phase=Phase::Ready;load_gear();assert(s_gearWritable&&s_gear.weapon==20);
  GearItem sword{GearKind::Sword,2,3,4},tunic{GearKind::Tunic,5,1,0};
  GearInventory next;next.add(sword);next.add(tunic);assert(store_gear(next));
  auto stored=blobs[kGearBlob];s_gear={};load_gear();assert(s_gear==next);
@@ -72,10 +72,10 @@ int main(){
  blobs[kGearBlob]=stored;load_gear();failSave=true;auto bad=next;bad.erase(0);assert(!store_gear(bad)&&s_gear==next);failSave=false;
  open_gear_window();assert(s_gearWindow&&visible&&controls.size()==21);
  for(unsigned i=0;i<20;++i){assert(s_gearCards[i]&&s_gearButtons[i]);assert(labels[s_gearButtons[i]]=="Slot "+std::to_string(i+1));if(i%5)assert(parents[parents[s_gearButtons[i]]]==parents[parents[s_gearButtons[i-1]]]);}
- select_gear(nullptr,&s_gearSlots[0]);select_gear(nullptr,&s_gearSlots[1]);assert(s_gear.sword==0&&s_gear.tunic==1);
+ select_gear(nullptr,&s_gearSlots[0]);select_gear(nullptr,&s_gearSlots[1]);assert(s_gear.weapon==0&&s_gear.tunic==1);
  assert(rml[s_gearCards[0]].find("Equipped")!=std::string::npos);
- failSave=true;s_gearBanish=true;select_gear(nullptr,&s_gearSlots[0]);assert(s_gear.sword==0&&s_gear.items[0]==sword);failSave=false;
- select_gear(nullptr,&s_gearSlots[0]);assert(s_gear.sword==20&&s_gear.items[0].kind==GearKind::Empty&&s_gear.tunic==1);
+ failSave=true;s_gearBanish=true;select_gear(nullptr,&s_gearSlots[0]);assert(s_gear.weapon==0&&s_gear.items[0]==sword);failSave=false;
+ select_gear(nullptr,&s_gearSlots[0]);assert(s_gear.weapon==20&&s_gear.items[0].kind==GearKind::Empty&&s_gear.tunic==1);
  auto saved=s_gear;s_run.phase=Phase::Running;select_gear(nullptr,&s_gearSlots[1]);assert(s_gear==saved);s_run.phase=Phase::Ready;
  onClosed(nullptr,s_gearWindow,nullptr);visible=false;assert(!s_gearWindow&&s_hubSaveRequested);
  s_hubSaveRequested=false;failPush=true;open_gear_window();assert(!s_gearWindow);failPush=false;
@@ -90,9 +90,29 @@ int main(){
  for(unsigned i=0;i<100;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();assert(s_gearNoticeTicks&&s_gear.items[0].kind!=GearKind::Empty);}
  assert(s_run.earned_meta_xp()==0);
  s_run.options.debug.max_equipment_drop_rate=0;
- unsigned drops=0,swords=0,tunics=0;
- s_run.debug_run=false;s_run.options.debug.max_equipment_drop_rate=1;for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){++drops;assert(s_gearNoticeTicks==120);if(s_gear.items[0].kind==GearKind::Sword)++swords;else ++tunics;}}
+ unsigned drops=0,swords=0,tunics=0;std::array<unsigned,unsigned(GearKind::Count)> kinds{};
+ s_run.debug_run=false;s_run.options.debug.max_equipment_drop_rate=1;for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){++drops;assert(s_gearNoticeTicks==120);++kinds[unsigned(s_gear.items[0].kind)];if(s_gear.items[0].is_weapon())++swords;else ++tunics;}}
  assert(drops>5600&&drops<6400&&swords>2700&&swords<3300&&tunics>2700&&tunics<3300);
+ for(unsigned k=1;k<unsigned(GearKind::Count);++k)assert(kinds[k]>0);
+ // Every weapon has its English variant name, family icon and translated
+ // numeric values in the actual rendered grid and detail text.
+ const std::array<std::pair<GearKind,const char*>,10> named{{
+  {GearKind::Sword,"Hero's Sword"},{GearKind::Greatsword,"Greatsword"},
+  {GearKind::HerosBow,"Hero's Bow"},{GearKind::SharpshooterBow,"Sharpshooter Bow"},
+  {GearKind::StormBoomerang,"Storm Boomerang"},{GearKind::HurricaneBoomerang,"Hurricane Boomerang"},
+  {GearKind::BombBag,"Bomb Bag"},{GearKind::SiegeBombs,"Siege Bombs"},
+  {GearKind::IronBall,"Iron Ball"},{GearKind::BreakerBall,"Breaker Ball"}}};
+ s_run.phase=Phase::Ready;open_gear_window();
+ for(const auto& [kind,name]:named) {
+  GearItem item{kind,5,5,5};if(kind==GearKind::SharpshooterBow)item.third=2;if(kind==GearKind::HurricaneBoomerang)item.second=2;
+  s_gear={};s_gear.add(item);refresh_gear_ui();select_gear(nullptr,&s_gearSlots[0]);
+  assert(s_gear.weapon==0&&rml[s_gearCards[0]].find(name)!=std::string::npos);
+  assert(rml[s_gearCards[0]].find(std::string("item://item/")+gear_icon(item))!=std::string::npos);
+  const auto description=gear_description(item);assert(description.find(name)!=std::string::npos&&description.find("+5 ")!=std::string::npos);
+  if(kind==GearKind::SharpshooterBow)assert(description.find("+2 additional pierced targets")!=std::string::npos&&description.find("+25% arrow range")!=std::string::npos);
+  if(kind==GearKind::BombBag)assert(description.find("+10% explosion radius")!=std::string::npos);
+ }
+ close_gear_window();
  for(auto& item:s_gear.items)item=sword;auto full=s_gear;while(true){s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks)break;}
  assert(s_gear==full&&std::string(s_gearNotice)=="Equipment inventory full!");
 }

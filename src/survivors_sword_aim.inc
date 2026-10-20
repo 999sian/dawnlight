@@ -115,10 +115,10 @@ void resolve_manual_projectiles(dCamera_c* camera) {
             a.limit=30;continue;
         }
         if(weapon==Upgrade::Boomerang||weapon==Upgrade::Ball) {
-            const float range=weapon==Upgrade::Ball?std::min(s_run.item_range(weapon),s_run.radius(900.f)):s_run.item_range(weapon);
+            const float range=weapon==Upgrade::Ball?std::min(s_run.item_range(weapon),s_run.ball_range()):s_run.item_range(weapon);
             a.limit=std::min((target-a.position).abs(),range);
         }
-        const float speed=weapon==Upgrade::Bow?70.f:weapon==Upgrade::Ball?40.f:weapon==Upgrade::Shockwave?45.f:42.f;
+        const float speed=weapon==Upgrade::Shockwave?45.f:s_run.item_flight_speed(weapon);
         const float sine=std::sin(a.aimSpread),cosine=std::cos(a.aimSpread);
         a.velocity=cXyz(direction.x*cosine+direction.z*sine,direction.y,
             direction.z*cosine-direction.x*sine)*speed;

@@ -377,7 +377,7 @@ unsigned treasure_message_id();
 void sync_survivors_inventory();
 bool queue_ranged(daAlink_c*, Upgrade);
 struct Enemy;
-void queue_knockback(Enemy&, fopAc_ac_c*, bool);
+void queue_knockback(Enemy&, fopAc_ac_c*, bool, DamageSource = DamageSource::Other);
 bool ranged_pose_active();
 bool boss_blocks_from(const Enemy&,fopAc_ac_c*,const cXyz&);
 void stop_survivors_music();
@@ -422,7 +422,7 @@ struct Attack {
     float effectBaseRadius = 260.f;
     ActorId target = kNone;
     unsigned hops = 0, visitedCount = 0;
-    std::array<ActorId, 11> visited{};
+    std::array<ActorId, 13> visited{};
     std::array<ActorId, enemy_capacity> ballVictims{};
     unsigned ballVictimCount = 0, arrowTargets = 1;
     JKRSolidHeap* modelHeap = nullptr;
@@ -1133,7 +1133,8 @@ void after_power(ModContext*, void* args, void*, void*) {
     const auto critical_power = [&](unsigned base) {
         const auto sources=hit_damage_sources(info->mpCollider);
         bool melee=false;for(unsigned i=0;i<sources.size();++i)if(sources[i]&&melee_critical_source(DamageSource(i)))melee=true;
-        bool critical=false; const auto power=s_run.critical_power(base,&critical,melee);
+        const bool bow=sources[unsigned(DamageSource::Bow)]!=0;
+        bool critical=false; const auto power=s_run.critical_power(base,&critical,melee,bow);
         if (auto* hit=bulblin_power_hit(info)) hit->critical=critical;
         mark_damage_critical(info,critical);
         return power;

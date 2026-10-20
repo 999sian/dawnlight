@@ -49,7 +49,7 @@ fixture += r'''
 bool sword_kill_hit(const cCcD_Obj*);
 void trigger_lightning(fopAc_ac_c*){}
 unsigned knockRequests=0;
-void queue_knockback(Enemy&,fopAc_ac_c*,bool){++knockRequests;}
+void queue_knockback(Enemy&,fopAc_ac_c*,bool,DamageSource){++knockRequests;}
 void update_knockback(Enemy&,fopAc_ac_c*){}
 bool jump_strike_pose(const daAlink_c*){return false;}
 struct dBgS_LinChk{cXyz target;void Set(const cXyz*,cXyz* to,daAlink_c*){target=*to;}};

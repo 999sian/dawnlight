@@ -9,12 +9,12 @@ source=r'''
 using namespace dawnlight::survivors;
 int main() {
  GearInventory gear;
- assert(gear.equipped(GearKind::Sword)==GearItem{});
+ assert(gear.equipped(GearSlot::Weapon)==GearItem{});
  unsigned counts[5]{};for(unsigned i=0;i<100;++i)++counts[GearInventory::stat(i)-1];
  assert(counts[0]==50&&counts[1]==25&&counts[2]==15&&counts[3]==8&&counts[4]==2);
- unsigned rolls[]{0,99,75,50};unsigned pos=0;
+ unsigned rolls[]{0,0,99,75,50};unsigned pos=0;
  auto sword=GearInventory::roll([&](unsigned n){assert(rolls[pos]<n);return rolls[pos++];});
- assert(sword.kind==GearKind::Sword&&sword.first==5&&sword.second==3&&sword.third==2&&pos==4);
+ assert(sword.kind==GearKind::Sword&&sword.first==5&&sword.second==3&&sword.third==2&&pos==5);
  unsigned tunicRolls[]{1,0,99};pos=0;
  auto tunic=GearInventory::roll([&](unsigned n){assert(tunicRolls[pos]<n);return tunicRolls[pos++];});
  assert(tunic.kind==GearKind::Tunic&&tunic.first==1&&tunic.second==5&&tunic.third==0&&pos==3);
@@ -28,9 +28,9 @@ int main() {
  }
  for(unsigned i=0;i<20;++i)assert(gear.add(i%2?tunic:sword)==i);
  auto full=gear;assert(gear.add(sword)==20&&gear==full);
- assert(gear.equip(0)&&gear.equip(1)&&gear.sword==0&&gear.tunic==1);
- assert(gear.equip(2)&&gear.sword==2&&gear.tunic==1);
- assert(gear.erase(2)&&gear.sword==20&&gear.tunic==1);
+ assert(gear.equip(0)&&gear.equip(1)&&gear.weapon==0&&gear.tunic==1);
+ assert(gear.equip(2)&&gear.weapon==2&&gear.tunic==1);
+ assert(gear.erase(2)&&gear.weapon==20&&gear.tunic==1);
  assert(gear.add(sword)==2); // First free slot, row-major; never displace equipped items.
  assert(!gear.equip(20)&&!gear.erase(20)&&gear.add(GearItem{})==20);
  gear.equip(2);
@@ -48,10 +48,117 @@ int main() {
  assert(equipped.dodge_basis_points()==base.dodge_basis_points()+tunic.second*100);
  assert(equipped.melee_speed_percent()==base.melee_speed_percent()+sword.third);
  gear.erase(1);assert(equipped.gear_tunic==tunic); // Active build never changes with inventory.
- equipped.phase=Phase::Victory;assert(equipped.continue_endless()&&equipped.gear_sword==sword);
- equipped.start(444);assert(equipped.gear_sword==GearItem{});
+ equipped.phase=Phase::Victory;assert(equipped.continue_endless()&&equipped.gear_weapon==sword);
+ equipped.start(444);assert(equipped.gear_weapon==GearItem{});
  // Equipment storage cannot be touched by high-score reset or migration.
  Records records;records.clear_high_scores();GearInventory check;assert(check.decode(bytes)&&check==loaded);
+ // Validate every variant, all roll combinations and normalized rarities.
+ for(unsigned k=1;k<unsigned(GearKind::Count);++k) {
+  auto kind=GearKind(k);unsigned rarities[5]{};
+  GearItem item{kind,1,1,uint8_t(kind==GearKind::Tunic?0:1)};
+  for(unsigned a=1;a<=5;++a)for(unsigned b=1;b<=5;++b)for(unsigned c=kind==GearKind::Tunic?0:1;c<=(kind==GearKind::Tunic?0u:5u);++c) {
+   item.first=a;item.second=b;item.third=c;if(!item.valid())continue;
+   ++rarities[item.rarity()];
+   GearInventory inv;assert(inv.add(item)==0&&inv.equip(0));
+   if(item.is_weapon())assert(inv.weapon==0&&inv.tunic==20);else assert(inv.tunic==0&&inv.weapon==20);
+   GearInventory roundtrip;assert(roundtrip.decode(inv.encode())&&roundtrip==inv);
+  }
+  for(auto n:rarities)assert(n);
+ }
+ // v1 migration keeps equipped indices and all original rolls. Corrupt or
+ // unsupported data must not replace live state, even with a valid checksum.
+ const auto checksum=[](GearInventory::Bytes& b){uint32_t hash=2166136261u;for(unsigned i=0;i<b.size()-4;++i)hash=(hash^b[i])*16777619u;for(unsigned i=0;i<4;++i)b[b.size()-4+i]=uint8_t(hash>>(8*i));};
+ auto legacy=bytes;legacy[4]=1;checksum(legacy);GearInventory migrated;
+ assert(migrated.decode(legacy)&&migrated==loaded);
+ assert(migrated.items==loaded.items&&migrated.weapon==loaded.weapon&&migrated.tunic==loaded.tunic);
+ assert(migrated.encode()[4]==2);
+ auto invalid=bytes;invalid[8]=uint8_t(GearKind::Count);checksum(invalid);assert(!migrated.decode(invalid)&&migrated==loaded);
+ invalid=bytes;invalid[5]=1;checksum(invalid);assert(!migrated.decode(invalid)); // A Tunic cannot occupy Weapon.
+ invalid=bytes;invalid[4]=3;checksum(invalid);assert(!migrated.decode(invalid));
+ invalid=bytes;invalid[4]=1;invalid[8]=uint8_t(GearKind::Greatsword);checksum(invalid);assert(!migrated.decode(invalid));
+ invalid=bytes;invalid[8]=uint8_t(GearKind::SharpshooterBow);invalid[11]=3;checksum(invalid);assert(!migrated.decode(invalid));
+ // Roll every variant deterministically; count affixes have exactly 90/10 odds.
+ for(unsigned variant=0;variant<10;++variant)for(unsigned roll=0;roll<100;++roll) {
+  unsigned calls=0;auto item=GearInventory::roll([&](unsigned n){unsigned value=calls++==0?0:calls==2?variant:roll;assert(value<n);return value;});
+  assert(item.valid()&&item.is_weapon());
+  if(item.kind==GearKind::SharpshooterBow)assert(item.third==(roll<90?1:2));
+  if(item.kind==GearKind::HurricaneBoomerang)assert(item.second==(roll<90?1:2));
+ }
+ Run unarmed;unarmed.start(123);
+ const auto make=[&](GearKind kind,unsigned value=5){auto r=unarmed;r.gear_weapon={kind,uint8_t(value),uint8_t(value),uint8_t(value)};if(kind==GearKind::SharpshooterBow)r.gear_weapon.third=value==5?2:1;if(kind==GearKind::HurricaneBoomerang)r.gear_weapon.second=value==5?2:1;assert(r.gear_weapon.valid());return r;};
+ for(auto kind:{GearKind::HerosBow,GearKind::SharpshooterBow,GearKind::StormBoomerang,GearKind::HurricaneBoomerang,GearKind::BombBag,GearKind::SiegeBombs,GearKind::IronBall,GearKind::BreakerBall}) {
+  auto r=make(kind);assert(r.melee_power()==unarmed.melee_power()&&r.melee_speed_percent()==100&&r.melee_crit_bonus()==0);
+  for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball}) {
+   assert(r.attack_power(unsigned(weapon))==unarmed.attack_power(unsigned(weapon))); // Still locked.
+   r.ranks[unsigned(weapon)]=1;
+  }
+  Run plain=r;plain.gear_weapon={};
+  for(auto weapon:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball})
+   assert(r.attack_power(unsigned(weapon))==plain.attack_power(unsigned(weapon))+(r.gear_family(weapon)==r.gear_weapon.family()?5:0));
+ }
+ for(unsigned value:{1u,5u}) {
+  auto great=make(GearKind::Greatsword,value);
+  assert(great.melee_power()==unarmed.melee_power()+value&&great.melee_crit_bonus()==0&&great.melee_speed_percent()==100);
+  assert(std::abs(great.melee_reach(100)-float(100+2*value))<.001f);
+  assert(std::abs(great.melee_area_radius(100)-float(100+2*value))<.001f);
+  great.ranks[unsigned(Upgrade::Knockback)]=1;
+  assert(std::abs(great.knockback_distance(false,false,DamageSource::Sword)-40.f*(1+.05f*value))<.001f);
+  assert(great.knockback_distance(false,false,DamageSource::Bow)==40);
+  assert(great.knockback_distance(false,true,DamageSource::Sword)==0);
+  auto sniper=make(GearKind::SharpshooterBow,value);sniper.ranks[unsigned(Upgrade::Bow)]=1;
+  assert(sniper.arrow_targets()==(value==5?3u:2u));
+  assert(std::abs(sniper.item_range(Upgrade::Bow)-item_target_range*(1+.05f*value))<.001f);
+  sniper.ranks[unsigned(Upgrade::Piercing)]=10;assert(sniper.arrow_targets()==(value==5?13u:12u));
+  auto storm=make(GearKind::StormBoomerang,value);storm.ranks[unsigned(Upgrade::Boomerang)]=1;
+  assert(std::abs(storm.boomerang_hop_range()-800*(1+.05f*value))<.001f);
+  assert(storm.item_cooldown(Upgrade::Boomerang)<unarmed.item_cooldown(Upgrade::Boomerang));
+  auto hurricane=make(GearKind::HurricaneBoomerang,value);hurricane.ranks[unsigned(Upgrade::Boomerang)]=1;
+  assert(hurricane.boomerang_hops()==(value==5?3u:2u));
+  assert(std::abs(hurricane.item_flight_speed(Upgrade::Boomerang)-42*(1+.05f*value))<.001f);
+  assert(std::abs(hurricane.item_flight_speed(Upgrade::Boomerang,true)-55*(1+.05f*value))<.001f);
+  assert(hurricane.hurricane_scale()==1); // Equipment name does not grant legendary Hurricane.
+  hurricane.ranks[unsigned(Upgrade::Boomerang)]=30;assert(hurricane.boomerang_hops()==(value==5?12u:11u));
+  for(auto kind:{GearKind::BombBag,GearKind::SiegeBombs}) {
+   auto bombs=make(kind,value);bombs.ranks[unsigned(Upgrade::Bombs)]=1;
+   assert(std::abs(bombs.bomb_radius()-182*(1+.02f*value))<.001f);
+   assert(bombs.bomb_arrow_radius()==unarmed.bomb_arrow_radius());
+   if(kind==GearKind::BombBag)assert(bombs.item_cooldown(Upgrade::Bombs)<unarmed.item_cooldown(Upgrade::Bombs));
+   else {bombs.ranks[unsigned(Upgrade::Knockback)]=1;assert(std::abs(bombs.knockback_distance(false,false,DamageSource::Bombs)-40*(1+.05f*value))<.001f);assert(bombs.knockback_distance(false,false,DamageSource::Sword)==40);}
+  }
+  auto iron=make(GearKind::IronBall,value);iron.ranks[unsigned(Upgrade::Ball)]=1;
+  assert(std::abs(iron.ball_range()-900*(1+.05f*value))<.001f);
+  assert(iron.item_cooldown(Upgrade::Ball)<unarmed.item_cooldown(Upgrade::Ball));
+  auto breaker=make(GearKind::BreakerBall,value);breaker.ranks[unsigned(Upgrade::Ball)]=1;
+  assert(std::abs(breaker.item_flight_speed(Upgrade::Ball)-40*(1+.05f*value))<.001f);
+  assert(std::abs(breaker.item_flight_speed(Upgrade::Ball,true)-55*(1+.05f*value))<.001f);
+  assert(std::abs(breaker.knockback_distance(true,false,DamageSource::Ball)-240*(1+.05f*value))<.001f);
+ }
+ auto bow=make(GearKind::HerosBow);bow.ranks[unsigned(Upgrade::Bow)]=1;
+ unsigned bowCrits=0;for(unsigned i=0;i<30000;++i){bool hit=false;bow.critical_power(10,&hit,false,true);bowCrits+=hit;}
+ assert(bowCrits>1300&&bowCrits<1700);
+ for(unsigned i=0;i<1000;++i){bool hit=true;bow.critical_power(10,&hit,true);assert(!hit);bow.critical_power(10,&hit);assert(!hit);}
+ assert(bow.item_cooldown(Upgrade::Bow)<unarmed.item_cooldown(Upgrade::Bow));
+ // Equipment hearts keep the 20-heart maximum; other equipment bonuses
+ // remain effective after normal upgrade caps and cooldown floors.
+ GearInventory cappedGear;cappedGear.add({GearKind::Tunic,5,5,0});cappedGear.equip(0);
+ Run health;health.start(1);health.equip_gear(cappedGear);
+ health.maximum_hearts=19;assert(health.eligible(Upgrade::Heart));
+ health.phase=Phase::Upgrade;health.offers[0]=Upgrade::Heart;health.offer_rarities[0]=Rarity::Legendary;
+ assert(health.choose(0)&&health.maximum_hearts==20&&!health.eligible(Upgrade::Heart));
+ assert(health.dodge_basis_points()==health.talents.dodge_basis_points()+500);
+ for(auto kind:{GearKind::HerosBow,GearKind::StormBoomerang,GearKind::BombBag,GearKind::IronBall}) {
+  auto r=make(kind);auto weapon=kind==GearKind::HerosBow?Upgrade::Bow:kind==GearKind::StormBoomerang?Upgrade::Boomerang:kind==GearKind::BombBag?Upgrade::Bombs:Upgrade::Ball;
+  r.ranks[unsigned(weapon)]=30;r.ranks[unsigned(Upgrade::Haste)]=30;
+  auto plain=r;plain.gear_weapon={};assert(r.item_cooldown(weapon)<plain.item_cooldown(weapon));
+ }
+ auto fastSword=make(GearKind::Sword);fastSword.dual_wield=30;fastSword.ranks[unsigned(Upgrade::Haste)]=30;
+ auto plainSword=fastSword;plainSword.gear_weapon={};assert(fastSword.melee_cooldown()<plainSword.melee_cooldown());
+ // Switching families replaces the one Weapon slot without losing Tunic.
+ GearInventory shared;shared.add(tunic);shared.equip(0);
+ for(auto kind:{GearKind::Sword,GearKind::HerosBow,GearKind::StormBoomerang,GearKind::BombBag,GearKind::IronBall}) {
+  auto index=shared.add({kind,1,1,1});assert(shared.equip(index)&&shared.weapon==index&&shared.tunic==0);
+ }
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
