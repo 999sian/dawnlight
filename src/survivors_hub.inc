@@ -15,9 +15,14 @@ HookAction before_hub_door(ModContext*,void* args,void* result,void*) {
     *static_cast<s32*>(result)=0;
     return HOOK_SKIP_ORIGINAL;
 }
-bool hub_chest_floor(cXyz& position,const daAlink_c* link) {
-    // Use the same static-room ground query as the working sword pedestal.
-    // Run spawn filters (water/ground codes/room ownership) are not hub rules.
+bool hub_chest_position(cXyz& position,const daAlink_c* link) {
+    // The marked wall is on the +X side of the central sword. Leave space
+    // for the chest's back instead of embedding its model in the wall trim.
+    cXyz from(0,link->current.pos.y+100,0),to(10000,from.y,0);
+    dBgS_LinChk wall;wall.Set(&from,&to,nullptr);
+    if(!dComIfG_Bgsp().LineCross(&wall))return false;
+    position=wall.GetCross();position.x-=150;
+    if(position.x<=0)return false;
     cXyz probe(position.x,link->current.pos.y+1000,position.z);
     dBgS_ObjGndChk ground;ground.SetPos(&probe);
     const float height=dComIfG_Bgsp().GroundCross(&ground);
@@ -27,9 +32,9 @@ bool hub_chest_floor(cXyz& position,const daAlink_c* link) {
 void update_hub(daAlink_c* link) {
     const bool enabled=s_run.phase==Phase::Ready && !s_hubDeparture;
     if(enabled) {
-        // Fixed hub placement beside the central sword, clear of its A prompt.
-        cXyz position(500,0,0);
-        if(hub_chest_floor(position,link))update_survivors_equipment_chest(true,position,0);
+        cXyz position;
+        // Chest front is local +Z; -90 degrees points inward from the +X wall.
+        if(hub_chest_position(position,link))update_survivors_equipment_chest(true,position,-0x4000);
     } else update_survivors_equipment_chest(false,{},0);
     update_survivors_pedestal(s_run.phase==Phase::Ready && !s_hubDeparture);
     if(!s_hubDeparture || s_hubClosingWindow || ui_visible() || s_progressSaving || s_hubSaveRequested)return;
