@@ -65,7 +65,7 @@ void clear_arena_geometry(){++cleared;}
 void update_survivors_pedestal(bool enabled){if(!enabled)++pedestalRemoves;}
 void open_window(){visible=true;++opened;}
 void hub_menu_closed();void close_window(){visible=false;hub_menu_closed();}
-struct Log{void warn(ModContext*,const char*){}}logger;auto* svc_log=&logger;ModContext* mod_ctx=nullptr;
+struct Log{void warn(ModContext*,const char*){}void info(ModContext*,const char*){}}logger;auto* svc_log=&logger;ModContext* mod_ctx=nullptr;
 HookAction before_hub_door(ModContext*,void*,void*,void*);
 bool acceptOrder=true;
 int fopAcM_orderDoorEvent(fopAc_ac_c* a,fopAc_ac_c* b,u16 priority,u16 flags){
@@ -87,7 +87,28 @@ int main(){
  s_map=1;locate_hub_gear_chest();assert(!s_gearChestLocated);s_map=0;
  update_hub(&link);assert(s_gearChestLocated&&s_gearChestPosition.x==111&&s_gearChestYaw==456);
  assert(s_chests[0].active&&s_chests[0].position.z==333);
- table={};s_gearChestLocated=false;
+ assert(s_gearChestPosition.y==40&&s_chests[0].position.y==40);
+ table={};s_gearChestLocated=false;s_chests={};
+ // A chest on an inactive layer is absent from getTresure() and never creates
+ // an actor. Prefer its large chest over an earlier small common chest.
+ archiveReady=true;roomFile.m_chunkCount=3;
+ std::memcpy(&roomFile.m_nodes[0].m_tag,"TRES",4);
+ roomFile.m_nodes[0].m_entryNum=1;roomFile.m_nodes[0].m_offset=&entries[0];
+ std::memcpy(&roomFile.m_nodes[1].m_tag,"TREa",4);
+ roomFile.m_nodes[1].m_entryNum=1;roomFile.m_nodes[1].m_offset=&entries[1];
+ std::memcpy(&roomFile.m_nodes[2].m_tag,"RPAT",4);
+ roomFile.m_nodes[2].m_entryNum=99; // Not an actor table: never dereference it.
+ floorReady=false;update_hub(&link);
+ assert(s_gearChestLocated&&s_gearChestPosition.x==111&&!s_chests[0].active);
+ floorReady=true;update_hub(&link);
+ assert(s_chests[0].active&&s_chests[0].position.y==40&&s_chests[0].yaw==456);
+ // Actor chunks have the same placement layout. Non-chest actors are ignored.
+ s_gearChestLocated=false;roomFile.m_chunkCount=1;
+ std::memcpy(&roomFile.m_nodes[0].m_tag,"ACTe",4);
+ roomFile.m_nodes[0].m_entryNum=2;roomFile.m_nodes[0].m_offset=entries;
+ locate_hub_gear_chest();assert(s_gearChestLocated&&s_gearChestPosition.x==111);
+ archiveReady=false;table={};s_gearChestLocated=false;
+
 
  // Loading the save never opens a window and Ready leaves Link executable.
  assert(!visible&&s_hubMenu==HubMenu::None&&!pause_run_actor(false));
@@ -185,17 +206,24 @@ with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
  cpp.write_text(fixture+'''
 bool s_gearChestLocated=false; cXyz s_gearChestPosition; s16 s_gearChestYaw=0;
+bool floorReady=true;
+bool dry_arena_floor(cXyz& p,float rise,float drop){assert(rise==1000&&drop==20000);p.y=40;return floorReady;}
 constexpr unsigned kSmallChestCount=0;
 struct GearChest {bool active=false,free=false;cXyz position;s16 yaw=0;};
 std::array<GearChest,1> s_chests;bool prepare_hub_loot(){return true;}
 constexpr int fpcNm_TBOX_e=9,fpcNm_TBOX2_e=10;
 struct stage_tresure_data_class {char name[8]{};struct {unsigned parameters=0;cXyz position;struct{s16 y=0;}angle;}base;};
+struct dStage_nodeHeader{unsigned m_tag=0;int m_entryNum=0;const stage_tresure_data_class* m_offset=nullptr;};
+struct dStage_fileHeader{int m_chunkCount=0;dStage_nodeHeader m_nodes[3];}roomFile;
+bool archiveReady=false;
+const char* dComIfG_getRoomArcName(int n){assert(n==51);return "Room51";}
+void* dComIfG_getStageRes(const char* a,const char* f){assert(std::string(a)=="Room51"&&std::string(f)=="room.dzr");return archiveReady?&roomFile:nullptr;}
 struct TreasureTable{int num=0;stage_tresure_data_class* m_entries=nullptr;}table;
 struct Room{TreasureTable* getTresure(){return &table;}}room;
 Room* dComIfGp_roomControl_getStatusRoomDt(int n){assert(n==51);return &room;}
 struct Info{int procname;};
 Info* dStage_searchName(const char* name){static Info info;info.procname=std::strcmp(name,"small")==0||std::strcmp(name,"large")==0?fpcNm_TBOX_e:0;return &info;}
-'''+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','locate_hub_gear_chest','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
+'''+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','hub_chest_record','locate_hub_gear_chest','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),'-I',str(root/'include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors hub: free movement, native door gating, save/close, cancellation, routing and recovery passed')

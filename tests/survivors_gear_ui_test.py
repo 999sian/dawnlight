@@ -34,6 +34,7 @@ constexpr int BUTTON_STATUS_OPEN=1,PAD_1=0,PAD_BUTTON_A=1;
 void dComIfGp_setDoStatusForce(int,int){}
 namespace mDoCPd_c{struct Pad{unsigned mPressedButtonFlags=0;}pad;bool getTrigA(int){return pad.mPressedButtonFlags&PAD_BUTTON_A;}Pad& getCpadInfo(int){return pad;}}
 Run s_run;bool s_active=true,s_gameStarted=true,s_loaded=true,s_hub=true,s_restart=false,s_hubDeparture=false,s_progressSaving=false,s_progressSaved=true,s_hubSaveRequested=false;
+constexpr unsigned kSmallChestCount=0;struct{bool active=false;}s_chests[1];
 bool modal=false,transition=false,visible=false;unsigned s_player=1;struct{bool ready=true;}s_loot;
 bool save_modal_active(){return modal;}bool transitioning(){return transition;}bool ui_visible(){return visible;}bool playable(){return !modal&&!transition&&!visible;}
 ModContext* mod_ctx=nullptr;
@@ -79,6 +80,7 @@ int main(){
  onClosed(nullptr,s_gearWindow,nullptr);visible=false;assert(!s_gearWindow&&s_hubSaveRequested);
  s_hubSaveRequested=false;failPush=true;open_gear_window();assert(!s_gearWindow);failPush=false;
  s_gearChestLocated=true;s_gearChestPosition={0,0,100};mDoCPd_c::pad.mPressedButtonFlags=1;
+ assert(!hub_gear_interaction(&player)&&!s_gearWindow);s_chests[0].active=true;
  wallBlocked=true;assert(!hub_gear_interaction(&player)&&!s_gearWindow);wallBlocked=false;
  assert(hub_gear_interaction(&player)&&s_gearWindow&&!mDoCPd_c::pad.mPressedButtonFlags);close_gear_window();
  s_gearChestPosition={0,0,500};assert(!hub_gear_interaction(&player));
