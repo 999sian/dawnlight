@@ -19,6 +19,15 @@ std::array<unsigned,GearInventory::capacity> s_gearSlots{};
 std::array<UiElementHandle,GearInventory::capacity> s_gearCards{},s_gearButtons{};
 UiElementHandle s_gearDetails=0,s_gearHint=0;
 bool s_gearBanish=false;
+std::array<unsigned,GearInventory::page_count> s_gearPages{0,1};
+UiDialogHandle s_gearDeleteDialog=0;
+unsigned s_gearDeleteSlot=GearInventory::none;
+GearItem s_gearDeleteItem{};
+void close_gear_delete_dialog() {
+    const auto dialog=s_gearDeleteDialog;s_gearDeleteDialog=0;
+    s_gearDeleteSlot=GearInventory::none;s_gearDeleteItem={};
+    if(dialog)svc_ui->dialog_close(mod_ctx,dialog);
+}
 const char* gear_name(GearItem item) {return item.definition().name;}
 const char* gear_icon(GearItem item) {
     switch(item.family()) {
@@ -61,26 +70,66 @@ void refresh_gear_ui() {
         if(s_gearButtons[i])svc_ui->control_set_tooltip(mod_ctx,s_gearButtons[i],gear_description(item).c_str());
     }
     if(s_gearHint)svc_ui->elem_set_rml(mod_ctx,s_gearHint,s_gearBanish?
-        "<span style=\"color: #ff7373;\">Banish active: select an item to permanently delete it. Equipped items are also unequipped.</span>":
-        "Select a slot and press A / Confirm to equip. One Weapon and one Tunic can be equipped. Banish deletes items. Changes save when you close this inventory.");
+        "<span style=\"color: #ff7373;\">Banish active: select an item, then confirm to permanently delete it. Equipped items are also unequipped.</span>":
+        "Tap an item or press A / Confirm to equip. Select an equipped item again to unequip it. One Weapon and one Tunic can be equipped across both pages. Banish asks before deleting. Changes save when you close this inventory.");
+}
+bool gear_delete_valid() {
+    return s_gearWindow && gear_editable() && s_gearDeleteSlot<GearInventory::capacity &&
+        s_gearDeleteItem.kind!=GearKind::Empty && s_gear.items[s_gearDeleteSlot]==s_gearDeleteItem;
+}
+void confirm_delete_gear(ModContext*,UiDialogHandle dialog,void*) {
+    if(dialog!=s_gearDeleteDialog || !gear_delete_valid())return;
+    auto next=s_gear;next.erase(s_gearDeleteSlot);
+    if(!store_gear(next)) {
+        svc_ui->dialog_set_body(mod_ctx,dialog,"<p>Equipment could not be saved. Nothing was deleted. Choose Delete to retry or Cancel to keep it.</p>");
+        return;
+    }
+    close_gear_delete_dialog();
+    if(s_gearDetails)svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Item deleted.");
+    refresh_gear_ui();
+}
+void request_delete_gear(unsigned i) {
+    if(s_gearDeleteDialog || !s_gearWindow || !gear_editable() || i>=GearInventory::capacity || s_gear.items[i].kind==GearKind::Empty)return;
+    s_gearDeleteSlot=i;s_gearDeleteItem=s_gear.items[i];
+    UiDialogAction actions[2]={UI_DIALOG_ACTION_INIT,UI_DIALOG_ACTION_INIT};
+    actions[0].label="Cancel";
+    actions[0].on_pressed=[](ModContext*,UiDialogHandle handle,void*) {
+        if(handle!=s_gearDeleteDialog)return;
+        s_gearDeleteDialog=0;s_gearDeleteSlot=GearInventory::none;s_gearDeleteItem={};
+    };
+    actions[1].label="Delete";actions[1].on_pressed=confirm_delete_gear;actions[1].keep_open=true;
+    actions[1].is_disabled=[](ModContext*,void*){return !gear_delete_valid();};
+    const auto body="<p>Permanently delete this equipment?</p><p>"+gear_rml(s_gearDeleteItem)+"</p>"+
+        ((s_gear.weapon==i||s_gear.tunic==i)?"<p>This item is equipped. Deleting it will also unequip it.</p>":"")+"<p>This cannot be undone.</p>";
+    UiDialogDesc desc=UI_DIALOG_DESC_INIT;desc.title="Delete Equipment?";desc.variant=UI_DIALOG_WARNING;
+    desc.body_rml=body.c_str();desc.actions=actions;desc.action_count=2;desc.on_dismiss=actions[0].on_pressed;
+    if(svc_ui->dialog_push(mod_ctx,&desc,&s_gearDeleteDialog)!=MOD_OK) {
+        s_gearDeleteDialog=0;s_gearDeleteSlot=GearInventory::none;s_gearDeleteItem={};
+        if(s_gearDetails)svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Confirmation could not be opened. Nothing was deleted. Select the item to retry.");
+    }
 }
 void select_gear(ModContext*,void* data) {
-    if(!s_gearWindow || !gear_editable())return;
+    if(!s_gearWindow || s_gearDeleteDialog || !gear_editable())return;
     const auto i=*static_cast<unsigned*>(data);if(i>=GearInventory::capacity)return;
     const auto item=s_gear.items[i];
     if(item.kind==GearKind::Empty){svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Empty slot");return;}
+    if(s_gearBanish){request_delete_gear(i);return;}
     auto next=s_gear;
-    if(s_gearBanish)next.erase(i);else next.equip(i);
+    const bool equipped=s_gear.weapon==i||s_gear.tunic==i;
+    if(equipped)next.unequip(i);else next.equip(i);
     if(!store_gear(next)) {
         svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Equipment could not be saved. Nothing changed. Select the slot to retry.");return;
     }
-    const auto text=s_gearBanish?std::string("Item deleted."):gear_rml(item)+"<br/><br/>Equipped for your next run.";
+    const auto text=gear_rml(item)+(equipped?"<br/><br/>Unequipped for your next run.":"<br/><br/>Equipped for your next run.");
     svc_ui->elem_set_rml(mod_ctx,s_gearDetails,text.c_str());
     refresh_gear_ui();
 }
-ModResult build_gear_window(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
+ModResult build_gear_window(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void* data,ModError*) {
+    const unsigned page=data?*static_cast<unsigned*>(data):0;
+    if(page>=GearInventory::page_count)return MOD_INVALID_ARGUMENT;
+    close_gear_delete_dialog();
     s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;
-    auto result=svc_ui->pane_add_rml(mod_ctx,right,"Choose a slot to equip an item and view its stats.",&s_gearDetails);
+    auto result=svc_ui->pane_add_rml(mod_ctx,right,"Choose a slot to equip an item and view its stats. Select an equipped item again to unequip it.",&s_gearDetails);
     if(result!=MOD_OK)return result;
     result=svc_ui->pane_add_rml(mod_ctx,left,"",&s_gearHint);if(result!=MOD_OK)return result;
     for(unsigned row=0;row<4;++row) {
@@ -88,26 +137,27 @@ ModResult build_gear_window(ModContext*,UiWindowHandle,UiElementHandle left,UiEl
         result=svc_ui->pane_add_row(mod_ctx,left,&desc,&group);if(result!=MOD_OK)return result;
         svc_ui->elem_set_class(mod_ctx,group,"gear-row",true);
         for(unsigned col=0;col<5;++col) {
-            const auto i=row*5+col;s_gearSlots[i]=i;UiElementHandle cell=0;
+            const auto i=page*GearInventory::page_size+row*5+col;s_gearSlots[i]=i;UiElementHandle cell=0;
             result=svc_ui->pane_add_row(mod_ctx,group,&desc,&cell);if(result!=MOD_OK)return result;
             svc_ui->elem_set_class(mod_ctx,cell,"gear-cell",true);
             result=svc_ui->pane_add_rml(mod_ctx,cell,"",&s_gearCards[i]);if(result!=MOD_OK)return result;
             UiControlDesc control=UI_CONTROL_DESC_INIT;
             const auto name="Slot "+number(i+1);control.label=name.c_str();control.user_data=&s_gearSlots[i];control.on_pressed=select_gear;
-            control.is_disabled=[](ModContext*,void*){return !gear_editable();};
+            control.is_disabled=[](ModContext*,void*){return !gear_editable()||s_gearDeleteDialog;};
             control.is_selected=[](ModContext*,void* data){const auto slot=*static_cast<unsigned*>(data);return s_gear.weapon==slot||s_gear.tunic==slot;};
             result=svc_ui->pane_add_control(mod_ctx,cell,&control,&s_gearButtons[i]);if(result!=MOD_OK)return result;
             svc_ui->elem_set_class(mod_ctx,s_gearButtons[i],"gear-pick",true);
         }
     }
     UiControlDesc banish=UI_CONTROL_DESC_INIT;banish.label="\uE14B";banish.tooltip="Banish: delete an item";
-    banish.on_pressed=[](ModContext*,void*){if(gear_editable()){s_gearBanish=!s_gearBanish;refresh_gear_ui();}};
+    banish.on_pressed=[](ModContext*,void*){if(gear_editable()&&!s_gearDeleteDialog){s_gearBanish=!s_gearBanish;refresh_gear_ui();}};
     banish.is_selected=[](ModContext*,void*){return s_gearBanish;};
     UiElementHandle handle=0;result=svc_ui->pane_add_control(mod_ctx,left,&banish,&handle);if(result!=MOD_OK)return result;
     svc_ui->elem_set_class(mod_ctx,handle,"gear-banish",true);
     refresh_gear_ui();return MOD_OK;
 }
 void close_gear_window() {
+    close_gear_delete_dialog();
     const auto window=s_gearWindow;s_gearWindow=0;
     if(window)svc_ui->window_close(mod_ctx,window);
     s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;s_gearBanish=false;
@@ -115,10 +165,13 @@ void close_gear_window() {
 void open_gear_window() {
     if(s_gearWindow || !gear_editable() || ui_visible())return;
     s_gearBanish=false;
-    UiTabDesc tab=UI_TAB_DESC_INIT;tab.title="Equipment - 20 slots";tab.build=build_gear_window;
-    UiWindowDesc desc=UI_WINDOW_DESC_INIT;desc.tabs=&tab;desc.tab_count=1;desc.rcss=kGearStyle;
+    std::array<UiTabDesc,GearInventory::page_count> tabs{{UI_TAB_DESC_INIT,UI_TAB_DESC_INIT}};
+    tabs[0].title="Equipment 1 (20 slots)";tabs[1].title="Equipment 2 (20 slots)";
+    for(unsigned i=0;i<tabs.size();++i){tabs[i].build=build_gear_window;tabs[i].user_data=&s_gearPages[i];}
+    UiWindowDesc desc=UI_WINDOW_DESC_INIT;desc.tabs=tabs.data();desc.tab_count=tabs.size();desc.rcss=kGearStyle;
     desc.on_closed=[](ModContext*,UiWindowHandle handle,void*) {
         if(s_gearWindow!=handle)return;
+        close_gear_delete_dialog();
         s_gearWindow=0;s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;s_gearBanish=false;
         if(s_active&&s_gameStarted&&s_hub&&s_run.phase==Phase::Ready)s_hubSaveRequested=true;
     };

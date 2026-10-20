@@ -26,13 +26,13 @@ int main() {
   }
   for(auto n:rarities)assert(n);
  }
- for(unsigned i=0;i<20;++i)assert(gear.add(i%2?tunic:sword)==i);
- auto full=gear;assert(gear.add(sword)==20&&gear==full);
+ for(unsigned i=0;i<GearInventory::capacity;++i)assert(gear.add(i%2?tunic:sword)==i);
+ auto full=gear;assert(gear.add(sword)==GearInventory::none&&gear==full);
  assert(gear.equip(0)&&gear.equip(1)&&gear.weapon==0&&gear.tunic==1);
  assert(gear.equip(2)&&gear.weapon==2&&gear.tunic==1);
- assert(gear.erase(2)&&gear.weapon==20&&gear.tunic==1);
+ assert(gear.erase(2)&&gear.weapon==GearInventory::none&&gear.tunic==1);
  assert(gear.add(sword)==2); // First free slot, row-major; never displace equipped items.
- assert(!gear.equip(20)&&!gear.erase(20)&&gear.add(GearItem{})==20);
+ assert(!gear.equip(GearInventory::none)&&!gear.erase(GearInventory::none)&&gear.add(GearItem{})==GearInventory::none);
  gear.equip(2);
  auto bytes=gear.encode();GearInventory loaded;assert(loaded.decode(bytes)&&loaded==gear);
  for(unsigned i=0;i<bytes.size();++i){auto broken=bytes;broken[i]^=0x80;assert(!loaded.decode(broken)&&loaded==gear);}
@@ -60,23 +60,47 @@ int main() {
    item.first=a;item.second=b;item.third=c;if(!item.valid())continue;
    ++rarities[item.rarity()];
    GearInventory inv;assert(inv.add(item)==0&&inv.equip(0));
-   if(item.is_weapon())assert(inv.weapon==0&&inv.tunic==20);else assert(inv.tunic==0&&inv.weapon==20);
+   if(item.is_weapon())assert(inv.weapon==0&&inv.tunic==GearInventory::none);else assert(inv.tunic==0&&inv.weapon==GearInventory::none);
    GearInventory roundtrip;assert(roundtrip.decode(inv.encode())&&roundtrip==inv);
   }
   for(auto n:rarities)assert(n);
  }
- // v1 migration keeps equipped indices and all original rolls. Corrupt or
- // unsupported data must not replace live state, even with a valid checksum.
- const auto checksum=[](GearInventory::Bytes& b){uint32_t hash=2166136261u;for(unsigned i=0;i<b.size()-4;++i)hash=(hash^b[i])*16777619u;for(unsigned i=0;i<4;++i)b[b.size()-4+i]=uint8_t(hash>>(8*i));};
- auto legacy=bytes;legacy[4]=1;checksum(legacy);GearInventory migrated;
- assert(migrated.decode(legacy)&&migrated==loaded);
- assert(migrated.items==loaded.items&&migrated.weapon==loaded.weapon&&migrated.tunic==loaded.tunic);
- assert(migrated.encode()[4]==2);
+ // Both legacy formats preserve their 20 entries/indices, initialize page
+ // two empty and translate old sentinel 20 to new sentinel 40.
+ const auto checksum=[](auto& b){uint32_t hash=2166136261u;for(unsigned i=0;i<b.size()-4;++i)hash=(hash^b[i])*16777619u;for(unsigned i=0;i<4;++i)b[b.size()-4+i]=uint8_t(hash>>(8*i));};
+ GearInventory migrated,legacyExpected;
+ std::copy_n(loaded.items.begin(),20,legacyExpected.items.begin());legacyExpected.weapon=loaded.weapon;legacyExpected.tunic=loaded.tunic;
+ std::array<uint8_t,GearInventory::legacy_byte_count> legacy{};
+ std::copy_n(bytes.begin(),legacy.size()-4,legacy.begin());
+ for(uint8_t version:{1,2}) {
+  legacy[4]=version;checksum(legacy);assert(migrated.decode(legacy)&&migrated==legacyExpected);
+  for(unsigned i=20;i<40;++i)assert(migrated.items[i]==GearItem{});
+  assert(migrated.encode()[4]==3);
+  auto unequipped=legacy;unequipped[5]=unequipped[6]=20;checksum(unequipped);
+  assert(migrated.decode(unequipped)&&migrated.weapon==40&&migrated.tunic==40);
+ }
+ // v2 can contain specialized weapons, v1 cannot. Page-two slot 20 is a
+ // real equipped item in v3, never the legacy empty sentinel.
+ legacy[4]=2;legacy[8]=uint8_t(GearKind::HerosBow);checksum(legacy);
+ assert(migrated.decode(legacy)&&migrated.items[0].kind==GearKind::HerosBow);
+ legacy[4]=1;checksum(legacy);assert(!migrated.decode(legacy));
+ auto secondPage=loaded;assert(secondPage.equip(20)&&secondPage.weapon==20);
+ auto secondBytes=secondPage.encode();assert(migrated.decode(secondBytes)&&migrated==secondPage);
+ assert(secondPage.unequip(20)&&secondPage.weapon==40&&secondPage.items[20]==loaded.items[20]);
+ assert(!secondPage.unequip(20)&&!secondPage.unequip(40));
+ assert(migrated.decode(bytes)&&migrated==loaded);
  auto invalid=bytes;invalid[8]=uint8_t(GearKind::Count);checksum(invalid);assert(!migrated.decode(invalid)&&migrated==loaded);
- invalid=bytes;invalid[5]=1;checksum(invalid);assert(!migrated.decode(invalid)); // A Tunic cannot occupy Weapon.
- invalid=bytes;invalid[4]=3;checksum(invalid);assert(!migrated.decode(invalid));
- invalid=bytes;invalid[4]=1;invalid[8]=uint8_t(GearKind::Greatsword);checksum(invalid);assert(!migrated.decode(invalid));
+ invalid=bytes;invalid[5]=1;checksum(invalid);assert(!migrated.decode(invalid));
+ invalid=bytes;invalid[4]=4;checksum(invalid);assert(!migrated.decode(invalid));
+ invalid=bytes;invalid[4]=2;checksum(invalid);assert(!migrated.decode(invalid)); // Version/size mismatch.
  invalid=bytes;invalid[8]=uint8_t(GearKind::SharpshooterBow);invalid[11]=3;checksum(invalid);assert(!migrated.decode(invalid));
+ for(unsigned n=0;n<GearInventory::legacy_byte_count;++n)assert(!migrated.decode(std::span(bytes.data(),n)));
+ // Inventory rows fill page one before page two, including holes after deletion.
+ GearInventory pages;for(unsigned i=0;i<40;++i)assert(pages.add(sword)==i);
+ assert(pages.add(tunic)==40&&pages.equip(39)&&pages.weapon==39);
+ assert(pages.erase(20)&&pages.add(tunic)==20&&pages.equip(20)&&pages.tunic==20);
+ assert(pages.unequip(39)&&pages.weapon==40&&pages.tunic==20&&pages.items[39]==sword);
+ assert(pages.unequip(20)&&pages.tunic==40&&pages.items[20]==tunic);
  // Roll every variant deterministically; count affixes have exactly 90/10 odds.
  for(unsigned variant=0;variant<10;++variant)for(unsigned roll=0;roll<100;++roll) {
   unsigned calls=0;auto item=GearInventory::roll([&](unsigned n){unsigned value=calls++==0?0:calls==2?variant:roll;assert(value<n);return value;});

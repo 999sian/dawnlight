@@ -72,7 +72,7 @@ struct GearItem {
     }
 };
 struct GearInventory {
-    static constexpr unsigned capacity=20, none=capacity;
+    static constexpr unsigned page_size=20, page_count=2, capacity=page_size*page_count, none=capacity;
     std::array<GearItem,capacity> items{};
     unsigned weapon=none,tunic=none;
     bool operator==(const GearInventory&) const = default;
@@ -85,6 +85,12 @@ struct GearInventory {
     bool equip(unsigned i) {
         if(i>=capacity||!items[i].valid()||items[i].kind==GearKind::Empty)return false;
         (items[i].is_weapon()?weapon:tunic)=i;return true;
+    }
+    bool unequip(unsigned i) {
+        if(i>=capacity)return false;
+        if(weapon==i){weapon=none;return true;}
+        if(tunic==i){tunic=none;return true;}
+        return false;
     }
     bool erase(unsigned i) {
         if(i>=capacity||items[i].kind==GearKind::Empty)return false;
@@ -110,22 +116,29 @@ struct GearInventory {
         }
         return item;
     }
-    // Same size/key as v1. Decode old swords as Hero's Sword, preserving rolls.
+    // Version 3 expands to two pages. Versions 1/2 keep their 20 slots and
+    // translate the old empty equipped-slot sentinel (20) to the new one (40).
+    static constexpr unsigned legacy_capacity=20, legacy_byte_count=12+legacy_capacity*4;
     static constexpr unsigned byte_count=12+capacity*4;
     using Bytes=std::array<uint8_t,byte_count>;
     Bytes encode() const {
-        Bytes b{'H','S','G','R',2,uint8_t(weapon),uint8_t(tunic),0};
+        Bytes b{'H','S','G','R',3,uint8_t(weapon),uint8_t(tunic),0};
         for(unsigned i=0;i<capacity;++i){b[8+4*i]=uint8_t(items[i].kind);b[9+4*i]=items[i].first;b[10+4*i]=items[i].second;b[11+4*i]=items[i].third;}
         uint32_t hash=2166136261u;for(unsigned i=0;i<byte_count-4;++i)hash=(hash^b[i])*16777619u;
         for(unsigned i=0;i<4;++i)b[byte_count-4+i]=uint8_t(hash>>(8*i));
         return b;
     }
     bool decode(std::span<const uint8_t> b) {
-        if(b.size()!=byte_count||b[0]!='H'||b[1]!='S'||b[2]!='G'||b[3]!='R'||(b[4]!=1&&b[4]!=2)||b[5]>none||b[6]>none||b[7])return false;
-        uint32_t hash=2166136261u;for(unsigned i=0;i<byte_count-4;++i)hash=(hash^b[i])*16777619u;
-        for(unsigned i=0;i<4;++i)if(b[byte_count-4+i]!=uint8_t(hash>>(8*i)))return false;
-        GearInventory next;next.weapon=b[5];next.tunic=b[6];
-        for(unsigned i=0;i<capacity;++i){next.items[i]={GearKind(b[8+4*i]),b[9+4*i],b[10+4*i],b[11+4*i]};if(!next.items[i].valid()||(b[4]==1&&b[8+4*i]>2))return false;}
+        if(b.size()!=byte_count&&b.size()!=legacy_byte_count)return false;
+        if(b[0]!='H'||b[1]!='S'||b[2]!='G'||b[3]!='R'||b[7])return false;
+        const bool legacy=b[4]==1||b[4]==2;
+        if(!legacy&&b[4]!=3)return false;
+        const unsigned storedCapacity=legacy?legacy_capacity:capacity;
+        if(b.size()!=12+storedCapacity*4||b[5]>storedCapacity||b[6]>storedCapacity)return false;
+        uint32_t hash=2166136261u;for(unsigned i=0;i<b.size()-4;++i)hash=(hash^b[i])*16777619u;
+        for(unsigned i=0;i<4;++i)if(b[b.size()-4+i]!=uint8_t(hash>>(8*i)))return false;
+        GearInventory next;next.weapon=b[5]==storedCapacity?none:b[5];next.tunic=b[6]==storedCapacity?none:b[6];
+        for(unsigned i=0;i<storedCapacity;++i){next.items[i]={GearKind(b[8+4*i]),b[9+4*i],b[10+4*i],b[11+4*i]};if(!next.items[i].valid()||(b[4]==1&&b[8+4*i]>2))return false;}
         if((next.weapon!=none&&!next.items[next.weapon].is_weapon())||(next.tunic!=none&&next.items[next.tunic].kind!=GearKind::Tunic))return false;
         *this=next;return true;
     }
