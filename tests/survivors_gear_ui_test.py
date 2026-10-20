@@ -98,7 +98,7 @@ int main(){
  // activation of a selected card. Unequipping keeps the inventory item.
  auto tap=[&](unsigned i){const auto c=controls.at(s_gearButtons[i]);assert(!c.is_disabled(nullptr,c.user_data));c.on_pressed(nullptr,c.user_data);};
  tap(0);assert(s_gear.weapon==40&&s_gear.items[0]==sword&&s_gear.tunic==1);
- assert(rml[s_gearDetails].find("Unequipped")!=std::string::npos);
+ assert(rml[s_gearDetails]==gear_rml(sword));
  tap(0);assert(s_gear.weapon==0);failSave=true;tap(0);assert(s_gear.weapon==0);failSave=false;
  tap(1);assert(s_gear.tunic==40&&s_gear.items[1]==tunic);tap(1);assert(s_gear.tunic==1);
  // Every delete is modal and explicit. Selecting alone, Cancel, Escape/B,

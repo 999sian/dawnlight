@@ -44,9 +44,6 @@ std::string gear_description(GearItem item) {
     std::string text=std::string(rarity_names[item.rarity()])+" "+gear_name(item);
     for(const auto& affix:item.definition().affixes)if(affix.stat!=GearStat::None)
         text+="\n+"+number(item.bonus(affix.stat))+(affix.percent?"% ":" ")+affix.label;
-    if(item.kind==GearKind::Tunic)text+="\nAdded on top of talent and level-up bonuses. Maximum hearts remain capped at 20.";
-    if(item.is_weapon() && item.family()!=GearFamily::Sword)
-        text+="\nActive after acquiring this weapon in the run. Equipment bonuses stack beyond level-up and item caps.";
     return text;
 }
 std::string gear_rml(GearItem item) {
@@ -70,8 +67,8 @@ void refresh_gear_ui() {
         if(s_gearButtons[i])svc_ui->control_set_tooltip(mod_ctx,s_gearButtons[i],gear_description(item).c_str());
     }
     if(s_gearHint)svc_ui->elem_set_rml(mod_ctx,s_gearHint,s_gearBanish?
-        "<span style=\"color: #ff7373;\">Banish active: select an item, then confirm to permanently delete it. Equipped items are also unequipped.</span>":
-        "Tap an item or press A / Confirm to equip. Select an equipped item again to unequip it. One Weapon and one Tunic can be equipped across both pages. Banish asks before deleting. Changes save when you close this inventory.");
+        "<span style=\"color: #ff7373;\">Banish: select an item to delete.</span>":
+        "Select to equip / unequip. Banish to delete.");
 }
 bool gear_delete_valid() {
     return s_gearWindow && gear_editable() && s_gearDeleteSlot<GearInventory::capacity &&
@@ -120,7 +117,7 @@ void select_gear(ModContext*,void* data) {
     if(!store_gear(next)) {
         svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Equipment could not be saved. Nothing changed. Select the slot to retry.");return;
     }
-    const auto text=gear_rml(item)+(equipped?"<br/><br/>Unequipped for your next run.":"<br/><br/>Equipped for your next run.");
+    const auto text=gear_rml(item);
     svc_ui->elem_set_rml(mod_ctx,s_gearDetails,text.c_str());
     refresh_gear_ui();
 }
@@ -129,7 +126,7 @@ ModResult build_gear_window(ModContext*,UiWindowHandle,UiElementHandle left,UiEl
     if(page>=GearInventory::page_count)return MOD_INVALID_ARGUMENT;
     close_gear_delete_dialog();
     s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;
-    auto result=svc_ui->pane_add_rml(mod_ctx,right,"Choose a slot to equip an item and view its stats. Select an equipped item again to unequip it.",&s_gearDetails);
+    auto result=svc_ui->pane_add_rml(mod_ctx,right,"",&s_gearDetails);
     if(result!=MOD_OK)return result;
     result=svc_ui->pane_add_rml(mod_ctx,left,"",&s_gearHint);if(result!=MOD_OK)return result;
     for(unsigned row=0;row<4;++row) {
