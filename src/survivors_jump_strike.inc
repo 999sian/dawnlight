@@ -16,9 +16,10 @@ void clear_jump_effects() {
 }
 bool try_jump_strike(daAlink_c* link) {
     if (s_meleeCooldown || s_cooldowns[unsigned(Upgrade::JumpStrike)]) return false;
-    auto* target = melee_target(link);
+    cXyz targetPoint;
+    auto* target = melee_target(link, &targetPoint);
     if (!target || !tracked(fopAcM_GetID(target)) || !s_run.roll_jump_strike()) return false;
-    const cXyz facing=manual_skill(link,Upgrade::JumpStrike)?manual_direction(link):target->current.pos-link->current.pos;
+    const cXyz facing=manual_skill(link,Upgrade::JumpStrike)?manual_direction(link):targetPoint-link->current.pos;
     link->shape_angle.y=cM_atan2s(facing.x,facing.z);
     // The nearby target only permits the skill; it never supplies movement.
     link->current.angle.y = link->mMoveAngle;
@@ -58,7 +59,7 @@ void after_jump_strike(ModContext*, void* args, void*, void*) {
     link->mUpperFrameCtrl[0].setRate(2.0f);
     link->field_0x3198 = 2; // No unowned follow-up spin from stick input.
     if (link->mProcID == daAlink_c::PROC_CUT_LARGE_JUMP_LAND)
-        link->mAtSph.SetR(s_run.radius(link->field_0x347c));
+        link->mAtSph.SetR(s_run.melee_reach(link->field_0x347c));
 }
 HookAction before_jump_strike_effect(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
@@ -69,7 +70,7 @@ HookAction before_jump_strike_effect(ModContext*, void* args, void*, void*) {
     // Original Survivors bomb shockwave pair, before the full nine-part native
     // bomb explosion was adopted. Scale the visual with the landing hit radius.
     constexpr std::array<u16, 2> effects{ID_ZI_J_BOMBex_A, ID_ZI_J_BOMBex_B};
-    const float size = s_run.radius(link->field_0x3478) / 200.0f;
+    const float size = s_run.melee_reach(link->field_0x3478) / 200.0f;
     const cXyz scale(size, size, size);
     for (unsigned i = 0; i < effects.size(); ++i)
         s_jumpEmitters[i] = dComIfGp_particle_set(0, effects[i], &link->current.pos,

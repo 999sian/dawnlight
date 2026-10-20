@@ -1,6 +1,7 @@
 """Exercise level-up cards and the native Collection request bridge with the SDK UI ABI."""
 from pathlib import Path
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -45,6 +46,9 @@ fixture = r'''
 namespace ui {const char* material_icon(const char*){assert(false);return "";}}
 // SDK_VALIDATOR
 using namespace dawnlight::survivors;
+struct daAlink_c{};daAlink_c player;daAlink_c* daAlink_getAlinkActorClass(){return &player;}
+unsigned swordGrants=0;void apply_treasure_inventory(daAlink_c*,ChestReward reward,const Run&,unsigned){assert(reward==ChestReward::MasterSword);++swordGrants;}
+void sync_survivors_inventory(){}
 using u8=uint8_t;
 constexpr u8 dItemNo_NOENTRY_146_e=0x92;
 enum HookAction {HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
@@ -102,6 +106,13 @@ struct Log{void warn(ModContext*,const char*){}}logService;auto* svc_log=&logSer
 UiService service{};
 extern "C" {ModContext* mod_ctx=nullptr;const UiService* svc_ui=&service;}
 '''
+# Reuse the production item mapping with IDs from the pinned SDK.
+for name in ['BOW','BOOMERANG','BOMB_5','IRONBALL','LIGHT_SWORD','MASTER_SWORD',
+             'RED_BOTTLE','SWORD','WOOD_SHIELD','SHIELD','HYLIA_SHIELD','POU_SPIRIT']:
+    value=re.search(r'/\* (0x[0-9A-F]+) \*/ dItemNo_'+name+r'_e',items).group(1)
+    fixture+=f'constexpr u8 dItemNo_{name}_e={value};\n'
+treasure=(root/'src/survivors_treasure.inc').read_text()
+fixture+=treasure[:treasure.index('// Native DEFAULT_GETITEM')]
 main = r'''
 void fresh(){
  s_run.start(123);s_powerupsWindow=0;s_powerupsRequested=false;s_powerupsMenu=nullptr;
@@ -160,6 +171,22 @@ int main(){
      assert(e.text.find(rupeeIcons[r])!=std::string::npos&&e.text.find(kPowerupScrollIcon)==std::string::npos);++icons;
    }
    assert(icons==3&&money==100);
+ }
+ // Item rank cards use the native chest/item-wheel icon, including Light Sword.
+ const std::array itemUpgrades{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball,
+                              Upgrade::MasterSword,Upgrade::DualWield,Upgrade::PotionHealing};
+ const std::array itemIcons{"item://item/43","item://item/40","item://item/0a","item://item/42",
+                            "item://item/29","item://item/28","item://item/61"};
+ for(unsigned i=0;i<itemUpgrades.size();++i)for(unsigned rarity=0;rarity<5;++rarity){
+   fresh();s_run.phase=Phase::Upgrade;s_run.master_sword=1;s_run.dual_wield=1;s_run.red_potion=true;
+   s_run.ranks[8]=s_run.ranks[9]=s_run.ranks[10]=s_run.ranks[11]=1;
+   s_run.offers={itemUpgrades[i],Upgrade::Count,Upgrade::Count};s_run.offer_rarities[0]=Rarity(rarity);
+   assert(build_upgrade_choices(1,2)==MOD_OK);unsigned icons=0;
+   const auto expected=itemUpgrades[i]==Upgrade::MasterSword&&rarity>=3?"item://item/49":itemIcons[i];
+   for(const auto& [id,e]:elements)if(e.kind=="rml"){
+     assert(e.text.find(expected)!=std::string::npos&&e.text.find(kPowerupScrollIcon)==std::string::npos);++icons;
+   }
+   assert(icons==1&&s_run.master_sword==1); // Preview never mutates equipment.
  }
  // All upgrade kinds produce a valid preview and don't mutate the live run.
  for(unsigned i=0;i<unsigned(Upgrade::Count);++i){
@@ -252,7 +279,9 @@ int main(){
  close(nullptr,42);assert(!s_powerupsWindow&&!s_powerupsRequested&&!s_powerupsMenu);
  assert(before_powerup_collection_wait(nullptr,args,nullptr,nullptr)==HOOK_CONTINUE);
  // Overview is a read-only list of owned ranks with effective descriptions.
- fresh();s_run.ranks[3]=2;s_run.ranks[8]=5;s_run.ranks[12]=3;
+ fresh();s_run.ranks[3]=2;s_run.ranks[12]=3;
+ for(auto item:itemUpgrades)s_run.ranks[unsigned(item)]=5;
+ s_run.master_sword=s_run.dual_wield=5;s_run.red_potion=true;
  s_run.ranks[unsigned(Upgrade::CritChance)]=30;s_run.ranks[unsigned(Upgrade::CritDamage)]=30;
  menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);
  open_powerup_window();assert(s_powerupsWindow==42&&pushed==1);
@@ -261,12 +290,12 @@ int main(){
    ++count;assert(e.pressed&&!e.help.empty());
    assert(e.help.find("</span><br/>")!=std::string::npos);
    e.pressed(nullptr,e.data);e.pressed(nullptr,e.data);
-   if(e.text.find("Hero's Bow")!=std::string::npos)assert(e.help.find("1 arrows, 0.0 deg; 1 targets; extra hits 25%")!=std::string::npos&&e.help.find("Fire Lv.3")!=std::string::npos);
+   for(auto item:itemUpgrades)assert(e.text.find(std::string(s_run.upgrade_name(item))+" - Level ")==std::string::npos);
    if(e.text.find("Power")!=std::string::npos)assert(e.help.find("+2 damage")!=std::string::npos);
    if(e.text.find("Crit Chance")!=std::string::npos)assert(e.help.find("22.50% with Luck")!=std::string::npos);
    if(e.text.find("Crit Damage")!=std::string::npos)assert(e.help.find("x3.50 critical damage")!=std::string::npos);
  }
- assert(count==5&&s_run.ranks==ranks&&s_run.random==overviewRng);
+ assert(count==4&&s_run.ranks==ranks&&s_run.random==overviewRng);
  assert(money==100&&lifeMax==15&&closed==0&&s_run.phase==Phase::Running);
  close(nullptr,42);assert(!s_powerupsWindow&&!s_powerupsRequested&&!s_powerupsMenu);
  menu.mSubWindowOpenCheck=5;after_powerup_collection_action(nullptr,args,nullptr,nullptr);
@@ -288,6 +317,10 @@ int main(){
  iconArgs[1]=u8(0x43);iconArgs[10]=-1;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
  iconArgs[1]=u8(0x92);arena=false;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
  arena=true;s_run.phase=Phase::Running;s_powerupsRequested=true;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==0x3d);
+ fresh();s_run.master_sword=1;s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::MasterSword,Upgrade::Lightning,Upgrade::Rupees};
+ s_run.offer_rarities.fill(Rarity::Legendary);unsigned choice=0;const unsigned grants=swordGrants;
+ select_upgrade(nullptr,&choice);assert(s_run.master_sword==6&&swordGrants==grants+1&&s_run.equipment_count()==1);
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

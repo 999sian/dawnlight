@@ -18,6 +18,8 @@ struct fopAc_ac_c{unsigned id=1;int health=20;cXyz eyePos{320,120,1000};struct{c
 struct daAlink_c:fopAc_ac_c{unsigned flags=0;short mDamageTimer=0;
  bool checkModeFlg(unsigned f){return flags&f;}void onModeFlg(unsigned f){flags|=f;}void offModeFlg(unsigned f){flags&=~f;}};
 unsigned fopAcM_GetID(fopAc_ac_c* a){return a->id;}unsigned s_player=1;
+bool leech=true;bool sword_kill_hit(const void*){return leech;}
+struct Enemy{bool swordKill=false;} trackedEnemy;Enemy* tracked(unsigned){return &trackedEnemy;}
 DamageAmounts hit_damage_sources(const void*){DamageAmounts weights{};weights[0]=1;return weights;}
 struct dCcU_AtInfo{void* mpCollider=nullptr;unsigned mAttackPower=3;};
 Run s_run;bool arena=true,event=false,view=true,font=true;
@@ -48,7 +50,9 @@ int main(){
  end_damage_feedback(&other);assert(s_damageFeedback.size()==1);
  end_damage_feedback(&args);assert(s_combatTexts[0].remaining==0); // Blocked/invincible: no damage, no Crit.
  begin_damage_feedback(&args,&enemy,&info);mark_damage_critical(&info,true);enemy.health=0;end_damage_feedback(&args);
- assert(s_combatTexts[0].remaining==30); // Includes lethal critical damage.
+ assert(s_combatTexts[0].remaining==30&&trackedEnemy.swordKill); // Includes lethal critical damage.
+ leech=false;enemy.health=20;begin_damage_feedback(&args,&enemy,&info);enemy.health=0;end_damage_feedback(&args);
+ assert(!trackedEnemy.swordKill);leech=true; // A later burn/ranged kill must overwrite the previous sword provenance.
  clear_combat_feedback();enemy.health=20;begin_damage_feedback(&args,&enemy,&info);enemy.health-=3;end_damage_feedback(&args);
  assert(!s_combatTexts[0].remaining); // Ordinary damage/burn does not claim a crit.
  for(unsigned i=0;i<1000;++i)combat_feedback(&enemy,CombatText::Crit);

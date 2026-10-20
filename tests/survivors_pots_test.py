@@ -60,7 +60,7 @@ int create_standalone_actor(int profile,const ActorSpawnParams& p,ActorId& id){
  id=++creates;pending.insert(id);return MOD_OK;
 }
 enum{dItemNo_KAKERA_HEART_e,dItemNo_GREEN_RUPEE_e,dItemNo_BLUE_RUPEE_e,dItemNo_YELLOW_RUPEE_e,
- dItemNo_RED_RUPEE_e,dItemNo_PURPLE_RUPEE_e,dItemNo_ORANGE_RUPEE_e,dItemNo_SILVER_RUPEE_e};
+ dItemNo_RED_RUPEE_e,dItemNo_PURPLE_RUPEE_e,dItemNo_ORANGE_RUPEE_e,dItemNo_SILVER_RUPEE_e,dItemNo_KEY_OF_FILONE_e};
 std::vector<int> drops;
 ActorId fopAcM_createItem(const cXyz*,int item,int bit,int room,void*,void*,int){
  assert(s_allowDrop&&bit==-1&&room==arena().room);drops.push_back(item);return 900;
@@ -110,13 +110,20 @@ int main(){
  assert(s_pots[0].id==kNone&&s_pots[0].broken);badFloor=false;
 
  // Every currency tier and rare heart pieces occur, and Luck improves both.
- std::array<unsigned,8> plain{},lucky{};
+ std::array<unsigned,9> plain{},lucky{};
  for(unsigned trial=0;trial<2;++trial){fresh();if(trial)s_run.ranks[unsigned(Upgrade::Luck)]=5;
   update_pots(&player);ready(0);
   for(unsigned i=0;i<100000;++i){s_pots[0].broken=false;break_pot(0);++(trial?lucky:plain)[drops.back()];}
  }
  for(unsigned count:plain)assert(count>0);
  assert(lucky[0]>plain[0]&&lucky[7]>plain[7]&&lucky[1]<plain[1]);
+ // Keys use the exact same 2% base / 3% capped Luck threshold as heart pieces.
+ assert(plain[8]>1800&&plain[8]<2200&&plain[0]>1800&&plain[0]<2200);
+ assert(lucky[8]>2800&&lucky[8]<3200&&lucky[0]>2800&&lucky[0]<3200);
+ s_run.endless=true;s_run.ticks=40*60*ticks_per_second;
+ unsigned lateKeys=0;
+ for(unsigned i=0;i<10000;++i){auto drop=s_run.roll_pot_drop();assert(drop!=Run::PotDrop::HeartPiece);lateKeys+=drop==Run::PotDrop::SmallKey;}
+ assert(lateKeys>0);
  // Unrelated pots retain native behavior; destruction without loot remains empty.
  fresh();daObjCarry_c foreign;foreign.id=888;std::any foreignArgs[]={&foreign,true,true,true};
  before_pot_break(nullptr,foreignArgs,nullptr,nullptr);assert(std::any_cast<bool>(foreignArgs[1])&&drops.empty());

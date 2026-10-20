@@ -85,8 +85,9 @@ int main(){
  assert(!result&&visible&&opened==1&&s_hubMenu==HubMenu::Run&&s_hubDoor==2&&orders==0);
  // A locked destination cannot bypass the disabled UI by calling Start directly.
  s_requestedMap=1;start_run(nullptr,nullptr);assert(!s_hubDeparture&&visible);
- s_options.debug.unlock_all_maps=true;assert(map_available(1)==debug_enabled);
- s_options.debug.unlock_all_maps=false;s_records.cleared_maps=1;assert(map_available(1));
+ s_options.debug.unlock_all_maps=true;assert(!map_available(1));
+ debug_session_enabled=true;s_options.debug.unlock_all_maps=true;assert(map_available(1)==debug_enabled);
+ debug_session_enabled=false;s_options.debug.unlock_all_maps=false;s_records.cleared_maps=1;assert(map_available(1));
  s_records.cleared_maps=0;s_requestedMap=0;
  // Back/cancel saves automatically but does not open the door or start a run.
  close_window();assert(s_hubSaveRequested&&s_hubMenu==HubMenu::None);

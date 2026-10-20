@@ -6,6 +6,8 @@ import tempfile
 root = Path(__file__).resolve().parents[1]
 source = (root / 'src/fierce_deity_equipment.inc').read_text()
 fixture = r'''
+#include "fierce_deity_equipment_scope.hpp"
+namespace dark_link = dawnlight::dark_link;
 #include <array>
 #include <cassert>
 #include <cstddef>
@@ -56,8 +58,24 @@ int main() {
     // Both mDoExt_modelUpdateDL and modelEntryDL use this callback before
     // entering native code, including TE post-draw hooks/interpolated frames.
     for(auto* model : {&body,&shield,&bow,&quiver,&lantern}) submit(model);
+    // Survivors world draws occur INSIDE this same Link dispatcher. Shared
+    // model data does not make map/paid/elite chests or projectiles equipment.
+    std::array<J3DModel,4> worldModels{};
+    for (auto& model:worldModels) model.data=&data;
+    {
+        const dark_link::WorldModelDrawScope world;
+        for (auto& model:worldModels) submit(&model);
+        { const dark_link::WorldModelDrawScope nested; submit(&worldModels[0]); }
+        assert(dark_link::WorldModelDrawScope::active());
+        submit(&worldModels[1]);
+    }
+    assert(!dark_link::WorldModelDrawScope::active());
+    for (auto& model:worldModels) assert(!observed_player_equipment(&link,&model));
+    submit(&quiver); // Held/modded equipment is still captured after world draw.
     submit(&shield); // duplicate helper calls consume no extra slots
     assert(s_observedEquipment[4].model==nullptr);
+    J3DModel heldBomb{&data};submit(&heldBomb);
+    assert(observed_player_equipment(&link,&heldBomb));
     assert(!observed_player_equipment(&link,&body));
     // A nested foreign actor suspends capture, even with identical model data.
     before_player_draw(nullptr,enemyArgs,nullptr,nullptr);
@@ -104,6 +122,6 @@ with tempfile.TemporaryDirectory(prefix='dawnlight-equipment-') as temp:
     cpp.write_text(fixture + source + checks)
     for platform in ([], ['-D__APPLE__']):
         subprocess.run(['c++', '-std=c++20', '-Wall', '-Wextra', '-Werror', *platform,
-                        str(cpp), '-o', str(exe)], check=True)
+                        '-I', str(root/'src'), str(cpp), '-o', str(exe)], check=True)
         subprocess.run([str(exe)], check=True)
 print('Dark Link equipment capture: TE attachments, deferred draw, actor isolation, lifetimes and Apple dispatch passed')

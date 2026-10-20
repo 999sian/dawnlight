@@ -167,10 +167,18 @@ bool sword_action_available(daAlink_c* link){return link->mProcID==daAlink_c::PR
 unsigned dComIfGs_getRupeeMax(){return 10000;}
 unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned n){rupees=n;}
 void clear_attacks(){++cleared;}
+
+using u8=unsigned char;
+int nativeKeys=0,pendingKeys=0;
+int dComIfGs_getKeyNum(){return nativeKeys;}
+int dComIfGp_getItemKeyNumCount(){return pendingKeys;}
+void dComIfGp_clearItemKeyNumCount(){pendingKeys=0;}
+void dComIfGs_setKeyNum(u8 n){nativeKeys=n;}
+#include "survivors_keys.inc"
 '''
 main=r'''
 
-void fresh(){
+void fresh(){nativeKeys=pendingKeys=0;
     bottles.fill(dItemNo_NONE_e);equippedSword=swordGrants=potionGrants=0;
     s_run.start(123);s_treasure={};s_chests={};s_chests[0].active=true;s_chests[0].position={0,0,100};
     s_chosenTreasure=ChestReward::Count;s_selectedChest=kChestCount;rupees=100;s_loot.ready=true;
@@ -330,6 +338,41 @@ int main(){
     assert(!s_chests[0].active&&s_run.chests_opened==1&&reset==1&&!alive);
     if (reward<=ChestReward::Ball) assert(s_run.rank(chest_weapon(reward))==1);
     update_treasure_demo(&player);assert(rupees==80&&s_run.chests_opened==1);
+    // Keys pay first, even at zero rupees; only a successful native event
+    // consumes one. Fixed map prices and free elite rewards keep their rules.
+    for(bool fixed:{false,true})for(unsigned coins:{0u,100u}){
+        fresh();s_chests[0].fixed=fixed;rupees=coins;nativeKeys=1;pendingKeys=1;
+        assert(open_first()&&s_treasure.key&&s_treasure.price==0&&chest_keys()==2&&rupees==coins);
+        accept();eventEnded=true;update_treasure_demo(&player);
+        assert(chest_keys()==1&&pendingKeys==0&&rupees==coins&&!s_chests[0].active);
+        assert(s_run.chests_opened==(fixed?0u:1u));
+        update_treasure_demo(&player);assert(chest_keys()==1&&rupees==coins);
+    }
+    fresh();nativeKeys=1;s_chests[0].free=true;rupees=0;
+    assert(open_first()&&!s_treasure.key);accept();eventEnded=true;update_treasure_demo(&player);
+    assert(chest_keys()==1&&rupees==0&&s_run.chests_opened==0);
+    fresh();s_run.start(25,{},starting);nativeKeys=1;rupees=0;begin_starting_item_choice();
+    unsigned startKeyChoice=0;select_treasure(nullptr,&startKeyChoice);update_treasure_choice(&player);
+    assert(chest_keys()==1&&!s_run.starting_item_pending&&s_run.chests_opened==0);
+    for(unsigned failure=0;failure<5;++failure){
+        fresh();nativeKeys=1;rupees=0;
+        if(failure==0){createFails=true;assert(!open_first());}
+        else {
+            if(failure==4)s_chests[0].offers={ChestReward::RedPotion,ChestReward::Count,ChestReward::Count};
+            assert(open_first());
+            if(failure==1)cancel_treasure_demo();
+            if(failure==2){s_treasure.waitFrames=300;update_treasure_demo(&player);}
+            if(failure==3){nativeKeys=0;accept();eventEnded=true;update_treasure_demo(&player);}
+            if(failure==4){bottles.fill(dItemNo_RED_BOTTLE_e);accept();eventEnded=true;update_treasure_demo(&player);}
+        }
+        assert(chest_keys()==(failure==3?0u:1u)&&rupees==0&&s_run.chests_opened==0&&s_chests[0].active);
+    }
+    fresh();nativeKeys=1;rupees=0;s_chests[0].offers={ChestReward::RedPotion,ChestReward::Count,ChestReward::Count};
+    assert(open_first(Rarity::Legendary));accept();eventEnded=true;update_treasure_demo(&player);
+    assert(chest_keys()==0&&rupees==20&&potionGrants==4&&s_run.chests_opened==1);
+    // Pending counts clamp safely; a fresh run clears keys and pending pickups.
+    nativeKeys=99;pendingKeys=2;assert(chest_keys()==99);set_chest_keys(0);assert(!chest_keys()&&!pendingKeys);
+    nativeKeys=0;pendingKeys=-1;assert(chest_keys()==0);set_chest_keys(0);
     // A fixed-price chest checks and commits exactly 40 through the native event.
     fresh();s_chests[0].fixed=true;s_run.chests_opened=10;rupees=39;
     assert(!open_first()&&rupees==39&&s_run.chests_opened==10);

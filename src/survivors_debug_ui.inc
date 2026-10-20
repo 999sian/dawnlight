@@ -13,43 +13,67 @@ std::array<DebugControl,5> s_debugControls{{
 ModResult build_debug(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     s_options.debug.clamp();s_run.options.debug.clamp();
     if (!debug_enabled) return MOD_OK;
+    UiControlDesc enable=UI_CONTROL_DESC_INIT;
+    enable.kind=UI_CONTROL_TOGGLE;enable.label="Enable Debug";
+    enable.help_rml="Session only. Debug runs award no high scores, Survivors XP or permanent map unlocks. Resets to Off when the game restarts.";
+    enable.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=debug_enabled && debug_session_enabled;};
+    enable.is_disabled=[](ModContext*,void*){return !debug_enabled || !settings_editable() || s_run.phase!=Phase::Ready;};
+    enable.set=[](ModContext*,void*,const UiControlValue* value){
+        if(!debug_enabled || !settings_editable() || s_run.phase!=Phase::Ready || s_debugNotice ||
+           value->bool_value==debug_session_enabled)return;
+        UiDialogAction action=UI_DIALOG_ACTION_INIT;action.label="OK";
+        action.on_pressed=[](ModContext*,UiDialogHandle handle,void*){if(s_debugNotice==handle)s_debugNotice=0;};
+        UiDialogDesc notice=UI_DIALOG_DESC_INIT;notice.title=value->bool_value?"Debug enabled":"Debug disabled";
+        notice.variant=UI_DIALOG_WARNING;
+        notice.body_rml=value->bool_value?
+            "<p>Debug runs do not save high scores, award Survivors XP or permanently unlock maps. This includes Endless Mode. In-run XP and level-ups still work.</p><p>Enable Debug is not saved and resets to Off when you restart the game.</p>":
+            "<p>Debug settings are disabled. New runs can save high scores, earn Survivors XP and permanently unlock maps again. Runs already started with Debug remain excluded.</p><p>Enable Debug is not saved and starts Off after restarting the game.</p>";
+        notice.actions=&action;notice.action_count=1;notice.on_dismiss=action.on_pressed;
+        if(svc_ui->dialog_push(mod_ctx,&notice,&s_debugNotice)!=MOD_OK){s_debugNotice=0;return;}
+        debug_session_enabled=value->bool_value;
+        if(!debug_session_enabled)s_options.debug={};
+    };
+    auto enabledResult=svc_ui->pane_add_control(mod_ctx,left,&enable,nullptr);
+    if(enabledResult!=MOD_OK)return enabledResult;
     for (auto& setting:s_debugControls) {
         UiControlDesc control=UI_CONTROL_DESC_INIT;
-        control.kind=setting.choices ? UI_CONTROL_SELECT : UI_CONTROL_NUMBER;
+        control.kind=setting.choices==kDebugSwitch?UI_CONTROL_TOGGLE:setting.choices?UI_CONTROL_SELECT:UI_CONTROL_NUMBER;
         control.label=setting.label;control.user_data=&setting;
-        control.options=setting.choices;control.option_count=setting.count;
+        control.options=control.kind==UI_CONTROL_TOGGLE?nullptr:setting.choices;control.option_count=control.kind==UI_CONTROL_TOGGLE?0:setting.count;
         control.min=1;control.max=10;control.step=1;control.prefix=setting.choices?nullptr:"x";
         control.get=[](ModContext*,void* data,UiControlValue* value) {
             s_options.debug.clamp();
             const auto& setting=*static_cast<DebugControl*>(data);
             const auto current=s_options.debug.*setting.field;
+            if(setting.choices==kDebugSwitch){value->bool_value=current!=0;return;}
             value->int_value=setting.field==&DebugOptions::run_minutes ? (current==20?0:current==10?1:2) : current;
         };
         control.set=[](ModContext*,void* data,const UiControlValue* value) {
             s_options.debug.clamp();
-            if (!debug_enabled || s_run.phase!=Phase::Ready || s_restart) return;
+            if (!debug_enabled || !debug_session_enabled || !settings_editable() || s_run.phase!=Phase::Ready) return;
             const auto& setting=*static_cast<DebugControl*>(data);
-            if (setting.field==&DebugOptions::run_minutes) {
+            if(setting.choices==kDebugSwitch)s_options.debug.*setting.field=value->bool_value?1u:0u;
+            else if (setting.field==&DebugOptions::run_minutes) {
                 constexpr unsigned minutes[]{20,10,5};
                 s_options.debug.run_minutes=minutes[std::clamp<int64_t>(value->int_value,0,2)];
             } else s_options.debug.*setting.field=unsigned(std::clamp<int64_t>(value->int_value,
                 setting.choices?0:1,setting.choices?setting.count-1:10));
             s_options.debug.clamp();
         };
-        control.is_disabled=[](ModContext*,void*){return !debug_enabled || s_run.phase!=Phase::Ready || s_restart;};
+        control.is_disabled=[](ModContext*,void*){return !debug_enabled || !debug_session_enabled || !settings_editable() || s_run.phase!=Phase::Ready;};
         const auto result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
         if (result!=MOD_OK) return result;
     }
     UiControlDesc unlock=UI_CONTROL_DESC_INIT;
     unlock.kind=UI_CONTROL_TOGGLE;unlock.label="Unlock all maps";
     unlock.help_rml="Temporarily bypass map locks. Does not change saved clears. Default: off.";
-    unlock.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=debug_enabled && s_options.debug.unlock_all_maps;};
+    unlock.get=[](ModContext*,void*,UiControlValue* value){value->bool_value=debug_enabled && debug_session_enabled && s_options.debug.unlock_all_maps;};
     unlock.set=[](ModContext*,void*,const UiControlValue* value){
-        if(debug_enabled && settings_editable())s_options.debug.unlock_all_maps=value->bool_value;
+        if(debug_enabled && debug_session_enabled && settings_editable())s_options.debug.unlock_all_maps=value->bool_value;
     };
-    unlock.is_disabled=[](ModContext*,void*){return !debug_enabled || !settings_editable();};
+    unlock.is_disabled=[](ModContext*,void*){return !debug_enabled || !debug_session_enabled || !settings_editable();};
     auto result=svc_ui->pane_add_control(mod_ctx,left,&unlock,nullptr);
     if(result!=MOD_OK)return result;
     return svc_ui->pane_add_text(mod_ctx,right,
-        "Debug options apply to the next run. Minimum Rarity covers level-ups and treasures. Player damage includes all attacks and burns. Infinite rerolls are free; chest prices still apply. Four bosses arrive at 25%, 50%, 75% and 100% of the run timer. Other progression uses real elapsed time.",nullptr);
+        "Enable Debug to edit these options. Debug runs earn no high scores, Survivors XP or permanent map unlocks, including in Endless Mode. The toggle is session-only and starts Off after restarting the game. Debug options apply to the next run. Minimum Rarity covers level-ups and treasures. Player damage includes all attacks and burns. Infinite rerolls are free; chest prices still apply. Four bosses arrive at 25%, 50%, 75% and 100% of the run timer. Other progression uses real elapsed time.",nullptr);
 }

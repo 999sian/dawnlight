@@ -23,7 +23,7 @@ void launch_shockwave(daAlink_c* link) {
 }
 bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     if (weapon==Upgrade::Spin) {
-        if (!manual_skill(link,weapon) && !enemy_in_range(link,s_run.area_radius(parallel_spin_base_radius(link)))) return false;
+        if (!manual_skill(link,weapon) && !enemy_in_range(link,s_run.melee_area_radius(parallel_spin_base_radius(link)))) return false;
         return begin_spin_attack(link); // Native animation, hit window and effects own this activation.
     }
     const float range=100+s_run.shield_radius();
@@ -41,8 +41,13 @@ bool launch_parallel_pulse(daAlink_c* link, Upgrade weapon) {
     return true;
 }
 void update_parallel_skills(daAlink_c* link) {
-    if(s_run.rank(Upgrade::Spin) && !s_cooldowns[unsigned(Upgrade::Spin)] && launch_parallel_pulse(link,Upgrade::Spin))
-        s_cooldowns[unsigned(Upgrade::Spin)]=s_run.cooldown(120);
+    const bool repeatSpin=s_multiStrike.count(StrikeSeries::Spin)!=0;
+    // Finish a native spin before starting its next activation; each owns a fresh serial.
+    if(s_run.rank(Upgrade::Spin) && (repeatSpin || !s_cooldowns[unsigned(Upgrade::Spin)]) &&
+       !(repeatSpin && link->mProcID==daAlink_c::PROC_CUT_TURN) && launch_parallel_pulse(link,Upgrade::Spin)) {
+        if(repeatSpin)s_multiStrike.consume(StrikeSeries::Spin);
+        else {s_multiStrike.start(StrikeSeries::Spin,s_run.multi_strikes());s_cooldowns[unsigned(Upgrade::Spin)]=s_run.cooldown(120);}
+    }
     update_sword_wave(link); // A normal wave-casting cut yields to a due Spin.
     if(s_run.owns(ChestReward::Shield) && s_run.rank(Upgrade::ShieldAttack) &&
        !s_cooldowns[unsigned(Upgrade::ShieldAttack)]) {

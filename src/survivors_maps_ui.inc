@@ -18,6 +18,8 @@ window content pane.survivors-map-preview { flex: 1 1 0; padding: 0dp 16dp 16dp;
 button.survivors-map-start { margin-top: 0dp; align-self: flex-end; padding: 12dp 28dp; font-size: 18dp; background-color: #171d19ee; }
 button.survivors-map-option { padding: 12dp; font-size: 16dp; }
 button.survivors-map-selected { background-color: #e5bc3b28; border-color: #ffdc75; }
+.survivors-score-row { width: 100%; gap: 8dp; }
+.survivors-score-row button { flex: 1 1 0; min-width: 0dp; font-size: 14dp; padding: 10dp; }
 @media (max-width: 640dp) {
     window content pane.survivors-map-list { flex-basis: 42%; padding: 8dp; font-size: 12dp; }
     window content pane.survivors-map-preview { padding: 0dp 8dp 8dp; }
@@ -119,6 +121,17 @@ ModResult build_arena_choices(UiElementHandle left, UiElementHandle right) {
     return svc_ui->elem_set_class(mod_ctx,startButton,"survivors-map-start",true);
 }
 
+UiElementHandle s_difficultySummary=0;
+std::string difficulty_summary() {
+    return "<h3>Twilit Rank "+number(s_options.twilit_rank())+"</h3><p>Enemy HP x"+number(s_options.enemy_hp)+
+        ", damage x"+number(s_options.enemy_damage)+", movement speed x"+number(s_options.enemy_speed)+
+        ", spawn batch x"+number(s_options.horde)+".</p><p>Score and talent XP: x"+
+        result_decimal(s_options.score_percent()/100.0,2)+". Normal-kill score: x"+
+        result_decimal(s_options.score_percent()/100.0/s_options.horde,2)+
+        ". Normal-enemy run XP and loot per kill: x"+result_decimal(1.0/s_options.horde,2)+
+        "; elite run XP: x1.00. More enemies offset the Horde reward reduction.</p>"
+        "<p>Rank is the sum of these four multipliers. Score bonuses add: +10% per HP step, +15% per Damage step, +25% per Speed step, +10% per Horde step. Changes apply to the next run.</p>";
+}
 struct RunOptionControl { const char* label; unsigned RunOptions::*field; unsigned min,max,step; const char* help; };
 std::array<RunOptionControl,5> s_runControls{{
     {"Enemy HP",&RunOptions::enemy_hp,1,10,1,"Multiplies health of all enemies, including elites."},
@@ -147,6 +160,7 @@ ModResult build_run_controls(UiElementHandle left, UiElementHandle right, unsign
             const auto& setting=*static_cast<RunOptionControl*>(data);
             s_options.*setting.field=unsigned(std::clamp<int64_t>(value->int_value,setting.min,setting.max));
             store_option_config();
+            if(s_difficultySummary)svc_ui->elem_set_rml(mod_ctx,s_difficultySummary,difficulty_summary().c_str());
         };
         result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
         if (result!=MOD_OK) return result;
@@ -156,7 +170,9 @@ ModResult build_run_controls(UiElementHandle left, UiElementHandle right, unsign
         "Shared with Dawnlight Settings and saved automatically. Settings apply to the next run; edit them outside a run.",nullptr);
 }
 ModResult build_difficulty(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
-    return build_run_controls(left,right,0,4);
+    s_difficultySummary=0;
+    const auto result=build_run_controls(left,right,0,4);if(result!=MOD_OK)return result;
+    return svc_ui->pane_add_rml(mod_ctx,left,difficulty_summary().c_str(),&s_difficultySummary);
 }
 struct ManualAimControl {const char* label;ManualAbility ability;};
 std::array<ManualAimControl,10> s_manualAimControls{{
@@ -249,6 +265,11 @@ ModResult build_run_settings(ModContext*,UiWindowHandle,UiElementHandle left,UiE
     result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
     if(result!=MOD_OK)return result;
     result=build_reset_scores(left);
+    if(result!=MOD_OK)return result;
+    control=UI_CONTROL_DESC_INIT;
+    control.label="HUD-Editor";control.on_pressed=open_hud_editor;
+    control.help_rml="Move and resize Survivors HUD elements with a transparent live preview.";
+    result=svc_ui->pane_add_control(mod_ctx,left,&control,nullptr);
     if(result!=MOD_OK)return result;
     control=UI_CONTROL_DESC_INIT;
     control.kind=UI_CONTROL_GROUP;control.label="Manual aiming abilities";

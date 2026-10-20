@@ -55,7 +55,7 @@ void end_equipment_draw() {
 }
 
 HookAction observe_equipment_model(ModContext*, void* args, void*, void*) {
-    if (args == nullptr || s_equipmentDrawDepth == 0 ||
+    if (dark_link::WorldModelDrawScope::active() || args == nullptr || s_equipmentDrawDepth == 0 ||
         s_equipmentDrawDepth > s_equipmentDrawScopes.size()) return HOOK_CONTINUE;
     auto* link = s_equipmentDrawScopes[s_equipmentDrawDepth - 1];
     if (link == nullptr || link != daAlink_getAlinkActorClass() ||

@@ -2,7 +2,7 @@
 // conversion to an owned elite's Execute and its melee decision states; all
 // world positions, navigation probes, projectiles and unrelated actors stay in
 // world units. Nested process calls suspend the outer actor's scope.
-struct EliteScaleFrame {void* args;fopAc_ac_c* actor;float root=0;bool bokAttack=false,moved=false;};
+struct EliteScaleFrame {void* args;fopAc_ac_c* actor;float root=0,startY=0;bool bokAttack=false,moved=false;};
 std::vector<EliteScaleFrame> s_eliteScaleFrames;
 bool scaled_elite(const Enemy* enemy,const fopAc_ac_c* actor) {
     return enemy && actor && enemy->elite && enemy->initialized &&
@@ -27,6 +27,7 @@ HookAction before_elite_scale_scope(ModContext*,void* args,void*,void*) {
     }
     if(owned || !s_eliteScaleFrames.empty()) {
         EliteScaleFrame frame{args,owned};
+        if(owned)frame.startY=owned->current.pos.y;
         if(owned && tracked(fopAcM_GetID(owned))->profile==fpcNm_E_OC_e) {
             auto* bok=static_cast<daE_OC_c*>(owned);
             frame.root=bok->field_0x6a0;
@@ -89,8 +90,13 @@ HookAction before_elite_attack_motion(ModContext*,void* args,void*,void*) {
         auto* hound=reinterpret_cast<e_sh_class*>(actor);
         if(acch!=&hound->mObjAcch || hound->field_0x676!=3 || hound->field_0x678<3 ||
            actor->speedF<=0 || hound->field_0x6a4>1.f)return HOOK_CONTINUE;
-        // Match the wider leap range without changing airtime, gravity or the
-        // stored velocity. The existing elite speed bonus is already applied.
+        // The doubled head already raises the bite sphere. Keep the pounce
+        // low enough to meet a grounded Link by compressing only this frame's
+        // vertical displacement, before native floor/wall correction. Keep
+        // native vertical velocity/gravity and the committed horizontal pass.
+        if(hound->field_0x678==3)
+            actor->current.pos.y=frame.startY+(actor->current.pos.y-frame.startY)/actor->scale.x;
+        // Match the wider leap range; the existing elite speed bonus is applied.
         const float extra=(actor->scale.x-1.f)*(faster_boss(*enemy)?1.5f:1.f);
         actor->current.pos.x+=actor->speed.x*extra;
         actor->current.pos.z+=actor->speed.z*extra;

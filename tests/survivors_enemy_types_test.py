@@ -16,6 +16,7 @@ fixture=r'''
 #include <cmath>
 #include <map>
 #include <set>
+#include <vector>
 #include "survivors_rules.hpp"
 #include "survivors_roster.hpp"
 using namespace dawnlight::survivors;
@@ -31,6 +32,8 @@ namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
  cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}};
 struct csXyz{s16 x,y,z;};
+using createFunc=int(*)(void*);
+ActorId fopAcM_createChild(s16,ActorId,u32,const cXyz*,int,const csXyz*,const cXyz*,s8,createFunc);
 struct fopAc_ac_c{int profile=0;int health=1,field_0x560=1;struct{cXyz pos;}current;cXyz scale{2,2,2};};
 int fopAcM_GetName(fopAc_ac_c* a){return a->profile;}
 struct daAlink_c:fopAc_ac_c{};
@@ -42,7 +45,7 @@ struct e_ba_class{fopAc_ac_c enemy;Morf morph;Morf* mpMorf=&morph;Sphere mSph;};
 struct e_ms_class:fopAc_ac_c{Morf morph;Morf* mpModelMorf=&morph;Sphere mSph1,mSph2;};
 struct e_rd_class{fopAc_ac_c enemy;Sphere cc_sph[3];};
 struct Enemy{ActorId id=kNone;ProfileName profile=0;bool initialized=false,credited=false,retiring=false,elite=false;
- unsigned age=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{},spawnPosition{};unsigned species=0;};
+ unsigned age=0,endlessMinute=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{},spawnPosition{};unsigned species=0;};
 std::array<Enemy,enemy_capacity>s_enemies;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id!=kNone&&e.id==id)return &e;return nullptr;}
 Run s_run;bool arenaPresent=true;bool in_arena(){return arenaPresent;}
@@ -61,6 +64,15 @@ bool fpcM_IsCreating(ActorId id){return creating.contains(id);}
 struct Service{void delete_actor(ModContext*,ActorId id){deleted.insert(id);}}service;auto* svc_actor=&service;
 '''
 main=r'''
+std::vector<s16> spreadAngles;
+ActorId fopAcM_createChild(s16 profile,ActorId parent,u32 params,const cXyz* pos,int room,const csXyz* angle,const cXyz* scale,s8 arg,createFunc callback){
+ if(s_spawningEndlessArrows)assert(profile==fpcNm_E_ARROW_e&&parent==42&&params==7&&room==0&&
+    angle->x==123&&angle->z==456&&scale->x==1&&pos->x==0&&arg==-1&&callback==nullptr);
+ std::any args[]={profile,parent,params,pos,room,angle,scale,arg,callback};ActorId id=nextId++;
+ if(before_enemy_arrow(nullptr,args,&id,nullptr)==HOOK_SKIP_ORIGINAL)return id;
+ spreadAngles.push_back(angle->y);after_enemy_arrow(nullptr,args,&id,nullptr);return id;
+}
+
 int main(){
  s_run.start(42);s_run.ticks=18000;daAlink_c player;
  for(s_map=0;s_map<5;++s_map){std::set<unsigned>variants;
@@ -126,6 +138,15 @@ int main(){
  assert(bok.health==344&&bok.field_0x560==344);
  guard={};guard.profile=fpcNm_E_OC_e;guard.elite=guard.dormant=true;
  initialize_enemy(&guard,&bok);assert(bok.health==905); // late respawn
+ // Existing injured enemies scale once per Endless minute, preserving their HP fraction.
+ s_run.phase=Phase::Victory;assert(s_run.continue_endless());
+ Enemy endlessEnemy;endlessEnemy.profile=fpcNm_E_OC_e;
+ initialize_enemy(&endlessEnemy,&bok);const int initialHp=bok.field_0x560;
+ bok.health=initialHp/2;s_run.ticks+=1800;initialize_enemy(&endlessEnemy,&bok);
+ assert(bok.field_0x560==int(std::ceil(initialHp*1.1)));
+ const auto scaledHp=bok.health;initialize_enemy(&endlessEnemy,&bok);assert(bok.health==scaledHp);
+ bok.health=0;s_run.ticks+=1800;initialize_enemy(&endlessEnemy,&bok);assert(bok.health==0);
+ s_run.endless=false;
  // Native arrows are not enemies/loot sources. They remain owned after shooter deletion.
  s_enemies={};s_enemies[0].id=42;s_enemies[0].profile=fpcNm_E_RD_e;
  std::any args[]={s16(fpcNm_E_ARROW_e),ActorId(42)};ActorId arrowId=100;
@@ -155,7 +176,7 @@ int main(){
  after_enemy_arrow(nullptr,armorArgs,&armorId,nullptr);assert(active_enemy_arrow(300));
  s_run.phase=Phase::Running;
  // Projectile saturation leaves room for structural shells.
- s_enemyArrows={};for(unsigned i=0;i<enemy_capacity*2;++i)s_enemyArrows[i].id=1000+i;
+ s_enemyArrows={};for(unsigned i=0;i<enemy_capacity*3;++i)s_enemyArrows[i].id=1000+i;
  s_enemies[1].id=43;s_enemies[1].profile=fpcNm_E_RD_e;
  std::any shotArgs[]={s16(fpcNm_E_ARROW_e),ActorId(43)};ActorId shot=301;
  assert(before_enemy_arrow(nullptr,shotArgs,&shot,nullptr)==HOOK_SKIP_ORIGINAL&&shot==kNone);
@@ -222,6 +243,20 @@ int main(){
  s_enemies[0].credited=true;assert(!active_enemy_arrow(ghost));creating.insert(ghost);cleanup_enemy_arrows();
  assert(tracked_enemy_arrow(ghost));creating.clear();actors[ghost]=&player;cleanup_enemy_arrows();assert(deleted.contains(ghost));
  actors.clear();cleanup_enemy_arrows();assert(!tracked_enemy_arrow(ghost));s_enemies={};
+ // Every Endless archer shot uses the Hard Mode fan, with recursive ownership
+ // hooks still tracking exactly three arrows; normal runs and other species do not.
+ for(int profile:{fpcNm_E_RD_e,fpcNm_E_RDY_e,fpcNm_E_OC_e})for(bool endless:{false,true}){
+  s_enemyArrows={};s_enemies={};actors.clear();spreadAngles.clear();
+  s_run.phase=Phase::Running;s_run.endless=endless;s_enemies[0].id=42;s_enemies[0].profile=profile;
+  cXyz pos{},scale{1,1,1};csXyz angle{123,1000,456};
+  const auto id=fopAcM_createChild(s16(fpcNm_E_ARROW_e),42,7,&pos,0,&angle,&scale,s8(-1),nullptr);
+  const bool archer=profile!=fpcNm_E_OC_e;const unsigned count=endless&&archer?3:1;
+  assert(spreadAngles.size()==count&&angle.y==1000&&!s_spawningEndlessArrows);
+  if(count==3){assert(spreadAngles[1]==1000-0x900&&spreadAngles[2]==1000+0x900);
+   unsigned tracked=0;for(const auto& a:s_enemyArrows)if(a.id!=kNone){++tracked;assert(a.parent==42);}assert(tracked==3);
+   assert(active_enemy_arrow(id));retire_enemy_arrows();assert(!active_enemy_arrow(id));}
+ }
+ s_run.endless=false;s_enemyArrows={};s_enemies={};actors.clear();
  // Foreign children and failed creates are ignored; capacity/pause reject new owned arrows.
  arrowId=101;after_enemy_arrow(nullptr,args,&arrowId,nullptr);assert(!tracked_enemy_arrow(101));
  s_enemies[0].id=42;s_enemies[0].profile=fpcNm_E_RD_e;

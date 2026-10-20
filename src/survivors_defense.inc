@@ -91,6 +91,7 @@ struct HitState {
     int action = 0, mode = 0, oldAction = 0;
     s16 timer0 = 0, timer1 = 0, direction = 0;
     float knockback = 0;
+    unsigned attentionFlags = 0;
     std::array<bool, 2> target{}, collide{};
 };
 std::vector<HitState> s_hitStates;
@@ -127,6 +128,7 @@ HookAction before_enemy_hit(ModContext*, void* args, void*, void*) {
         auto* e = static_cast<daE_OC_c*>(actor);
         state.action = e->mActionMode; state.mode = e->mOcState; state.oldAction = e->mOldActionMode;
         state.timer0 = e->field_0x6c0; state.timer1 = e->field_0x6c2;
+        state.attentionFlags = e->attention_info.flags;
         for (unsigned i = 0; i < 2; ++i) {
             state.target[i] = e->mSphs_cc[i].ChkTgSet(); state.collide[i] = e->mSphs_cc[i].ChkCoSet();
             if (e->mSphs_cc[i].ChkTgHit()) attack = e->mSphs_cc[i].GetTgHitObj();
@@ -169,11 +171,15 @@ void after_enemy_hit(ModContext*, void* args, void*, void*) {
         // lethal. Enter its normal knockback/deletion path before AI resumes.
         if (!bat->mIsDying) { bat->mIsDying=true; bat->mKnockbackSpeed=80.f; }
     }
-    if (!state.suppress || state.actor->health <= (state.profile == fpcNm_E_OC_e ? 1 : 0)) return;
+    // Native Bokoblin damage_check treats one remaining HP as a finishing-blow
+    // knockdown and clears attention. In Survivors, every positive HP value is
+    // alive: preserve the current attack/movement until damage actually kills.
+    if (!state.suppress || state.actor->health <= 0) return;
     if (state.profile == fpcNm_E_OC_e) {
         auto* e = static_cast<daE_OC_c*>(state.actor);
         e->mActionMode = state.action; e->mOcState = state.mode; e->mOldActionMode = state.oldAction;
         e->field_0x6c0 = state.timer0; e->field_0x6c2 = state.timer1;
+        e->attention_info.flags = state.attentionFlags;
         for (unsigned i = 0; i < 2; ++i) {
             if (state.target[i]) e->mSphs_cc[i].OnTgSetBit(); else e->mSphs_cc[i].OffTgSetBit();
             if (state.collide[i]) e->mSphs_cc[i].OnCoSetBit(); else e->mSphs_cc[i].OffCoSetBit();

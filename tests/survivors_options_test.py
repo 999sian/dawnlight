@@ -12,6 +12,8 @@ fixture=r'''
 #include "mods/svc/ui.h"
 #define svc_ui test_ui
 using namespace dawnlight::survivors;
+std::string number(unsigned n){return std::to_string(n);}
+std::string result_decimal(double n,int=1){return std::to_string(n);}
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* p,int i){return std::any_cast<T>(static_cast<std::any*>(p)[i]);}
  template<class T>T& arg_ref(void* p,int i){return std::any_cast<T&>(static_cast<std::any*>(p)[i]);}}
@@ -43,6 +45,7 @@ bool dComIfGp_event_runCheck(){return event;}
 void* s_menuDocument=nullptr;void remember_menu_document(bool){}
 Records s_records;bool s_storeFailed=false,s_progressSaved=false,s_hubSaveRequested=false;
 struct Save{ModResult set_blob(ModContext*,const char*,const void*,size_t){return MOD_OK;}}save;auto* svc_save=&save;
+UiDialogHandle s_debugNotice=0;void close_debug_notice(){s_debugNotice=0;}
 Run s_run;RunOptions s_options;int s_player=1;bool s_restart=false;
 enum class HubMenu{None,Talents,Run};unsigned s_hubClosingWindow=0;HubMenu s_hubMenu=HubMenu::Run;
 void hub_menu_closed(){} void load_option_config(){} void store_option_config(){}
@@ -56,6 +59,7 @@ struct dCamera_c{cXyz mEye{0,0,100},mCenter{};Direction mDirection;int mPadID=0;
  static bool isAimActive(){return aim;}bool lineBGCheck(cXyz*,cXyz*,dBgS_CamLinChk*,int){return blocked;}};
 void restore_sword_aim_camera(dCamera_c*){}bool update_sword_aim_camera(dCamera_c*){return false;}
 void resolve_manual_projectiles(dCamera_c*){}
+void open_hud_editor(ModContext*,void*){}
 ModContext* mod_ctx=nullptr;
 std::vector<UiControlDesc> controls;
 std::vector<UiElementHandle> controlPanes;
@@ -72,13 +76,18 @@ const char* kTreasureStyle="treasure";const char* kArenaStyle="arena";
 ChestReward s_chosenTreasure=ChestReward::Count;
 void dismiss_treasure_choice(){}
 struct Log{void warn(ModContext*,const char*){assert(false);}}logger;auto* svc_log=&logger;
+unsigned notices=0;bool failNotice=false;std::string noticeBody;UiDialogAction noticeAction{};
 struct Service{
+ ModResult dialog_push(ModContext*,const UiDialogDesc* d,UiDialogHandle* h){if(failNotice)return MOD_INVALID_ARGUMENT;++notices;noticeBody=d->body_rml;noticeAction=d->actions[0];*h=9;return MOD_OK;}
+
  ModResult window_push(ModContext*,const UiWindowDesc* desc,UiWindowHandle* handle){
   pushedTab=desc->tabs[0];windowClosed=desc->on_closed;
   tabNames.clear();for(size_t i=0;i<desc->tab_count;++i){assert(desc->tabs[i].build);tabNames.push_back(desc->tabs[i].title);}
   *handle=1;return MOD_OK;
  }
 
+ ModResult elem_set_rml(ModContext*,UiElementHandle,const char*){return MOD_OK;}
+ ModResult pane_add_rml(ModContext*,UiElementHandle,const char*,UiElementHandle* handle){if(handle)*handle=99;return MOD_OK;}
  ModResult elem_set_class(ModContext*,UiElementHandle,const char*,bool){return MOD_OK;}
  ModResult pane_add_control(ModContext*,UiElementHandle pane,const UiControlDesc* c,UiElementHandle*){controls.push_back(*c);controlPanes.push_back(pane);return MOD_OK;}
  ModResult pane_add_text(ModContext*,UiElementHandle,const char*,UiElementHandle*){return MOD_OK;}
@@ -166,12 +175,12 @@ int main(){
  s_run.phase=Phase::Ready;s_options.camera_distance=300;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==300);
  before_run_camera(nullptr,cam,nullptr,nullptr);active=false;after_run_camera(nullptr,cam,nullptr,nullptr);assert(camera.mEye.z==100);active=true;
  assert(build_difficulty(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
- assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK&&controls.size()==11);
+ assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK&&controls.size()==12);
  const auto manual=controls.back();
  assert(manual.kind==UI_CONTROL_GROUP&&std::string(manual.label)=="Manual aiming abilities"&&controlPanes.back()==1);
  manual.on_pressed(nullptr,nullptr);assert(s_manualAimSettingsWindow&&std::string(pushedTab.title)==manual.label);
- assert(pushedTab.build(nullptr,s_manualAimSettingsWindow,3,4,nullptr,nullptr)==MOD_OK&&controls.size()==21);
- for(unsigned i=11;i<21;++i)assert(controlPanes[i]==3); // Never put toggles in the replaceable help pane.
+ assert(pushedTab.build(nullptr,s_manualAimSettingsWindow,3,4,nullptr,nullptr)==MOD_OK&&controls.size()==22);
+ for(unsigned i=12;i<22;++i)assert(controlPanes[i]==3); // Never put toggles in the replaceable help pane.
  assert(controls[2].max==3);
  assert(std::string(controls[9].label)=="Allow Cheats");
  for(unsigned i=0;i<6;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_NUMBER&&c.get&&c.set);
@@ -185,17 +194,17 @@ int main(){
   s_run.phase=Phase::Running;value.bool_value=(i==7);c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.bool_value==!(i==7));
   s_run.phase=Phase::Ready;s_restart=true;value.bool_value=(i==7);c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.bool_value==!(i==7));s_restart=false;
  }
- for(unsigned i=11;i<21;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_TOGGLE&&c.user_data);
+ for(unsigned i=12;i<22;++i){auto& c=controls[i];assert(c.kind==UI_CONTROL_TOGGLE&&c.user_data);
   UiControlValue value=UI_CONTROL_VALUE_INIT;c.get(nullptr,c.user_data,&value);assert(value.bool_value);
   value.bool_value=false;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);
-  assert(!s_options.manual_aim[i-11]);for(unsigned j=i-10;j<10;++j)assert(s_options.manual_aim[j]);
+  assert(!s_options.manual_aim[i-12]);for(unsigned j=i-11;j<10;++j)assert(s_options.manual_aim[j]);
   value.bool_value=true;s_run.phase=Phase::Running;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);
   s_run.phase=Phase::Ready;s_restart=true;value.bool_value=true;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);s_restart=false;
  }
  windowClosed(nullptr,s_manualAimSettingsWindow,nullptr);assert(!s_manualAimSettingsWindow);
  manual.on_pressed(nullptr,nullptr);assert(s_manualAimSettingsWindow);
- assert(pushedTab.build(nullptr,s_manualAimSettingsWindow,3,4,nullptr,nullptr)==MOD_OK&&controls.size()==31);
- for(unsigned i=21;i<31;++i){UiControlValue value=UI_CONTROL_VALUE_INIT;controls[i].get(nullptr,controls[i].user_data,&value);assert(!value.bool_value);}
+ assert(pushedTab.build(nullptr,s_manualAimSettingsWindow,3,4,nullptr,nullptr)==MOD_OK&&controls.size()==32);
+ for(unsigned i=22;i<32;++i){UiControlValue value=UI_CONTROL_VALUE_INIT;controls[i].get(nullptr,controls[i].user_data,&value);assert(!value.bool_value);}
  windowClosed(nullptr,s_manualAimSettingsWindow,nullptr);
  s_run.start(1,s_options);for(bool enabled:s_run.options.manual_aim)assert(!enabled);
  s_options.manual_aim.fill(true);for(bool enabled:s_run.options.manual_aim)assert(!enabled);
@@ -205,15 +214,29 @@ int main(){
  controls.clear();s_options.debug={4,10,1,1,5};s_run.options.debug=s_options.debug;
  assert(build_debug(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
  if(debug_enabled){
-  assert(controls.size()==6&&std::string(controls[0].label)=="Minimum Rarity");
-  for(unsigned i=0;i<5;++i){auto& c=controls[i];UiControlValue value=UI_CONTROL_VALUE_INIT;
-   assert(c.kind==(i==1?UI_CONTROL_NUMBER:UI_CONTROL_SELECT));
+  assert(controls.size()==7&&std::string(controls[0].label)=="Enable Debug");
+  auto enable=controls[0];UiControlValue state=UI_CONTROL_VALUE_INIT;enable.get(nullptr,nullptr,&state);assert(!state.bool_value);
+  for(unsigned i=1;i<7;++i)assert(controls[i].is_disabled(nullptr,controls[i].user_data));
+  auto deniedDebug=s_options.debug;UiControlValue deniedValue=UI_CONTROL_VALUE_INIT;deniedValue.int_value=2;
+  controls[1].set(nullptr,controls[1].user_data,&deniedValue);assert(s_options.debug.minimum_rarity==deniedDebug.minimum_rarity);
+  deniedValue.bool_value=true;controls[6].set(nullptr,nullptr,&deniedValue);assert(!s_options.debug.unlock_all_maps);
+  state.bool_value=true;failNotice=true;enable.set(nullptr,nullptr,&state);assert(!debug_session_enabled&&!s_debugNotice);failNotice=false;
+  enable.set(nullptr,nullptr,&state);assert(debug_session_enabled&&notices==1&&s_debugNotice);
+  assert(noticeBody.find("permanently unlock maps")!=std::string::npos);
+  noticeAction.on_pressed(nullptr,s_debugNotice,nullptr);assert(!s_debugNotice);
+  for(unsigned i=0;i<5;++i){auto& c=controls[i+1];UiControlValue value=UI_CONTROL_VALUE_INIT;
+   assert(c.kind==((i==2||i==3)?UI_CONTROL_TOGGLE:i==1?UI_CONTROL_NUMBER:UI_CONTROL_SELECT));
+   if(i==2||i==3){assert(!c.options&&!c.option_count);value.bool_value=true;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.bool_value);value.bool_value=false;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);continue;}
    value.int_value=0;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==(i==1?1:0));
    value.int_value=i==1?10:int64_t(c.option_count-1);c.set(nullptr,c.user_data,&value);
    s_run.phase=Phase::Running;assert(c.is_disabled(nullptr,c.user_data));
    UiControlValue denied=UI_CONTROL_VALUE_INIT;c.set(nullptr,c.user_data,&denied);c.get(nullptr,c.user_data,&denied);assert(value.int_value==denied.int_value);s_run.phase=Phase::Ready;
   }
   assert(s_options.debug.run_minutes==5&&s_options.debug.player_damage==10);
+  s_run.phase=Phase::Running;state.bool_value=false;enable.set(nullptr,nullptr,&state);assert(debug_session_enabled&&notices==1);
+  s_run.phase=Phase::Ready;enable.set(nullptr,nullptr,&state);assert(!debug_session_enabled&&notices==2&&s_options.debug.run_minutes==20);
+  assert(noticeBody.find("New runs")!=std::string::npos);noticeAction.on_pressed(nullptr,s_debugNotice,nullptr);
+  for(unsigned i=1;i<7;++i)assert(controls[i].is_disabled(nullptr,controls[i].user_data));
  }else{
   assert(controls.empty()&&s_options.debug.run_minutes==20&&s_options.debug.player_damage==1);
   assert(s_options.debug.minimum_rarity==0&&!s_options.debug.infinite_rerolls&&!s_options.debug.infinite_banishes);
@@ -224,10 +247,10 @@ int main(){
 '''
 core=(root/'src/survivors.cpp').read_text()
 window=core[core.index('void open_window() {'):core.index('ModResult activated(')]
-ui=(root/'src/survivors_maps_ui.inc').read_text().split('struct RunOptionControl',1)[1]
+ui=(root/'src/survivors_maps_ui.inc').read_text().split('UiElementHandle s_difficultySummary',1)[1]
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+'bool extended_locomotion(fopAc_ac_c*,int){return false;}\n'+(root/'src/survivors_options.inc').read_text()+'struct RunOptionControl'+ui+(root/'src/survivors_debug_ui.inc').read_text()+window+main)
+ cpp.write_text(fixture+'bool extended_locomotion(fopAc_ac_c*,int){return false;}\n'+(root/'src/survivors_options.inc').read_text()+'UiElementHandle s_difficultySummary'+ui+(root/'src/survivors_debug_ui.inc').read_text()+window+main)
  for enabled in [0,1]:
   subprocess.run([os.environ.get('CXX','c++'),f'-DDAWNLIGHT_SURVIVORS_DEBUG={enabled}','-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
   subprocess.run([str(exe)],check=True)

@@ -225,7 +225,17 @@ bool update_extended_enemy(fopAc_ac_c* actor,Enemy& enemy) {
         enemy.retiring=true;svc_actor->delete_actor(mod_ctx,enemy.id);
         return false;
     }
-    if(phantom_projectile_charge(actor,enemy))enemy.stagger=0;
+    if(phantom_projectile_charge(actor,enemy)) {
+        enemy.stagger=0;
+        auto* phantom=reinterpret_cast<daE_PZ_c*>(actor);
+        // These are independent of the damage cylinder and Survivors stagger.
+        // Native damage_check can warp to WAIT/11 and replace the casting
+        // animation, which makes the charging child ball destroy itself.
+        // Clear at the actor-execute boundary as well as skipping the native
+        // damage hook, so inlined native reaction paths cannot cancel a cast.
+        phantom->mWarpCylCollider.ResetTgHit();
+        phantom->mBombArrowHit=false;
+    }
     if(enemy.stagger) {
         --enemy.stagger;
         // Re-register body targets during the short stagger; movement/AI and

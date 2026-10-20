@@ -126,7 +126,7 @@ void spread_melee_hit(fopAc_ac_c* primary) {
     if (auto* e = tracked(fopAcM_GetID(primary))) effect_for(*e).meleeSerial = s_meleeSerial;
     auto* link = daAlink_getAlinkActorClass(); if (!link) return;
     for (unsigned n = 0; n + 1 < s_run.melee_targets(); ++n) {
-        Enemy* best = nullptr; float distance = s_run.radius(280) * s_run.radius(280);
+        Enemy* best = nullptr; float distance = s_run.melee_reach(280) * s_run.melee_reach(280);
         const cXyz from = link->current.pos + cXyz(0, 70, 0);
         for (auto& e : s_enemies) {
             if (!e.initialized || e.retiring || e.credited || effect_for(e).meleeSerial == s_meleeSerial) continue;
@@ -142,8 +142,10 @@ void spread_melee_hit(fopAc_ac_c* primary) {
         auto& effect = effect_for(*best); effect.meleeSerial = s_meleeSerial;
         // Roll once per secondary target before combining with non-critical burn ticks.
         bool critical=false;
-        queue_effect_damage(effect,DamageSource::DualWield,s_run.critical_power(s_run.melee_power(),&critical));
+        queue_effect_damage(effect,DamageSource::DualWield,s_run.critical_power(s_run.melee_power(),&critical,true));
+        effect.attribution.swordPending=true;
         effect.pendingCritical = effect.pendingCritical || critical;
+        if(auto* actor=actor_by_id(best->id))trigger_lightning(actor);
         if (s_run.rank(Upgrade::FireEdge)) {
             effect.fireEdgeSource=DamageSource::Sword;effect.burnBase[1]=s_run.melee_power();
             effect.legendaryBurns[1].ignite(s_run.dark_power(s_run.melee_power()));
@@ -203,6 +205,8 @@ void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
         // Allocation may grow the deque. Do it only after the traversal ends.
         if (bombArrow) detonate_bomb_arrow(*bombArrow,actor->eyePos);
     }
+    const auto* link=daAlink_getAlinkActorClass();
+    if(native_sword_collider(info->mpCollider) || (link && info->mpCollider==&link->mGuardAtCps)) trigger_lightning(actor);
     if (s_swordAction == SwordAction::Normal && native_sword_collider(info->mpCollider)) spread_melee_hit(actor);
 }
 void update_enemy_effects() {
@@ -272,4 +276,11 @@ DamageAmounts hit_damage_sources(const cCcD_Obj* collider) {
     for(const auto& attack:s_attacks)if(collider==&attack.collider){owned=true;source=weapon_damage_source(attack.weapon);break;}
     if(owned)result[unsigned(source)]=1;
     return result;
+}
+
+bool sword_kill_hit(const cCcD_Obj* collider) {
+    for(const auto& effect:s_effects)if(collider==&effect.collider)return effect.attribution.swordApplied;
+    const auto sources=hit_damage_sources(collider);
+    for(unsigned i=0;i<sources.size();++i)if(sources[i]&&sword_kill_source(DamageSource(i)))return true;
+    return false;
 }

@@ -144,7 +144,8 @@ Weapon ranks and power-up details are available in the item wheel and Collection
 overview; they are not repeated during combat.
 
 Leveling up pauses Link and the encounter and offers three upgrades in the same
-side-by-side card layout as chests. Cards use the native Hidden Skills scroll, full Heart Container, or rarity-colored
+side-by-side card layout as chests. Item rank cards use their native item icons, including Light Sword when the preview reaches level 5.
+Other cards use the Hidden Skills scroll, full Heart Container, or rarity-colored
 rupee icon, its power-up name/description and red before/after changes. Controller,
 keyboard and direct touch/click navigation use Dusklight's native mod window controls. Closing
 the choice window does not resume combat or reroll its offers. Excess experience
@@ -162,15 +163,15 @@ is retained and multiple earned levels are offered consecutively.
 | Ball and Chain | Independent chain projectile and optional throw pose; pierces to full range, damages each enemy once per leg and has 240-unit base knockback |
 | Power | Increase automatic weapon damage |
 | Haste | Reduce automatic weapon cooldowns |
-| Reach | +7.5% linear reach/range per rank; Spin/Bomb/Shield radii use the square root of that factor |
+| Reach | +15% per rank for melee, Dual Wield splash, Jump Strike and Lightning hop range; +7.5% for other ranges. Spin doubles its previous radius bonus; Bomb/Shield keep square-root scaling |
 | Magnet | Attract XP, rupees, hearts and heart pieces from farther away |
 | Heart Container | Add one maximum heart; level-up healing fills the new capacity |
 | Luck | 20 ranks; rarity weights +5% and crit multiplier +2.5% per rank; drop bonuses +10% per rank capped at +50% |
 | Knockback | 10 ranks; +40 units horizontal push/rank on direct attacks; fixed 240-unit Ball/Shield base; bosses and elites are immune |
 | Piercing | Requires Bow; 10 ranks, +1 distinct damaged target per arrow/rank, including Multishot arrows |
-| Multishot | Epic +1 rank, Legendary +2, cap 3; +1 projectile/rank for all five ranged abilities; arrows retain the existing fan angle |
+| Multishot | Epic +1 rank, Legendary +2, cap 3; +1 projectile/chain per rank for the five ranged abilities and Lightning Strike; arrows retain the existing fan angle |
 | Life Regen | Rare or better; cap 5; -1 second/rank from passive regeneration; stacks with the talent |
-| Life Steal | Legendary only, cap 1; +¼ heart per credited enemy death |
+| Life Steal | Legendary only, cap 1; +¼ heart once per direct Sword/Dual Wield splash/Spin/Wave/Jump/Lightning kill, including extra hits; no burn or other weapon kills |
 | Rupees | Receive 20 rupees per reward unit |
 
 All passive upgrades are independently available, including Heart Container
@@ -178,7 +179,7 @@ until the native maximum of 20 hearts. Weapons, Fire Arrows, Shield Attack and
 ordinary passives have up to 30 levels; Luck retains its 20-rank cap and the new power-ups use the caps above. Rupees remain available after the
 other upgrades reach their caps. Native enemy defense and death reactions still apply. Ordinary nonlethal hits
 keep their hit effects and damage but do not interrupt enemy movement or attacks.
-Shield Attack and Ball and Chain use a bounded horizontal push instead of native launches. Its base never grows with weapon ranks, damage or Reach; only Knockback adds distance. Six short steps, a twelve-tick repeat delay, non-additive simultaneous hits and terrain checks limit movement. Living knocked-down
+Shield Attack and Ball and Chain use a bounded horizontal push instead of native launches. Its base never grows with weapon ranks, damage or Reach; only Knockback adds distance. Six short steps, a twelve-tick repeat delay, non-additive simultaneous hits and terrain checks limit movement. Knockback itself changes position only: native velocity and action/animation clocks continue. Preserve height above the floor during low jumps or flight, including when following a safe slope. Suppress the native Bokoblin finishing-blow knockdown and restore attention flags at one remaining HP; only actual lethal damage keeps the death reaction. Living knocked-down
 Bokoblins keep their target spheres enabled before collision registration, so
 normal attacks and abilities can still hit during knockback, prone and get-up
 animations. Rats keep their real hit cooldown instead of resetting it each frame
@@ -410,9 +411,9 @@ units), clamped to these map-specific budgets:
 Creation is staggered to avoid loading every actor in one frame. Placement checks
 floor, room, hazards, walls, exit barriers, other pots, guard landmarks and Link's
 current position. Pots use native models, carrying/throwing, collision, fragments
-and sound. Breaking one yields one native pickup: a Piece of Heart (2% base
-chance) or a green, blue, yellow, red, purple, orange or silver rupee. Higher-value
-rupees are rarer; Luck multiplies the heart-piece and better-color chances.
+and sound. Breaking one yields one native pickup: a Piece of Heart or small key (each 2% base
+chance, up to 3% with Luck) or a green, blue, yellow, red, purple, orange or silver rupee. Higher-value
+rupees are rarer; Luck multiplies the heart-piece, key and better-color chances.
 Heart pieces use the native Get Item sequence and five-piece heart progression;
 subsequent Heart Container upgrades preserve already collected pieces. Their
 capacity is reset with the rest of the run on restart.
@@ -424,11 +425,37 @@ Survivors suppression of vanilla drops. Pots and enemies pause during menus and
 native Get Item; the native reward event itself continues. Run end, mode changes
 and restart retire the pots, including actors still loading.
 
+Small keys use the native `T_g_key` field model through tracked ITEM actors
+with the KEY_OF_FILONE display variant. SMALL_KEY2 has no field-model entry and
+is no longer used. Immediately before drawing, the existing leaf-draw hook
+applies the ordinary small key's +5 vertical offset and -90-degree X rotation,
+so the model sits above the floor with its proper orientation. Native execution
+still owns physical position, scale, animation and collision.
+The native generic pickup switch does not handle this item, so a scoped
+itemGetNextExecute pre-hook collects only run-owned keys, plays the native
+consumable sound and retires the pickup. This avoids dungeon treasure bits and
+story events (the original KEY_OF_FILONE reward handler never runs). The display
+variant has zero pickup dimensions, so each owned instance
+receives the ordinary small key cylinder (30 radius, 40 height) before execution,
+without changing shared item data. Keys retain magnet attraction and no-expiry handling; cleanup owns
+their entire lifetime. The native key counter includes pending native changes,
+clamps to 99 and resets with run preparation. Keys still drop after Endless 40:00.
+
 ## Treasure chests
+
+Paid chests prefer one small key over rupees. Selection previews and reroll
+reservation use the same payment choice; a key does not make rerolls free.
+The Get Item transaction commits the key only with the reward, rechecks key
+availability and bottle capacity, and preserves keys on cancellation/failure.
+Free elite/starting rewards never consume keys, and regular price progression
+still advances on key purchases. The info HUD draws the native rupee texture
+from the live meter's `rupi` pane inline with Next Chest, keeping its aspect ratio
+and sharing the Info-Texts transform. With keys available, it shows the key cost
+and count; paid world labels show 1 key. Native menu/save gates still apply.
 
 At run start, seed 3/18/18/6/4 one-use small chests in Darknut/Field/Desert/Palace/
 Throne Room. Their separate 18-slot pool retains placement flags after purchase;
-they always cost 40, never advance regular prices, and share selection/Get Item.
+they cost 40 rupees or one small key, never advance regular prices, and share selection/Get Item.
 Safe-position retries are bounded to 24 candidates per update. Affordability,
 preview, payment, floating labels and paid-reroll reservations use the same price.
 Starting chests use area-weighted room-floor sampling with local dry-ground,
@@ -477,7 +504,7 @@ Spin Attack and Sword Wave, without the vanilla light-material 100-damage overri
 Get Item uses a private instance of Link's sword model instead of the native rupee placeholder.
 An Ordon Sword reward enables and equips Dawnlight's existing Dual Wield with an
 Ordon offhand sword. At rank 1 each accepted normal sword strike also hits the next nearest reachable
-enemy; ranks 3, 6 and 9 add one target each, up to five total. Dual Wield caps at rank 10.
+enemy; ranks 10, 20 and 30 add one target each, up to five total. Dual Wield caps at rank 30 and adds +1 percentage point melee critical chance per rank (Sword, Spin, Shield, Jump, splash and Lightning).
 Targets must be close to Link, at reachable height, and not behind a wall.
 A target receives at most one multihit per swing; the native sword capsule cannot
 also damage the same secondary target. Ranks do not change story preferences.
@@ -540,8 +567,11 @@ It starts at rank 0 with one heart of healing. The unlocked Potion Healing power
 adds a quarter heart per rank, up to 8.5 hearts at rank 30. Refills retain this rank;
 only the red-potion drinking call changes healing, preserving other pickups and native bottle consumption.
 
-Maxed weapons, a rank-5 Master Sword, an owned offhand sword and a 50% shield are excluded. New chests stop
-spawning only while no useful reward is available. Each run resets the separate
+Maxed and banished items are excluded. When `chest_rewards_left(bottles)` becomes
+false during Running, latch chest exhaustion until run cleanup: clear all chest
+pools, stop replenishing/fixed-map/elite spawns, and preserve elite defeat/respawn
+bookkeeping. Do not clear an active item-get or starting-item menu. No level-up
+fallback pool remains; bottle availability later cannot restart chest spawning. Each run resets the separate
 Survivors inventory, sword/shield ranks, Dual Wield unlock, chest prices and weapon ranks, with
 a giant wallet (at least 1000 capacity) and zero rupees.
 
@@ -598,7 +628,9 @@ In Survivors, the Hidden Skills scroll is always visible at its normal Collectio
 slot. Activating it with the controller or touch opens a read-only list of the
 run's collected power-ups. Select a name to see its current rank, followed on
 a separate line by its description and
-effective values, including weapon ranks and dependent upgrades. No uncollected
+effective values. Bow, Boomerang, Bombs, Ball and Chain, Master Sword, Dual Wield
+and Potion Healing ranks appear only in the item wheel, not this list. Dependent
+abilities and passive upgrades remain in the scroll overview. No uncollected
 power-ups are listed; an empty run shows a hint. Rupee rewards have no lasting rank.
 Closing the overview returns to Collection. Actual Hidden Skill event flags and
 story-mode menus are unchanged. Resetting/changing modes or destroying Collection
@@ -853,7 +885,9 @@ remaining duration; active events multiply spawn batches by three, never by nine
 The normal population cap remains enforced. The HUD shows a warning/countdown;
 menus freeze both trials and duration, and 20:00 clears/stops random hordes.
 
-Horde difficulty multiplies population and per-wave spawns (up to 345 normal enemies);
+The normal-enemy population cap is always 345, independent of time and difficulty.
+Spawn intervals retain their original time curve (75 down to 15 ticks, decreasing
+by one every 10 seconds). Horde difficulty multiplies per-wave spawns;
 every Nth normal kill generates XP and rolls loot. Elites and pots are exempt.
 Camera distance ranges from 100–500% (default 200%), scales the rendered view
 with a wall check and restores native input before the next camera tick to avoid
@@ -1123,8 +1157,12 @@ distances. Lizalfos retains its separate XZ fight-run conversion. Native attack
 animations, cooldowns and state transitions remain in charge.
 
 Bokoblin attack root translation and Stalhound horizontal leap travel also grow
-with their model, before native wall correction. Stalhound airtime and gravity
-are unchanged, and its existing elite movement bonus still applies. Lizalfos'
+with their model, before native wall correction. A scaled Stalhound's launched
+pounce compresses vertical displacement by its model scale, so its elevated bite
+sphere does not clear grounded Link. Native vertical velocity/gravity, the jump
+clock and committed horizontal travel remain intact; normal enemies, wind-up,
+landing recovery and shield recoil retain their native vertical motion. Its
+existing elite movement bonus still applies. Lizalfos'
 three weapon/tail attack radii, Kargarok's attack and body-push spheres, and
 Bulblin's melee attack sphere now scale absolutely, without compounding or
 enabling an inactive attack collider.
@@ -1191,7 +1229,15 @@ Link's burn/smoke effect. No game assets are embedded in the mod.
 Knockback distance is ten times the previous value, retaining the same duration,
 elite reduction, non-additive hit handling and wall/cliff checks. Phantom Zant
 cannot enter heavy-hit stagger during attack modes 0–2: health damage and lethal
-hits still work normally.
+hits still work normally. After processing HP damage, clear the independent
+`mWarpCylCollider` hit and `mBombArrowHit` latch before native actor execution.
+These previously bypassed the custom stagger protection: native `damage_check`
+can switch to WAIT/11 and animation 0x13, causing the charging child ball to
+destroy itself. Clearing both triggers also covers inlined native reaction paths
+without relying on the standalone damage hook. No animation or charge clock is
+restarted, and reactions outside the charge are unchanged. Regression coverage
+includes both triggers separately/together, direct and queued damage in all
+three charge modes, native warp fallback, lethal hits and non-charge behavior.
 
 Elite loot checks the floor up to 20,000 units below a flying corpse before
 validating the landing footprint. Its fallback cache starts at the validated
@@ -1330,3 +1376,152 @@ their base use. All talents together cost 99 Unlock Points. Existing saves keep
 their ranks, XP and invested points; new points can extend those ranks without
 a reset or storage-version change. UI/help, cap/refund/reset tests and old-save
 round trips cover the expanded limits.
+
+
+### Full chest pools
+
+A successful replenishing-chest spawn replaces the oldest available chest when
+all six small-chest slots are occupied. Large elite reward chests follow the
+same rule within their own model/slot pool. Initial fixed 40-rupee map chests
+are reserved separately and never replaced. Prefer an empty slot; skip any
+selected or opening chest. Chronology uses a run-local creation sequence, not
+lid-animation age, so cancellation does not change the replacement order.
+Failed small-chest placement leaves the previous chest intact, and replacement
+resets its offers/animation without granting loot, score or purchase credit.
+
+
+### Lightning Strike and Multi Strike
+
+Lightning Strike is an independent level-up reward (cap 30), with a 20% proc
+chance per accepted melee hit while its cooldown is ready. Luck adds 2 percentage
+points per rank, capped at 60% at Luck rank 20; it does not bypass the cooldown.
+It uses Boomerang's
+rank-dependent cooldown and damage curves at its own rank, twice its hop count
+(2–20), five times its hop speed (210 units/tick), and twice Reach's incremental
+range bonus. Master Sword adds `floor(rank / 2)` damage. Power, Haste, Crit,
+Dark Link, Knockback and Multishot apply; Boomerang-only Hurricane does not.
+Multishot produces 1/2/3/4 independent chains. Initial target assignments and later
+hops share a per-cast reservation history: prefer reachable enemies with the fewest
+assignments, then distance, so in-flight chains do not all pick the same enemy.
+Each Multi Strike repeat has its own history; each individual chain still hits a
+given enemy at most once. Histories are released when the cast finishes or is cleared.
+All chain legs validate live targets, line of sight, boss blocks and per-chain
+visited IDs; a dead initial victim can still lead to the next live target.
+Native Link electricity is imported into private common-bank resources by the
+existing particle loader, so every arena can use it safely. Connecting cyan/white
+jagged geometry also remains visible if an optional particle import fails.
+
+Master Sword must first be unlocked from a chest. Further ranks are available
+at level-up, sharing its chest rank, equipment slot checks, banishment and native
+Light Sword transition at level 5. Level-up offers cannot unlock an unowned sword.
+Multi Strike requires Dual Wield; Epic +1, Legendary +2, cap 3. It repeats normal
+melee (including splash), Spin, Wave and Lightning up to four total activations.
+Native body attacks finish their existing hit window/pose before repeating;
+Wave/Lightning repeat four ticks apart with full Multishot counts. No recursion.
+
+Life Steal reads direct-hit provenance separately from the damage-display
+categories: Fire Edge remains grouped with its parent attack in Results but
+cannot heal. The last actual HP-removing hit determines sword eligibility;
+coalesced lethal hits qualify if they include a direct eligible sword-family hit.
+Death accounting still awards at most one quarter heart per credited enemy.
+
+Record format 9 appends three upgrade ranks and a Lightning damage bucket.
+The v8 migration explicitly copies all old ranks and damage counters without
+shifting their IDs, preserving both highscore categories, scores, map clears,
+meta XP and talents. Versions 1–7 retain their prior migration behavior.
+
+
+### Endless continuation and records v10
+
+Victory results can resume the live Run after staging its normal checkpoint.
+The continuation does not call Run::start, reload the arena, reset inventory or
+reroll upgrades. Clear the ending presentation and re-arm the existing four boss
+slots at +5/+10/+15/+20 minutes, repeating each slot every 20 minutes. A still-live
+boss blocks its own slot; failed/unloaded actors retry without duplicate rewards.
+New lives reset the timed-slot chest reward latch. EXP magnets use reusable drop
+slots in Endless instead of the original one-per-scheduled-boss bookkeeping.
+
+Run stores Endless start time, the already-awarded normal score and Twilit Rank.
+Each active minute adds a multiplicative 10% HP/damage/locomotion bonus. Paused
+menus do not advance it. Apply HP growth once to living actors, preserving their
+HP fraction; never revive killed/retiring actors. New HP extrapolates the last
+normal map-curve segment and applies the Endless factor. Native signed HP/damage
+limits remain; saturate before conversion. Normal mode curves/caps are unchanged.
+
+Records v10 adds two five-map Endless lists beside Ranked/Cheated and appends
+rank/start/checkpoint words to each result snapshot. Explicit v8/v9 migrations
+preserve previous scores, integrity, damage rows, talents, map clears and lifetime
+statistics; old rank is derived from stored difficulty. Ending Endless records
+only its additional talent XP and does not increment the run/win count twice.
+Individual deletion/reset operate on the selected normal/Endless category.
+
+Validation covers live-build continuation, failed checkpoint writes, save/modal
+guards, sticky Modded status, minute boundaries, HP extrapolation, repeated boss
+slots, duplicate rewards, independent records, no double XP, v9 migration and HUD
+GX/color-state restoration. Device checks: win -> continue, native Save records
+then continue, repeated bosses and drops, pause during minute boundary, death/Game
+Over and voluntary End Run, reload all four records, D-pad/touch score navigation.
+
+
+Records v11 normalizes Twilit Rank to the sum of difficulty increments above x1
+(0–24). v10 snapshots are validated against the old sum and converted by subtracting
+four; v8/v9 snapshots derive the new rank from their stored options. Scores, XP,
+map clears and all four record categories remain unchanged. HUD rank/skull are
+hidden at rank 0 while the clock remains visible. Difficulty/results still show 0.
+
+
+### Session Debug eligibility
+
+The process-local debug_session_enabled flag is not a ConfigService variable and
+is not serialized. Run::start captures it with the compile-time availability into
+debug_run and drops stale DebugOptions when disabled. The switch is editable only
+in the Ready hub, with an owned informational dialog on both transitions. Failed
+dialog creation leaves the switch unchanged; menu teardown closes the notice.
+Records::finish rejects a debug_run before touching scores, XP, clear bits or any
+lifetime aggregate. HighScoreRun::encode also refuses debug snapshots. Endless
+continuation preserves eligibility; the results screen shows zero awarded XP and
+explicitly labels the excluded run. Existing snapshots/save format are unchanged.
+
+### Endless archer volleys and late healing
+
+Every E_RD/E_RDY arrow spawn in Endless adds two arrows at yaw +/-0x900, matching
+Hard Mode's fan. Preserve the complete native spawn arguments, child ownership,
+damage factors, pause/cleanup and capacity guards. A scoped recursion guard
+prevents multiplying the side arrows again; reserve one structural-child slot
+per enemy and capacity for three projectiles per enemy.
+
+At 40*60*ticks_per_second total elapsed ticks in Endless, reject new heart and
+heart-piece pickups and retire remaining ones before native pickup execution.
+Suppress Life Steal and positive native item life counts except scoped owned
+red-potion drinking. Level-up and passive upgrade/talent regeneration direct life
+writes remain intact, including regeneration reward eligibility and intervals.
+Hide unusable Life Steal reward offers; keep existing ranks for run history.
+Normal runs and other modes retain their healing rules.
+
+
+### HUD visibility, independent layout and native boss caps
+
+Gate the entire Survivors HUD submission on native WindowStatus/PauseStatus,
+as well as save-modal and transition state; native Collection is not a UI-service
+document. This gate precedes hub labels, chest prices, combat feedback, victory
+and normal run HUD drawing.
+
+Register 27 presentation-only ConfigService integers under survivors-hud-*:
+X/Y/scale for Timer, Rank, EXP bar, Info, Level, Score, EXP text, Boss name and
+Boss bar. Defaults retain the previous anchors; Level/Score/XP become independent
+labels. Read persisted values with bounded X/Y and 10–400% scale, including after
+settings import. These preferences never enter RunOptions or high-score records.
+
+The HUD-Editor uses a stacked public UiService window and document-local
+transparent RCSS. Its element selector and three steppers stay in the navigation
+pane; the help pane remains replaceable. Render a nonmutating sample boss/rank
+and EXP fill while editing, even in the hub. Native Collection and save guards
+still take priority. Closing/resetting the owning Survivors UI closes the editor;
+its destruction callback checks handle identity before clearing state. Back
+restores the underlying settings through the host's normal stack behavior.
+
+For placed boss meters, scale the parent uniformly by height. Extend only the
+base and fill and translate the right cap to reach the requested width, retaining
+native cap dimensions and aspect ratio. Restore all pane positions, sizes,
+scales, alpha, visibility and fill colors after drawing; other combat meters keep
+their existing placement and rendering path.

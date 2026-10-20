@@ -41,9 +41,17 @@ std::string status;
 ModResult rml(ModContext*,UiElementHandle,const char* text,UiElementHandle* out){status=text;if(out)*out=4;return MOD_OK;}
 UiService service{};
 extern "C" {ModContext* mod_ctx=nullptr;const UiService* svc_ui=&service;}
+
+using u8=unsigned char;
+int nativeKeys=0,pendingKeys=0;
+int dComIfGs_getKeyNum(){return nativeKeys;}
+int dComIfGp_getItemKeyNumCount(){return pendingKeys;}
+void dComIfGp_clearItemKeyNumCount(){pendingKeys=0;}
+void dComIfGs_setKeyNum(u8 n){nativeKeys=n;}
+#include "survivors_keys.inc"
 '''
 main = r'''
-void fresh(){s_run.start(10);s_run.phase=Phase::Upgrade;s_run.roll_upgrades();s_window=7;s_refreshChoices=0;
+void fresh(){nativeKeys=pendingKeys=0;s_run.start(10);s_run.phase=Phase::Upgrade;s_run.roll_upgrades();s_window=7;s_refreshChoices=0;
  rupees=500;s_chests={};s_selectedChest=0;s_chosenTreasure=ChestReward::Count;buttons.clear();}
 int main(){
  service.pane_add_row=row;service.pane_add_control=control;service.pane_add_rml=rml;service.elem_set_class=css;
@@ -65,6 +73,11 @@ int main(){
  fresh();s_run.phase=Phase::TreasureChoice;s_chests[0].fixed=true;s_run.chests_opened=20;
  s_run.free_rerolls=0;rupees=89;reroll_choices(nullptr,nullptr);assert(rupees==89&&s_window==7);
  rupees=90;reroll_choices(nullptr,nullptr);assert(rupees==40&&s_run.chests_opened==20&&s_window==0);
+ fresh();s_run.phase=Phase::TreasureChoice;nativeKeys=1;s_run.free_rerolls=0;rupees=49;
+ buttons.clear();assert(add_choice_header(1)==MOD_OK&&buttons[0].disabled);
+ reroll_choices(nullptr,nullptr);assert(rupees==49&&chest_keys()==1);
+ rupees=50;buttons.clear();assert(add_choice_header(1)==MOD_OK&&!buttons[0].disabled);
+ reroll_choices(nullptr,nullptr);assert(rupees==0&&chest_keys()==1&&s_run.paid_rerolls==1);
  fresh();s_run.phase=Phase::TreasureChoice;s_run.ranks[unsigned(Upgrade::Bow)]=4;
  s_chests[0].offers={ChestReward::Bow,ChestReward::Shield,ChestReward::MasterSword};
  unsigned bow=0;banish_choice(nullptr,&bow);

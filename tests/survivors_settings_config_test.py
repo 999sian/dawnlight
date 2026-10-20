@@ -27,7 +27,11 @@ main=r'''
 int main(){
  service.get_int=[](ModContext*,ConfigVarHandle h,int64_t* out){*out=persisted.at(h);return MOD_OK;};
  service.set_int=[](ModContext*,ConfigVarHandle h,int64_t value){persisted[h]=value;return MOD_OK;};
+ assert(!debug_session_enabled);
  assert(initialize_option_config()==MOD_OK&&configNames.size()==11);
+ debug_session_enabled=true;store_option_config();
+ debug_session_enabled=false;load_option_config();assert(!debug_session_enabled);
+ for(const auto& [name,handle]:configNames){(void)handle;assert(name.find("debug")==std::string::npos);}
  assert(s_options.camera_distance==200&&s_options.gyro_aim&&!s_options.switch_attack_lock);
  for(bool enabled:s_options.manual_aim)assert(enabled);
  assert(!s_options.enemy_collision);s_options.enemy_collision=true;

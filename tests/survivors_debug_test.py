@@ -7,6 +7,7 @@ source=r'''
 #include "survivors_rules.hpp"
 using namespace dawnlight::survivors;
 int main(){
+ assert(!debug_session_enabled);debug_session_enabled=true;
  RunOptions options;assert(!options.debug.unlock_all_maps);
  options.debug.unlock_all_maps=true;options.debug.clamp();assert(options.debug.unlock_all_maps==debug_enabled);
  options.debug={4,10,1,1,5};Run run;run.start(71,options);
@@ -38,6 +39,23 @@ int main(){
  }
  run.options.debug.player_damage=999;assert(run.player_damage(100000)==32767);
  run.start(1);assert(run.run_duration()==duration&&run.player_damage(10)==10&&!run.infinite_rerolls()&&!run.infinite_banishes());
+ // Debug classification is captured even with every individual setting at default.
+ Run clean;debug_session_enabled=false;clean.start(1,options);
+ assert(!clean.debug_run&&clean.run_duration()==duration&&clean.player_damage(10)==10);
+ Records records;clean.end(true);records.finish(clean);const auto before=records.encode();
+ debug_session_enabled=true;Run test;test.start(2);test.ticks=duration;test.kills=100;test.end(true);
+ assert(test.debug_run==debug_enabled);debug_session_enabled=false;
+ if(debug_enabled){
+  for(bool cheats:{false,true})for(bool modded:{false,true})for(bool victory:{false,true}) {
+   Run excluded=test;excluded.options.allow_cheats=cheats;excluded.modded=modded;excluded.end(victory);
+   for(unsigned map=0;map<5;++map){records.finish(excluded,map);assert(records.encode()==before);}
+  }
+  assert(test.earned_meta_xp()==0);records.finish(test,1);assert(records.encode()==before&&!records.map_unlocked(2));
+  HighScoreRun snapshot{test,test.score(),1,0};assert(snapshot.encode()==HighScoreRun::Words{});
+  assert(test.continue_endless());test.ticks+=9000;test.end(false);records.finish(test,2);
+  assert(test.debug_run&&test.earned_meta_xp()==0&&records.encode()==before);
+ }
+ test.start(3);test.end(true);records.finish(test,1);assert(!test.debug_run&&records.map_unlocked(2)&&records.total_xp>0);
  DebugOptions invalid{99,0,5,5,7};invalid.clamp();assert(invalid.run_minutes==20&&invalid.player_damage==1);
 }
 '''

@@ -28,7 +28,7 @@ struct fopAc_ac_c{int health=10;unsigned id=0;struct{cXyz pos;}current;};
 struct e_ba_class:fopAc_ac_c{bool mIsDying=false;};struct daE_OC_c:fopAc_ac_c{int getActionMode(){return 0;}};
 struct daAlink_c:fopAc_ac_c{} player;
 constexpr int fpcNm_E_BA_e=1,fpcNm_E_OC_e=2,fpcNm_E_RD_e=3;
-struct Enemy{unsigned id=kNone;int profile=0;bool credited=false,retiring=false,initialized=true,elite=false;int eliteSlot=-1;};
+struct Enemy{unsigned id=kNone;int profile=0;bool credited=false,retiring=false,initialized=true,elite=false;int eliteSlot=-1;bool swordKill=false;};
 std::array<Enemy,5>s_enemies;std::array<fopAc_ac_c,5>actors;
 auto* actor_by_id(ActorId id){return id<actors.size()?&actors[id]:nullptr;}
 unsigned fopAcM_GetID(fopAc_ac_c* actor){return actor->id;}
@@ -60,6 +60,7 @@ void update_weapons(daAlink_c*){++attacks;}void update_orbs(daAlink_c*){++orbs;}
 struct Pickup{bool retiring=false;};unsigned pickupMoves=0;
  bool pickup_waiting(Pickup&,fopAc_ac_c*){return true;}
  void move_pickup(Pickup&,fopAc_ac_c*){++pickupMoves;}
+ bool chest_spawning_allowed(){return true;}
  void update_chests(daAlink_c*){assert(false);}void update_exp_magnets(daAlink_c*){++magnets;}
 void drop_reward(fopAc_ac_c*){assert(false);}void add_orb(cXyz,unsigned){++orbs;}
 void drop_elite_chest(Enemy&,fopAc_ac_c*){++chests;}void queue_exp_magnet(Enemy&,fopAc_ac_c*){++magnets;}
@@ -135,6 +136,11 @@ int main(){
  assert(s_run.phase==Phase::Victory&&s_resultsStored&&save.writes==1&&s_records.wins==1);
  assert(s_run.kills==1&&s_run.damage.total()==damage&&s_run.ticks==ticks&&pickupsRetired==1);
  finish(true);finish(false);assert(save.writes==1);
+ // The repeated final-boss slot does not trigger a second victory sweep in Endless.
+ fresh();s_run.phase=Phase::Victory;assert(s_run.continue_endless());
+ s_enemies[0]={0,0,false,false,true,true,3};actors[0].health=0;
+ credit_death(s_enemies[0],&actors[0]);
+ assert(!s_victory&&s_run.phase==Phase::Running&&s_run.timed_elites==1&&chests==1&&!save.writes);
  // Native defeat must neither heal nor pause Link before his death animation.
  fresh();life=0;int result=0;
  assert(before_death(nullptr,nullptr,&result,nullptr)==HOOK_CONTINUE);

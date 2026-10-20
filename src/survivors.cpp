@@ -1,3 +1,4 @@
+#include "fierce_deity_equipment_scope.hpp"
 #include "platform_compat.hpp"
 #include "Z2AudioLib/Z2AudioMgr.h"
 #include "survivors.hpp"
@@ -11,6 +12,8 @@
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
 #include "survivors_rules.hpp"
+#include "survivors_hud_layout.hpp"
+#include "survivors_multistrike.hpp"
 #include "survivors_enemy_hits.hpp"
 #include "d/d_msg_scrn_explain.h"
 #include "d/d_msg_scrn_3select.h"
@@ -100,6 +103,7 @@
 #include "res/Object/E_fm.h"
 #include "d/d_item.h"
 #include "d/d_meter2_draw.h"
+#include "JSystem/J2DGraph/J2DPicture.h"
 #include "d/d_meter2_info.h"
 #include "d/d_s_play.h"
 #include "f_op/f_op_actor_mng.h"
@@ -175,6 +179,7 @@ DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
 DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
 DEFINE_HOOK(&fopAcM_searchActorDistance, SurvivorsEliteDistance);
 DEFINE_HOOK(&daObjCarry_c::obj_break, SurvivorsPotBreak);
+DEFINE_HOOK(&daItem_c::itemGetNextExecute, SurvivorsKeyPickup);
 DEFINE_HOOK(&renderingAmap_c::afterDrawPath, SurvivorsEliteMinimap);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#pl_check", int(e_ms_class*, f32), SurvivorsRatAggro);
@@ -262,6 +267,12 @@ bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 unsigned s_saveStartTicks = 0;
 Run s_run;
 RunOptions s_options;
+#include "survivors_hud_config.inc"
+UiDialogHandle s_debugNotice=0;
+void close_debug_notice() {
+    const auto handle=s_debugNotice;s_debugNotice=0;
+    if(handle)svc_ui->dialog_close(mod_ctx,handle);
+}
 enum class HubMenu { None, Talents, Run };
 bool s_hub=true, s_hubDeparture=false, s_hubDoorStarted=false, s_arrivingRun=false;
 bool s_hubSaveRequested=false, s_allowHubDoor=false;
@@ -280,7 +291,7 @@ void hub_menu_closed() {
 }
 Records s_records;
 bool map_available(unsigned map) {
-    return map<arenas.size() && (s_records.map_unlocked(map) || (debug_enabled && s_options.debug.unlock_all_maps));
+    return map<arenas.size() && (s_records.map_unlocked(map) || (debug_enabled && debug_session_enabled && s_options.debug.unlock_all_maps));
 }
 bool s_progressSaving=false, s_progressSaved=false;
 UiWindowHandle s_refreshChoices=0;
@@ -301,6 +312,7 @@ dMenu_Collect2D_c* s_powerupsMenu = nullptr;
 void close_powerup_window();
 void close_score_windows();
 void close_high_score(ModContext*,void*);
+void request_delete_score(ModContext*,void*);
 ActorId s_player = kNone;
 fpc_ProcID s_savePrompt = kNone;
 bool s_victory=false, s_deathPending=false, s_deathDismiss=false;
@@ -321,6 +333,11 @@ void reset_midna_dialog() { s_midnaRequestFrames=0; s_midnaTalking=s_midnaEndPen
 enum class SwordAction { None, Normal, Spin, Jump };
 SwordAction s_swordAction = SwordAction::None;
 unsigned s_meleeCooldown = 0;
+MultiStrikeState s_multiStrike;
+void clear_lightning();
+void update_lightning(daAlink_c*);
+void draw_lightning();
+void trigger_lightning(fopAc_ac_c*);
 unsigned s_comboStep = 0, s_comboTimeout = 0;
 bool s_autoSwordCall = false, s_trackMelee = false;
 ActorId s_meleeTarget = kNone;
@@ -337,6 +354,7 @@ void resolve_manual_projectiles(dCamera_c*);
 void draw_hub_labels();
 void interrupt_auto_actions(daAlink_c*);
 void finish(bool won);
+void continue_endless(ModContext*,void*);
 void replay(ModContext*, void*);
 void clear_enemy_effects();
 bool effect_collider(const cCcD_Obj*);
@@ -346,6 +364,8 @@ void new_melee_swing();
 void cancel_treasure_demo();
 int potion_slot();
 unsigned potion_capacity();
+unsigned chest_keys();
+void set_chest_keys(unsigned);
 void cancel_ranged();
 bool prepare_treasure_message(ChestReward, const Run&, const Run&, Rarity);
 unsigned treasure_message_id();
@@ -368,12 +388,13 @@ struct Enemy {
     ActorId id = kNone;
     ProfileName profile = 0;
     bool initialized = false, credited = false, retiring = false, elite = false;
-    unsigned age = 0;
+    unsigned age = 0, endlessMinute = 0;
     int eliteSlot = -1;
     bool dormant = false, idleAnimation = false;
     cXyz lootPosition{}, spawnPosition{};
     unsigned species=0, hitCooldown=0, stagger=0;
     cCcD_Obj* childHit=nullptr;
+    bool swordKill=false;
     bool encounterReady=false;
     unsigned encounterTick=0;
     unsigned specialCooldown=0, summonCooldown=240, throwLife=0;
@@ -458,9 +479,11 @@ Enemy* tracked(ActorId id) {
 #include "survivors_navigation.inc"
 #include "survivors_enemy_facing.inc"
 DamageAmounts hit_damage_sources(const cCcD_Obj* collider);
+bool sword_kill_hit(const cCcD_Obj* collider);
 #include "survivors_feedback.inc"
 #include "survivors_ground.inc"
 #include "survivors_pickups.inc"
+#include "survivors_key_visual.inc"
 #include "survivors_player_damage.inc"
 #include "survivors_options.inc"
 #include "survivors_controls.inc"
@@ -480,6 +503,7 @@ void stop_attack(Attack& a) {
     a.collider.OffAtSetBit(); a.collider.ResetAtHit();
 }
 void clear_attacks() {
+    s_multiStrike={};clear_lightning();
     clear_sword_aim();
     clear_jump_effects();
     s_meleeTarget = kNone; s_trackMelee = false;
@@ -487,6 +511,8 @@ void clear_attacks() {
     for (auto& a : s_attacks) stop_attack(a);
 }
 void close_window() {
+    close_hud_editor();
+    close_debug_notice();
     close_score_windows();
     s_menuDocument = s_talentDocument = nullptr;
     const auto dialog=s_talentDialog;s_talentDialog=0;
@@ -627,6 +653,7 @@ void prepare_save() {
     dComIfGs_setMaxLife(15); // Three hearts; max life uses fifths, gauge uses quarters.
     dComIfGs_setLife(12);
     dComIfGs_setRupee(0);
+    set_chest_keys(0); // Keys belong to this run, never a previous arena/save.
 }
 void load_records() {
     if (s_loaded) return;
@@ -692,7 +719,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
-    if (s_run.rank(Upgrade::LifeSteal) && dComIfGs_getLife() > 0)
+    if (s_run.life_steal_active() && e.swordKill && dComIfGs_getLife() > 0)
         dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if(e.elite) {
         if(e.eliteSlot>=0 && unsigned(e.eliteSlot)<timed_elite_count)++s_run.timed_elites;
@@ -708,7 +735,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
     if (e.elite) { drop_elite_chest(e, actor); queue_exp_magnet(e, actor); }
     // The scheduled final boss ends combat even if an earlier elite survived.
     // Its own kill, damage and loot have already been credited exactly once.
-    if (e.elite && e.eliteSlot==int(timed_elite_count)-1) begin_victory(actor->current.pos);
+    if (!s_run.endless && e.elite && e.eliteSlot==int(timed_elite_count)-1) begin_victory(actor->current.pos);
 }
 void update_orbs(daAlink_c* link) {
     const float range = magnet_range();
@@ -781,13 +808,13 @@ void update_spawns(daAlink_c* link) {
         // Guards and scheduled elites persist until killed; cleanup grants no loot.
         if (!e.elite && !e.retiring && e.age > 5400) e.retiring = true;
     }
-    if (s_run.ticks <= s_run.run_duration() && s_run.ticks % s_run.boss_interval() == 0) s_spawnCooldown = 0;
+    if ((s_run.endless || s_run.ticks <= s_run.run_duration()) && s_run.ticks % s_run.boss_interval() == 0) s_spawnCooldown = 0;
     for (const auto& encounter : s_eliteEncounters)
         if (encounter.defeated && encounter.respawnAt == s_run.ticks) s_spawnCooldown = 0;
     if (s_spawnCooldown) { --s_spawnCooldown; return; }
     s_spawnCooldown = s_run.spawn_interval();
     update_elite_spawns(link);
-    if (s_run.ticks >= s_run.run_duration() || population>=s_run.target_population()) { s_spawnFailures=0; return; }
+    if ((!s_run.endless && s_run.ticks >= s_run.run_duration()) || population>=s_run.target_population()) { s_spawnFailures=0; return; }
     for (unsigned i=0; i<s_run.spawn_batch() && population<s_run.target_population(); ++i) {
         if (spawn_enemy(link,false)) { ++population; s_spawnFailures=0; }
         else { ++s_spawnFailures; break; }
@@ -908,7 +935,7 @@ void sync_spin_radius(daAlink_c* link) {
     // Native normal/light particles are authored for the final native radius.
     // Match their geometry and particle size to the current expanding hitbox,
     // including Reach. Absolute scales avoid compounding on reused emitters.
-    const float radius = s_run.area_radius(link->field_0x347c);
+    const float radius = s_run.melee_area_radius(link->field_0x347c);
     const float nativeRadius = link->field_0x3478;
     if (!std::isfinite(radius) || !std::isfinite(nativeRadius) || radius <= 0 || nativeRadius <= 0) return;
     link->mAtSph.SetR(radius);
@@ -957,7 +984,8 @@ void update_sword(daAlink_c* link) {
     if (s_swordAction == SwordAction::Normal) {
         if (normal_sword_proc(link)) {
             // Never cut off the damage window, and let the final hit recover.
-            if (!s_comboStep || s_meleeCooldown || link->mUnderFrameCtrl[0].getFrame() <=
+            if ((!s_comboStep && !s_multiStrike.count(StrikeSeries::Sword)) ||
+                (s_meleeCooldown && !s_multiStrike.count(StrikeSeries::Sword)) || link->mUnderFrameCtrl[0].getFrame() <=
                 std::max(link->field_0x347c, link->field_0x3484)) return;
             continuingSwing = true;
         } else {
@@ -973,7 +1001,7 @@ void update_sword(daAlink_c* link) {
         s_comboStep = s_comboTimeout = 0;
         return;
     }
-    if (s_meleeCooldown || (!manual_sword(link) && !melee_target(link))) return;
+    if ((s_meleeCooldown && !s_multiStrike.count(StrikeSeries::Sword)) || (!manual_sword(link) && !melee_target(link))) return;
     if (!link->checkItemSwordEquip()) {
         if (link->mEquipItem != dItemNo_NONE_e) return;
         // The pending item ID can survive an interrupted upper animation.
@@ -983,13 +1011,16 @@ void update_sword(daAlink_c* link) {
     }
     // Other abilities run independently; this scheduler owns only the native
     // normal combo and its occasional Jump Strike movement.
-    if (try_jump_strike(link)) return;
-    auto* target = melee_target(link);
+    if (!s_multiStrike.count(StrikeSeries::Sword) && try_jump_strike(link)) return;
+    cXyz targetPoint;
+    auto* target = melee_target(link, &targetPoint);
     if (!target && !manual_sword(link)) return;
-    const auto direction = manual_sword(link) ? manual_direction(link) : target->current.pos - link->current.pos;
+    const auto direction = manual_sword(link) ? manual_direction(link) : targetPoint - link->current.pos;
     link->shape_angle.y = cM_atan2s(direction.x, direction.z);
     link->current.angle.y = link->shape_angle.y;
     if (begin_sword_combo(link)) {
+        if(s_multiStrike.count(StrikeSeries::Sword))s_multiStrike.consume(StrikeSeries::Sword);
+        else s_multiStrike.start(StrikeSeries::Sword,s_run.multi_strikes());
         s_swordAction = SwordAction::Normal; s_wavePending = false; s_trackMelee = true;
         new_melee_swing();
         link->mUnderFrameCtrl[0].setRate(link->mUnderFrameCtrl[0].getRate()*s_run.melee_speed());
@@ -1018,10 +1049,12 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 }
 #include "survivors_loot.inc"
 #include "survivors_ranged.inc"
+#include "survivors_keys.inc"
 #include "survivors_treasure.inc"
 #include "survivors_inventory.inc"
 #include "survivors_black_flame.inc"
 #include "survivors_status.inc"
+#include "survivors_lightning.inc"
 #include "survivors_knockback.inc"
 void new_melee_swing() { ++s_meleeSerial; }
 #include "survivors_combat_pause.inc"
@@ -1056,6 +1089,7 @@ void update_weapons(daAlink_c* link) {
     const bool jumping = update_jump_strike(link);
     if (!jumping && auto_attacks_suspended(link)) { suspend_auto_attacks(link); return; }
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
+    update_lightning(link);
     update_ranged(link); // Cosmetic upper-body pose; never gates a weapon.
     update_parallel_skills(link);
     fire_items(link); // Every due ranged weapon may release in this frame.
@@ -1086,7 +1120,9 @@ void after_power(ModContext*, void* args, void*, void*) {
         return s_run.player_damage(scaled);
     };
     const auto critical_power = [&](unsigned base) {
-        bool critical=false; const auto power=s_run.critical_power(base,&critical);
+        const auto sources=hit_damage_sources(info->mpCollider);
+        bool melee=false;for(unsigned i=0;i<sources.size();++i)if(sources[i]&&melee_critical_source(DamageSource(i)))melee=true;
+        bool critical=false; const auto power=s_run.critical_power(base,&critical,melee);
         if (auto* hit=bulblin_power_hit(info)) hit->critical=critical;
         mark_damage_critical(info,critical);
         return power;
@@ -1127,6 +1163,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (!link || fopAcM_GetID(link) != s_player) return;
     if (dComIfGs_getLife() == 0 && !s_victory) { begin_defeat(); return; }
     update_combat_feedback();
+    chest_spawning_allowed(); // Also retire exhausted chests during victory loot time.
     if (s_victory) {
         update_victory();
         update_exp_magnets(link); update_orbs(link);
@@ -1316,66 +1353,78 @@ void after_draw(ModContext*, void*, void*, void*) {
         cXyz pos=drop.position+cXyz(0,8*cM_ssin(s16(s_run.ticks*700)),0);
         dDbVw_drawCubeOpa(pos,size,angle,GXColor{255,210,45,255});
     }
+    draw_lightning();
     draw_loot();
     draw_victory_wave();
     draw_ranged();
     draw_arena_barriers();
 
 }
-void label(const char* text, float x, float y, float size) {
+void label(const char* text, float x, float y, float size, float width=550) {
     auto* font = mDoExt_getMesgFont(); if (!font) return;
     J2DPrint shadow(font, JUtility::TColor(0,0,0,230), JUtility::TColor(0,0,0,230));
     shadow.setFontSize(size, size);
-    shadow.printReturn(text, 550, size + 8, HBIND_CENTER, VBIND_TOP, x - 274, y + 1, 255);
+    shadow.printReturn(text, width, size + 8, HBIND_CENTER, VBIND_TOP, x - width*.5f + 1, y + 1, 255);
     J2DPrint print(font, JUtility::TColor(180,245,255,255), JUtility::TColor(255,240,195,255));
     print.setFontSize(size, size);
-    print.printReturn(text, 550, size + 8, HBIND_CENTER, VBIND_TOP, x - 275, y, 255);
+    print.printReturn(text, width, size + 8, HBIND_CENTER, VBIND_TOP, x - width*.5f, y, 255);
 }
 #include "survivors_prices.inc"
 #include "survivors_feedback_draw.inc"
 #include "survivors_boss_hud.inc"
+#include "survivors_chest_hud.inc"
 void draw_hud(ModContext*, void* args, void*, void*) {
-    if(save_modal_active())return;
-    if(survivors_hub_active()) {draw_hub_labels();return;}
-    if (!in_arena() || transitioning() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready) return;
+    // Native Collection, ring/map submenus and their opening/closing transitions
+    // are not UI-service documents. Suppress every Survivors overlay together.
+    if(save_modal_active() || dMeter2Info_getWindowStatus()!=0 || dMeter2Info_getPauseStatus()!=0) return;
+    const bool preview=s_hudEditorWindow!=0;
+    if(transitioning() || (!preview && (dComIfGp_isPauseFlag() || dScnPly_c::isPause())))return;
+    if(!preview && survivors_hub_active()) {draw_hub_labels();return;}
+    if (!preview && (!in_arena() || ui_visible() || s_run.phase == Phase::Loading || s_run.phase == Phase::Ready)) return;
     auto* graf = dComIfGp_getCurrentGrafPort(); if (!graf) return;
     graf->setup2D();
-    if (s_deathPending || s_run.phase==Phase::Defeat) return;
-    draw_chest_prices();
-    draw_combat_feedback();
+    if (!preview && (s_deathPending || s_run.phase==Phase::Defeat)) return;
+    if(!preview) {draw_chest_prices();draw_combat_feedback();}
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
-    if (s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
+    if (!preview && s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
     char text[180];
-    std::snprintf(text, sizeof(text), "%02u:%02u / %02u:00   Level %u   Score %u",
-        s_run.ticks / 1800, s_run.ticks / 30 % 60, s_run.run_duration()/1800, s_run.level, s_run.score());
-    label(text, x, 40, 17);
-    std::snprintf(text, sizeof(text), "XP %u / %u", s_run.xp, s_run.required_xp());
-    label(text, x, 62, 14);
-    // J2DPrint enables direct TEX0 attributes. fillBox emits only position and
-    // color, so reset the vertex layout before its quads or the GX FIFO reads
-    // subsequent command bytes as missing texture coordinates.
+    draw_run_rank_hud(x,preview);
+    const auto drawText=[&](HudPart part,float size,float offset=0.f) {
+        const auto p=hud_position(part,x);
+        label(text,p.x,p.y+offset*p.scale,size*p.scale,550*p.scale);
+    };
+    std::snprintf(text,sizeof(text),"Level %u",s_run.level);drawText(HudPart::Level,14);
+    std::snprintf(text,sizeof(text),"Score %u",s_run.score());drawText(HudPart::Score,14);
+    std::snprintf(text,sizeof(text),"XP %u / %u",s_run.xp,s_run.required_xp());drawText(HudPart::ExpText,14);
+    // Text enables direct TEX0; reset GX before submitting untextured quads.
     graf->setup2D();
-    const float fraction = std::min(1.0f, float(s_run.xp) / float(s_run.required_xp()));
+    const float fraction = preview ? .6f : std::min(1.0f, float(s_run.xp) / float(s_run.required_xp()));
+    const auto xp=hud_position(HudPart::ExpBar,x);
     const auto oldTL = graf->mColorTL, oldTR = graf->mColorTR;
     const auto oldBR = graf->mColorBR, oldBL = graf->mColorBL;
     graf->setColor(JUtility::TColor(12, 25, 32, 210));
-    graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x + 160, 88));
+    graf->fillBox(JGeometry::TBox2<f32>(xp.x-160*xp.scale,xp.y,xp.x+160*xp.scale,xp.y+6*xp.scale));
     graf->setColor(JUtility::TColor(80, 220, 245, 240));
-    graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x - 160 + 320 * fraction, 88));
+    graf->fillBox(JGeometry::TBox2<f32>(xp.x-160*xp.scale,xp.y,xp.x+(-160+320*fraction)*xp.scale,xp.y+6*xp.scale));
     graf->setColor(oldTL, oldTR, oldBR, oldBL);
-    const float bossOffset = draw_boss_hud(mods::arg<dMeter2Draw_c*>(args, 0), x) ? 54.0f : 0.0f;
-    if (s_run.chest_rewards_left(potion_slot() >= 0))
-        std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
-    else std::snprintf(text, sizeof(text), "No chest rewards available");
-    label(text, x, 96 + bossOffset, 14);
+    const float bossOffset = draw_boss_hud(mods::arg<dMeter2Draw_c*>(args, 0), x, preview) ? 54.0f : 0.0f;
+    if (preview || (!s_chestsExhausted && s_run.chest_rewards_left(potion_slot() >= 0)))
+        draw_next_chest(mods::arg<dMeter2Draw_c*>(args, 0), x, bossOffset);
+    else {
+        std::snprintf(text, sizeof(text), "No chest rewards available");
+        drawText(HudPart::Info,14,bossOffset);
+    }
     if (s_run.horde_remaining) {
         std::snprintf(text,sizeof(text),"HORDE!  3x enemy spawns  %us",(s_run.horde_remaining+29)/30);
-        label(text,x,118 + bossOffset,17);
+        drawText(HudPart::Info,17,22+bossOffset);
     }
-    if (s_spawnFailures >= 10)
-        label("Waiting for a clear enemy spawn position", x, (s_run.horde_remaining ? 140 : 118) + bossOffset, 13);
+    if (s_spawnFailures >= 10) {
+        std::snprintf(text,sizeof(text),"Waiting for a clear enemy spawn position");
+        drawText(HudPart::Info,13,(s_run.horde_remaining?44:22)+bossOffset);
+    }
     graf->setup2D();
 }
+
 void select_upgrade(ModContext*, void* data) {
     const unsigned choice = *static_cast<unsigned*>(data);
     if (s_run.phase != Phase::Upgrade || choice >= 3) return;
@@ -1384,6 +1433,10 @@ void select_upgrade(ModContext*, void* data) {
     const unsigned oldHearts=s_run.rank(Upgrade::Heart);
     const unsigned bonus = s_run.upgrade_rupees(selected, s_run.offer_rarities[choice]);
     if (!s_run.choose(choice)) return;
+    if (selected==Upgrade::MasterSword) {
+        if(auto* link=daAlink_getAlinkActorClass())apply_treasure_inventory(link,ChestReward::MasterSword,s_run,0);
+        sync_survivors_inventory();
+    }
     if (selected == Upgrade::Heart)
         dComIfGs_setMaxLife(std::min(100u,unsigned(dComIfGs_getMaxLife())+5*(s_run.rank(Upgrade::Heart)-oldHearts)));
     // Include newly gained heart containers and each queued level's choice.
@@ -1418,6 +1471,23 @@ void start_run(ModContext*, void*) {
     s_hubDeparture=true;s_hubDoorStarted=false;s_hubDoorTicks=0;
     close_window(); // Save and fully hide the UI before ordering the native door event.
 }
+void continue_endless(ModContext*,void*) {
+    if(s_run.phase!=Phase::Victory || s_run.endless || !s_resultsStored || s_restart ||
+       s_saveRequested || s_savePrompt!=kNone || s_progressSaving || transitioning())return;
+    // Retry staging the victory checkpoint before resuming. Never double-award it.
+    const auto bytes=s_records.encode();
+    s_storeFailed=svc_save->set_blob(mod_ctx,kBlob,bytes.data(),bytes.size())!=MOD_OK;
+    if(s_storeFailed){s_refreshChoices=s_window;close_window();return;} // Rebuild with the save-error message.
+    if(!s_run.continue_endless())return;
+    close_window();reset_ending();
+    s_resultsStored=false;s_spawnCooldown=0;s_spawnFailures=0;
+    reset_elite_encounters();
+    for(unsigned i=0;i<timed_elite_count;++i)
+        s_eliteEncounters[i].respawnAt=(s_run.endless_start/elite_interval+i+1)*elite_interval;
+    const bool wasModded=s_run.modded;
+    begin_survivors_integrity(s_run.options.allow_cheats,s_run.modded);
+    s_run.modded=s_run.modded||wasModded;
+}
 void replay(ModContext*, void*) { close_window(); s_requestedMap = s_map; s_restart = true; }
 #include "survivors_post_run_save.inc"
 void save_results(ModContext*, void*) {
@@ -1439,6 +1509,7 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_talents.inc"
 #include "survivors_results.inc"
 #include "survivors_scores_ui.inc"
+#include "survivors_hud_editor.inc"
 #include "survivors_maps_ui.inc"
 #include "survivors_debug_ui.inc"
 #include "survivors_settings_config.inc"
@@ -1481,7 +1552,7 @@ void open_window() {
     if (s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) desc.rcss = kResultsStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
         if(s_hubClosingWindow==handle)s_hubClosingWindow=0;
-        if (s_window == handle) { s_window = 0; s_menuDocument = nullptr; hub_menu_closed(); }
+        if (s_window == handle) { close_debug_notice(); s_window = 0; s_menuDocument = nullptr; hub_menu_closed(); }
         if (s_refreshChoices==handle) { s_refreshChoices=0; return; }
         if (s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count)
             dismiss_treasure_choice();
@@ -1596,6 +1667,8 @@ ModResult initialize_survivors(ModError* error) {
     if(result!=MOD_OK)return result;
     result=initialize_option_config();
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Hyrule Survivors settings");
+    result=initialize_hud_config();
+    if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Survivors HUD settings");
     result=initialize_midna_dialog();
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to initialize Hyrule Survivors Midna dialog");
     initialize_menu_handoff();
@@ -1641,6 +1714,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
     PRE(SurvivorsBokoblinWait, before_bokoblin_wait);
     PRE(SurvivorsPotBreak, before_pot_break);
+    PRE(SurvivorsKeyPickup, before_key_pickup);
     POST(SurvivorsEliteMinimap, after_elite_minimap);
     PRE(SurvivorsKeeseAggro, before_keese_aggro);
     PRE(SurvivorsRatAggro, before_rat_aggro);
@@ -1671,6 +1745,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsTreasureText, before_treasure_text_update);
     PRE(SurvivorsBombThrow, before_ranged_native);
     PRE(SurvivorsRangedCancel, before_ranged_native);
+    PRE(SurvivorsTreasureDraw, before_key_draw);
     PRE(SurvivorsTreasureDraw, before_treasure_draw);
     PRE(SurvivorsGetItem, before_treasure_get); POST(SurvivorsGetItem, after_treasure_get);
     PRE(SurvivorsGameOver, before_game_over);

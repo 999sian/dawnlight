@@ -65,7 +65,7 @@ HookAction before_boss_gnd_charge(ModContext*,void* args,void*,void*) {
 }
 void after_boss_ymb_move(ModContext*,void* args,void*,void*) {
     auto* boss=mods::arg<daE_YMB_c*>(args,0);auto* owner=encounter_owner(boss);
-    if(owner&&encounter_running(*owner)&&!owner->stagger)boss->current.pos+=boss->speed*.5f;
+    if(owner&&encounter_running(*owner)&&!owner->stagger)boss->current.pos+=boss->speed*float(1.5*std::min(32767.0,s_run.endless_factor())-1.0);
 }
 // Repeat the heavy sword's existing model/physics independently of the armor
 // phase. A separate collider is needed: native cc_set prioritizes the light

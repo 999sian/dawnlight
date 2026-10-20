@@ -95,7 +95,7 @@ int main(){
  common.resRegNum=common.texRegNum=1;common.resMaxNum=common.texMaxNum=9;
  JPAEmitterManager manager;manager.common=&common;dPa_control_c::mEmitterMng=&manager;
  // Separate native banks; extraction keeps only each resource's referenced textures.
- for(u16 id:{0x8113,0x846c,0x846d,0x846e,0x846f,0x8470,0x8471,0x8472,0x89ac,0x89ad,0x89ae,0x89af,0x85f6,0x89b0,0x89b1,0x8848,0x8849,0x884a}){
+ for(u16 id:{0x8113,0x846c,0x846d,0x846e,0x846f,0x8470,0x8471,0x8472,0x89ac,0x89ad,0x89ae,0x89af,0x85f6,0x89b0,0x89b1,0x8848,0x8849,0x884a,0x867d,0x867e}){
   auto bytes=fixture();write16(bytes.data()+40,id);disc.push_back(bytes);
  }
  for(bool bowFirst:{true,false}){
@@ -110,7 +110,7 @@ int main(){
    assert(dodongo_fire_effect(native)==id); // Cached imports never offset twice.
   }
   if(!bowFirst)bow=bow_fire_effect();
-  assert(bow&&bow_fire_effect()==bow&&scans==1&&reads==18);
+  assert(bow&&bow_fire_effect()==bow&&scans==1&&reads==20);
   assert(common.resRegNum==9&&common.texRegNum==17&&common.getResource(0x7fff)==&original);
   std::sort(imported.begin(),imported.end());assert(std::adjacent_find(imported.begin(),imported.end())==imported.end());
   assert(std::find(imported.begin(),imported.end(),bow)==imported.end());
@@ -132,12 +132,14 @@ int main(){
    args[3]=native;s_testProcessStack.push_back({processArgs,false});
    before_dodongo_fire(nullptr,args,nullptr,nullptr);assert(std::any_cast<u16>(args[3])==native);s_testProcessStack.pop_back();
   }
-  assert(common.resRegNum==19&&common.texRegNum==37&&scans==1&&reads==18);
+  assert(common.resRegNum==19&&common.texRegNum==37&&scans==1&&reads==20);
+  for(unsigned part=0;part<2;++part){const auto id=lightning_strike_effect(part);assert(id&&common.getResource(id)&&lightning_strike_effect(part)==id);}
+  assert(!lightning_strike_effect(2)&&common.resRegNum==21&&common.texRegNum==41);
   s_testProcessStack.clear();
   // Both users' emitters are deleted before freeing heaps; foreign effects survive.
-  Emitter a{common.getResource(bow)},b{common.getResource(imported[0])},foreign{&original};
+  Emitter a{common.getResource(bow)},b{common.getResource(lightning_strike_effect(0))},foreign{&original};
   Node n3{nullptr,&foreign},n2{&n3,&b},n1{&n2,&a};manager.pEmtrUseList[0].first=&n1;
-  shutdown_bow_fire_resource();assert(a.deleted&&b.deleted&&!foreign.deleted&&destroyed==18);
+  shutdown_bow_fire_resource();assert(a.deleted&&b.deleted&&!foreign.deleted&&destroyed==20);
   assert(common.pResAry==originalResources&&common.pTexAry==originalTextures);
   assert(common.resRegNum==1&&common.texRegNum==1&&common.resMaxNum==9&&common.texMaxNum==9);
   manager.pEmtrUseList[0].first=nullptr;

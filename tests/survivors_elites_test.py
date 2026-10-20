@@ -94,8 +94,10 @@ bool create_enemy_at(cXyz pos,s16,unsigned kind,bool elite,int slot=-1,bool dorm
 }
 bool spawn_enemy(daAlink_c*,bool elite,int slot=-1){if(!elite)++ordinarySpawns;return create_enemy_at({0,0,500},0,0,elite,slot);}
 constexpr unsigned kPaidChestCount=2,kSmallChestCount=kPaidChestCount,kChestCount=2+elite_reward_capacity;
-struct Chest{bool active=false,free=false;s16 yaw=0;cXyz position;};
+struct Chest{bool active=false,free=false,fixed=false,opening=false;s16 yaw=0;cXyz position;uint64_t spawnOrder=0;};
 std::array<Chest,kChestCount>s_chests;
+bool s_chestsExhausted=false;int potion_slot(){return -1;}
+unsigned s_selectedChest=kChestCount;uint64_t s_chestSequence=0;
 bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes=0,lifeWrites=0;
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
 int dComIfGs_getMaxLifeGauge(){return 12;}
@@ -110,13 +112,20 @@ void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c
 
 '''
 main=r'''
-void fresh(unsigned map){s_victory=false;s_victoryTicks=0;s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};clear_elite_sites();player.current.pos={};reset_elite_encounters();
+void fresh(unsigned map){s_victory=false;s_victoryTicks=0;s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};s_chestsExhausted=false;s_chestSequence=0;s_selectedChest=kChestCount;clear_elite_sites();player.current.pos={};reset_elite_encounters();
  groundMissing=wallBlocked=barrierBlocked=failCreate=false;groundRoom=-2;groundCode=0;s_spawnCooldown=s_spawnFailures=ordinarySpawns=0;}
 unsigned guards(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.dormant;return n;}
 unsigned waves(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.elite&&!e.dormant;return n;}
 void door(float x,float z){fopAcM_prm_class p;p.room_no=arena().room;p.base.parameters=unsigned(arena().room)<<13;p.base.position={x,0,z};capture_elite_site(fpcNm_DOOR20_e,p);}
 void add_floor(float size){capture_elite_floor({-size,0,-size},{size,0,-size},{-size,0,size},1,false);capture_elite_floor({size,0,-size},{size,0,size},{-size,0,size},1,false);}
 int main(){
+ fresh(0);s_run.banned_items.fill(true);s_chests[0].active=true;
+ Enemy exhausted;exhausted.elite=true;exhausted.eliteSlot=0;
+ drop_elite_chest(exhausted,&player);assert(s_chestsExhausted&&s_eliteEncounters[0].defeated);
+ for(const auto& c:s_chests)assert(!c.active);
+ s_run.banned_items.fill(false);exhausted.eliteSlot=1;drop_elite_chest(exhausted,&player);
+ for(const auto& c:s_chests)assert(!c.active);
+
  // Actual encounter scheduler follows the selected timer, including the final boss.
  for(unsigned minutes:{5u,10u,20u}){
   fresh(0);s_run.options.debug.run_minutes=minutes;
@@ -126,6 +135,21 @@ int main(){
   }
  }
 
+ // Endless repeats the four map bosses every five minutes, including debug runs.
+ for(unsigned minutes:{5u,20u}){
+  fresh(0);s_run.options.debug.run_minutes=minutes;s_run.ticks=s_run.run_duration();
+  s_run.phase=Phase::Victory;assert(s_run.continue_endless());
+  for(unsigned i=0;i<4;++i)s_eliteEncounters[i].respawnAt=s_run.endless_start+(i+1)*elite_interval;
+  for(unsigned n=0;n<12;++n){
+   s_run.ticks=s_run.endless_start+(n+1)*elite_interval-1;update_elite_spawns(&player);assert(waves()==0);
+   ++s_run.ticks;update_elite_spawns(&player);assert(waves()==1);
+   for(auto& enemy:s_enemies)if(enemy.id!=kNone){
+    assert(enemy.eliteSlot==int(n%4));drop_elite_chest(enemy,&player);enemy={};
+   }
+   const auto count=s_chestSequence;update_elite_spawns(&player);assert(waves()==0&&s_chestSequence==count);
+  }
+  s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns>0);
+ }
  // Compact arenas have no map guards, even with captured doors or large floor.
  for(unsigned map:{0u,4u}){fresh(map);add_floor(10000);door(2000,0);assert(s_eliteDoorSites.size()==1);
   for(unsigned minute=0;minute<20;++minute){s_run.ticks=minute*60*30;update_elite_spawns(&player);
@@ -150,6 +174,18 @@ int main(){
  // Missing corpse ground falls back to its last validated floor.
  killed.eliteSlot=1;killed.lootPosition={100,0,200};groundMissing=true;drop_elite_chest(killed,&player);
  assert(s_chests[2].position.x==100&&s_chests[2].position.y==0&&s_chests[2].position.z==200);groundMissing=false;
+ // A full large-chest pool evicts its oldest, never a small/selected/open chest.
+ fresh(0);s_chests[0].active=true;s_chests[0].fixed=true;s_chests[0].position={99,0,99};
+ for(unsigned i=kSmallChestCount;i<kChestCount;++i) {
+  s_chests[i].active=true;s_chests[i].free=true;s_chests[i].spawnOrder=++s_chestSequence;
+ }
+ s_chests[kSmallChestCount].opening=true;s_selectedChest=kSmallChestCount+1;
+ Enemy replacement;replacement.eliteSlot=0;player.current.pos={800,0,900};
+ const auto oldSequence=s_chestSequence;drop_elite_chest(replacement,&player);
+ assert(s_eliteEncounters[0].rewarded&&s_chests[kSmallChestCount+2].spawnOrder==oldSequence+1);
+ assert(s_chests[kSmallChestCount].spawnOrder==1&&s_chests[kSmallChestCount+1].spawnOrder==2);
+ assert(s_chests[0].fixed&&s_chests[0].position.x==99&&s_chests[0].spawnOrder==0);
+ drop_elite_chest(replacement,&player);assert(s_chestSequence==oldSequence+1); // One reward per kill.
  // Exact milestone bypasses ordinary spawn cooldown, ordinary horde continues.
  fresh(0);s_run.ticks=elite_interval;s_spawnCooldown=30;update_spawns(&player);assert(waves()==1&&ordinarySpawns==1);
  // Spawn warning counts consecutive failures and clears after recovery/cap/end.
@@ -159,11 +195,13 @@ int main(){
  s_spawnFailures=10;s_run.ticks=duration;s_spawnCooldown=0;update_spawns(&player);assert(s_spawnFailures==0);
  // Burst spawns are tripled but respect the current normal-enemy cap.
  fresh(0);s_run.horde_remaining=horde_duration;s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==3);
- fresh(0);s_run.options.horde=5;s_run.horde_remaining=horde_duration;s_run.ticks=duration-1;
- for(unsigned n=0;n<s_run.target_population()-1;++n)assert(create_enemy_at({},0,0,false));
- s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1);
- unsigned normal=0;for(const auto& e:s_enemies)normal+=e.id!=kNone&&!e.elite;
- assert(normal==345);s_spawnFailures=10;s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1&&s_spawnFailures==0);
+ for(unsigned density=1;density<=5;++density){
+  fresh(0);s_run.options.horde=density;s_run.horde_remaining=horde_duration;
+  for(unsigned n=0;n<s_run.target_population()-1;++n)assert(create_enemy_at({},0,0,false));
+  s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1);
+  unsigned normal=0;for(const auto& e:s_enemies)normal+=e.id!=kNone&&!e.elite;
+  assert(normal==345);s_spawnFailures=10;s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1&&s_spawnFailures==0);
+ }
  // Four spread-out random guards, from the entire current room rather than Link's spawn ring.
  for(unsigned map:{1u,2u}){fresh(map);add_floor(10000);update_elite_spawns(&player);assert(guards()==4);
   for(unsigned i=0;i<4;++i)for(unsigned j=i+1;j<4;++j)assert(s_enemies[i].lootPosition.absXZ(s_enemies[j].lootPosition)>=1800);
@@ -268,6 +306,11 @@ int main(){
  ++s_run.xp;after_player(nullptr,levelArgs,nullptr,nullptr);
  assert(life==12&&lifeWrites==1&&s_run.phase==Phase::Upgrade);
  after_player(nullptr,levelArgs,nullptr,nullptr);assert(lifeWrites==1);
+ // Endless 40:00 preserves passive regen and full level-up healing.
+ fresh(0);s_run.endless=true;s_run.ticks=40*60*ticks_per_second-1;life=1;lifeWrites=0;
+ after_player(nullptr,levelArgs,nullptr,nullptr);assert(life==2&&lifeWrites==1);
+ s_run.xp=s_run.required_xp();after_player(nullptr,levelArgs,nullptr,nullptr);
+ assert(life==12&&s_run.phase==Phase::Upgrade&&lifeWrites==2);
  // Quarter-heart regeneration uses active time, every rank, and preserves native max life.
  for(unsigned rank=0;rank<=5;++rank) {
   fresh(0);life=4;lifeWrites=0;s_run.talents.ranks[unsigned(Talent::LifeRegen)]=rank;
@@ -286,6 +329,12 @@ int main(){
   s_run.ticks=4*interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==12&&lifeWrites==3);
   life=5;s_run.ticks=(duration/interval+1)*interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);
   assert(life==6); // Still regenerates during the last boss beyond 20 minutes.
+  // Talent and upgrade regeneration retain their combined interval beyond 40:00.
+  s_run.endless=true;s_run.ranks[unsigned(Upgrade::LifeRegen)]=rank;
+  const auto endlessInterval=s_run.life_regen_interval();
+  assert(endlessInterval==(20-2*rank)*ticks_per_second);
+  life=4;lifeWrites=0;s_run.ticks=(40*60*ticks_per_second/endlessInterval+1)*endlessInterval-1;
+  after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==5&&lifeWrites==1);
   life=0;s_run.ticks=interval-1;after_player(nullptr,regenArgs,nullptr,nullptr);assert(life==0&&s_run.phase==Phase::Defeat);
  }
  finishes=0;life=12;
@@ -306,13 +355,13 @@ int main(){
  fresh(0);life=0;after_player(nullptr,playerArgs,nullptr,nullptr);assert(s_run.phase==Phase::Defeat&&s_run.ticks==0);
  reset_elite_encounters();for(const auto& e:s_eliteEncounters)assert(!e.placed&&!e.defeated);
  clear_elite_sites();assert(s_eliteFloors.empty()&&s_eliteDoorSites.empty());
- std::cout<<"Survivors elites: schedule, all map placements, respawns, dormancy and non-overwriting free drops passed\n";
+ std::cout<<"Survivors elites: schedule, all map placements, respawns, dormancy and oldest-chest replacement passed\n";
 }
 '''
 with tempfile.TemporaryDirectory() as temp:
     cpp=Path(temp)/'test.cpp';exe=Path(temp)/'test'
     cpp.write_text(fixture+(root/'src/survivors_elite_positions.inc').read_text()+
-        (root/'src/survivors_elites.inc').read_text()+extract(loot,'drop_elite_chest')+
+        (root/'src/survivors_elites.inc').read_text()+extract(loot,'chest_spawning_allowed')+extract(loot,'find_chest_spawn_slot')+extract(loot,'drop_elite_chest')+
         extract(runtime,'update_spawns')+extract(runtime,'after_player')+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)

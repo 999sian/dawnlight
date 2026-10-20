@@ -15,7 +15,26 @@ RunPickup* tracked_pickup(ActorId id) {
     for (auto& pickup:s_pickups) if (pickup.id==id) return &pickup;
     return nullptr;
 }
+HookAction before_key_pickup(ModContext*, void* args, void*, void*) {
+    auto* item = mods::arg<daItem_c*>(args, 0);
+    auto* pickup = item ? tracked_pickup(fopAcM_GetID(item)) : nullptr;
+    if (!pickup || pickup->item != dItemNo_KEY_OF_FILONE_e) return HOOK_CONTINUE;
+    // The native key model supports ITEM creation, but its ordinary pickup
+    // switch only handles hearts, rupees and ammo. Collect only our keys here,
+    // without dungeon chest bits or a story Get Item event.
+    if (!pickup->retiring && in_arena() && s_run.phase == Phase::Running && playable()) {
+        pickup->retiring = true;
+        item->hide();
+        set_chest_keys(chest_keys() + 1);
+        mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
+    }
+    return HOOK_SKIP_ORIGINAL;
+}
+bool disabled_healing_pickup(int item) {
+    return s_run.restricted_healing() && (item==dItemNo_HEART_e || item==dItemNo_KAKERA_HEART_e);
+}
 ActorId create_run_pickup(cXyz position, int item) {
+    if (disabled_healing_pickup(item)) return kNone;
     struct Allow { bool previous=s_allowDrop; Allow(){s_allowDrop=true;} ~Allow(){s_allowDrop=previous;} } allow;
     const auto id=fopAcM_createItem(&position,item,-1,arena().room,nullptr,nullptr,
         daItem_c::TYPE_LAUNCH_e);
@@ -44,12 +63,19 @@ bool heart_or_rupee(const RunPickup& pickup) {
     return pickup.item>=dItemNo_HEART_e && pickup.item<=dItemNo_SILVER_RUPEE_e;
 }
 void move_pickup(RunPickup& pickup, fopAc_ac_c* actor) {
+    if (disabled_healing_pickup(pickup.item)) pickup.retiring=true;
     if (pickup.retiring) return;
-    if (heart_or_rupee(pickup)) {
+    if (heart_or_rupee(pickup) || pickup.item == dItemNo_KEY_OF_FILONE_e) {
         auto* item=static_cast<daItem_c*>(actor);
         item->setFlag(daItem_c::FLAG_NO_TIMER_e);
         // Keep the wait phase nonzero too, preventing native expiry flashing.
         item->mWaitTimer=std::max<decltype(item->mWaitTimer)>(item->mWaitTimer,1);
+        if (pickup.item == dItemNo_KEY_OF_FILONE_e) {
+            // The field-key alias has zero native pickup dimensions. Use
+            // the ordinary small key's cylinder on this instance only.
+            item->mCcCyl.SetR(dItem_data::getR(dItemNo_SMALL_KEY_e));
+            item->mCcCyl.SetH(dItem_data::getH(dItemNo_SMALL_KEY_e));
+        }
     }
     if (!playable() || s_run.phase!=Phase::Running || !pickup_waiting(pickup,actor)) return;
     auto* link=daAlink_getAlinkActorClass();
@@ -65,7 +91,7 @@ void move_pickup(RunPickup& pickup, fopAc_ac_c* actor) {
 // Rendered like ordinary XP, without a native story-item actor or Get Item event.
 void queue_exp_magnet(const Enemy& enemy, fopAc_ac_c* actor) {
     unsigned slot=0;
-    if (enemy.elite) {
+    if (enemy.elite && !s_run.endless) {
         if (enemy.eliteSlot<0 || unsigned(enemy.eliteSlot)>=timed_elite_count) return;
         slot=unsigned(enemy.eliteSlot);
     } else {

@@ -19,7 +19,7 @@ constexpr int dCcD_MTRL_NONE=0,dCcD_MTRL_LIGHT=1;
 struct ModContext{};enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 struct cXyz{float x=0,y=0,z=0;cXyz operator-(cXyz b)const{return{x-b.x,y-b.y,z-b.z};}};
 s16 cM_atan2s(float x,float z){return s16(std::atan2(x,z)*32768/3.14159265);}
-struct fopAc_ac_c{int id=2,health=50;struct{cXyz pos;struct{s16 y=0;}angle;}current;};
+struct fopAc_ac_c{int id=2,health=50;struct{unsigned flags=5;}attention_info;struct{cXyz pos;struct{s16 y=0;}angle;}current;};
 struct Collider{
  bool hit=false,at=true,tg=true,co=true;fopAc_ac_c* actor=nullptr;Collider* attack=nullptr;int material=0;
  bool ChkTgHit(){return hit;}fopAc_ac_c* GetTgHitAc(){return actor;}
@@ -127,6 +127,21 @@ int main(){
  bok.mSphs_cc[0].tg=false;
  after_enemy_hit(nullptr,&args,nullptr,nullptr);
  assert(bok.health==40&&bok.mActionMode==3&&bok.mOcState==7&&bok.field_0x6c0==12&&bok.mSphs_cc[0].tg);
+ // One HP is alive, even though native Bokoblin damage_check forces BIG_DAMAGE,
+ // removes attention and disables target spheres at that threshold. Preserve
+ // both an in-progress attack and locomotion, including their current timers.
+ for(int action:{1,3,4})for(int remaining:{1,2,40}) {
+  bok.health=50;bok.mActionMode=action;bok.mOcState=2;bok.mOldActionMode=1;
+  bok.field_0x6c0=9;bok.field_0x6c2=11;bok.attention_info.flags=5;
+  before_enemy_hit(nullptr,&args,nullptr,nullptr);
+  bok.health=remaining;bok.mActionMode=6;bok.mOcState=0;bok.mOldActionMode=action;
+  bok.field_0x6c0=bok.field_0x6c2=0;bok.attention_info.flags=0;
+  for(auto& sphere:bok.mSphs_cc){sphere.OffTgSetBit();sphere.OffCoSetBit();}
+  after_enemy_hit(nullptr,&args,nullptr,nullptr);
+  assert(bok.health==remaining&&bok.mActionMode==action&&bok.mOcState==2&&bok.mOldActionMode==1);
+  assert(bok.field_0x6c0==9&&bok.field_0x6c2==11&&bok.attention_info.flags==5);
+  for(const auto& sphere:bok.mSphs_cc)assert(sphere.tg&&sphere.co);
+ }
  // Heavy weapons also suppress native launches; lethal ordinary hits retain death state.
  s_attacks[0].weapon=unsigned(Upgrade::Ball);
  for(auto* collider:{&player.mGuardAtCps,&s_attacks[0].collider}){
@@ -134,8 +149,8 @@ int main(){
   before_enemy_hit(nullptr,&args,nullptr,nullptr);bok.mActionMode=5;after_enemy_hit(nullptr,&args,nullptr,nullptr);
   assert(bok.mActionMode==3);
  }
- bok.mSphs_cc[0].attack=&hit;before_enemy_hit(nullptr,&args,nullptr,nullptr);bok.health=0;bok.mActionMode=9;
- after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(bok.mActionMode==9);
+ bok.mSphs_cc[0].attack=&hit;before_enemy_hit(nullptr,&args,nullptr,nullptr);bok.health=0;bok.mActionMode=9;bok.attention_info.flags=0;
+ after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(bok.mActionMode==9&&bok.attention_info.flags==0);
  e_ba_class bat;args={&bat,nullptr};enemy.profile=fpcNm_E_BA_e;bat.mSph.hit=true;bat.mSph.attack=&hit;
  before_enemy_hit(nullptr,&args,nullptr,nullptr);bat.health=30;bat.mKnockbackSpeed=80;bat.mAction=8;
  after_enemy_hit(nullptr,&args,nullptr,nullptr);assert(bat.health==30&&bat.mKnockbackSpeed==0&&bat.mAction==2);

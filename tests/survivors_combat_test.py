@@ -33,7 +33,9 @@ stubs = r'''
 #include <map>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "survivors_multistrike.hpp"
 using namespace dawnlight::survivors;
+MultiStrikeState s_multiStrike;
 using u32=unsigned; using u16=unsigned short; using BOOL=int; using fpc_ProcID=unsigned;
 constexpr BOOL FALSE=0,TRUE=1;
 constexpr int BUTTON_STATUS_PUT_AWAY=1,BUTTON_STATUS_NONE=0;
@@ -64,6 +66,14 @@ struct cCcD_Obj {
     void OffAtSetBit(){active=false;} void ResetAtHit(){hit=false;}
 };
 struct fopAc_ac_c {unsigned id=7;int health=10;cXyz eyePos;struct {cXyz pos;csXyz angle;}current;};
+constexpr int fpcNm_E_YMB_e=101,fpcNm_B_DS_e=102;
+struct dCcD_Sph {
+ cXyz center;float radius=0;bool target=true;
+ const cXyz& GetC()const{return center;}float GetR()const{return radius;}
+ bool ChkTgSet()const{return target;}
+};
+struct daE_YMB_c:fopAc_ac_c{dCcD_Sph field_0x82c[2],field_0x1324;} bloat;
+struct daB_DS_c:fopAc_ac_c{dCcD_Sph mHeadSph[5],mBreathAtSph;} stallord;
 constexpr int dItemNo_NONE_e=255,dItemNo_HEART_e=0,dItemNo_GREEN_RUPEE_e=1,dItemNo_BLUE_RUPEE_e=2,dItemNo_YELLOW_RUPEE_e=3,dItemNo_RED_RUPEE_e=4,dItemNo_PURPLE_RUPEE_e=5,dItemNo_ORANGE_RUPEE_e=6,dItemNo_SILVER_RUPEE_e=7;
 HookAction before_sword_attack(ModContext*,void*,void*,void*);
 struct daAlink_c : fopAc_ac_c {
@@ -124,7 +134,7 @@ unsigned s_meleeCooldown=0,s_player=7,s_comboStep=0,s_comboTimeout=0;
 bool s_autoSwordCall=false,s_trackMelee=false;unsigned s_meleeTarget=kNone;
 std::array<unsigned,unsigned(Upgrade::Rupees)>s_cooldowns{};
 bool in_arena(){return arena;} bool playable(){return arena && playing;}
-struct Enemy {unsigned id=kNone;bool initialized=false,retiring=false,credited=false;};
+struct Enemy {unsigned id=kNone;bool initialized=false,retiring=false,credited=false;int profile=0;};
 std::array<Enemy,enemy_capacity>s_enemies;
 Enemy* tracked(unsigned id){for(auto& e:s_enemies)if(e.id==id&&e.initialized)return &e;return nullptr;}
 bool abilityBusy=false;bool jump_abilities_busy_for(daAlink_c*){return abilityBusy;}
@@ -133,7 +143,7 @@ fopAc_ac_c potActor; bool potCarried=false;
 struct ArenaPot{unsigned id=kNone;bool initialized=false,retiring=false,broken=false;};
 std::array<ArenaPot,1>s_pots;
 bool fopAcM_checkCarryNow(fopAc_ac_c*){return potCarried;}bool fopAcM_checkHookCarryNow(fopAc_ac_c*){return false;}
-fopAc_ac_c* actor_by_id(unsigned id){return id==enemy.id?&enemy:id==enemy2.id?&enemy2:id==potActor.id?&potActor:nullptr;}
+fopAc_ac_c* actor_by_id(unsigned id){return id==bloat.id?&bloat:id==stallord.id?&stallord:id==enemy.id?&enemy:id==enemy2.id?&enemy2:id==potActor.id?&potActor:nullptr;}
 struct dBgS_LinChk {void Set(const cXyz*,const cXyz*,daAlink_c*){}cXyz GetCross(){return {0,70,250};}};
 bool blocked=false;
 struct World{bool LineCross(dBgS_LinChk*){return blocked;}}world;
@@ -204,8 +214,9 @@ void mark_damage_critical(dCcU_AtInfo*,bool){}
 void mark_damage_split(dCcU_AtInfo*,unsigned,unsigned){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
+stubs += "\nvoid update_lightning(daAlink_c*){}\nvoid apply_treasure_inventory(daAlink_c*,ChestReward,const Run&,unsigned){}\nvoid sync_survivors_inventory(){}\nDamageAmounts hit_damage_sources(const cCcD_Obj* c){DamageAmounts d{};d[unsigned(c==&player.mGuardAtCps?DamageSource::Shield:DamageSource::Sword)]=1;return d;}\n"
 main = r'''
-void reset(){player.swordHeld=player.swordPressed=false;s_waveManual=s_manualSwing=false;player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
+void reset(){bloat={};bloat.id=91;stallord={};stallord.id=92;s_multiStrike={};player.swordHeld=player.swordPressed=false;s_waveManual=s_manualSwing=false;player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;
     player.field_0x3478=0;player.field_0x347c=10;player.field_0x3484=15;
     for(auto& id:player.field_0x3204)id=0;
@@ -243,7 +254,7 @@ int main(){
             for(unsigned frame=0;frame<3;++frame) {
                 after_sword_move(nullptr,spinArgs,nullptr,nullptr);
                 after_spin_effect(nullptr,spinArgs,nullptr,nullptr);
-                const float radius=current*std::sqrt(1+.075f*reach);
+                const float radius=current*(1+2*(std::sqrt(1+.075f*reach)-1));
                 assert(std::abs(player.mAtSph.radius-radius)<.001f);
                 for(unsigned i=0;i<count;++i){
                     const auto& emitter=emitters[player.field_0x3204[i]];
@@ -275,8 +286,8 @@ int main(){
         player.mAtCps[0].radius=35;player.mAtCps[1].active=false;
         for(int frame=0;frame<3;++frame) {
             after_sword_collision(nullptr,swordArgs,nullptr,nullptr);
-            assert(std::abs(player.mAtCps[0].end.z-1.3f*s_run.radius(200))<.001f);
-            assert(std::abs(player.mAtCps[2].end.z-1.3f*s_run.radius(190))<.001f);
+            assert(std::abs(player.mAtCps[0].end.z-1.3f*s_run.melee_reach(200))<.001f);
+            assert(std::abs(player.mAtCps[2].end.z-1.3f*s_run.melee_reach(190))<.001f);
             assert(player.mAtCps[0].radius==35&&!player.mAtCps[1].active);
         }
     }
@@ -562,7 +573,7 @@ int main(){
     particles.clear();particleScales.clear();s_run.ranks[unsigned(Upgrade::Reach)]=5;
     assert(before_jump_strike_effect(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
     assert((particles==std::vector<u16>{0x161,0x162}));
-    assert(std::abs(particleScales[0]-2.0625f)<.01f&&particleScales[0]==particleScales[1]);
+    assert(std::abs(particleScales[0]-2.625f)<.01f&&particleScales[0]==particleScales[1]);
     for(unsigned rank:{1u,30u}){
         s_run.ranks[unsigned(Upgrade::JumpStrike)]=rank;
         info={&player.mAtSph};after_power(nullptr,powerArgs,nullptr,nullptr);
@@ -573,7 +584,7 @@ int main(){
     for(float radius:{130.f,200.f,300.f}){
         player.field_0x347c=radius;player.mUnderFrameCtrl[0].rate=1;
         after_jump_strike(nullptr,args,nullptr,nullptr);
-        assert(player.mAtSph.radius==s_run.radius(radius)&&player.mUnderFrameCtrl[0].rate==2);
+        assert(player.mAtSph.radius==s_run.melee_reach(radius)&&player.mUnderFrameCtrl[0].rate==2);
     }
     const auto jumpParticles=s_jumpEmitters;clear_jump_effects();clear_jump_effects();
     for(auto id:jumpParticles)assert(emitters[id].invalid);
@@ -590,6 +601,37 @@ int main(){
     enemy.current.pos.z=428;assert(melee_target(&player)==&enemy);
     enemy.current.pos.z=430;assert(!melee_target(&player));
     s_meleeTarget=kNone;enemy.current.pos.z=365;assert(!melee_target(&player));
+    // Joint-relative body surfaces, including the elevated head, determine reach.
+    // Real native radii: Bloat 180/240; Stallord 300/350/270/190/190.
+    reset();s_enemies={};s_enemies[0]={91,true,false,false,fpcNm_E_YMB_e};
+    bloat.current.pos={0,450,900};bloat.eyePos=bloat.current.pos;
+    bloat.field_0x82c[1]={{500,70,0},240,true};
+    cXyz contact;assert(melee_target(&player,&contact)==&bloat);
+    assert(std::abs(contact.x-260)<.01f&&contact.z==0);
+    update_sword(&player);assert(player.normals==1&&player.shape_angle.y==0x4000);
+    bloat.field_0x82c[1].center={0,70,500};track_melee_facing(&player);
+    assert(player.shape_angle.y==0); // Follow the animated body, not actor origin.
+    blocked=true;assert(!melee_target(&player));blocked=false;
+    bloat.field_0x82c[1].target=false;assert(!melee_target(&player));
+    bloat.field_0x1324={{0,70,100},360,true};assert(!melee_target(&player)); // Electric field is not a body.
+    bloat.field_0x82c[1]={{0,70,605},240,true};s_meleeTarget=kNone;
+    assert(!melee_target(&player));
+    s_run.ranks[unsigned(Upgrade::Reach)]=1;assert(melee_target(&player)==&bloat);
+    reset();s_enemies={};s_enemies[0]={92,true,false,false,fpcNm_B_DS_e};
+    stallord.current.pos={0,320,900};stallord.eyePos=stallord.current.pos;
+    stallord.mHeadSph[1]={{0,320,600},350,true};
+    assert(melee_target(&player,&contact)==&stallord); // Surface gap 300, origin > 900.
+    assert(std::abs(contact.z-276.923f)<.01f);
+    update_sword(&player);assert(player.normals==1);
+    stallord.mHeadSph[1].center={0,1200,100};assert(!melee_target(&player)); // Too high.
+    stallord.mHeadSph[1].radius=0;stallord.mBreathAtSph={{0,70,100},500,true};
+    assert(!melee_target(&player)); // Breath cannot extend sword acquisition.
+    for(unsigned i=0;i<5;++i) {
+        stallord.mHeadSph[i]={{0,70,450},190,true};assert(melee_target(&player)==&stallord);
+        stallord.mHeadSph[i].radius=0;s_meleeTarget=kNone;
+    }
+    stallord.mHeadSph[0]={{0,70,0},300,true};assert(melee_target(&player)==&stallord);
+    s_enemies[0].retiring=true;assert(!melee_target(&player));
     // Disabling individual skills keeps held attack from bypassing their target gates.
     reset();s_enemies={};player.swordHeld=true;s_run.options.manual_aim[unsigned(ManualAbility::Sword)]=false;
     update_sword(&player);assert(!player.normals);
@@ -660,6 +702,26 @@ int main(){
     const auto oldLevel=s_run.level;
     select_upgrade(nullptr,&choice);
     assert(life==16&&s_run.level==oldLevel+1&&s_run.phase==Phase::Upgrade);
+    // Every Multi Strike activation uses a new native cut, after the previous
+    // pose/hit window; repeats do not recursively re-arm the burst.
+    for(unsigned extra=1;extra<=3;++extra){
+        reset();s_run.dual_wield=1;s_run.ranks[unsigned(Upgrade::MultiStrike)]=extra;
+        update_sword(&player);assert(s_multiStrike.count(StrikeSeries::Sword)==extra);
+        for(unsigned n=extra;n>0;--n){
+            player.mProcID=daAlink_c::PROC_WAIT;update_sword(&player);
+            assert(s_multiStrike.count(StrikeSeries::Sword)==n-1);
+        }
+        assert(player.normals+player.finishes==1+extra);
+        player.mProcID=daAlink_c::PROC_WAIT;update_sword(&player);
+        assert(player.normals+player.finishes==1+extra);
+        // Repeat the full Sword Wave volley, including Multishot projectiles.
+        reset();s_run.dual_wield=1;s_run.ranks[unsigned(Upgrade::MultiStrike)]=extra;
+        s_run.ranks[unsigned(Upgrade::Multishot)]=2;s_run.ranks[0]=1;
+        update_sword_wave(&player);player.mUnderFrameCtrl[0].frame=player.field_0x3478;
+        update_sword_wave(&player);assert(waves==3);
+        for(unsigned frame=0;frame<extra*4;++frame)update_sword_wave(&player);
+        assert(waves==3*(1+extra)&&!s_multiStrike.count(StrikeSeries::Wave));
+    }
     std::cout<<"Survivors combat: native four-hit combos, sword movement, wave timing, particles and rewards passed\n";
 }
 '''

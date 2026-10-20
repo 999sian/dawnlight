@@ -61,7 +61,7 @@ damage counters reset for the next run. Older saves retain their progression.
 - The HUD shows time, run level, score, XP and the next chest price. Inspect equipment
   in the item wheel and power-ups via the Hidden Skills scroll in Collection.
   Only bottles can be assigned to item buttons. Magnet also attracts rupees,
-  hearts and heart pieces; nearby pots trigger normal automatic sword swings.
+  hearts, heart pieces and small keys; nearby pots trigger normal automatic sword swings.
 - Call Midna for **Cancel**, **End Run** or **Restart Run**. Survive 20 minutes and defeat all four timed elites to win;
   **New run** resets upgrades and returns to the hub. Map exits are sealed during runs.
 
@@ -104,8 +104,13 @@ Each map has two independent high scores: **Ranked** for runs without Allow
 Cheats or other active mods, and **Cheated** for runs with either condition.
 Select a score in the Maps tab to reopen that run's result screen, including its
 damage breakdown, equipment, integrity flags and awarded score. This view is
-read-only; it does not restart the run or award XP again. Ties keep the original
+an archived snapshot; it does not restart the run or award XP again. Ties keep the original
 record. Empty lists show a dash; even a completed zero-score run can be opened.
+
+**Delete Score** at the bottom of each archived result screen deletes only that
+map’s selected Ranked or Cheated record after **Yes / No** confirmation (default
+No). Success returns to the map list; a failed write retains the score and offers
+retry. Other records, unlocked maps, talents, XP and lifetime statistics remain.
 
 **Reset High Scores** is in the normal Survivors Settings tab (also mirrored in
 Dawnlight Settings). It is available in a loaded Survivors hub and asks for
@@ -166,6 +171,8 @@ you in the hub and displays a retry message. The results screen also offers **Sa
 | Melee Haste | 5 | +5% normal sword speed/rank, up to +25%. |
 | Crit Damage | 5 | +10 percentage points critical damage/rank, up to +50%. |
 | Legendary Chance | 5 | +0.6 percentage points base Legendary chance/rank: 1% → 4% at rank 5, before Luck. Applies to item and power-up rarities. |
+| Multi Strike | 3 | Requires Dual Wield. Epic grants 1 rank; Legendary grants 2. Each rank adds one sequential activation of Sword Attack (including its splash), Spin Attack, Sword Wave and Lightning Strike. |
+| Lightning Strike | 30 | 20% proc on an accepted melee hit, +2 percentage points per Luck rank (60% at rank 20), gated by its own cooldown. See below. |
 | Life Regen | 5 | Shortens regeneration by one second/rank: 20 → 15 seconds. |
 
 Link regenerates **1/4 heart every 20 seconds** even without Life Regen ranks.
@@ -246,7 +253,8 @@ giant Bokoblins except in the Palace, where they are giant Shadow club Bulblins.
 elites wake only after taking damage; after a kill they respawn in three minutes,
 with new positions in Field/Desert. Timed elites do not respawn.
 
-Stalhounds emerge and fight in daylight as well as at night. Shadow Beasts do
+Stalhounds emerge and fight in daylight as well as at night. The giant elite
+uses a lower pounce arc so its bite can reach grounded Link. Shadow Beasts do
 not require simultaneous group kills. Shadow Kargaroks use independent dive attacks with their native approach, brake
 and catch animations, with the scripted
 capture sequence replaced by a talon hit. The elite Carrier also has one native
@@ -255,7 +263,9 @@ fire breath and recovery, adapted to ground combat without tower rails or traps.
 Death Sword uses native sword strikes and both magic shots and is visible to human
 Link. Twilit Bloat retains its electric charge, flight and retreat. Phantom Zant
 teleports between safe map positions and uses native projectile volleys and portals
-summoning Shadow Keese/Shadow Beasts. Darkhammer spins, throws and retrieves his
+summoning Shadow Keese/Shadow Beasts. During his projectile charge, nonlethal hits
+cannot stagger or trigger his native warp reaction (including bomb arrows); HP
+damage and lethal hits still apply. Darkhammer spins, throws and retrieves his
 ball and chain. Puppet Zelda retains her sword charge, triangle and energy-ball
 attacks. King Bulblin fights on foot with his axe; Ganondorf uses his native sword
 duel. Darknut sheds armor as his run HP falls and uses the native sword throw and
@@ -281,9 +291,9 @@ current overrides: [boss attack reference](docs/features/hyrule-survivors-boss-a
 Each timed elite and the first kill of each guard slot drops a **free large chest**. Guard respawns still give XP but no repeated chest, including after relocation. The four timed elites also drop an
 **large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals, rupees and hearts
 to Link from anywhere on the map. It is a one-time pickup, not an inventory item. Pots are scattered according to floor
-area and safe placement, drop rupees of different values or rare heart pieces,
+area and safe placement, drop rupees of different values, rare heart pieces or small keys,
 and respawn at a different safe position 20 seconds after breaking (menus pause the timer). Ordinary enemies can drop healing hearts and
-rupees; every level-up fully heals Link, including newly chosen heart containers. Dropped hearts and rupees remain until collected
+rupees; every level-up fully heals Link, including newly chosen heart containers. Dropped hearts, rupees and small keys remain until collected
 or the run ends; their native despawn timer is disabled. Ordinary enemies also
 have a 2% bonus chance to drop a gold EXP magnet, increased by Luck up to 3%.
 This follows the same Horde-difficulty reward normalization as other ordinary
@@ -296,8 +306,10 @@ Timed bosses take priority over awakened chest guards. With several candidates,
 the nearest is selected and retained until defeated or replaced by a timed boss;
 sleeping guards and ordinary enemies never occupy this bar.
 
-Normal enemy population grows from **18 to 69 × the Horde difficulty setting**
-(up to 345). Random **HORDE!** events triple spawn batches for 15 seconds, within
+Normal enemies have a fixed ceiling of **345**, from the start at every Horde
+difficulty. Spawn intervals still decrease from 2.5 seconds to 0.5 seconds over
+the first 10 minutes; Horde difficulty still controls batch size (1–5).
+Random **HORDE!** events triple spawn batches for 15 seconds, within
 that population limit. They average two events per five minutes, without a quota;
 overlaps add 15 seconds instead of stacking the multiplier. The HUD shows the
 remaining duration. Events stop at 20:00 and pause with the run.
@@ -308,7 +320,11 @@ The large gold-yellow elite crystal collects existing XP globally, without givin
 
 ## Chests and equipment
 
-Up to **six replenishing small chests** can be present. These cost **20, 25, 32, 41, 52… rupees**: increases of +5, +7, +9, +11…
+Up to **six replenishing small chests** can be present. When their slots are full,
+a successful new spawn replaces the oldest unopened, unselected chest; failed
+placement keeps the existing chest. Large elite reward chests use the same rule
+in their separate pool. Starting 40-rupee map chests are never replaced.
+The replenishing chests cost **20, 25, 32, 41, 52… rupees**: increases of +5, +7, +9, +11…
 Each arena also starts with randomly placed **40-rupee small chests** (counts above),
 which never respawn or affect the replenishing chests' price. Starting chests
 are spread across safe, dry map floor, including sites around terrain obstacles;
@@ -319,17 +335,30 @@ attacks and offers three items; choose one to receive it through the native Get
 Item animation. Cancelling preserves offers. Opened chests disappear; free elite
 chests never raise the paid-chest price.
 
+Pots have the same chance to drop a **small key** as a heart piece: **2% base,
+up to 3% with Luck**. A key automatically pays for the next paid chest, including
+a starting 40-rupee chest, without spending rupees. Exactly one key is consumed
+when the reward finishes; cancelling or a failed reward consumes nothing.
+Free elite chests and the free starting item never consume keys. Regular chest
+prices still advance after a key purchase. Keys reset with each new run and
+remain available in Endless, including after 40:00.
+The Next Chest HUD uses the native rupee icon for the rupee price, or shows
+**1 key** and your key count when a key is available. Nearby paid chest labels
+also show **1 key** in that case.
+
+Once no eligible item reward remains, all existing chests despawn (including
+fixed map chests and free elite chests) and no more chests spawn for that run,
+including its Endless continuation. A live item-get finishes before cleanup.
+Chests never offer ordinary level-up rewards. This state resets with a new run.
+
 Equip up to **four chest items**; their icons (or empty slots) appear above the
 choices. Red Potion uses one shared slot for all bottles, retained even when
 they are empty. Passive power-ups have no
-slot limit. **Dual Wield and Shield replace each other** in the same slot, with
-an explicit warning below the item name. A replacement starts at **rank 0**;
-the discarded ranks are lost, including when switching back. Replacement-card
-rank units become rupees; subsequent cards upgrade the new item normally.
+slot limit. Dual Wield and Shield can coexist, each using its own equipment slot.
 
 Each run shares **one free Reroll and one Banish** across both selection menus.
 Reroll refreshes all offers; further uses cost **50, 100, 150… rupees**. Paid
-chests reserve their purchase price. Banish removes the named choice from future
+chests reserve their purchase price unless a key covers it; rerolls still cost rupees. Banish removes the named choice from future
 offers without removing its current ranks or equipment; weapon bans apply to
 both menus. The top-left **Reroll** button shows **Free** or its rupee cost; the
 icons beside your equipment show remaining free rerolls and banishes. Use the red
@@ -341,8 +370,8 @@ banish symbol at the top right of a card to remove that choice. Talents can add 
 | Boomerang | Gale throws that hop between enemies; one extra hop every three ranks (4, 7, 10…), max 10 hops / 11 targets. |
 | Bombs | Automatic throws and area explosions; upgrades improve damage, radius and frequency. |
 | Ball and Chain | Pierces outward and back, damaging and staggering enemies on both legs. |
-| Master Sword | More sword damage; rank 5 becomes the Light Sword. Unlocks Jump Strike level-ups. |
-| Ordon Sword | Dual Wield: 2/3/4/5 total targets at ranks 1/10/20/30; +2.5% melee speed per rank (whole-percent rounding), capped at rank 30. Can coexist with a shield. |
+| Master Sword | More sword damage; rank 5 becomes the Light Sword. Unlocks Jump Strike level-ups. After unlocking it from a chest, further ranks are also available as level-up rewards; each two sword levels add 1 Lightning Strike damage (whole completed pairs). |
+| Ordon Sword | Dual Wield: 2/3/4/5 total targets at ranks 1/10/20/30; +2.5% melee speed per rank (whole-percent rounding), capped at rank 30. Also grants +1 percentage point melee crit chance per rank. Can coexist with a shield. |
 | Shield | 5% block chance per rank, max 50%; evolves to Ordon at 20% and Hylian at 35%. Unlocks Shield Attack level-ups. |
 | Dark Link | Starts at 1.3× damage for 5 seconds every 20 seconds. Odd ranks increase damage, even ranks increase duration; rank 30 is permanent 2× damage. |
 | Red Potion | One equipment slot; adds filled bottles up to four, then refills empty ones. Rank 0 heals 1 heart. Potion Healing level-ups add ¼ heart per rank, up to 8½ hearts at rank 30. Use manually. |
@@ -354,10 +383,12 @@ airborne attack and landing; no stick input means no horizontal travel. Uses the
 native quick jump attack and the original bomb shockwave on landing. Landing splash deals 30% of melee damage at rank 1,
 +5 percentage points per rank (175% at rank 30), rounded to native whole damage.
 Direct sword contact deals normal melee damage; critical hits and Dark Link apply.
-**Reach** adds 7.5% linear melee/projectile range per rank, including on top of
-the doubled starting normal sword range. Spin, Bomb and Shield
-radii use the square root of that factor, so their area grows approximately linearly.
-Jump Strike keeps the linear radius factor. Spin visuals follow the actual hitbox.
+**Reach** adds 15% per rank to normal melee reach (on top of its 130% base),
+Dual Wield splash targeting, Jump Strike radius and Lightning Strike hop range.
+Other linear ranges retain 7.5% per rank. Spin doubles the previous radius bonus:
+`base × (1 + 2 × (sqrt(1 + 0.075 × Reach) - 1))`.
+Bomb and Shield retain `base × sqrt(1 + 0.075 × Reach)`.
+Spin and Jump visuals follow their actual hitboxes.
 Automatic item attacks, Sword Waves, Spin and Shield Attack have independent
 cooldowns and overlap, including during Jump Strike. Distinct attacks damage
 immediately without a shared enemy iFrame gate. A persistent hitbox still hits
@@ -409,7 +440,10 @@ Two passive level-up rewards, both capped at **rank 30**:
 | Crit Damage | ×2 damage | +0.05 multiplier | ×3.5 damage |
 
 Talents add up to five base percentage points; combined final chance caps at 100%.
-Final chance is `base chance × (1 + 0.025 × Luck rank)`, with integer basis-point rounding.
+Base final chance is `base chance × (1 + 0.025 × Luck rank)`, with integer basis-point rounding.
+Dual Wield adds another absolute percentage point per rank (up to 30) for Sword,
+Spin, Shield Attack, Jump Strike, Dual Wield splash and Lightning Strike, capped
+at 100% total. Sword Wave and other ranged attacks retain their existing crit chance.
 Each direct sword, spin, projectile, shield or Dual Wield hit rolls independently.
 Burn ticks cannot crit. Critical damage rounds to native integer health before
 Dark Link doubles it. Both power-ups support rarities, rerolls and banishment;
@@ -419,17 +453,21 @@ the menu shows the effective chance including current Luck.
 
 | Power-up | Cap | Rarity / effect |
 | --- | ---: | --- |
-| Knockback | 10 | Any rarity. +4 units of horizontal push per rank on direct attacks. Ball and Shield Attack have a fixed 24-unit base independent of their weapon ranks, Power and Reach. |
+| Knockback | 10 | Any rarity. +40 units of horizontal push per rank on direct attacks, without interrupting enemy actions. Ball and Shield Attack have a fixed 240-unit base independent of their weapon ranks, Power and Reach. |
 | Piercing | 10 | Requires Bow. Each rank lets every arrow damage one additional distinct enemy (up to 11 total). Includes every Multishot arrow. |
-| Multishot | 3 | Epic grants 1 rank; Legendary grants 2. Each rank adds one projectile to Bow, Boomerang, Bombs, Ball and Chain and Sword Wave. |
+| Multishot | 3 | Epic grants 1 rank; Legendary grants 2. Each rank adds one projectile/chain to Bow, Boomerang, Bombs, Ball and Chain, Sword Wave and Lightning Strike. |
+| Multi Strike | 3 | Requires Dual Wield. Epic grants 1 rank; Legendary grants 2. Each rank adds one sequential activation of Sword Attack (including its splash), Spin Attack, Sword Wave and Lightning Strike. |
+| Lightning Strike | 30 | 20% proc on an accepted melee hit, +2 percentage points per Luck rank (60% at rank 20), gated by its own cooldown. See below. |
 | Life Regen | 5 | Rare or better. Each rank removes 1 second from passive quarter-heart regeneration; stacks with the talent (20 → 15 seconds, or 10 seconds with both maxed). |
-| Life Steal | 1 | Legendary only. Each credited enemy death restores a quarter heart, capped at maximum health. |
+| Life Steal | 1 | Legendary only. Only kills by Sword Attack, Dual Wield splash, Spin, Sword Wave, Jump Strike or Lightning Strike restore a quarter heart, once per death. Includes Multishot and Multi Strike; burns and other abilities do not heal. |
 
 Knockback runs over six simulation ticks, with twelve ticks between pushes.
 Simultaneous hits take the strongest push instead of adding them. Elites and
-bosses receive half distance; the maximum heavy push is 64 units (32 for elites).
+bosses are immune; the maximum heavy push is 640 units.
 Walls, arena barriers and unsafe ledges stop displacement. Native heavy launches
-on living ordinary enemies are suppressed in favor of this bounded movement.
+on living ordinary enemies are suppressed in favor of this bounded movement,
+including Bokoblins with one HP remaining. Attacks, animation timers and native
+velocity continue; pushes preserve airborne height instead of snapping to the floor.
 Burn ticks do not apply a second push. Damage still has no shared iFrame gate.
 
 Multishot chooses different visible targets in range for Boomerang, Bombs and
@@ -439,6 +477,25 @@ shots within the Bow rank's existing 0°/22.5°/45° fan; at rank 20+ and Multis
 eight arrows still cover only 45°. Same-volley extra hits on one target retain
 25% damage, also when piercing. Waves fan out symmetrically, up to four waves
 across 36°, with each wave retaining its normal/Great Spin tier and hit deduplication.
+
+Lightning Strike uses the Boomerang damage/cooldown curves at its own level;
+no Boomerang equipment is required. Power, Haste, critical upgrades, Dark Link,
+Knockback and Multishot apply. Its hop count is twice Boomerang's (2 at level 1,
+20 at level 30), and propagation travels at 210 units/tick versus 42.
+Reach gives double range growth; Master Sword adds `floor(sword level / 2)` damage.
+Multishot adds one complete chain per rank (1/2/3/4 chains). Each cast distributes
+initial targets and subsequent hops across reachable enemies before reusing targets;
+when reuse is needed, prefer the least-targeted enemy, then the nearest. Multi Strike
+repeats start a fresh target distribution. Each chain remembers its own targets,
+respects walls and boss blocks, and cannot
+trigger further chains. Native electric sparks and a jagged cyan/white arc show
+its path. Lightning appears as its own damage row in Results.
+
+Multi Strike grants 2/3/4 total activations at levels 1/2/3. Sword and Spin repeats
+wait for their native hit window/animation; Sword Wave volleys and Lightning casts
+repeat four simulation ticks apart. Repeats do not recursively create more repeats.
+Each repeat gets independent hit tracking, and each wave/lightning cast retains
+its Multishot count. Run teardown and level-up interruption clear pending casts.
 
 Rarity is rolled before selecting an eligible upgrade: restricted power-ups do
 not promote common rolls to rare ones. Life Regen follows normal rarity units
@@ -550,3 +607,82 @@ actual elapsed time. The HUD displays the chosen timer.
 `src/survivors_debug.hpp`. This is the single enable/disable switch. It removes
 the tab and forces every debug setting back to the defaults above, including
 stale run/menu values. The switch is currently `1` for development testing.
+
+
+## Endless Mode and Twilit Rank
+
+After clearing a map, the Victory results offer **Continue in Endless Mode**.
+The normal victory record is kept. Continue with the same weapons, upgrades,
+inventory, level and run clock. The run ends on defeat or End Run, not at a time
+limit. Each complete minute after continuing compounds enemy HP, incoming damage
+and movement speed by **x1.10** (two minutes: x1.21). New spawns also continue the
+map HP curve beyond 20 minutes using its last segment; existing wounded enemies
+receive each minute bonus once, preserving their remaining-health fraction.
+Native HP/damage representation remains limited to 32,767; extreme movement
+multipliers are bounded to prevent invalid physics values.
+
+The map's four timed bosses repeat in order every five minutes (also when the
+normal run used a shortened debug timer). An occupied boss slot waits for its
+previous boss to die. Repeated bosses give fresh reward chests/EXP magnets; normal
+spawns, Horde rolls, pots and eligible map guards continue.
+
+Each map shows **Endless Score** beside both its Ranked and Cheated normal score.
+Click it for the saved run's damage breakdown, Twilit Rank and Delete Score action.
+Endless score includes the normal segment and its victory bonus. Talent XP paid
+at the normal victory is subtracted from the later award; one continued run still
+counts as one run/win. Reset High Scores clears all four categories without
+locking maps. Existing v8/v9 normal records migrate with no score changes.
+
+**Twilit Rank** is Enemy HP + Enemy Damage + Enemy Speed + Horde − 4 (0–24). Difficulty
+shows it below the four controls, followed by their effects and effective reward
+multipliers. The rank itself adds no extra bonus: score and talent XP keep the
+existing additive difficulty formula (x1.00–x4.15). Horde divides normal-kill score
+and normal-enemy run-XP/loot opportunities by its setting; elite run XP stays x1.
+The HUD shows elapsed time using the boss-name font; skull and rank appear only
+above rank 0. Four x1 settings give rank 0. Both
+Victory/Defeat results and all saved score snapshots retain the rank.
+
+
+### Session-only Debug gate
+
+When the development Debug tab is compiled in, its first control is **Enable Debug**
+(default Off). A notice appears on either transition. The switch is kept only in
+memory, never in config/export/save data, and returns to Off after a game restart.
+All other Debug controls are disabled until it is On. Infinite rerolls and infinite
+banishes use ordinary toggles. Turning Debug Off resets the debug options.
+
+A run captures Debug at startup even when every individual option is at its default.
+Debug runs do not update any normal/Endless Ranked/Cheated record, award permanent
+Survivors XP, unlock maps, or update lifetime record statistics. This remains true
+through Endless continuation and regardless of the current session switch. Results
+show a Debug notice and zero XP earned. In-run XP, level-ups, rewards and combat
+still work for testing. New runs started with Debug Off progress normally. The
+compile-time release switch still hides the tab and neutralizes all Debug features.
+
+### Endless escalation at 40:00
+
+In Endless Mode, every normal and shadow archer volley contains three native
+arrows using Hard Mode's horizontal fan (center and +/-0x900 yaw).
+At **40:00 total run time**, heart and heart-piece drops stop and remaining
+healing pickups retire. Life Steal stops healing and no longer appears as a new
+reward. Passive Life Regen (including talents and upgrade rewards), level-up full
+healing and owned Red Potion bottles remain available. Potion Healing ranks
+still apply, and difficulty/Endless HP, damage and movement scaling continue.
+
+
+### Survivors HUD editor
+
+Open **Settings → HUD-Editor** from either Survivors menu or Dawnlight's
+Survivors tab. The transparent window previews the HUD while you adjust each
+of these nine elements independently: Timer, Twilit Rank, EXP-Bar, Info-Texts,
+Level-Text, Score text, EXP-text, Boss-Name and Boss-Bar. Choose an element,
+then change X Position, Y Position and Scale; Reset selected element restores
+its defaults. X is relative to the screen center, Y to the top, in native HUD
+units. Info-Texts share a position and continue to leave space for a visible boss.
+The preview always includes a sample boss and a nonzero rank.
+
+Changes apply immediately, persist automatically, and participate in Dawnlight's
+global settings export/import. They do not affect difficulty, scores or run
+integrity. Boss bar ends retain their proportions: only the center is extended.
+All Survivors overlays, including chest prices, Crit/Block/Dodge and hub labels,
+are hidden during native Collection, map/ring menus and pause transitions.

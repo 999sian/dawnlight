@@ -34,6 +34,7 @@ std::array<unsigned,20>s_cooldowns;
 struct{bool active=false;}s_ranged;
 unsigned cancels=0,shots=0,swords=0,shields=0,projectileTicks=0;
 void cancel_ranged(){++cancels;s_ranged.active=false;}
+void update_lightning(daAlink_c*){}
 void update_ranged(daAlink_c*){++shots;}bool update_shield_attack(daAlink_c*){++shields;return false;}
 bool readySword=false,readyRanged=false;
 void fire_items(daAlink_c*){++shots;if(readyRanged && s_swordAction==SwordAction::None)s_ranged.active=true;}

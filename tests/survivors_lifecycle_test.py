@@ -49,7 +49,7 @@ struct Enemy {
     ActorId id=kNone; ProfileName profile=0;
     bool initialized=false, credited=false, retiring=false, elite=false;
     unsigned age=0;
-    int eliteSlot=-1;
+    int eliteSlot=-1;bool swordKill=false;
 };
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
@@ -125,6 +125,12 @@ void dComIfGs_setWalletSize(int){}
 int life=12;int dComIfGs_getLife(){return life;}
 int dComIfGs_getMaxLifeGauge(){return 12;}
 void dComIfGs_setLife(int n){life=n;} void dComIfGs_setRupee(int){}
+using u8=unsigned char;struct Chest{bool free=false,fixed=false;};
+int nativeKeys=0,pendingKeys=0;
+int dComIfGs_getKeyNum(){return nativeKeys;}int dComIfGp_getItemKeyNumCount(){return pendingKeys;}
+void dComIfGp_clearItemKeyNumCount(){pendingKeys=0;}void dComIfGs_setKeyNum(u8 n){nativeKeys=n;}
+#include "survivors_keys.inc"
+
 // A live third-slot hook can dereference the absent Link actor during file
 // select. Any live slot setter is forbidden in this pre-game fixture.
 constexpr int COLLECT_LIGHT_SWORD=12,dItemNo_LIGHT_SWORD_e=13,COLLECT_WOODEN_SHIELD=0,COLLECT_HYLIAN_SHIELD=2;
@@ -186,6 +192,7 @@ void mark_damage_critical(dCcU_AtInfo*,bool){}
 void mark_damage_split(dCcU_AtInfo*,unsigned,unsigned){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
+stubs += "\nDamageAmounts hit_damage_sources(const Collider*){return {};}\n"
 main = r'''
 int main() {
     save.player.status.slots.fill(dItemNo_NONE_e);
@@ -196,7 +203,7 @@ int main() {
     for (int pass=0;pass<2;++pass) {
         save.player.status.slots={0,4,10,23};save.player.status.mixes={4,10,23,0};
         g_dComIfG_gameInfo.play.selected.fill(40);inventory.fill(40);
-        prepare_save();
+        nativeKeys=7;pendingKeys=1;prepare_save();assert(chest_keys()==0&&pendingKeys==0);
         for (int i=0;i<MAX_SELECT_ITEM;++i) {
             assert(save.player.status.slots[i]==dItemNo_NONE_e);
             assert(save.player.status.mixes[i]==dItemNo_NONE_e);
@@ -221,11 +228,16 @@ int main() {
     assert(s_run.timed_elites==1);credit_death(enemy,&actor);assert(s_run.timed_elites==1);
     // Life Steal heals once per credited death, independent of reward drops.
     s_run.ranks[unsigned(Upgrade::LifeSteal)]=1;life=4;
-    enemy.credited=false;credit_death(enemy,&actor);assert(life==5);
+    enemy.credited=false;credit_death(enemy,&actor);assert(life==4); // Non-sword death.
+    enemy.credited=false;enemy.swordKill=true;credit_death(enemy,&actor);assert(life==5);
     credit_death(enemy,&actor);assert(life==5);
     enemy.credited=false;enemy.retiring=true;credit_death(enemy,&actor);assert(life==5);
     enemy.retiring=false;life=12;credit_death(enemy,&actor);assert(life==12);
     enemy.credited=false;life=0;credit_death(enemy,&actor);assert(life==0);
+    s_run.endless=true;s_run.ticks=40*60*ticks_per_second-1;life=4;enemy.credited=false;
+    credit_death(enemy,&actor);assert(life==5);
+    ++s_run.ticks;enemy.credited=false;credit_death(enemy,&actor);assert(life==5);
+    s_run.endless=false;s_run.ticks=0;
     s_run.ranks[unsigned(Upgrade::LifeSteal)]=0;life=12;
     // Horde throttles only normal kill rewards; elites never consume the counter.
     s_run.options.horde=5;s_run.drop_progress=0;xp=rewards=0;

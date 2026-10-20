@@ -1,7 +1,38 @@
+// Large flying bosses have joint-relative body spheres far from their actor
+// origin. Measure sword reach to those live target surfaces, never to attack
+// spheres (Bloat's electric field / Stallord's breath) or a guessed model scale.
+bool melee_contact(const Enemy& enemy, fopAc_ac_c* actor, const cXyz& position,
+                   cXyz& point, float& distance) {
+    std::span<dCcD_Sph> body;
+    if (enemy.profile == fpcNm_E_YMB_e)
+        body = static_cast<daE_YMB_c*>(actor)->field_0x82c;
+    else if (enemy.profile == fpcNm_B_DS_e)
+        body = static_cast<daB_DS_c*>(actor)->mHeadSph;
+    else {
+        const cXyz delta = actor->current.pos - position;
+        distance = delta.x * delta.x + delta.z * delta.z;
+        point = actor->eyePos;
+        return std::abs(delta.y) <= 180 && distance >= 1;
+    }
+    const cXyz origin = position + cXyz(0, 70, 0);
+    distance = 1.e30f;
+    bool found = false;
+    for (const auto& sphere : body) {
+        if (!sphere.ChkTgSet() || sphere.GetR() <= 0) continue;
+        const cXyz delta = sphere.GetC() - origin;
+        const float length = delta.abs();
+        const float gap = std::max(0.f, length - sphere.GetR());
+        const cXyz contact = length > .001f ? origin + delta * (gap / length) : origin;
+        if (std::abs(contact.y - origin.y) > 180 || gap * gap >= distance) continue;
+        point = contact; distance = gap * gap; found = true;
+    }
+    return found;
+}
 // Own an actor ID, never a pointer or the camera's native attention target.
 // Keep a reachable enemy for the swing so orbiting does not switch targets.
-fopAc_ac_c* melee_target(daAlink_c* link) {
+fopAc_ac_c* melee_target(daAlink_c* link, cXyz* targetPoint = nullptr) {
     fopAc_ac_c* nearest = nullptr;
+    cXyz nearestPoint;
     float best = s_run.melee_radius(280) * s_run.melee_radius(280);
     const float retainedRange = s_run.melee_radius(330);
     const cXyz origin = link->current.pos + cXyz(0, 70, 0);
@@ -9,14 +40,18 @@ fopAc_ac_c* melee_target(daAlink_c* link) {
         if (!enemy.initialized || enemy.retiring || enemy.credited) continue;
         auto* actor = actor_by_id(enemy.id);
         if (!actor || actor->health <= 0) continue;
-        const cXyz delta = actor->current.pos - link->current.pos;
-        const float distance = delta.x * delta.x + delta.z * delta.z;
-        if (std::abs(delta.y) > 180 || distance < 1 || distance > retainedRange * retainedRange) continue;
-        cXyz point = actor->eyePos;
+        cXyz point; float distance;
+        if (!melee_contact(enemy, actor, link->current.pos, point, distance) ||
+            distance > retainedRange * retainedRange) continue;
         dBgS_LinChk wall; wall.Set(&origin, &point, link);
         if (dComIfG_Bgsp().LineCross(&wall)) continue;
-        if (enemy.id == s_meleeTarget) return actor;
-        if (distance < best) { best = distance; nearest = actor; }
+        // Keep the legacy heading for ordinary enemies; use the reachable body
+        // point for these bosses. Inside a body, face its origin instead.
+        const auto heading = point - origin;
+        const cXyz aim = (enemy.profile == fpcNm_E_YMB_e || enemy.profile == fpcNm_B_DS_e) &&
+            heading.x * heading.x + heading.z * heading.z > .001f ? point : actor->current.pos;
+        if (enemy.id == s_meleeTarget) { if (targetPoint) *targetPoint = aim; return actor; }
+        if (distance < best) { best = distance; nearest = actor; nearestPoint = aim; }
     }
     // Enemies retain priority; otherwise normal sword swings can break our pots.
     if (!nearest) for (const auto& pot:s_pots) {
@@ -29,9 +64,10 @@ fopAc_ac_c* melee_target(daAlink_c* link) {
         cXyz point=actor->current.pos+cXyz(0,30,0);
         dBgS_LinChk wall;wall.Set(&origin,&point,link);
         if (dComIfG_Bgsp().LineCross(&wall)) continue;
-        nearest=actor;best=distance;
+        nearest=actor;best=distance;nearestPoint=actor->current.pos;
     }
     s_meleeTarget = nearest ? fopAcM_GetID(nearest) : kNone;
+    if (nearest && targetPoint) *targetPoint = nearestPoint;
     return nearest;
 }
 void track_melee_facing(daAlink_c* link) {
@@ -44,8 +80,9 @@ void track_melee_facing(daAlink_c* link) {
         if(link->mProcID==daAlink_c::PROC_CUT_NORMAL)link->mProcVar2.field_0x300c=link->shape_angle.y;
         return;
     }
-    if (auto* target = melee_target(link)) {
-        const auto delta = target->current.pos - link->current.pos;
+    cXyz point;
+    if (melee_target(link, &point)) {
+        const auto delta = point - link->current.pos;
         link->shape_angle.y = cM_atan2s(delta.x, delta.z);
         // Native normal cuts steer back to this saved heading; finishers use
         // the same union member as a frame threshold, so leave those intact.

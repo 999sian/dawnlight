@@ -128,7 +128,7 @@ unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned r){r
 '''
 main = r'''
 void reset(){
-    s_run.start(123);s_attacks=std::deque<Attack>(initial_projectile_slots);s_cooldowns={};s_chests={};s_mapChestPlaced={};s_loot.ready=true;s_map=placement=0;s_arenaMeshReady=true;
+    s_run.start(123);s_attacks=std::deque<Attack>(initial_projectile_slots);s_cooldowns={};s_chests={};s_chestsExhausted=false;s_chestSequence=0;s_mapChestPlaced={};s_loot.ready=true;s_map=placement=0;s_arenaMeshReady=true;
     player={};player.current.pos={};player.id=s_player=1;s_selectedChest=kChestCount;
     arenaPresent=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
 }
@@ -363,11 +363,37 @@ int main(){
     floorRoom=50;assert(!spawn_chest(&player));floorRoom=51;
     assert(spawn_chest(&player));assert(s_chests[0].active && s_chests[0].position.y==0);
     for(unsigned i=1;i<kPaidChestCount;++i)assert(spawn_chest(&player));
-    assert(!spawn_chest(&player));
-    assert(s_chests[0].position.abs(s_chests[1].position)>=250);
+    const auto oldest=s_chests[0].spawnOrder,second=s_chests[1].spawnOrder;
+    assert(spawn_chest(&player));
+    assert(s_chests[0].spawnOrder>second&&s_chests[1].spawnOrder==second);
+    assert(spawn_chest(&player));assert(s_chests[1].spawnOrder>s_chests[0].spawnOrder);
+    assert(oldest<second&&s_chests[0].position.abs(s_chests[1].position)>=250);
+    // Placement failure preserves every live chest and the spawn chronology.
+    const auto sequence=s_chestSequence;
+    const auto kept=s_chests[2];invalidFloor=true;assert(!spawn_chest(&player));invalidFloor=false;
+    assert(s_chestSequence==sequence&&s_chests[2].spawnOrder==kept.spawnOrder&&s_chests[2].position.abs(kept.position)==0);
+    // Opening and selection are protected; use the next oldest available chest.
+    s_chests[2].opening=true;s_selectedChest=3;unsigned slot=kChestCount;
+    assert(find_chest_spawn_slot(0,kPaidChestCount,slot)&&slot==4);
+    s_chests[5].active=false;assert(find_chest_spawn_slot(0,kPaidChestCount,slot)&&slot==5);
+    for(unsigned i=0;i<kPaidChestCount;++i)s_chests[i].opening=true;
+    assert(!find_chest_spawn_slot(0,kPaidChestCount,slot));
+    for(unsigned i=0;i<kPaidChestCount;++i)s_chests[i].opening=false;
+    s_selectedChest=kChestCount;
     // Proximity alone never pauses combat or opens a purchase window.
     player.current.pos=s_chests[0].position;rupees=100;update_chests(&player);
     assert(s_run.phase==Phase::Running && !s_chests[0].opening && rupees==100);
+    // All pools disappear together when the item pool is exhausted, even during
+    // a spawn delay. Potion/slot availability later cannot restart this run's chests.
+    reset();for(auto& chest:s_chests)chest.active=true;s_chestDelay=999;
+    s_run.banned_items.fill(true);update_chests(&player);
+    assert(s_chestsExhausted&&s_selectedChest==kChestCount);
+    for(const auto& chest:s_chests)assert(!chest.active);
+    s_run.banned_items.fill(false);seed_map_chests(&player);assert(!spawn_chest(&player));
+    update_chests(&player);for(const auto& chest:s_chests)assert(!chest.active);
+    reset();s_run.phase=Phase::Treasure;s_chests[0].active=true;s_chests[0].opening=true;
+    s_run.banned_items.fill(true);assert(chest_spawning_allowed()&&s_chests[0].active);
+    s_run.phase=Phase::Running;assert(!chest_spawning_allowed()&&!s_chests[0].active);
     // Seed every map budget independently; fixed chests do not replenish after purchase.
     for(unsigned map=0;map<5;++map) {
         reset();s_map=map;invalidFloor=true;seed_map_chests(&player);
@@ -386,6 +412,16 @@ int main(){
         s_chests[kPaidChestCount]={};seed_map_chests(&player);
         assert(!s_chests[kPaidChestCount].active);
         assert(spawn_chest(&player)&&!s_chests[0].fixed);
+        // Even the generic selector cannot evict the initial 40-rupee chests.
+        for(unsigned i=kPaidChestCount+1;i<kSmallChestCount;++i)if(s_chests[i].active) {
+            assert(s_chests[i].fixed&&s_chests[i].spawnOrder==0);
+            s_chests[i].opening=false;
+        }
+        unsigned slot=kChestCount;
+        // The purchased map slot is inactive but still reserved by its pool.
+        s_chests[kPaidChestCount].active=true;s_chests[kPaidChestCount].fixed=true;
+        for(unsigned i=kPaidChestCount;i<kSmallChestCount;++i)s_chests[i].fixed=true;
+        assert(!find_chest_spawn_slot(kPaidChestCount,kSmallChestCount,slot));
     }
     // Exercise real area-weighted floor sampling across multiple field runs.
     for(unsigned seed=1;seed<=20;++seed){
@@ -426,7 +462,7 @@ int main(){
 }
 '''
 functions = ['nearest_item_target','next_boom_target','update_boom_wind','launch_item','explode_item','detonate_bomb_arrow','update_item_attack','fire_items',
-             'spawn_chest','seed_map_chests','update_chests']
+             'chest_spawning_allowed','find_chest_spawn_slot','spawn_chest','seed_map_chests','update_chests']
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'
     binary=Path(tmp)/'test'

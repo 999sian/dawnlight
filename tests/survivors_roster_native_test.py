@@ -45,7 +45,7 @@ struct TargetSet:dCcD_GObjInf {dCcD_GObjInf extra[3];
  dCcD_GObjInf& operator[](unsigned i){return i?extra[i-1]:*this;}
  struct Iter {TargetSet* a;unsigned i;auto& operator*(){return (*a)[i];}Iter& operator++(){++i;return *this;}bool operator!=(Iter o){return i!=o.i;}};Iter begin(){return {this,0};}Iter end(){return {this,3};}};
 struct NativeActor:fopAc_ac_c {
- enum {ACT_WAIT=1,ACT_MOVE=2,ACT_CHASEH=3,ACTION_ATTACK_e=4};
+ enum {ACT_WAIT=1,ACT_MOVE=2,ACT_CHASEH=3,ACTION_ATTACK_e=4,ACTION_WAIT_e=2};
  int mAction=0,mMode=0,mActionMode=0,mMoveMode=0,mActionMode1=0,action=0,mode=0,mActionPhase=0;
  int field_0x5b4=0,mCurAction=0,field_0x672=0,mCryTimer=0,combine_off_timer=0,mPlayerStunTimer=0,mPushButtonCount=0,field_0x6a0=0,animation=0;float speedF=0;
  float field_0x6d4=0,pl_range=0,pl_dir=0,field_0x6b8=0,mRecognizeDist=0,pl_recognize_dist=0,pl_search_range=0;
@@ -54,7 +54,8 @@ struct NativeActor:fopAc_ac_c {
  dCcD_Sph mSphere,mSphere2,mSphere3,cc_sph[3],tate_sph,mCcSphs[3],mTateSph;
  dCcD_Sph field_0xa7c[3],field_0xf5c,mCcHookCyl,mCcShieldSph,mSphA[3],mSphB[3],mSphC,m_sphere,m_sph;
  TargetSet ccSph,mCcSph;
- dCcD_Sph field_0x944[3],mBodyCyls[3],mNeckSph,field_0x82c[2],field_0xa9c,mCylCollider,mSphCc[3],mGndSph[3];
+ dCcD_Sph field_0x944[3],mBodyCyls[3],mNeckSph,field_0x82c[2],field_0xa9c,mCylCollider,mWarpCylCollider,mSphCc[3],mGndSph[3];
+ bool mBombArrowHit=false;
  dCcD_Stts mBodyCcStts,mColliderStts,field_0x958,mGndCcStts;
  dCcD_Sph field_0xa74[3],mSphArr[2],mSph2,mCcAtSph,mAtSph,mCollisionSphere,mHeadSph[5],field_0xa08;dCcD_Cyl field_0xb40;
  dCcU_AtInfo mAtColliderInfo;dCcD_Stts mCollisionStatus;
@@ -65,6 +66,14 @@ struct NativeActor:fopAc_ac_c {
  mDoExt_McaMorfSO morph; mDoExt_McaMorfSO* mpMorfSO=&morph,*mpMorf=&morph,*anm_p=&morph,*modelMorf=&morph,*mpModelMorf=&morph,*mpModelMorf1=&morph;
  void setActionMode(int a,int m=0){mAction=mActionMode=mActionMode1=a;mMode=mMoveMode=m;}
  void setBck(int a,int,float,float){animation=a;}
+ // Native damage_check's independent warp branch, before its HP-hit branch.
+ // It may also be inlined in action; the charge must survive without its hook.
+ void native_warp_reaction(){
+  if(mWarpCylCollider.ChkTgHit()||mBombArrowHit){
+   mWarpCylCollider.ResetTgHit();mBombArrowHit=false;animation=0x13;
+   setActionMode(ACTION_WAIT_e,11);
+  }
+ }
 };
 using e_rdb_class=NativeActor;using daE_VA_c=NativeActor;using daE_YMB_c=NativeActor;using daE_PZ_c=NativeActor;
 using e_th_class=NativeActor;using e_hzelda_class=NativeActor;using b_gnd_class=NativeActor;
@@ -167,20 +176,41 @@ int main(){
   // Normal runtime does not execute retiring actors again.
  }
  assert(credits==species_count-5&&disappears==credits&&deletes==credits);
- // Heavy direct and queued hits keep the live Phantom Zant charge running.
- for(int phase:{0,1,2})for(bool queued:{false,true}) {
+ // Reproduce both native warp triggers without the standalone damage hook.
+ for(bool bomb:{false,true}) {
+  NativeActor phantom;phantom.mActionMode=NativeActor::ACTION_ATTACK_e;
+  phantom.mBombArrowHit=bomb;if(!bomb)phantom.mWarpCylCollider.hit=&sword;
+  phantom.native_warp_reaction();
+  assert(phantom.mActionMode==NativeActor::ACTION_WAIT_e&&phantom.mMoveMode==11&&phantom.animation==0x13);
+ }
+ // Heavy direct and queued hits keep every charge phase running even with
+ // simultaneous warp-cylinder contacts and the bomb-arrow callback latch.
+ for(int phase:{0,1,2})for(bool queued:{false,true})for(unsigned triggers=0;triggers<4;++triggers) {
   NativeActor phantom;phantom.profile=fpcNm_E_PZ_e;phantom.health=100;
   phantom.mActionMode=NativeActor::ACTION_ATTACK_e;phantom.mMoveMode=phase;
   s_enemies={};effects={};auto& owner=s_enemies[0];owner.id=1;owner.profile=fpcNm_E_PZ_e;
   actors={{1,&phantom}};auto body=extended_body(&phantom,owner.profile);
+  phantom.animation=0xC;phantom.mBombArrowHit=triggers&1;
+  if(triggers&2)phantom.mWarpCylCollider.hit=&sword;
   owner.stagger=4; // An older stagger cannot freeze the newly entered charge.
   if(queued){auto& effect=effect_for(owner);effect.pending=7;effect.pendingStagger=true;}
   else body.targets[0]->hit=&player.mGuardAtCps;
   assert(update_extended_enemy(&phantom,owner)&&phantom.health==93&&owner.stagger==0);
+  assert(!phantom.mWarpCylCollider.ChkTgHit()&&!phantom.mBombArrowHit);
+  phantom.native_warp_reaction();assert(phantom.animation==0xC);
   assert(phantom.mActionMode==NativeActor::ACTION_ATTACK_e&&phantom.mMoveMode==phase);
   phantom.health=7;body.targets[0]->hit=&player.mGuardAtCps;const auto beforeCredits=credits;
   assert(!update_extended_enemy(&phantom,owner)&&phantom.health==0&&owner.retiring&&owner.credited);
   assert(credits==beforeCredits+1);
+ }
+ // No immunity and no suppressed reactions outside the protected charge.
+ {
+  NativeActor phantom;phantom.profile=fpcNm_E_PZ_e;phantom.mActionMode=NativeActor::ACTION_WAIT_e;
+  s_enemies={};effects={};auto& owner=s_enemies[0];owner.id=1;owner.profile=fpcNm_E_PZ_e;
+  phantom.mBombArrowHit=true;phantom.mWarpCylCollider.hit=&sword;
+  assert(update_extended_enemy(&phantom,owner));
+  assert(phantom.mBombArrowHit&&phantom.mWarpCylCollider.ChkTgHit());
+  phantom.native_warp_reaction();assert(phantom.mMoveMode==11);
  }
 
  // Every map's final boss uses the full boss pool and selected HP multiplier.

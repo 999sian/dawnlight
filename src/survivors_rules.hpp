@@ -44,9 +44,10 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
     return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Hurricane, FireBomb, BombArrow, FireEdge, DarkAura, Shockwave, Rupees, Count };
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Hurricane, FireBomb, BombArrow, FireEdge, DarkAura, Shockwave, Lightning, MasterSword, MultiStrike, Rupees, Count };
 inline constexpr DamageSource weapon_damage_source(unsigned weapon) {
     switch(Upgrade(weapon)) {
+    case Upgrade::Lightning:return DamageSource::Lightning;
     case Upgrade::Wave:return DamageSource::Wave;
     case Upgrade::Spin:return DamageSource::Spin;
     case Upgrade::JumpStrike:return DamageSource::Jump;
@@ -63,7 +64,7 @@ inline constexpr DamageSource weapon_damage_source(unsigned weapon) {
 inline constexpr unsigned upgrade_cap(Upgrade u) {
     switch (u) {
     case Upgrade::Knockback: case Upgrade::Piercing: return 10;
-    case Upgrade::Multishot: return 3;
+    case Upgrade::Multishot: case Upgrade::MultiStrike: return 3;
     case Upgrade::LifeRegen: return 5;
     case Upgrade::LifeSteal: case Upgrade::Hurricane: case Upgrade::FireBomb: case Upgrade::BombArrow:
     case Upgrade::FireEdge: case Upgrade::DarkAura: case Upgrade::Shockwave: return 1;
@@ -74,12 +75,12 @@ inline constexpr unsigned upgrade_cap(Upgrade u) {
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
 inline constexpr Rarity upgrade_min_rarity(Upgrade u) {
-    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? Rarity::Legendary : u == Upgrade::Multishot ? Rarity::Epic :
+    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? Rarity::Legendary : (u == Upgrade::Multishot || u == Upgrade::MultiStrike) ? Rarity::Epic :
         u == Upgrade::LifeRegen ? Rarity::Rare : Rarity::Common;
 }
 inline constexpr unsigned upgrade_units(Upgrade u, Rarity rarity) {
     if (rarity < upgrade_min_rarity(u)) return 0;
-    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? 1 : u == Upgrade::Multishot ?
+    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? 1 : (u == Upgrade::Multishot || u == Upgrade::MultiStrike) ?
         (rarity == Rarity::Legendary ? 2 : 1) : reward_units(rarity);
 }
 inline constexpr std::array rarity_names{"Common", "Uncommon", "Rare", "Epic", "Legendary"};
@@ -89,36 +90,39 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Hurricane", "Fire Bomb", "Bomb Arrow", "Fire Edge", "Dark Aura", "Shockwave", "Rupees"};
+    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Hurricane", "Fire Bomb", "Bomb Arrow", "Fire Edge", "Dark Aura", "Shockwave", "Lightning Strike", "Master Sword", "Multi Strike", "Rupees"};
 inline constexpr std::array descriptions{
     "Piercing sword waves. Great Spin projectile with a larger radius from level 15.",
     "Automatic spin attack. Great Spin with a larger radius from level 15.",
     "Unlock or improve an automatic shield bash that staggers enemies.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
-    "Increase melee reach, Dual Wield target range, Spin and Jump Strike radii, bow range and Boomerang flight/hop range.", "Attract experience, rupees, hearts and heart pieces from farther away.",
+    "Increase attack reach/range. Double effect for melee, Dual Wield splash, Spin, Jump Strike and Lightning Strike; other abilities retain normal scaling.", "Attract experience, rupees, hearts and heart pieces from farther away.",
     "Gain one maximum heart and fully heal.",
     "Faster, stronger arrows. Three arrows from level 10; five from level 20, across 45 degrees. Extra hits on one enemy per volley deal 25% damage.",
     "A damaging returning boomerang. Upgrades increase damage, hops and firing rate; hit size stays fixed.",
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
     "Ignite enemies for periodic damage. Hits refresh the burn; upgrades improve damage and duration.",
-    "Improve rarity weights by +5% and critical chance by +2.5% per level. Heart and rupee bonuses gain +10% per level, capped at +50%.",
+    "Improve rarity weights by +5% and critical chance by +2.5% per level. Lightning Strike gains +2 percentage points per level, up to 60%. Heart and rupee bonuses gain +10% per level, capped at +50%.",
     "Red potions restore an extra quarter heart per level.",
     "Direct hits gain +0.75% base critical chance per level. Luck multiplies this chance.",
     "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
     "Master Sword: occasionally perform a quick Jump Strike. Landing splash starts at 30% melee damage; +5 percentage points per rank.",
-    "Improve equipped Dual Wield: +2.5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
-    "Add a bounded push to all direct attacks. +40 distance per level; maximum level 10. Heavy weapons start with a fixed 240-unit push. Bosses and elites are immune to knockback.",
+    "Improve equipped Dual Wield: +1% melee critical chance and +2.5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
+    "Add a horizontal push to all direct attacks without interrupting enemy actions. +40 distance per level; maximum level 10. Heavy weapons start with a fixed 240-unit push. Bosses and elites are immune to knockback.",
     "Arrows pass through one additional enemy per level, damaging every target. Applies to every arrow, including Multishot; maximum level 10.",
-    "Add one projectile per level to Bow, Boomerang, Bombs, Ball and Chain and Sword Wave. Epic grants 1 level; Legendary grants 2; maximum level 3.",
+    "Add one projectile/chain per level to Bow, Boomerang, Bombs, Ball and Chain, Sword Wave and Lightning Strike. Epic grants 1 level; Legendary grants 2; maximum level 3.",
     "Reduce passive regeneration interval by 1 second per level; maximum level 5. Rare or better. Stacks with the Life Regen talent.",
-    "Restore a quarter heart for each defeated enemy. Legendary only; one level.",
+    "Sword kills restore health. Damage over time does not trigger healing.",
     "Double Boomerang size, wind effects and hit radius. It damages every enemy along its flight path.",
     "Bomb explosions ignite every hit enemy for 10% of bomb damage each second for 5 seconds.",
     "Bomb arrows explode once on their first enemy hit for 50% bow damage. Level-5 bomb radius scales with Reach; Piercing still works.",
     "All melee hits ignite enemies for 10% normal melee damage each second for 5 seconds, including Spin, Dual Wield and Jump Strike.",
     "While Dark Link is active, ignite nearby enemies with black flames. Each second deals 10% of target maximum HP; lingers 5 seconds outside the aura.",
     "Shield Attack launches a piercing shockwave for current melee damage. Level-5 Ball and Chain width scales with Reach.",
+    "Melee hits can release chain lightning that jumps between enemies. Luck increases its trigger chance.",
+    "Increases sword ability damage and Lightning Strike damage. Requires the Master Sword from a chest; Light Sword from level 5.",
+    "Repeat Sword Attack, Spin Attack, Sword Wave and Lightning Strike. Requires Dual Wield.",
     "Receive 20 rupees."};
 
 // A burn refresh extends its duration without delaying the next tick or stacking.
@@ -169,6 +173,7 @@ struct RunOptions {
         return unsigned(ability)<manual_aim.size()&&manual_aim[unsigned(ability)];
     }
     bool manual_enabled(Upgrade weapon) const { return manual_enabled(manual_ability(weapon)); }
+    unsigned twilit_rank() const { return std::clamp(enemy_hp,1u,10u)+std::clamp(enemy_damage,1u,10u)+std::clamp(enemy_speed,1u,3u)+std::clamp(horde,1u,5u)-4; }
     unsigned score_percent() const {
         return 100+10*(std::clamp(enemy_hp,1u,10u)-1)+15*(std::clamp(enemy_damage,1u,10u)-1)+
             25*(std::clamp(enemy_speed,1u,3u)-1)+10*(std::clamp(horde,1u,5u)-1);
@@ -187,6 +192,9 @@ struct Run {
     uint32_t random = 1;
     DamageTotals damage;
     bool modded = false; // Sticky for this run, even if the extra mod is later disabled.
+    bool endless=false;
+    bool debug_run=false; // Captured at start; remains excluded through Endless.
+    unsigned endless_start=0, normal_score=0, rank_snapshot=0;
     RunOptions options;
     Talents talents;
     unsigned timed_elites = 0, guard_elites = 0;
@@ -209,6 +217,8 @@ struct Run {
     }
     void start(uint32_t seed, RunOptions settings = {}, Talents perks = {}) {
         *this={}; options=settings; options.clamp(); talents=perks;
+        debug_run=debug_enabled && debug_session_enabled;
+        if(!debug_run)options.debug={};
         maximum_hearts=talents.starting_hearts();
         starting_item_pending=talents.rank(Talent::StartingItem)>0;
         free_rerolls+=talents.rank(Talent::Rerolls); banishes+=talents.rank(Talent::Banishes);
@@ -216,6 +226,16 @@ struct Run {
     }
     DebugOptions debug_options() const { auto value=options.debug;value.clamp();return value; }
     unsigned run_duration() const { return debug_options().run_minutes*60*ticks_per_second; }
+    unsigned twilit_rank() const { return rank_snapshot?rank_snapshot:options.twilit_rank(); }
+    unsigned endless_minutes() const { return endless && ticks>=endless_start?(ticks-endless_start)/(60*ticks_per_second):0; }
+    double endless_factor() const { return std::pow(1.1, double(std::min(1000u,endless_minutes()))); }
+    bool continue_endless() {
+        if(phase!=Phase::Victory || endless)return false;
+        normal_score=score();endless_start=ticks;endless=true;phase=Phase::Running;return true;
+    }
+    unsigned incoming_damage(unsigned base,unsigned factor=1) const {
+        return unsigned(std::min(32767.0,std::ceil(double(base)*options.enemy_damage*factor*endless_factor())));
+    }
     unsigned boss_interval() const { return run_duration()/timed_elite_count; }
     unsigned player_damage(unsigned base) const { return unsigned(std::min<uint64_t>(32767,uint64_t(base)*debug_options().player_damage)); }
     bool infinite_rerolls() const { return debug_options().infinite_rerolls!=0; }
@@ -224,13 +244,14 @@ struct Run {
     unsigned magnet_range() const { return (150+65*rank(Upgrade::Magnet))*(100+10*talents.rank(Talent::Magnet))/100; }
     unsigned normal_kills() const { return kills-std::min(kills,timed_elites+guard_elites); }
     unsigned score() const {
-        const uint64_t base=2*(std::min(ticks,run_duration())/ticks_per_second)+uint64_t(normal_kills())*10/std::clamp(options.horde,1u,5u)+
+        const uint64_t base=2*((endless?ticks:std::min(ticks,run_duration()))/ticks_per_second)+uint64_t(normal_kills())*10/std::clamp(options.horde,1u,5u)+
             uint64_t(timed_elites)*500+uint64_t(guard_elites)*250+uint64_t(level ? level-1 : 0)*50+
-            (phase==Phase::Victory ? 3000 : 0);
+            (phase==Phase::Victory || endless ? 3000 : 0);
         return unsigned(std::min<uint64_t>(UINT32_MAX,base*options.score_percent()/100));
     }
+    unsigned earned_meta_xp() const { return debug_run?0:score()-std::min(score(),endless?normal_score:0u); }
     unsigned required_xp() const { return 5 + level * 3; }
-    unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return u == Upgrade::DualWield ? dual_wield : i < ranks.size() ? ranks[i] : 0; }
+    unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return u == Upgrade::MasterSword ? master_sword : u == Upgrade::DualWield ? dual_wield : i < ranks.size() ? ranks[i] : 0; }
     unsigned potion_heal_quarters() const { return 4 + rank(Upgrade::PotionHealing); }
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
     unsigned crit_chance_basis_points() const { return std::min(10000u, (std::min(30u,rank(Upgrade::CritChance))*75+talents.rank(Talent::CritChance)*100)*(100+5*std::min(20u,rank(Upgrade::Luck))/2)/100); }
@@ -242,8 +263,9 @@ struct Run {
         uint32_t roll;do {roll=next_random()-1;} while(roll>=limit);
         return roll%10000<std::min(10000u,chance);
     }
-    unsigned critical_power(unsigned base, bool* critical=nullptr) {
-        const bool hit=base && roll_chance(crit_chance_basis_points());
+    unsigned melee_crit_bonus() const { return std::min(30u,dual_wield)*100; }
+    unsigned critical_power(unsigned base, bool* critical=nullptr, bool melee=false) {
+        const bool hit=base && roll_chance(std::min(10000u,crit_chance_basis_points()+(melee?melee_crit_bonus():0)));
         if (critical) *critical=hit;
         if (!hit) return base;
         // Native health/damage are integral; round once, before Dark Link.
@@ -286,8 +308,11 @@ struct Run {
     bool eligible(Upgrade u) const {
         if (u >= Upgrade::Count || banned_upgrades[unsigned(u)]) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && banned_items[unsigned(u)-unsigned(Upgrade::Bow)]) return false;
+        if (restricted_healing() && u==Upgrade::LifeSteal) return false;
         if (u == Upgrade::Rupees) return true;
         if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
+        if (u == Upgrade::MultiStrike && !owns(ChestReward::OrdonSword)) return false;
+        if (u == Upgrade::MasterSword && (!owns(ChestReward::MasterSword) || !chest_eligible(ChestReward::MasterSword))) return false;
         if (u == Upgrade::ShieldAttack && !owns(ChestReward::Shield)) return false;
         if (u == Upgrade::DualWield && (!owns(ChestReward::OrdonSword) || banned_items[unsigned(ChestReward::OrdonSword)])) return false;
         if (u == Upgrade::PotionHealing && !red_potion) return false;
@@ -299,7 +324,7 @@ struct Run {
         if (u == Upgrade::DarkAura && !dark_link) return false;
         if (u == Upgrade::Shockwave && (!shield || !rank(Upgrade::ShieldAttack))) return false;
         if (u == Upgrade::Multishot && !rank(Upgrade::Wave) && !rank(Upgrade::Bow) &&
-            !rank(Upgrade::Boomerang) && !rank(Upgrade::Bombs) && !rank(Upgrade::Ball)) return false;
+            !rank(Upgrade::Boomerang) && !rank(Upgrade::Bombs) && !rank(Upgrade::Ball) && !rank(Upgrade::Lightning)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
         if (u == Upgrade::Heart && maximum_hearts >= 20) return false;
         return true;
@@ -332,7 +357,8 @@ struct Run {
         const auto u = offers[choice];
         if (!eligible(u) || offer_rarities[choice] < upgrade_min_rarity(u)) return false;
         const unsigned gain = upgrade_gain(u, offer_rarities[choice]);
-        if (u == Upgrade::DualWield) dual_wield += gain;
+        if (u == Upgrade::MasterSword) master_sword += gain;
+        else if (u == Upgrade::DualWield) dual_wield += gain;
         else if (u != Upgrade::Rupees) ranks[static_cast<unsigned>(u)] += gain;
         if (u == Upgrade::Heart) maximum_hearts += gain;
         phase = Phase::Running;
@@ -348,6 +374,8 @@ struct Run {
     float melee_speed() const { return melee_speed_percent()/100.f; }
     unsigned melee_cooldown() const { return std::max(6u, 30*cooldown_percent()/melee_speed_percent()); }
     unsigned life_regen_interval() const { return (20-std::min(5u,talents.rank(Talent::LifeRegen))-std::min(5u,rank(Upgrade::LifeRegen)))*ticks_per_second; }
+    bool restricted_healing() const { return endless && ticks>=40*60*ticks_per_second; }
+    bool life_steal_active() const { return !restricted_healing() && rank(Upgrade::LifeSteal); }
     bool life_regen_due() const { return phase==Phase::Running && ticks && ticks%life_regen_interval()==0; }
     unsigned auto_rupees() const { return ticks && ticks%(5*ticks_per_second)==0 ? talents.rank(Talent::AutoRupees) : 0; }
     unsigned jump_splash_percent() const {
@@ -411,6 +439,7 @@ struct Run {
         if (!can_banish() || phase!=Phase::Upgrade || u>=Upgrade::Count || !eligible(u)) return false;
         if(!infinite_banishes()) --banishes;
         banned_upgrades[unsigned(u)]=true;
+        if(u==Upgrade::MasterSword)banned_items[unsigned(ChestReward::MasterSword)]=true;
         if(u==Upgrade::DualWield)banned_items[unsigned(ChestReward::OrdonSword)]=true;
         if(u>=Upgrade::Bow && u<=Upgrade::Ball)banned_items[unsigned(u)-unsigned(Upgrade::Bow)]=true;
         return true;
@@ -419,6 +448,7 @@ struct Run {
         if (!can_banish() || phase!=Phase::TreasureChoice || !chest_eligible(reward,bottles)) return false;
         if(!infinite_banishes()) --banishes;
         banned_items[unsigned(reward)]=true;
+        if(reward==ChestReward::MasterSword)banned_upgrades[unsigned(Upgrade::MasterSword)]=true;
         if(reward==ChestReward::OrdonSword)banned_upgrades[unsigned(Upgrade::DualWield)]=true;
         const auto weapon=chest_weapon(reward);if(weapon!=Upgrade::Count)banned_upgrades[unsigned(weapon)]=true;
         return true;
@@ -478,8 +508,10 @@ struct Run {
     }
     // Apply exactly the selected reward. No reroll, payment or rank change on
     // an invalid/stale selection; presentation commits this preview only once.
-    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common, bool free = false, bool fixed = false) {
-        const unsigned price = chest_price(free, fixed);
+    // A key waives payment, not the ordinary chest's price progression. The
+    // presentation layer reserves/commits the native key with this preview.
+    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common, bool free = false, bool fixed = false, bool key = false) {
+        const unsigned price = key ? 0 : chest_price(free, fixed);
         if (phase != Phase::Treasure || rupees < price || !chest_eligible(reward, bottle_capacity != 0)) return false;
         const unsigned gain = chest_gain(reward, rarity, bottle_capacity);
         rupees = rupees - price + chest_rupees(reward, rarity, bottle_capacity);
@@ -493,8 +525,8 @@ struct Run {
         return true;
     }
     unsigned item_cooldown(Upgrade weapon) const {
-        const unsigned base = weapon==Upgrade::Bow?75:weapon==Upgrade::Boomerang?85:weapon==Upgrade::Bombs?110:100;
-        const unsigned floor=weapon==Upgrade::Bow?20:weapon==Upgrade::Boomerang?30:weapon==Upgrade::Bombs?45:40;
+        const unsigned base = weapon==Upgrade::Bow?75:(weapon==Upgrade::Boomerang || weapon==Upgrade::Lightning)?85:weapon==Upgrade::Bombs?110:100;
+        const unsigned floor=weapon==Upgrade::Bow?20:(weapon==Upgrade::Boomerang || weapon==Upgrade::Lightning)?30:weapon==Upgrade::Bombs?45:40;
         return std::max(floor,cooldown(base*100/(100+5*(std::max(1u,rank(weapon))-1)/2)));
     }
     bool tick(bool playable) {
@@ -504,9 +536,9 @@ struct Run {
         if (horde_remaining) --horde_remaining;
         // Independent one-second trials: E(events / 5 minutes) = 300 / 150 = 2.
         // Overlaps add time, never multiply the active spawn boost.
-        if (ticks < run_duration() && ticks % ticks_per_second == 0 && next_random() % 150 == 0)
+        if ((endless || ticks < run_duration()) && ticks % ticks_per_second == 0 && next_random() % 150 == 0)
             horde_remaining += horde_duration;
-        if (ticks >= run_duration()) horde_remaining = 0;
+        if (!endless && ticks >= run_duration()) horde_remaining = 0;
         if (dark_remaining) --dark_remaining;
         if (dark_link && !dark_permanent() && ++dark_clock >= dark_interval()) {
             dark_clock = 0; dark_remaining = dark_duration();
@@ -514,7 +546,8 @@ struct Run {
         return true;
     }
     // Fixed map/time curves: never scale from the player's actual gear or luck.
-    // Sample on spawn (untouched dormant guards may refresh); stop growth at 20m.
+    // Normal runs stop at 20m. Endless extrapolates the last map segment and
+    // compounds its own minute bonus, within native signed-16-bit HP limits.
     unsigned enemy_health(unsigned base, bool elite, unsigned map=0, bool finalBoss=false) const {
         constexpr uint64_t scale=1000000;
         constexpr unsigned times[]{0,60,300,600,900,1200};
@@ -526,15 +559,16 @@ struct Run {
             {1000000,1097053,4979767,12787987,22408492,32725714}};
         constexpr unsigned finalHp[]{2300,5400,4800,2800,2600};
         map=map<5?map:0;
-        const unsigned time=std::min(ticks,duration);
+        const unsigned time=endless?ticks:std::min(ticks,duration);
         unsigned i=1;while(i<5 && time>times[i]*ticks_per_second)++i;
         const uint64_t factor=curves[map][i-1]+(curves[map][i]-curves[map][i-1])*
             (time-times[i-1]*ticks_per_second)/((times[i]-times[i-1])*ticks_per_second);
-        const uint64_t hp=finalBoss ? uint64_t(finalHp[map])*scale : elite ?
+        const uint64_t hp=finalBoss ? uint64_t(finalHp[map])*scale*(endless?double(factor)/curves[map][5]:1.0) : elite ?
             std::max(120*scale,32*factor) : std::clamp(base,1u,32767u)*factor;
-        return unsigned(std::min<uint64_t>(32767,(hp*std::clamp(options.enemy_hp,1u,10u)+scale/2)/scale));
+        return unsigned(std::min(32767.0,std::floor(double(hp)*std::clamp(options.enemy_hp,1u,10u)*endless_factor()/scale+.5)));
     }
-    unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u) * 3 * options.horde; }
+    // Fixed population ceiling; time and Horde difficulty only affect spawn cadence/batches.
+    unsigned target_population() const { return 345u; }
     unsigned spawn_batch() const { return options.horde * (horde_remaining ? 3 : 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
     unsigned cooldown_percent() const {
@@ -551,7 +585,7 @@ struct Run {
     enum class Drop { None, Heart, GreenRupee, BlueRupee, YellowRupee, RedRupee, PurpleRupee, OrangeRupee, SilverRupee, Count };
     Drop roll_drop() {
         const unsigned roll = next_random() % 10000;
-        if (roll < lucky_chance(250)) return Drop::Heart;
+        if (roll < lucky_chance(250)) return restricted_healing()?Drop::None:Drop::Heart;
         if (roll < lucky_chance(500) || roll >= lucky_chance(5000)) return Drop::None;
         const unsigned color = next_random() % 10000;
         unsigned threshold = 0;
@@ -563,9 +597,11 @@ struct Run {
         return Drop::GreenRupee;
     }
     enum class PotDrop { HeartPiece, GreenRupee, BlueRupee, YellowRupee, RedRupee,
-                         PurpleRupee, OrangeRupee, SilverRupee, Count };
+                         PurpleRupee, OrangeRupee, SilverRupee, SmallKey, Count };
     PotDrop roll_pot_drop() {
-        if (next_random()%10000 < lucky_chance(200)) return PotDrop::HeartPiece;
+        const unsigned rare = next_random()%10000, chance = lucky_chance(200);
+        if (rare < chance) return restricted_healing()?PotDrop::GreenRupee:PotDrop::HeartPiece;
+        if (rare < 2*chance) return PotDrop::SmallKey;
         const unsigned color=next_random()%10000;
         constexpr std::array<unsigned,6> chances{10,40,150,600,1000,2200};
         unsigned threshold=0;
@@ -589,7 +625,16 @@ struct Run {
     float item_range(Upgrade weapon) const { return (weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range; }
     float boomerang_hop_range() const { return radius(800.f); }
     float radius(float base) const { return base * (1.0f + 0.075f * rank(Upgrade::Reach)); }
-    float melee_radius(float base) const { return 1.3f * radius(base); }
+    float melee_reach(float base) const { return base * (1.f + .15f * rank(Upgrade::Reach)); }
+    float melee_area_radius(float base) const { return base * (1.f + 2.f*(std::sqrt(radius(1.f))-1.f)); }
+    float melee_radius(float base) const { return 1.3f * melee_reach(base); }
+    unsigned multi_strikes() const { return dual_wield ? std::min(3u,rank(Upgrade::MultiStrike)) : 0; }
+    unsigned lightning_hops() const { return rank(Upgrade::Lightning) ? 2*std::min(10u,1+(rank(Upgrade::Lightning)-1)/3) : 0; }
+    unsigned lightning_power() const { return attack_power(unsigned(Upgrade::Lightning))+master_sword/2; }
+    float lightning_hop_range() const { return melee_reach(800.f); }
+    static constexpr float lightning_speed=42.f*5;
+    static constexpr unsigned lightning_chance=2000;
+    unsigned lightning_proc_chance() const { return lightning_chance*luck_percent()/100; }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };
 
@@ -600,32 +645,34 @@ struct HighScoreRun {
     uint32_t score=0, meta_level=1, unlock_points=0;
     bool present() const { return run.phase==Phase::Victory || run.phase==Phase::Defeat; }
     bool cheated() const { return run.options.allow_cheats || run.modded; }
-    static constexpr unsigned word_count=20+unsigned(Upgrade::Rupees)+2*damage_source_count;
+    static constexpr unsigned legacy_word_count=20+unsigned(Upgrade::Rupees)+2*damage_source_count;
+    static constexpr unsigned word_count=legacy_word_count+3;
     using Words=std::array<uint32_t,word_count>;
     Words encode() const {
         Words words{};
-        if(!present())return words;
+        if(!present() || run.debug_run)return words;
         unsigned i=0;const auto put=[&](uint32_t n){words[i++]=n;};
         put(run.phase==Phase::Victory?2:1);put(score);put(meta_level);put(unlock_points);
-        put(unsigned(run.options.allow_cheats)|(unsigned(run.modded)<<1)|(unsigned(run.red_potion)<<2));
+        put(unsigned(run.options.allow_cheats)|(unsigned(run.modded)<<1)|(unsigned(run.red_potion)<<2)|(unsigned(run.endless)<<3));
         put(run.ticks);put(run.kills);put(run.level);put(run.timed_elites);put(run.guard_elites);put(run.chests_opened);
         put(run.master_sword);put(run.shield);put(run.dual_wield);put(run.dark_link);
         put(run.options.enemy_hp);put(run.options.enemy_damage);put(run.options.enemy_speed);put(run.options.horde);
         put(run.debug_options().run_minutes);
         for(auto rank:run.ranks)put(rank);
         for(auto damage:run.damage.dealt){put(uint32_t(damage));put(uint32_t(damage>>32));}
+        put(run.twilit_rank());put(run.endless_start);put(run.normal_score);
         return words;
     }
-    bool decode(std::span<const uint32_t,word_count> words) {
+    bool decode(std::span<const uint32_t,word_count> words, unsigned version=11) {
         if(!words[0]) {
             if(std::any_of(words.begin(),words.end(),[](auto word){return word!=0;}))return false;
             *this={};return true;
         }
-        if(words[0]>2 || !words[2] || words[3]>=words[2] || (words[4]&~7u))return false;
+        if(words[0]>2 || !words[2] || words[3]>=words[2] || (words[4]&~15u))return false;
         HighScoreRun next;auto& r=next.run;
         unsigned i=0;const auto get=[&](){return words[i++];};
         r.phase=get()==2?Phase::Victory:Phase::Defeat;next.score=get();next.meta_level=get();next.unlock_points=get();
-        const auto flags=get();r.options.allow_cheats=flags&1;r.modded=flags&2;r.red_potion=flags&4;
+        const auto flags=get();r.options.allow_cheats=flags&1;r.modded=flags&2;r.red_potion=flags&4;r.endless=flags&8;
         r.ticks=get();r.kills=get();r.level=get();r.timed_elites=get();r.guard_elites=get();r.chests_opened=get();
         r.master_sword=get();r.shield=get();r.dual_wield=get();r.dark_link=get();
         r.options.enemy_hp=get();r.options.enemy_damage=get();r.options.enemy_speed=get();r.options.horde=get();
@@ -640,6 +687,15 @@ struct HighScoreRun {
             if(damage>UINT64_MAX-total)return false;
             total+=damage;
         }
+        r.rank_snapshot=get();r.endless_start=get();r.normal_score=get();
+        // Older snapshots either omitted rank or stored the unadjusted sum.
+        if(version<10)r.rank_snapshot=r.options.twilit_rank();
+        else if(version==10) {
+            if(r.rank_snapshot!=r.options.twilit_rank()+4)return false;
+            r.rank_snapshot-=4;
+        }
+        if(r.rank_snapshot!=r.options.twilit_rank() || (r.endless && r.endless_start>r.ticks) ||
+           (!r.endless && (r.endless_start || r.normal_score)))return false;
         *this=next;return true;
     }
 };
@@ -650,11 +706,19 @@ struct Records {
     // Retain the unclassified legacy aggregate for migration; never promote it
     // into Ranked without an integrity-tagged result snapshot.
     std::array<uint32_t,5> high_scores{};
-    std::array<HighScoreRun,5> ranked{}, cheated{};
-    const HighScoreRun& high_score(unsigned map,bool assisted) const { return (assisted?cheated:ranked)[map]; }
-    void clear_high_scores() { high_scores={};ranked={};cheated={}; }
-    static constexpr unsigned word_count=34+10*HighScoreRun::word_count;
+    std::array<HighScoreRun,5> ranked{}, cheated{}, endless_ranked{}, endless_cheated{};
+    const HighScoreRun& high_score(unsigned map,bool assisted,bool endless=false) const { return (endless?(assisted?endless_cheated:endless_ranked):(assisted?cheated:ranked))[map]; }
+    void clear_high_scores() { high_scores={};ranked={};cheated={};endless_ranked={};endless_cheated={}; }
+    void delete_high_score(unsigned map,bool assisted,bool endless=false) {
+        if(map>=high_scores.size())return;
+        (endless?(assisted?endless_cheated:endless_ranked):(assisted?cheated:ranked))[map]={};
+        if(!endless)high_scores[map]=std::max(ranked[map].score,cheated[map].score);
+    }
+    static constexpr unsigned word_count=34+20*HighScoreRun::word_count;
+    static constexpr unsigned v9_byte_count=4*(34+10*HighScoreRun::legacy_word_count);
     static constexpr unsigned byte_count=4*word_count;
+    static constexpr unsigned v8_score_words=20+30+2*18;
+    static constexpr unsigned v8_byte_count=4*(34+10*v8_score_words);
     uint32_t cleared_maps=0;
     bool map_unlocked(unsigned map) const {
         return map<high_scores.size() && (map==0 || (cleared_maps & (1u<<(map-1))));
@@ -667,26 +731,27 @@ struct Records {
     unsigned next_level_xp() const { return 2000+500*(level()-1); }
     bool buy(Talent t) { if(!available_points() || !talents.can_buy(t))return false;++talents.ranks[unsigned(t)];return true; }
     void finish(const Run& run, unsigned map=0) {
-        if (run.phase != Phase::Victory && run.phase != Phase::Defeat) return;
+        if (run.debug_run || (run.phase != Phase::Victory && run.phase != Phase::Defeat)) return;
         if(map>=high_scores.size())return;
-        high_scores[map]=std::max(high_scores[map],run.score());
-        total_xp=std::min(max_meta_xp,total_xp+run.score());
-        ++runs; wins += run.phase == Phase::Victory;
+        if(!run.endless)high_scores[map]=std::max(high_scores[map],run.score());
+        total_xp=std::min(max_meta_xp,total_xp+run.earned_meta_xp());
+        if(!run.endless){++runs; wins += run.phase == Phase::Victory;}
         if(run.phase==Phase::Victory)cleared_maps|=1u<<map;
         best_ticks = std::max(best_ticks, run.ticks);
         best_kills = std::max(best_kills, run.kills);
         best_level = std::max(best_level, run.level);
-        auto& best=(run.options.allow_cheats || run.modded?cheated:ranked)[map];
+        const bool assisted=run.options.allow_cheats || run.modded;
+        auto& best=(run.endless?(assisted?endless_cheated:endless_ranked):(assisted?cheated:ranked))[map];
         if(!best.present() || run.score()>best.score)best={run,run.score(),level(),available_points()};
     }
     std::array<uint8_t,byte_count> encode() const {
-        std::array<uint32_t,word_count> words{0x56525348,8,runs,wins,best_ticks,best_kills,best_level};
+        std::array<uint32_t,word_count> words{0x56525348,11,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
         words[33]=cleared_maps;
         unsigned offset=34;
-        for(const auto* category:{&ranked,&cheated})for(const auto& best:*category) {
+        for(const auto* category:{&ranked,&cheated,&endless_ranked,&endless_cheated})for(const auto& best:*category) {
             const auto record=best.encode();
             std::copy(record.begin(),record.end(),words.begin()+offset);offset+=record.size();
         }
@@ -695,11 +760,11 @@ struct Records {
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=byte_count)return false;
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=v8_byte_count && bytes.size()!=v9_byte_count && bytes.size()!=byte_count)return false;
         std::array<uint32_t,word_count> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==byte_count)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==v8_byte_count)||(words[1]==9 && bytes.size()==v9_byte_count)||((words[1]==10 || words[1]==11) && bytes.size()==byte_count)))return false;
         Records next;
         // Legacy saves have aggregate wins only; scores also include defeats.
         if(words[1]>=7){
@@ -715,10 +780,14 @@ struct Records {
         }
         if(words[1]>=8) {
             unsigned offset=34;
-            for(unsigned category=0;category<2;++category)for(auto& best:category?next.cheated:next.ranked) {
-                if(!best.decode(std::span<const uint32_t,HighScoreRun::word_count>(words.data()+offset,HighScoreRun::word_count)) ||
-                   (best.present() && best.cheated()!=bool(category)))return false;
-                offset+=HighScoreRun::word_count;
+            for(unsigned category=0;category<(words[1]>=10?4u:2u);++category)for(auto& best:category==0?next.ranked:category==1?next.cheated:category==2?next.endless_ranked:next.endless_cheated) {
+                HighScoreRun::Words snapshot{};
+                if(words[1]==8) {
+                    std::copy_n(words.begin()+offset,20+30,snapshot.begin());
+                    std::copy_n(words.begin()+offset+20+30,2*18,snapshot.begin()+20+unsigned(Upgrade::Rupees));
+                } else std::copy_n(words.begin()+offset,words[1]==9?HighScoreRun::legacy_word_count:snapshot.size(),snapshot.begin());
+                if(!best.decode(snapshot,words[1]) || (best.present() && (best.cheated()!=bool(category%2) || best.run.endless!=(category>=2))))return false;
+                offset+=words[1]==8?v8_score_words:words[1]==9?HighScoreRun::legacy_word_count:HighScoreRun::word_count;
             }
         }
         *this=next;return true;

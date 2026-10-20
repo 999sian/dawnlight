@@ -301,9 +301,25 @@ static bool draw_meter(
         const float width = bounds.right - bounds.left;
         const float height = bounds.bottom - bounds.top;
         if (bounds.valid && width > 0.0f && height > 0.0f) {
-            meter->mpMagicParent->scale(
-                (placement->right - placement->left) / width,
-                (placement->bottom - placement->top) / height);
+            // Keep the native end ornaments at an isotropic scale. Lengthen
+            // only the middle/base and fill, and move the right cap, just as
+            // native drawMagic changes a meter's capacity.
+            const float scale=(placement->bottom-placement->top)/height;
+            meter->mpMagicParent->scale(scale,scale);
+            bounds=combat_meter_bounds(meter);
+            const auto right=pane_screen_bounds(meter->mpMagicFrameR);
+            meter->mpMagicFrameR->move(meter->mpMagicFrameR->getInitPosX()+100.f,
+                meter->mpMagicFrameL->getInitPosY());
+            const float unit=(pane_screen_bounds(meter->mpMagicFrameR).left-right.left)/100.f;
+            meter->mpMagicFrameR->move(meter->mpMagicFrameR->getInitPosX(),
+                meter->mpMagicFrameL->getInitPosY());
+            const float extension=unit>0.f ? ((placement->right-placement->left)-(bounds.right-bounds.left))/unit : 0.f;
+            meter->mpMagicBase->resize(std::max(1.f,meter->mpMagicBase->getInitSizeX()+extension),
+                meter->mpMagicBase->getInitSizeY());
+            meter->mpMagicMeter->resize(std::max(1.f,fullWidth+extension)*fillRatio,
+                meter->mpMagicMeter->getInitSizeY());
+            meter->mpMagicFrameR->move(meter->mpMagicFrameR->getInitPosX()+extension,
+                meter->mpMagicFrameL->getInitPosY());
             bounds = combat_meter_bounds(meter);
             meter->mpMagicParent->translate(
                 parent.x + placement->left - bounds.left,

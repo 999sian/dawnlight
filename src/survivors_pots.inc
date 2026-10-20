@@ -86,7 +86,7 @@ HookAction before_pot_break(ModContext*, void* args, void*, void*) {
     constexpr std::array<int,unsigned(Run::PotDrop::Count)> items{
         dItemNo_KAKERA_HEART_e,dItemNo_GREEN_RUPEE_e,dItemNo_BLUE_RUPEE_e,
         dItemNo_YELLOW_RUPEE_e,dItemNo_RED_RUPEE_e,dItemNo_PURPLE_RUPEE_e,
-        dItemNo_ORANGE_RUPEE_e,dItemNo_SILVER_RUPEE_e};
+        dItemNo_ORANGE_RUPEE_e,dItemNo_SILVER_RUPEE_e,dItemNo_KEY_OF_FILONE_e};
     const int item=items[unsigned(s_run.roll_pot_drop())];
     create_run_pickup(actor->current.pos,item);
     return HOOK_CONTINUE;
