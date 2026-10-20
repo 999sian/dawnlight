@@ -5,7 +5,22 @@
 constexpr u8 kPowerupScrollItem = dItemNo_NOENTRY_146_e;
 constexpr int kPowerupScrollTexture = 0x3d; // ITEMICON_BTI_NI_ITEM_ICON_MAKIMONO
 constexpr const char* kPowerupScrollIcon = "item://item/92?dawnlight-survivors-powerup";
-const char* powerup_icon(Upgrade upgrade, Rarity rarity) {
+// These ranks belong to items already described in the native item wheel.
+ChestReward powerup_item(Upgrade upgrade) {
+    if (upgrade >= Upgrade::Bow && upgrade <= Upgrade::Ball)
+        return ChestReward(unsigned(upgrade) - unsigned(Upgrade::Bow));
+    if (upgrade == Upgrade::MasterSword) return ChestReward::MasterSword;
+    if (upgrade == Upgrade::DualWield) return ChestReward::OrdonSword;
+    if (upgrade == Upgrade::PotionHealing) return ChestReward::RedPotion;
+    return ChestReward::Count;
+}
+std::string powerup_icon(Upgrade upgrade, Rarity rarity, const Run& preview) {
+    const auto item = powerup_item(upgrade);
+    if (item != ChestReward::Count) {
+        char icon[40];
+        std::snprintf(icon, sizeof(icon), "item://item/%02x", unsigned(treasure_item(item, preview)));
+        return icon;
+    }
     // Native full Heart Container (UTAWA_HEART), not a piece or recovery heart.
     if (upgrade == Upgrade::Heart) return "item://item/22";
     if (upgrade == Upgrade::Rupees) {
@@ -43,7 +58,8 @@ ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
         if (!preview.choose(i)) continue;
         const auto upgrade = s_run.offers[i];
         const auto rarity = s_run.offer_rarities[i];
-        std::string rml = choice_rml_start(powerup_icon(upgrade, rarity), preview.upgrade_name(upgrade), rarity, "", upgrade_units(upgrade,rarity));
+        const auto icon = powerup_icon(upgrade, rarity, preview);
+        std::string rml = choice_rml_start(icon.c_str(), preview.upgrade_name(upgrade), rarity, "", upgrade_units(upgrade,rarity));
         rml += "<div class=\"survivors-treasure-effect\">" + treasure_rml_escape(descriptions[unsigned(upgrade)]) + "</div>";
         for (const auto& change : upgrade_changes(upgrade, s_run, preview, rarity))
             rml += "<div class=\"survivors-treasure-change\">" + treasure_rml_escape(change.label) +
@@ -64,12 +80,12 @@ ModResult build_powerup_overview(ModContext*, UiWindowHandle, UiElementHandle le
                                 void*, ModError*) {
     auto result = svc_ui->pane_add_text(mod_ctx, left, "Collected power-ups", nullptr);
     if (result != MOD_OK) return result;
-    result = svc_ui->pane_add_rml(mod_ctx, right, "Choose a power-up to view its current effects. Rupee rewards have no permanent rank.", nullptr);
+    result = svc_ui->pane_add_rml(mod_ctx, right, "Choose a power-up to view its current effects. Equipment upgrades are shown in the item wheel. Rupee rewards have no permanent rank.", nullptr);
     if (result != MOD_OK) return result;
     bool any = false;
     for (unsigned i = 0; i < unsigned(Upgrade::Rupees); ++i) {
         const auto upgrade = Upgrade(i);
-        if (!s_run.rank(upgrade)) continue;
+        if (!s_run.rank(upgrade) || powerup_item(upgrade) != ChestReward::Count) continue;
         const std::string label = std::string(s_run.upgrade_name(upgrade)) + " - Level " + number(s_run.rank(upgrade));
         const auto help = powerup_description_rml(upgrade);
         UiControlDesc control = UI_CONTROL_DESC_INIT;
@@ -83,7 +99,7 @@ ModResult build_powerup_overview(ModContext*, UiWindowHandle, UiElementHandle le
         if (result != MOD_OK) return result;
         any = true;
     }
-    if (!any) return svc_ui->pane_add_text(mod_ctx, left, "No power-ups collected yet. Gain experience and open chests during the run.", nullptr);
+    if (!any) return svc_ui->pane_add_text(mod_ctx, left, "No power-ups collected yet. Gain experience during the run; view equipment upgrades in the item wheel.", nullptr);
     return MOD_OK;
 }
 void close_powerup_window() {

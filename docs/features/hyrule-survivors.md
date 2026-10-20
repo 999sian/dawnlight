@@ -144,7 +144,8 @@ Weapon ranks and power-up details are available in the item wheel and Collection
 overview; they are not repeated during combat.
 
 Leveling up pauses Link and the encounter and offers three upgrades in the same
-side-by-side card layout as chests. Cards use the native Hidden Skills scroll, full Heart Container, or rarity-colored
+side-by-side card layout as chests. Item rank cards use their native item icons, including Light Sword when the preview reaches level 5.
+Other cards use the Hidden Skills scroll, full Heart Container, or rarity-colored
 rupee icon, its power-up name/description and red before/after changes. Controller,
 keyboard and direct touch/click navigation use Dusklight's native mod window controls. Closing
 the choice window does not resume combat or reroll its offers. Excess experience
@@ -598,7 +599,9 @@ In Survivors, the Hidden Skills scroll is always visible at its normal Collectio
 slot. Activating it with the controller or touch opens a read-only list of the
 run's collected power-ups. Select a name to see its current rank, followed on
 a separate line by its description and
-effective values, including weapon ranks and dependent upgrades. No uncollected
+effective values. Bow, Boomerang, Bombs, Ball and Chain, Master Sword, Dual Wield
+and Potion Healing ranks appear only in the item wheel, not this list. Dependent
+abilities and passive upgrades remain in the scroll overview. No uncollected
 power-ups are listed; an empty run shows a hint. Rupee rewards have no lasting rank.
 Closing the overview returns to Collection. Actual Hidden Skill event flags and
 story-mode menus are unchanged. Resetting/changing modes or destroying Collection
