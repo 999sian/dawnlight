@@ -166,6 +166,8 @@ you in the hub and displays a retry message. The results screen also offers **Sa
 | Melee Haste | 5 | +5% normal sword speed/rank, up to +25%. |
 | Crit Damage | 5 | +10 percentage points critical damage/rank, up to +50%. |
 | Legendary Chance | 5 | +0.6 percentage points base Legendary chance/rank: 1% → 4% at rank 5, before Luck. Applies to item and power-up rarities. |
+| Multi Strike | 3 | Requires Dual Wield. Epic grants 1 rank; Legendary grants 2. Each rank adds one sequential activation of Sword Attack (including its splash), Spin Attack, Sword Wave and Lightning Strike. |
+| Lightning Strike | 30 | 20% proc on an accepted melee hit, gated by its own cooldown. See below. |
 | Life Regen | 5 | Shortens regeneration by one second/rank: 20 → 15 seconds. |
 
 Link regenerates **1/4 heart every 20 seconds** even without Life Regen ranks.
@@ -329,10 +331,7 @@ chests never raise the paid-chest price.
 Equip up to **four chest items**; their icons (or empty slots) appear above the
 choices. Red Potion uses one shared slot for all bottles, retained even when
 they are empty. Passive power-ups have no
-slot limit. **Dual Wield and Shield replace each other** in the same slot, with
-an explicit warning below the item name. A replacement starts at **rank 0**;
-the discarded ranks are lost, including when switching back. Replacement-card
-rank units become rupees; subsequent cards upgrade the new item normally.
+slot limit. Dual Wield and Shield can coexist, each using its own equipment slot.
 
 Each run shares **one free Reroll and one Banish** across both selection menus.
 Reroll refreshes all offers; further uses cost **50, 100, 150… rupees**. Paid
@@ -348,8 +347,8 @@ banish symbol at the top right of a card to remove that choice. Talents can add 
 | Boomerang | Gale throws that hop between enemies; one extra hop every three ranks (4, 7, 10…), max 10 hops / 11 targets. |
 | Bombs | Automatic throws and area explosions; upgrades improve damage, radius and frequency. |
 | Ball and Chain | Pierces outward and back, damaging and staggering enemies on both legs. |
-| Master Sword | More sword damage; rank 5 becomes the Light Sword. Unlocks Jump Strike level-ups. |
-| Ordon Sword | Dual Wield: 2/3/4/5 total targets at ranks 1/10/20/30; +2.5% melee speed per rank (whole-percent rounding), capped at rank 30. Can coexist with a shield. |
+| Master Sword | More sword damage; rank 5 becomes the Light Sword. Unlocks Jump Strike level-ups. Also available as a level-up reward; each two sword levels add 1 Lightning Strike damage (whole completed pairs). |
+| Ordon Sword | Dual Wield: 2/3/4/5 total targets at ranks 1/10/20/30; +2.5% melee speed per rank (whole-percent rounding), capped at rank 30. Also grants +1 percentage point melee crit chance per rank. Can coexist with a shield. |
 | Shield | 5% block chance per rank, max 50%; evolves to Ordon at 20% and Hylian at 35%. Unlocks Shield Attack level-ups. |
 | Dark Link | Starts at 1.3× damage for 5 seconds every 20 seconds. Odd ranks increase damage, even ranks increase duration; rank 30 is permanent 2× damage. |
 | Red Potion | One equipment slot; adds filled bottles up to four, then refills empty ones. Rank 0 heals 1 heart. Potion Healing level-ups add ¼ heart per rank, up to 8½ hearts at rank 30. Use manually. |
@@ -361,10 +360,12 @@ airborne attack and landing; no stick input means no horizontal travel. Uses the
 native quick jump attack and the original bomb shockwave on landing. Landing splash deals 30% of melee damage at rank 1,
 +5 percentage points per rank (175% at rank 30), rounded to native whole damage.
 Direct sword contact deals normal melee damage; critical hits and Dark Link apply.
-**Reach** adds 7.5% linear melee/projectile range per rank, including on top of
-the doubled starting normal sword range. Spin, Bomb and Shield
-radii use the square root of that factor, so their area grows approximately linearly.
-Jump Strike keeps the linear radius factor. Spin visuals follow the actual hitbox.
+**Reach** adds 15% per rank to normal melee reach (on top of its 130% base),
+Dual Wield splash targeting, Jump Strike radius and Lightning Strike hop range.
+Other linear ranges retain 7.5% per rank. Spin doubles the previous radius bonus:
+`base × (1 + 2 × (sqrt(1 + 0.075 × Reach) - 1))`.
+Bomb and Shield retain `base × sqrt(1 + 0.075 × Reach)`.
+Spin and Jump visuals follow their actual hitboxes.
 Automatic item attacks, Sword Waves, Spin and Shield Attack have independent
 cooldowns and overlap, including during Jump Strike. Distinct attacks damage
 immediately without a shared enemy iFrame gate. A persistent hitbox still hits
@@ -416,7 +417,10 @@ Two passive level-up rewards, both capped at **rank 30**:
 | Crit Damage | ×2 damage | +0.05 multiplier | ×3.5 damage |
 
 Talents add up to five base percentage points; combined final chance caps at 100%.
-Final chance is `base chance × (1 + 0.025 × Luck rank)`, with integer basis-point rounding.
+Base final chance is `base chance × (1 + 0.025 × Luck rank)`, with integer basis-point rounding.
+Dual Wield adds another absolute percentage point per rank (up to 30) for Sword,
+Spin, Shield Attack, Jump Strike, Dual Wield splash and Lightning Strike, capped
+at 100% total. Sword Wave and other ranged attacks retain their existing crit chance.
 Each direct sword, spin, projectile, shield or Dual Wield hit rolls independently.
 Burn ticks cannot crit. Critical damage rounds to native integer health before
 Dark Link doubles it. Both power-ups support rarities, rerolls and banishment;
@@ -428,9 +432,11 @@ the menu shows the effective chance including current Luck.
 | --- | ---: | --- |
 | Knockback | 10 | Any rarity. +4 units of horizontal push per rank on direct attacks. Ball and Shield Attack have a fixed 24-unit base independent of their weapon ranks, Power and Reach. |
 | Piercing | 10 | Requires Bow. Each rank lets every arrow damage one additional distinct enemy (up to 11 total). Includes every Multishot arrow. |
-| Multishot | 3 | Epic grants 1 rank; Legendary grants 2. Each rank adds one projectile to Bow, Boomerang, Bombs, Ball and Chain and Sword Wave. |
+| Multishot | 3 | Epic grants 1 rank; Legendary grants 2. Each rank adds one projectile/chain to Bow, Boomerang, Bombs, Ball and Chain, Sword Wave and Lightning Strike. |
+| Multi Strike | 3 | Requires Dual Wield. Epic grants 1 rank; Legendary grants 2. Each rank adds one sequential activation of Sword Attack (including its splash), Spin Attack, Sword Wave and Lightning Strike. |
+| Lightning Strike | 30 | 20% proc on an accepted melee hit, gated by its own cooldown. See below. |
 | Life Regen | 5 | Rare or better. Each rank removes 1 second from passive quarter-heart regeneration; stacks with the talent (20 → 15 seconds, or 10 seconds with both maxed). |
-| Life Steal | 1 | Legendary only. Each credited enemy death restores a quarter heart, capped at maximum health. |
+| Life Steal | 1 | Legendary only. Only kills by Sword Attack, Dual Wield splash, Spin, Sword Wave, Jump Strike or Lightning Strike restore a quarter heart, once per death. Includes Multishot and Multi Strike; burns and other abilities do not heal. |
 
 Knockback runs over six simulation ticks, with twelve ticks between pushes.
 Simultaneous hits take the strongest push instead of adding them. Elites and
@@ -446,6 +452,21 @@ shots within the Bow rank's existing 0°/22.5°/45° fan; at rank 20+ and Multis
 eight arrows still cover only 45°. Same-volley extra hits on one target retain
 25% damage, also when piercing. Waves fan out symmetrically, up to four waves
 across 36°, with each wave retaining its normal/Great Spin tier and hit deduplication.
+
+Lightning Strike uses the Boomerang damage/cooldown curves at its own level;
+no Boomerang equipment is required. Power, Haste, critical upgrades, Dark Link,
+Knockback and Multishot apply. Its hop count is twice Boomerang's (2 at level 1,
+20 at level 30), and propagation travels at 210 units/tick versus 42.
+Reach gives double range growth; Master Sword adds `floor(sword level / 2)` damage.
+Each chain remembers its targets, respects walls and boss blocks, and cannot
+trigger further chains. Native electric sparks and a jagged cyan/white arc show
+its path. Lightning appears as its own damage row in Results.
+
+Multi Strike grants 2/3/4 total activations at levels 1/2/3. Sword and Spin repeats
+wait for their native hit window/animation; Sword Wave volleys and Lightning casts
+repeat four simulation ticks apart. Repeats do not recursively create more repeats.
+Each repeat gets independent hit tracking, and each wave/lightning cast retains
+its Multishot count. Run teardown and level-up interruption clear pending casts.
 
 Rarity is rolled before selecting an eligible upgrade: restricted power-ups do
 not promote common rolls to rare ones. Life Regen follows normal rarity units

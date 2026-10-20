@@ -23,10 +23,11 @@ namespace dawnlight {
 namespace {
 
 // Borrow the original resources from the disc, using private common-bank IDs.
-constexpr std::array<u16,18> kSources{
+constexpr std::array<u16,20> kSources{
     0x8113,0x846c,0x846d,0x846e,0x846f,0x8470,0x8471,0x8472,
     0x89ac,0x89ad,0x89ae,0x89af,0x85f6,0x89b0,0x89b1, // Stallord fireball / mouth
-    0x8848,0x8849,0x884a // Death Sword magic orb
+    0x8848,0x8849,0x884a, // Death Sword magic orb
+    0x867d,0x867e // Link electricity, imported for Lightning Strike in every arena
 };
 struct ImportedEffect {
     JKRExpHeap* heap=nullptr;
@@ -170,6 +171,8 @@ std::uint16_t boss_attack_effect(std::uint16_t native, bool stallord) {
     for(unsigned i=first;i<end;++i)if(kSources[i]==native)return imported_particle_effect(i);
     return 0;
 }
+
+std::uint16_t lightning_strike_effect(unsigned part) {return part<2?imported_particle_effect(18+part):0;}
 
 void shutdown_bow_fire_resource() {
     if (s_installed && common_manager() == s_common) {

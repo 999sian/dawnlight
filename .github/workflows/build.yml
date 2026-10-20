@@ -51,6 +51,10 @@ jobs:
         run: |
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_rules_test.cpp -o /tmp/survivors-rules-test
           /tmp/survivors-rules-test
+          c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_sword_rewards_test.cpp -o /tmp/survivors-sword-rewards
+          /tmp/survivors-sword-rewards
+          python3 tests/survivors_lightning_test.py
+          CXX=clang++ python3 tests/survivors_lightning_test.py
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_maps_test.cpp -o /tmp/survivors-maps-test
           /tmp/survivors-maps-test
           python3 tests/survivors_elites_test.py

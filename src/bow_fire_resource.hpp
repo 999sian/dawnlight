@@ -10,6 +10,8 @@ std::uint16_t bow_fire_effect();
 std::uint16_t dodongo_fire_effect(std::uint16_t native);
 // Preserve native projectile callbacks while making dungeon-only visuals available in every arena.
 std::uint16_t boss_attack_effect(std::uint16_t native, bool stallord);
+// Native electric sparks imported into the shared bank; safe outside their source stage.
+std::uint16_t lightning_strike_effect(unsigned part);
 void shutdown_bow_fire_resource();
 
 }  // namespace dawnlight

@@ -28,7 +28,7 @@ struct fopAc_ac_c{int health=10;unsigned id=0;struct{cXyz pos;}current;};
 struct e_ba_class:fopAc_ac_c{bool mIsDying=false;};struct daE_OC_c:fopAc_ac_c{int getActionMode(){return 0;}};
 struct daAlink_c:fopAc_ac_c{} player;
 constexpr int fpcNm_E_BA_e=1,fpcNm_E_OC_e=2,fpcNm_E_RD_e=3;
-struct Enemy{unsigned id=kNone;int profile=0;bool credited=false,retiring=false,initialized=true,elite=false;int eliteSlot=-1;};
+struct Enemy{unsigned id=kNone;int profile=0;bool credited=false,retiring=false,initialized=true,elite=false;int eliteSlot=-1;bool swordKill=false;};
 std::array<Enemy,5>s_enemies;std::array<fopAc_ac_c,5>actors;
 auto* actor_by_id(ActorId id){return id<actors.size()?&actors[id]:nullptr;}
 unsigned fopAcM_GetID(fopAc_ac_c* actor){return actor->id;}

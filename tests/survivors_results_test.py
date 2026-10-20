@@ -48,6 +48,8 @@ int main(){
  assert(callbacks[0]==save_results&&callbacks[1]==replay);assert(parents[0]!=parents[1]);
  s_run.dark_link=4;s_run.damage.dealt[unsigned(DamageSource::DarkLink)]=250;
  table=results_damage_rml();assert(table.find("Dark Link")!=std::string::npos&&table.find("1,250")!=std::string::npos);
+ s_run.ranks[unsigned(Upgrade::Lightning)]=30;s_run.damage.dealt[unsigned(DamageSource::Lightning)]=500;
+ table=results_damage_rml();assert(table.find("Lightning Strike")!=std::string::npos&&result_source_level(DamageSource::Lightning)==30);
  s_run.start(2);s_run.phase=Phase::Defeat;table=results_damage_rml();
  assert(table.find("DEFEAT")!=std::string::npos&&table.find("nan")==std::string::npos&&table.find("inf")==std::string::npos);
  assert(table.find("No damage dealt this run.")!=std::string::npos&&table.find("00:00")!=std::string::npos);

@@ -44,9 +44,10 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
     return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Hurricane, FireBomb, BombArrow, FireEdge, DarkAura, Shockwave, Rupees, Count };
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Hurricane, FireBomb, BombArrow, FireEdge, DarkAura, Shockwave, Lightning, MasterSword, MultiStrike, Rupees, Count };
 inline constexpr DamageSource weapon_damage_source(unsigned weapon) {
     switch(Upgrade(weapon)) {
+    case Upgrade::Lightning:return DamageSource::Lightning;
     case Upgrade::Wave:return DamageSource::Wave;
     case Upgrade::Spin:return DamageSource::Spin;
     case Upgrade::JumpStrike:return DamageSource::Jump;
@@ -63,7 +64,7 @@ inline constexpr DamageSource weapon_damage_source(unsigned weapon) {
 inline constexpr unsigned upgrade_cap(Upgrade u) {
     switch (u) {
     case Upgrade::Knockback: case Upgrade::Piercing: return 10;
-    case Upgrade::Multishot: return 3;
+    case Upgrade::Multishot: case Upgrade::MultiStrike: return 3;
     case Upgrade::LifeRegen: return 5;
     case Upgrade::LifeSteal: case Upgrade::Hurricane: case Upgrade::FireBomb: case Upgrade::BombArrow:
     case Upgrade::FireEdge: case Upgrade::DarkAura: case Upgrade::Shockwave: return 1;
@@ -74,12 +75,12 @@ inline constexpr unsigned upgrade_cap(Upgrade u) {
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
 inline constexpr Rarity upgrade_min_rarity(Upgrade u) {
-    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? Rarity::Legendary : u == Upgrade::Multishot ? Rarity::Epic :
+    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? Rarity::Legendary : (u == Upgrade::Multishot || u == Upgrade::MultiStrike) ? Rarity::Epic :
         u == Upgrade::LifeRegen ? Rarity::Rare : Rarity::Common;
 }
 inline constexpr unsigned upgrade_units(Upgrade u, Rarity rarity) {
     if (rarity < upgrade_min_rarity(u)) return 0;
-    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? 1 : u == Upgrade::Multishot ?
+    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? 1 : (u == Upgrade::Multishot || u == Upgrade::MultiStrike) ?
         (rarity == Rarity::Legendary ? 2 : 1) : reward_units(rarity);
 }
 inline constexpr std::array rarity_names{"Common", "Uncommon", "Rare", "Epic", "Legendary"};
@@ -89,13 +90,13 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Hurricane", "Fire Bomb", "Bomb Arrow", "Fire Edge", "Dark Aura", "Shockwave", "Rupees"};
+    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Hurricane", "Fire Bomb", "Bomb Arrow", "Fire Edge", "Dark Aura", "Shockwave", "Lightning Strike", "Master Sword", "Multi Strike", "Rupees"};
 inline constexpr std::array descriptions{
     "Piercing sword waves. Great Spin projectile with a larger radius from level 15.",
     "Automatic spin attack. Great Spin with a larger radius from level 15.",
     "Unlock or improve an automatic shield bash that staggers enemies.",
     "Increase automatic weapon damage.", "Reduce automatic weapon cooldowns.",
-    "Increase melee reach, Dual Wield target range, Spin and Jump Strike radii, bow range and Boomerang flight/hop range.", "Attract experience, rupees, hearts and heart pieces from farther away.",
+    "Increase attack reach/range. Double effect for melee, Dual Wield splash, Spin, Jump Strike and Lightning Strike; other abilities retain normal scaling.", "Attract experience, rupees, hearts and heart pieces from farther away.",
     "Gain one maximum heart and fully heal.",
     "Faster, stronger arrows. Three arrows from level 10; five from level 20, across 45 degrees. Extra hits on one enemy per volley deal 25% damage.",
     "A damaging returning boomerang. Upgrades increase damage, hops and firing rate; hit size stays fixed.",
@@ -107,18 +108,21 @@ inline constexpr std::array descriptions{
     "Direct hits gain +0.75% base critical chance per level. Luck multiplies this chance.",
     "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
     "Master Sword: occasionally perform a quick Jump Strike. Landing splash starts at 30% melee damage; +5 percentage points per rank.",
-    "Improve equipped Dual Wield: +2.5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
+    "Improve equipped Dual Wield: +1% melee critical chance and +2.5% melee attack speed per level and 2/3/4/5 total targets at levels 1/10/20/30. Requires Ordon Sword.",
     "Add a bounded push to all direct attacks. +40 distance per level; maximum level 10. Heavy weapons start with a fixed 240-unit push. Bosses and elites are immune to knockback.",
     "Arrows pass through one additional enemy per level, damaging every target. Applies to every arrow, including Multishot; maximum level 10.",
-    "Add one projectile per level to Bow, Boomerang, Bombs, Ball and Chain and Sword Wave. Epic grants 1 level; Legendary grants 2; maximum level 3.",
+    "Add one projectile/chain per level to Bow, Boomerang, Bombs, Ball and Chain, Sword Wave and Lightning Strike. Epic grants 1 level; Legendary grants 2; maximum level 3.",
     "Reduce passive regeneration interval by 1 second per level; maximum level 5. Rare or better. Stacks with the Life Regen talent.",
-    "Restore a quarter heart for each defeated enemy. Legendary only; one level.",
+    "Restore a quarter heart on kills by Sword Attack, Dual Wield splash, Spin, Sword Wave, Jump Strike or Lightning Strike. Includes repeated/projectile hits; excludes burns. Legendary only; one level.",
     "Double Boomerang size, wind effects and hit radius. It damages every enemy along its flight path.",
     "Bomb explosions ignite every hit enemy for 10% of bomb damage each second for 5 seconds.",
     "Bomb arrows explode once on their first enemy hit for 50% bow damage. Level-5 bomb radius scales with Reach; Piercing still works.",
     "All melee hits ignite enemies for 10% normal melee damage each second for 5 seconds, including Spin, Dual Wield and Jump Strike.",
     "While Dark Link is active, ignite nearby enemies with black flames. Each second deals 10% of target maximum HP; lingers 5 seconds outside the aura.",
     "Shield Attack launches a piercing shockwave for current melee damage. Level-5 Ball and Chain width scales with Reach.",
+    "Melee hits have a 20% chance to trigger chain lightning. Boomerang damage/cooldown scaling, double hops and five times hop speed. Master Sword adds 1 damage per two sword levels. Reach has double effect.",
+    "Unlock or upgrade the Master Sword. Increases sword ability damage and Lightning Strike damage; Light Sword from level 5.",
+    "Repeat Sword Attack (including Dual Wield splash), Spin Attack, Sword Wave and Lightning Strike once more per level. Requires Dual Wield. Epic grants 1 level; Legendary grants 2; maximum level 3.",
     "Receive 20 rupees."};
 
 // A burn refresh extends its duration without delaying the next tick or stacking.
@@ -230,7 +234,7 @@ struct Run {
         return unsigned(std::min<uint64_t>(UINT32_MAX,base*options.score_percent()/100));
     }
     unsigned required_xp() const { return 5 + level * 3; }
-    unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return u == Upgrade::DualWield ? dual_wield : i < ranks.size() ? ranks[i] : 0; }
+    unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return u == Upgrade::MasterSword ? master_sword : u == Upgrade::DualWield ? dual_wield : i < ranks.size() ? ranks[i] : 0; }
     unsigned potion_heal_quarters() const { return 4 + rank(Upgrade::PotionHealing); }
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
     unsigned crit_chance_basis_points() const { return std::min(10000u, (std::min(30u,rank(Upgrade::CritChance))*75+talents.rank(Talent::CritChance)*100)*(100+5*std::min(20u,rank(Upgrade::Luck))/2)/100); }
@@ -242,8 +246,9 @@ struct Run {
         uint32_t roll;do {roll=next_random()-1;} while(roll>=limit);
         return roll%10000<std::min(10000u,chance);
     }
-    unsigned critical_power(unsigned base, bool* critical=nullptr) {
-        const bool hit=base && roll_chance(crit_chance_basis_points());
+    unsigned melee_crit_bonus() const { return std::min(30u,dual_wield)*100; }
+    unsigned critical_power(unsigned base, bool* critical=nullptr, bool melee=false) {
+        const bool hit=base && roll_chance(std::min(10000u,crit_chance_basis_points()+(melee?melee_crit_bonus():0)));
         if (critical) *critical=hit;
         if (!hit) return base;
         // Native health/damage are integral; round once, before Dark Link.
@@ -288,6 +293,8 @@ struct Run {
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && banned_items[unsigned(u)-unsigned(Upgrade::Bow)]) return false;
         if (u == Upgrade::Rupees) return true;
         if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
+        if (u == Upgrade::MultiStrike && !owns(ChestReward::OrdonSword)) return false;
+        if (u == Upgrade::MasterSword && !chest_eligible(ChestReward::MasterSword)) return false;
         if (u == Upgrade::ShieldAttack && !owns(ChestReward::Shield)) return false;
         if (u == Upgrade::DualWield && (!owns(ChestReward::OrdonSword) || banned_items[unsigned(ChestReward::OrdonSword)])) return false;
         if (u == Upgrade::PotionHealing && !red_potion) return false;
@@ -299,7 +306,7 @@ struct Run {
         if (u == Upgrade::DarkAura && !dark_link) return false;
         if (u == Upgrade::Shockwave && (!shield || !rank(Upgrade::ShieldAttack))) return false;
         if (u == Upgrade::Multishot && !rank(Upgrade::Wave) && !rank(Upgrade::Bow) &&
-            !rank(Upgrade::Boomerang) && !rank(Upgrade::Bombs) && !rank(Upgrade::Ball)) return false;
+            !rank(Upgrade::Boomerang) && !rank(Upgrade::Bombs) && !rank(Upgrade::Ball) && !rank(Upgrade::Lightning)) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && rank(u) == 0) return false;
         if (u == Upgrade::Heart && maximum_hearts >= 20) return false;
         return true;
@@ -332,7 +339,8 @@ struct Run {
         const auto u = offers[choice];
         if (!eligible(u) || offer_rarities[choice] < upgrade_min_rarity(u)) return false;
         const unsigned gain = upgrade_gain(u, offer_rarities[choice]);
-        if (u == Upgrade::DualWield) dual_wield += gain;
+        if (u == Upgrade::MasterSword) master_sword += gain;
+        else if (u == Upgrade::DualWield) dual_wield += gain;
         else if (u != Upgrade::Rupees) ranks[static_cast<unsigned>(u)] += gain;
         if (u == Upgrade::Heart) maximum_hearts += gain;
         phase = Phase::Running;
@@ -411,6 +419,7 @@ struct Run {
         if (!can_banish() || phase!=Phase::Upgrade || u>=Upgrade::Count || !eligible(u)) return false;
         if(!infinite_banishes()) --banishes;
         banned_upgrades[unsigned(u)]=true;
+        if(u==Upgrade::MasterSword)banned_items[unsigned(ChestReward::MasterSword)]=true;
         if(u==Upgrade::DualWield)banned_items[unsigned(ChestReward::OrdonSword)]=true;
         if(u>=Upgrade::Bow && u<=Upgrade::Ball)banned_items[unsigned(u)-unsigned(Upgrade::Bow)]=true;
         return true;
@@ -419,6 +428,7 @@ struct Run {
         if (!can_banish() || phase!=Phase::TreasureChoice || !chest_eligible(reward,bottles)) return false;
         if(!infinite_banishes()) --banishes;
         banned_items[unsigned(reward)]=true;
+        if(reward==ChestReward::MasterSword)banned_upgrades[unsigned(Upgrade::MasterSword)]=true;
         if(reward==ChestReward::OrdonSword)banned_upgrades[unsigned(Upgrade::DualWield)]=true;
         const auto weapon=chest_weapon(reward);if(weapon!=Upgrade::Count)banned_upgrades[unsigned(weapon)]=true;
         return true;
@@ -493,8 +503,8 @@ struct Run {
         return true;
     }
     unsigned item_cooldown(Upgrade weapon) const {
-        const unsigned base = weapon==Upgrade::Bow?75:weapon==Upgrade::Boomerang?85:weapon==Upgrade::Bombs?110:100;
-        const unsigned floor=weapon==Upgrade::Bow?20:weapon==Upgrade::Boomerang?30:weapon==Upgrade::Bombs?45:40;
+        const unsigned base = weapon==Upgrade::Bow?75:(weapon==Upgrade::Boomerang || weapon==Upgrade::Lightning)?85:weapon==Upgrade::Bombs?110:100;
+        const unsigned floor=weapon==Upgrade::Bow?20:(weapon==Upgrade::Boomerang || weapon==Upgrade::Lightning)?30:weapon==Upgrade::Bombs?45:40;
         return std::max(floor,cooldown(base*100/(100+5*(std::max(1u,rank(weapon))-1)/2)));
     }
     bool tick(bool playable) {
@@ -590,7 +600,15 @@ struct Run {
     float item_range(Upgrade weapon) const { return (weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range; }
     float boomerang_hop_range() const { return radius(800.f); }
     float radius(float base) const { return base * (1.0f + 0.075f * rank(Upgrade::Reach)); }
-    float melee_radius(float base) const { return 1.3f * radius(base); }
+    float melee_reach(float base) const { return base * (1.f + .15f * rank(Upgrade::Reach)); }
+    float melee_area_radius(float base) const { return base * (1.f + 2.f*(std::sqrt(radius(1.f))-1.f)); }
+    float melee_radius(float base) const { return 1.3f * melee_reach(base); }
+    unsigned multi_strikes() const { return dual_wield ? std::min(3u,rank(Upgrade::MultiStrike)) : 0; }
+    unsigned lightning_hops() const { return rank(Upgrade::Lightning) ? 2*std::min(10u,1+(rank(Upgrade::Lightning)-1)/3) : 0; }
+    unsigned lightning_power() const { return attack_power(unsigned(Upgrade::Lightning))+master_sword/2; }
+    float lightning_hop_range() const { return melee_reach(800.f); }
+    static constexpr float lightning_speed=42.f*5;
+    static constexpr unsigned lightning_chance=2000;
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };
 
@@ -656,6 +674,8 @@ struct Records {
     void clear_high_scores() { high_scores={};ranked={};cheated={}; }
     static constexpr unsigned word_count=34+10*HighScoreRun::word_count;
     static constexpr unsigned byte_count=4*word_count;
+    static constexpr unsigned v8_score_words=20+30+2*18;
+    static constexpr unsigned v8_byte_count=4*(34+10*v8_score_words);
     uint32_t cleared_maps=0;
     bool map_unlocked(unsigned map) const {
         return map<high_scores.size() && (map==0 || (cleared_maps & (1u<<(map-1))));
@@ -681,7 +701,7 @@ struct Records {
         if(!best.present() || run.score()>best.score)best={run,run.score(),level(),available_points()};
     }
     std::array<uint8_t,byte_count> encode() const {
-        std::array<uint32_t,word_count> words{0x56525348,8,runs,wins,best_ticks,best_kills,best_level};
+        std::array<uint32_t,word_count> words{0x56525348,9,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
@@ -696,11 +716,11 @@ struct Records {
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=byte_count)return false;
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=v8_byte_count && bytes.size()!=byte_count)return false;
         std::array<uint32_t,word_count> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==byte_count)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==v8_byte_count)||(words[1]==9 && bytes.size()==byte_count)))return false;
         Records next;
         // Legacy saves have aggregate wins only; scores also include defeats.
         if(words[1]>=7){
@@ -717,9 +737,13 @@ struct Records {
         if(words[1]>=8) {
             unsigned offset=34;
             for(unsigned category=0;category<2;++category)for(auto& best:category?next.cheated:next.ranked) {
-                if(!best.decode(std::span<const uint32_t,HighScoreRun::word_count>(words.data()+offset,HighScoreRun::word_count)) ||
-                   (best.present() && best.cheated()!=bool(category)))return false;
-                offset+=HighScoreRun::word_count;
+                HighScoreRun::Words snapshot{};
+                if(words[1]==8) {
+                    std::copy_n(words.begin()+offset,20+30,snapshot.begin());
+                    std::copy_n(words.begin()+offset+20+30,2*18,snapshot.begin()+20+unsigned(Upgrade::Rupees));
+                } else std::copy_n(words.begin()+offset,snapshot.size(),snapshot.begin());
+                if(!best.decode(snapshot) || (best.present() && best.cheated()!=bool(category)))return false;
+                offset+=words[1]==8?v8_score_words:HighScoreRun::word_count;
             }
         }
         *this=next;return true;

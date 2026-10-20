@@ -58,6 +58,7 @@ bool in_arena(){return true;}bool transitioning(){return false;}
 struct csXyz{csXyz(int,int,int){}};struct GXColor{unsigned char r,g,b,a;};
 std::vector<GXColor>colors;std::vector<cXyz>sizes;
 void dDbVw_drawCubeOpa(cXyz&,cXyz size,csXyz,GXColor color){colors.push_back(color);sizes.push_back(size);}
+void draw_lightning(){}
 void draw_loot(){}void draw_ranged(){}void draw_arena_barriers(){}
 '''
 main=r'''

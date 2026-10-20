@@ -162,15 +162,15 @@ is retained and multiple earned levels are offered consecutively.
 | Ball and Chain | Independent chain projectile and optional throw pose; pierces to full range, damages each enemy once per leg and has 240-unit base knockback |
 | Power | Increase automatic weapon damage |
 | Haste | Reduce automatic weapon cooldowns |
-| Reach | +7.5% linear reach/range per rank; Spin/Bomb/Shield radii use the square root of that factor |
+| Reach | +15% per rank for melee, Dual Wield splash, Jump Strike and Lightning hop range; +7.5% for other ranges. Spin doubles its previous radius bonus; Bomb/Shield keep square-root scaling |
 | Magnet | Attract XP, rupees, hearts and heart pieces from farther away |
 | Heart Container | Add one maximum heart; level-up healing fills the new capacity |
 | Luck | 20 ranks; rarity weights +5% and crit multiplier +2.5% per rank; drop bonuses +10% per rank capped at +50% |
 | Knockback | 10 ranks; +40 units horizontal push/rank on direct attacks; fixed 240-unit Ball/Shield base; bosses and elites are immune |
 | Piercing | Requires Bow; 10 ranks, +1 distinct damaged target per arrow/rank, including Multishot arrows |
-| Multishot | Epic +1 rank, Legendary +2, cap 3; +1 projectile/rank for all five ranged abilities; arrows retain the existing fan angle |
+| Multishot | Epic +1 rank, Legendary +2, cap 3; +1 projectile/chain per rank for the five ranged abilities and Lightning Strike; arrows retain the existing fan angle |
 | Life Regen | Rare or better; cap 5; -1 second/rank from passive regeneration; stacks with the talent |
-| Life Steal | Legendary only, cap 1; +¼ heart per credited enemy death |
+| Life Steal | Legendary only, cap 1; +¼ heart once per direct Sword/Dual Wield splash/Spin/Wave/Jump/Lightning kill, including extra hits; no burn or other weapon kills |
 | Rupees | Receive 20 rupees per reward unit |
 
 All passive upgrades are independently available, including Heart Container
@@ -477,7 +477,7 @@ Spin Attack and Sword Wave, without the vanilla light-material 100-damage overri
 Get Item uses a private instance of Link's sword model instead of the native rupee placeholder.
 An Ordon Sword reward enables and equips Dawnlight's existing Dual Wield with an
 Ordon offhand sword. At rank 1 each accepted normal sword strike also hits the next nearest reachable
-enemy; ranks 3, 6 and 9 add one target each, up to five total. Dual Wield caps at rank 10.
+enemy; ranks 10, 20 and 30 add one target each, up to five total. Dual Wield caps at rank 30 and adds +1 percentage point melee critical chance per rank (Sword, Spin, Shield, Jump, splash and Lightning).
 Targets must be close to Link, at reachable height, and not behind a wall.
 A target receives at most one multihit per swing; the native sword capsule cannot
 also damage the same secondary target. Ranks do not change story preferences.
@@ -1348,3 +1348,36 @@ selected or opening chest. Chronology uses a run-local creation sequence, not
 lid-animation age, so cancellation does not change the replacement order.
 Failed small-chest placement leaves the previous chest intact, and replacement
 resets its offers/animation without granting loot, score or purchase credit.
+
+
+### Lightning Strike and Multi Strike
+
+Lightning Strike is an independent level-up reward (cap 30), with a 20% proc
+chance per accepted melee hit while its cooldown is ready. It uses Boomerang's
+rank-dependent cooldown and damage curves at its own rank, twice its hop count
+(2–20), five times its hop speed (210 units/tick), and twice Reach's incremental
+range bonus. Master Sword adds `floor(rank / 2)` damage. Power, Haste, Crit,
+Dark Link, Knockback and Multishot apply; Boomerang-only Hurricane does not.
+All chain legs validate live targets, line of sight, boss blocks and per-chain
+visited IDs; a dead initial victim can still lead to the next live target.
+Native Link electricity is imported into private common-bank resources by the
+existing particle loader, so every arena can use it safely. Connecting cyan/white
+jagged geometry also remains visible if an optional particle import fails.
+
+Master Sword is now available at level-up, sharing its chest rank, equipment
+slot checks, banishment and native Light Sword transition at level 5.
+Multi Strike requires Dual Wield; Epic +1, Legendary +2, cap 3. It repeats normal
+melee (including splash), Spin, Wave and Lightning up to four total activations.
+Native body attacks finish their existing hit window/pose before repeating;
+Wave/Lightning repeat four ticks apart with full Multishot counts. No recursion.
+
+Life Steal reads direct-hit provenance separately from the damage-display
+categories: Fire Edge remains grouped with its parent attack in Results but
+cannot heal. The last actual HP-removing hit determines sword eligibility;
+coalesced lethal hits qualify if they include a direct eligible sword-family hit.
+Death accounting still awards at most one quarter heart per credited enemy.
+
+Record format 9 appends three upgrade ranks and a Lightning damage bucket.
+The v8 migration explicitly copies all old ranks and damage counters without
+shifting their IDs, preserving both highscore categories, scores, map clears,
+meta XP and talents. Versions 1–7 retain their prior migration behavior.

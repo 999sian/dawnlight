@@ -165,6 +165,8 @@ int main() {
         for(unsigned u=0;u<unsigned(Upgrade::Rupees);++u)for(unsigned initial:{0u,4u}) {
             Run r;r.start(13);r.shield=1;r.red_potion=true;r.master_sword=1;r.ranks[8]=r.ranks[9]=r.ranks[10]=r.ranks[2]=1;r.dark_link=1;r.ranks[u]=initial;
             if(Upgrade(u)==Upgrade::DualWield){r.shield=0;r.dual_wield=initial;}
+            if(Upgrade(u)==Upgrade::MasterSword){r.master_sword=initial;r.ranks[8]=r.ranks[9]=r.ranks[10]=0;}
+            if(Upgrade(u)==Upgrade::MultiStrike)r.dual_wield=1;
             // Weapons must be chest-unlocked first.
             if(!initial && ((u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)) || Upgrade(u)==Upgrade::DualWield))continue;
             r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);

@@ -13,6 +13,7 @@ struct DamageFeedback {
     int health;
     bool critical=false;
     DamageAmounts sources{};
+    bool sword=false;
 };
 std::vector<DamageFeedback> s_damageFeedback;
 void clear_combat_feedback() { s_combatTexts={}; s_damageFeedback.clear(); }
@@ -27,7 +28,7 @@ void update_combat_feedback() {
     for (auto& text:s_combatTexts) if (text.remaining) { --text.remaining; text.position.y+=1.5f; }
 }
 void begin_damage_feedback(void* args,fopAc_ac_c* actor,dCcU_AtInfo* info) {
-    s_damageFeedback.push_back({args,actor,info,actor->health,false,hit_damage_sources(info->mpCollider)});
+    s_damageFeedback.push_back({args,actor,info,actor->health,false,hit_damage_sources(info->mpCollider),sword_kill_hit(info->mpCollider)});
 }
 void mark_damage_critical(dCcU_AtInfo* info,bool critical) {
     if (!s_damageFeedback.empty() && s_damageFeedback.back().info==info)
@@ -46,6 +47,7 @@ void end_damage_feedback(void* args) {
     const auto hit=s_damageFeedback.back();s_damageFeedback.pop_back();
     if(in_arena() && !s_victory && s_run.phase==Phase::Running)
         s_run.damage.record(hit.sources,hit.health,hit.actor->health);
+    if(hit.actor->health<hit.health)if(auto* enemy=tracked(fopAcM_GetID(hit.actor)))enemy->swordKill=hit.sword;
     if (hit.critical && hit.info->mAttackPower && hit.actor->health<hit.health)
         combat_feedback(hit.actor,CombatText::Crit);
 }

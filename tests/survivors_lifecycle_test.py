@@ -49,7 +49,7 @@ struct Enemy {
     ActorId id=kNone; ProfileName profile=0;
     bool initialized=false, credited=false, retiring=false, elite=false;
     unsigned age=0;
-    int eliteSlot=-1;
+    int eliteSlot=-1;bool swordKill=false;
 };
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
@@ -186,6 +186,7 @@ void mark_damage_critical(dCcU_AtInfo*,bool){}
 void mark_damage_split(dCcU_AtInfo*,unsigned,unsigned){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
+stubs += "\nDamageAmounts hit_damage_sources(const Collider*){return {};}\n"
 main = r'''
 int main() {
     save.player.status.slots.fill(dItemNo_NONE_e);
@@ -221,7 +222,8 @@ int main() {
     assert(s_run.timed_elites==1);credit_death(enemy,&actor);assert(s_run.timed_elites==1);
     // Life Steal heals once per credited death, independent of reward drops.
     s_run.ranks[unsigned(Upgrade::LifeSteal)]=1;life=4;
-    enemy.credited=false;credit_death(enemy,&actor);assert(life==5);
+    enemy.credited=false;credit_death(enemy,&actor);assert(life==4); // Non-sword death.
+    enemy.credited=false;enemy.swordKill=true;credit_death(enemy,&actor);assert(life==5);
     credit_death(enemy,&actor);assert(life==5);
     enemy.credited=false;enemy.retiring=true;credit_death(enemy,&actor);assert(life==5);
     enemy.retiring=false;life=12;credit_death(enemy,&actor);assert(life==12);

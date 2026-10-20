@@ -58,7 +58,7 @@ void after_jump_strike(ModContext*, void* args, void*, void*) {
     link->mUpperFrameCtrl[0].setRate(2.0f);
     link->field_0x3198 = 2; // No unowned follow-up spin from stick input.
     if (link->mProcID == daAlink_c::PROC_CUT_LARGE_JUMP_LAND)
-        link->mAtSph.SetR(s_run.radius(link->field_0x347c));
+        link->mAtSph.SetR(s_run.melee_reach(link->field_0x347c));
 }
 HookAction before_jump_strike_effect(ModContext*, void* args, void*, void*) {
     auto* link = mods::arg<daAlink_c*>(args, 0);
@@ -69,7 +69,7 @@ HookAction before_jump_strike_effect(ModContext*, void* args, void*, void*) {
     // Original Survivors bomb shockwave pair, before the full nine-part native
     // bomb explosion was adopted. Scale the visual with the landing hit radius.
     constexpr std::array<u16, 2> effects{ID_ZI_J_BOMBex_A, ID_ZI_J_BOMBex_B};
-    const float size = s_run.radius(link->field_0x3478) / 200.0f;
+    const float size = s_run.melee_reach(link->field_0x3478) / 200.0f;
     const cXyz scale(size, size, size);
     for (unsigned i = 0; i < effects.size(); ++i)
         s_jumpEmitters[i] = dComIfGp_particle_set(0, effects[i], &link->current.pos,

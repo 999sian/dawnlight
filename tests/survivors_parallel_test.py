@@ -12,8 +12,10 @@ fixture=r'''
 #include <unordered_map>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "survivors_multistrike.hpp"
 #include "survivors_projectiles.hpp"
 using namespace dawnlight::survivors;
+MultiStrikeState s_multiStrike;
 using ActorId=unsigned;using u8=unsigned char;using u16=unsigned short;using u32=unsigned;
 constexpr unsigned kNone=~0u;
 struct cXyz {float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}
@@ -31,7 +33,7 @@ struct Collider {Actor* owner=nullptr;unsigned power=0,hits=0,hitActorId=kNone;A
  void ResetAtHit(){}void OnAtSetBit(){}};
 using cCcD_Obj=Collider;
 using dCcD_GObjInf=Collider;
-struct daAlink_c:Actor {Collider mAtSph,mAtCps[3],mGuardAtCps;int tevStr=0;unsigned shields=0;
+struct daAlink_c:Actor {enum{PROC_CUT_TURN=1};int mProcID=0;Collider mAtSph,mAtCps[3],mGuardAtCps;int tevStr=0;unsigned shields=0;
  struct{short y=0;}shape_angle;struct{bool ChkGroundHit(){return true;}}mLinkAcch;
  bool checkEquipAnime(){return false;}int procGuardAttackInit(){++shields;return 1;}
  struct HIO{struct{struct{struct{float mAttackRadius=260,mLightAttackRadius=400,mLargeAttackRadius=400;}m;}mCutTurn;}mCut;} hio,*mpHIO=&hio;
@@ -200,6 +202,16 @@ int main(){
    assert(effects[i].pending==s_run.melee_power());}
  }
  distance=1e6;assert(!launch_parallel_pulse(&player,Upgrade::Spin));
+ // Multi Strike spins complete their current native pose before repeating.
+ s_run.start(123);s_run.dual_wield=1;s_run.ranks[unsigned(Upgrade::MultiStrike)]=3;
+ s_run.ranks[unsigned(Upgrade::Spin)]=1;s_cooldowns={};s_multiStrike={};spins=0;spinReady=true;distance=100;
+ player.mProcID=0;update_parallel_skills(&player);assert(spins==1&&s_multiStrike.count(StrikeSeries::Spin)==3);
+ for(unsigned repeat=0;repeat<3;++repeat){
+  player.mProcID=daAlink_c::PROC_CUT_TURN;update_parallel_skills(&player);assert(spins==repeat+1);
+  player.mProcID=0;update_parallel_skills(&player);assert(spins==repeat+2);
+ }
+ update_parallel_skills(&player);assert(spins==4&&!s_multiStrike.count(StrikeSeries::Spin));
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

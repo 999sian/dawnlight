@@ -1,6 +1,15 @@
 // A wave has its own cooldown, but its release belongs to a visible normal
 // sword swing. Other automatic weapons and pulses continue during the wind-up.
 void update_sword_wave(daAlink_c* link) {
+    if(s_multiStrike.count(StrikeSeries::Wave)) {
+        if(s_multiStrike.waveDelay)--s_multiStrike.waveDelay;
+        else {
+            s_waveManual=s_multiStrike.waveManual;
+            release_sword_wave(link);
+            s_multiStrike.consume(StrikeSeries::Wave);s_multiStrike.waveDelay=3;
+        }
+        return;
+    }
     if (!s_run.rank(Upgrade::Wave) || s_cooldowns[unsigned(Upgrade::Wave)]) { s_wavePending=false; return; }
     if (s_wavePending) {
         if (s_swordAction!=SwordAction::Normal || link->mProcID!=daAlink_c::PROC_CUT_NORMAL) {
@@ -8,6 +17,8 @@ void update_sword_wave(daAlink_c* link) {
         } else {
             if (link->mUnderFrameCtrl[0].getFrame()>=link->field_0x3478) {
                 release_sword_wave(link);
+                s_multiStrike.start(StrikeSeries::Wave,s_run.multi_strikes());
+                s_multiStrike.waveDelay=3;s_multiStrike.waveManual=s_waveManual;
                 s_cooldowns[unsigned(Upgrade::Wave)]=s_run.cooldown(60);
                 s_wavePending=false;
             }

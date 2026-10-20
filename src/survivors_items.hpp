@@ -60,6 +60,7 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
     } else if (reward == ChestReward::MasterSword) {
         add("Sword bonus", "+" + number(before.sword_bonus()), "+" + number(after.sword_bonus()));
         add("Melee damage", number(before.melee_power()), number(after.melee_power()));
+        if(after.rank(Upgrade::Lightning))add("Lightning damage",number(before.lightning_power()),number(after.lightning_power()));
         for (auto weapon : {Upgrade::Wave, Upgrade::Spin}) if (after.rank(weapon))
             add(weapon == Upgrade::Wave ? "Wave damage" : "Spin damage", number(before.attack_power(unsigned(weapon))), number(after.attack_power(unsigned(weapon))));
         if (after.rank(Upgrade::JumpStrike))
@@ -69,6 +70,7 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
         add("Dual Wield level", number(before.dual_wield), number(after.dual_wield));
         add("Melee targets", number(before.melee_targets()), number(after.melee_targets()));
         add("Melee speed", number(before.melee_speed_percent())+"%", number(after.melee_speed_percent())+"%");
+        add("Melee crit bonus", decimal(before.melee_crit_bonus()/100.f)+"%", decimal(after.melee_crit_bonus()/100.f)+"%");
     } else if (reward == ChestReward::DarkLink) {
         add("Level", number(before.dark_link), number(after.dark_link));
         add("Damage multiplier", dark_multiplier(before), dark_multiplier(after));
@@ -101,11 +103,11 @@ inline std::string item_description(ChestReward reward, const Run& run) {
     }
     if (reward == ChestReward::OrdonSword) return "Dual Wield Lv." + number(run.dual_wield) + "; " + number(run.melee_targets()) + " targets" +
         "\nMelee damage " + number(run.melee_power()) + "; speed +" + number(run.melee_speed_percent()-100) + "%" +
-        "\nTarget range " + number(unsigned(run.radius(280))) + "; interval " + seconds(run.melee_cooldown()) + "\n" + bonuses;
+        "; melee crit +" + decimal(run.melee_crit_bonus()/100.f) + "%\nTarget range " + number(unsigned(run.melee_reach(280))) + "; interval " + seconds(run.melee_cooldown()) + "\n" + bonuses;
     if (reward == ChestReward::MasterSword) {
         return ("Sword Lv." + number(run.master_sword) + "; bonus +" + number(run.sword_bonus())) +
             "; melee " + number(run.melee_power()) +
-            ("; Reach +" + decimal(7.5f * run.rank(Upgrade::Reach)) + "%") +
+            ("; Reach +" + decimal(15.f * run.rank(Upgrade::Reach)) + "%") +
             "\nWave Lv." + number(run.rank(Upgrade::Wave)) + ": " + (run.rank(Upgrade::Wave) ? number(run.ranged_shots()) + (run.great_spin(Upgrade::Wave) ? " Great Spin, " : " piercing, ") + number(run.attack_power(0)) + " dmg/" + seconds(run.cooldown(60)) : "locked") +
             "\n" + std::string(run.upgrade_name(Upgrade::Spin)) + " Lv." + number(run.rank(Upgrade::Spin)) + ": " + (run.rank(Upgrade::Spin) ? std::string(run.great_spin(Upgrade::Spin) ? "Great Spin, " : "moving, ") + number(run.attack_power(1)) + " dmg/" + seconds(run.cooldown(120)) : "locked") +
             "\n" + ("Jump Strike Lv." + number(run.rank(Upgrade::JumpStrike)) +
@@ -121,10 +123,13 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     const auto rank = run.rank(upgrade);
     switch (upgrade) {
     case Upgrade::JumpStrike: return rank ? number(run.jump_splash_percent()) + "% melee splash (" + number(run.jump_splash_power()) + " damage); 20% trigger; " + seconds(run.jump_cooldown()) + " cooldown" : "off";
-    case Upgrade::DualWield: return number(run.melee_targets()) + " targets; +" + number(run.melee_speed_percent()-100) + "% melee speed";
+    case Upgrade::DualWield: return number(run.melee_targets()) + " targets; +" + number(run.melee_speed_percent()-100) + "% melee speed; +" + decimal(run.melee_crit_bonus()/100.f) + "% melee crit";
+    case Upgrade::MasterSword: return "Level " + number(run.master_sword) + "; sword damage +" + number(run.sword_bonus()) + "; lightning +" + number(run.master_sword/2);
+    case Upgrade::MultiStrike: return "+" + number(run.multi_strikes()) + " sequential activations per melee/spin/wave/lightning cast";
+    case Upgrade::Lightning: return rank ? number(run.lightning_power()) + " damage; " + seconds(run.item_cooldown(upgrade)) + " cooldown; " + number(run.lightning_hops()) + " hops; range " + decimal(run.lightning_hop_range()) + "; 20% on melee hit; " + number(run.ranged_shots()) + " chains" : "off";
     case Upgrade::Power: return "+" + number(rank) + " damage";
     case Upgrade::Haste: return "-" + number(100 - run.cooldown_percent()) + "% cooldown";
-    case Upgrade::Reach: { char value[96];std::snprintf(value,sizeof(value),"+%.1f%% reach/range; x%.2f Spin/Bomb/Shield radius",7.5f*rank,std::sqrt(run.radius(1.f)));return value; }
+    case Upgrade::Reach: { char value[160];std::snprintf(value,sizeof(value),"+%.1f%% melee/jump/lightning range; +%.1f%% other range; x%.2f Spin radius; x%.2f Bomb/Shield radius",15.f*rank,7.5f*rank,run.melee_area_radius(1.f),std::sqrt(run.radius(1.f)));return value; }
     case Upgrade::Magnet: return number(run.magnet_range()) + " pickup range";
     case Upgrade::Heart: return number(run.maximum_hearts) + " maximum hearts (max 20)";
     case Upgrade::FireArrows: return number(run.burn_damage()) + " damage/s for " + seconds(run.burn_duration());
@@ -136,7 +141,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::Piercing: return number(run.arrow_targets()) + " targets per arrow";
     case Upgrade::Multishot: return "+" + number(run.extra_projectiles()) + " projectiles per ranged cast";
     case Upgrade::LifeRegen: return "0.25 hearts every " + seconds(run.life_regen_interval());
-    case Upgrade::LifeSteal: return rank ? "0.25 hearts per defeated enemy" : "off";
+    case Upgrade::LifeSteal: return rank ? "0.25 hearts per sword-family kill (no burns)" : "off";
     case Upgrade::Hurricane: return rank ? "x2 Boomerang and wind size; piercing flight" : "off";
     case Upgrade::FireBomb: return rank ? "10% bomb damage/s for 5 seconds" : "off";
     case Upgrade::BombArrow: return rank ? "50% bow explosion; radius " + decimal(run.bomb_arrow_radius()) : "off";
@@ -149,6 +154,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
 }
 inline std::string upgrade_description(Upgrade upgrade, const Run& run) {
     if (upgrade >= Upgrade::Count) return {};
+    if (upgrade == Upgrade::MasterSword) return item_description(ChestReward::MasterSword,run);
     if (upgrade == Upgrade::DualWield) return item_description(ChestReward::OrdonSword,run);
     if (upgrade >= Upgrade::Bow && upgrade <= Upgrade::Ball)
         return item_description(ChestReward(unsigned(upgrade) - unsigned(Upgrade::Bow)), run);
@@ -163,6 +169,7 @@ inline std::string upgrade_description(Upgrade upgrade, const Run& run) {
     return text;
 }
 inline std::vector<ItemChange> upgrade_changes(Upgrade upgrade, const Run& before, const Run& after, Rarity rarity = Rarity::Common) {
+    if (upgrade == Upgrade::MasterSword) return reward_changes(ChestReward::MasterSword,before,after);
     if (upgrade == Upgrade::DualWield) return reward_changes(ChestReward::OrdonSword,before,after);
     if (upgrade >= Upgrade::Bow && upgrade <= Upgrade::Ball)
         return reward_changes(ChestReward(unsigned(upgrade) - unsigned(Upgrade::Bow)), before, after);

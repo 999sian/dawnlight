@@ -45,6 +45,9 @@ fixture = r'''
 namespace ui {const char* material_icon(const char*){assert(false);return "";}}
 // SDK_VALIDATOR
 using namespace dawnlight::survivors;
+struct daAlink_c{};daAlink_c player;daAlink_c* daAlink_getAlinkActorClass(){return &player;}
+unsigned swordGrants=0;void apply_treasure_inventory(daAlink_c*,ChestReward reward,const Run&,unsigned){assert(reward==ChestReward::MasterSword);++swordGrants;}
+void sync_survivors_inventory(){}
 using u8=uint8_t;
 constexpr u8 dItemNo_NOENTRY_146_e=0x92;
 enum HookAction {HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
@@ -288,6 +291,10 @@ int main(){
  iconArgs[1]=u8(0x43);iconArgs[10]=-1;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
  iconArgs[1]=u8(0x92);arena=false;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
  arena=true;s_run.phase=Phase::Running;s_powerupsRequested=true;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==0x3d);
+ fresh();s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::MasterSword,Upgrade::Lightning,Upgrade::Rupees};
+ s_run.offer_rarities.fill(Rarity::Legendary);unsigned choice=0;const unsigned grants=swordGrants;
+ select_upgrade(nullptr,&choice);assert(s_run.master_sword==5&&swordGrants==grants+1&&s_run.equipment_count()==1);
+
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

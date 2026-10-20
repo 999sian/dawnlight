@@ -7,13 +7,21 @@
 namespace dawnlight::survivors {
 enum class DamageSource : unsigned {
     Sword, Spin, Jump, Wave, Bow, Boomerang, Bombs, Ball, Shield, Shockwave,
-    DualWield, FireArrows, FireBomb, BombArrow, FireEdge, DarkAura, Other, DarkLink, Count
+    DualWield, FireArrows, FireBomb, BombArrow, FireEdge, DarkAura, Other, DarkLink, Lightning, Count
 };
 inline constexpr unsigned damage_source_count=unsigned(DamageSource::Count);
 inline constexpr std::array damage_source_names{
     "Sword Attack","Spin Attack","Jump Strike","Sword Wave","Hero's Bow","Boomerang",
     "Bombs","Ball and Chain","Shield Attack","Shockwave","Dual Wield",
-    "Fire Arrows (burn)","Fire Bomb (burn)","Bomb Arrow (blast)","Fire Edge (burn)","Dark Aura","Other damage","Dark Link"};
+    "Fire Arrows (burn)","Fire Bomb (burn)","Bomb Arrow (blast)","Fire Edge (burn)","Dark Aura","Other damage","Dark Link","Lightning Strike"};
+inline bool sword_kill_source(DamageSource source) {
+    return source==DamageSource::Sword || source==DamageSource::Spin || source==DamageSource::Jump ||
+        source==DamageSource::Wave || source==DamageSource::DualWield || source==DamageSource::Lightning;
+}
+inline bool melee_critical_source(DamageSource source) {
+    return source==DamageSource::Sword || source==DamageSource::Spin || source==DamageSource::Jump ||
+        source==DamageSource::Shield || source==DamageSource::DualWield || source==DamageSource::Lightning;
+}
 using DamageAmounts=std::array<uint64_t,damage_source_count>;
 inline uint64_t damage_sum(const DamageAmounts& values) {
     return std::accumulate(values.begin(),values.end(),uint64_t(0));
@@ -21,10 +29,11 @@ inline uint64_t damage_sum(const DamageAmounts& values) {
 // Provenance travels alongside the existing aggregate, without changing combat.
 struct DamageQueue {
     DamageAmounts pending{},fixedPending{},applied{},fixedApplied{};
+    bool swordPending=false,swordApplied=false;
     void add(DamageSource source,unsigned amount,bool fixed=false) {
         (fixed?fixedPending:pending)[unsigned(source)]+=amount;
     }
-    void consume() {applied=pending;fixedApplied=fixedPending;pending={};fixedPending={};}
+    void consume() {swordApplied=swordPending;swordPending=false;applied=pending;fixedApplied=fixedPending;pending={};fixedPending={};}
     DamageAmounts weights(unsigned raw,unsigned scaled,unsigned fixed) const {
         auto normal=applied,flat=fixedApplied;
         // Retain attribution for any future producer not yet explicitly tagged.

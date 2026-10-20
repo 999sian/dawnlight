@@ -29,7 +29,7 @@ fixture = fixture.replace('int fopAcM_GetID', 'unsigned fopAcM_GetID')
 fixture = fixture.replace('struct daE_OC_c:fopAc_ac_c{', 'struct daE_OC_c:fopAc_ac_c{dCcU_AtInfo mAtInfo;')
 fixture = fixture.replace('struct e_ba_class:fopAc_ac_c{', 'struct e_ba_class:fopAc_ac_c{dCcU_AtInfo mAtInfo;')
 fixture = fixture.replace('struct e_ms_class:fopAc_ac_c{', 'struct e_ms_class:fopAc_ac_c{dCcU_AtInfo mAtInfo;')
-fixture = fixture.replace('struct Enemy{int profile=1;bool initialized=true,retiring=false,credited=false;}enemy;', '''struct Enemy{ActorId id=kNone;int profile=1;bool initialized=false,retiring=false,credited=false,dormant=false;};
+fixture = fixture.replace('struct Enemy{int profile=1;bool initialized=true,retiring=false,credited=false;}enemy;', '''struct Enemy{ActorId id=kNone;int profile=1;bool initialized=false,retiring=false,credited=false,dormant=false,swordKill=false;};
 std::array<Enemy,enemy_capacity>s_enemies;
 std::map<ActorId,fopAc_ac_c*> actors;
 fopAc_ac_c* actor_by_id(ActorId id){auto it=actors.find(id);return it==actors.end()?nullptr:it->second;}''')
@@ -46,6 +46,8 @@ bool checkMasterSwordEquip(){return master;}bool checkItemSwordEquip(){return dr
 fixture=fixture.replace('struct Attack{','struct Attack{bool bombArrow=false,detonated=false;')
 fixture+='void detonate_bomb_arrow(Attack& a,const cXyz&){a.detonated=true;}\n'
 fixture += r'''
+bool sword_kill_hit(const cCcD_Obj*);
+void trigger_lightning(fopAc_ac_c*){}
 unsigned knockRequests=0;
 void queue_knockback(Enemy&,fopAc_ac_c*,bool){++knockRequests;}
 void update_knockback(Enemy&,fopAc_ac_c*){}

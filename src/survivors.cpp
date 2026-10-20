@@ -11,6 +11,7 @@
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
 #include "survivors_rules.hpp"
+#include "survivors_multistrike.hpp"
 #include "survivors_enemy_hits.hpp"
 #include "d/d_msg_scrn_explain.h"
 #include "d/d_msg_scrn_3select.h"
@@ -321,6 +322,11 @@ void reset_midna_dialog() { s_midnaRequestFrames=0; s_midnaTalking=s_midnaEndPen
 enum class SwordAction { None, Normal, Spin, Jump };
 SwordAction s_swordAction = SwordAction::None;
 unsigned s_meleeCooldown = 0;
+MultiStrikeState s_multiStrike;
+void clear_lightning();
+void update_lightning(daAlink_c*);
+void draw_lightning();
+void trigger_lightning(fopAc_ac_c*);
 unsigned s_comboStep = 0, s_comboTimeout = 0;
 bool s_autoSwordCall = false, s_trackMelee = false;
 ActorId s_meleeTarget = kNone;
@@ -374,6 +380,7 @@ struct Enemy {
     cXyz lootPosition{}, spawnPosition{};
     unsigned species=0, hitCooldown=0, stagger=0;
     cCcD_Obj* childHit=nullptr;
+    bool swordKill=false;
     bool encounterReady=false;
     unsigned encounterTick=0;
     unsigned specialCooldown=0, summonCooldown=240, throwLife=0;
@@ -458,6 +465,7 @@ Enemy* tracked(ActorId id) {
 #include "survivors_navigation.inc"
 #include "survivors_enemy_facing.inc"
 DamageAmounts hit_damage_sources(const cCcD_Obj* collider);
+bool sword_kill_hit(const cCcD_Obj* collider);
 #include "survivors_feedback.inc"
 #include "survivors_ground.inc"
 #include "survivors_pickups.inc"
@@ -480,6 +488,7 @@ void stop_attack(Attack& a) {
     a.collider.OffAtSetBit(); a.collider.ResetAtHit();
 }
 void clear_attacks() {
+    s_multiStrike={};clear_lightning();
     clear_sword_aim();
     clear_jump_effects();
     s_meleeTarget = kNone; s_trackMelee = false;
@@ -692,7 +701,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
-    if (s_run.rank(Upgrade::LifeSteal) && dComIfGs_getLife() > 0)
+    if (s_run.rank(Upgrade::LifeSteal) && e.swordKill && dComIfGs_getLife() > 0)
         dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if(e.elite) {
         if(e.eliteSlot>=0 && unsigned(e.eliteSlot)<timed_elite_count)++s_run.timed_elites;
@@ -908,7 +917,7 @@ void sync_spin_radius(daAlink_c* link) {
     // Native normal/light particles are authored for the final native radius.
     // Match their geometry and particle size to the current expanding hitbox,
     // including Reach. Absolute scales avoid compounding on reused emitters.
-    const float radius = s_run.area_radius(link->field_0x347c);
+    const float radius = s_run.melee_area_radius(link->field_0x347c);
     const float nativeRadius = link->field_0x3478;
     if (!std::isfinite(radius) || !std::isfinite(nativeRadius) || radius <= 0 || nativeRadius <= 0) return;
     link->mAtSph.SetR(radius);
@@ -957,7 +966,8 @@ void update_sword(daAlink_c* link) {
     if (s_swordAction == SwordAction::Normal) {
         if (normal_sword_proc(link)) {
             // Never cut off the damage window, and let the final hit recover.
-            if (!s_comboStep || s_meleeCooldown || link->mUnderFrameCtrl[0].getFrame() <=
+            if ((!s_comboStep && !s_multiStrike.count(StrikeSeries::Sword)) ||
+                (s_meleeCooldown && !s_multiStrike.count(StrikeSeries::Sword)) || link->mUnderFrameCtrl[0].getFrame() <=
                 std::max(link->field_0x347c, link->field_0x3484)) return;
             continuingSwing = true;
         } else {
@@ -973,7 +983,7 @@ void update_sword(daAlink_c* link) {
         s_comboStep = s_comboTimeout = 0;
         return;
     }
-    if (s_meleeCooldown || (!manual_sword(link) && !melee_target(link))) return;
+    if ((s_meleeCooldown && !s_multiStrike.count(StrikeSeries::Sword)) || (!manual_sword(link) && !melee_target(link))) return;
     if (!link->checkItemSwordEquip()) {
         if (link->mEquipItem != dItemNo_NONE_e) return;
         // The pending item ID can survive an interrupted upper animation.
@@ -983,13 +993,15 @@ void update_sword(daAlink_c* link) {
     }
     // Other abilities run independently; this scheduler owns only the native
     // normal combo and its occasional Jump Strike movement.
-    if (try_jump_strike(link)) return;
+    if (!s_multiStrike.count(StrikeSeries::Sword) && try_jump_strike(link)) return;
     auto* target = melee_target(link);
     if (!target && !manual_sword(link)) return;
     const auto direction = manual_sword(link) ? manual_direction(link) : target->current.pos - link->current.pos;
     link->shape_angle.y = cM_atan2s(direction.x, direction.z);
     link->current.angle.y = link->shape_angle.y;
     if (begin_sword_combo(link)) {
+        if(s_multiStrike.count(StrikeSeries::Sword))s_multiStrike.consume(StrikeSeries::Sword);
+        else s_multiStrike.start(StrikeSeries::Sword,s_run.multi_strikes());
         s_swordAction = SwordAction::Normal; s_wavePending = false; s_trackMelee = true;
         new_melee_swing();
         link->mUnderFrameCtrl[0].setRate(link->mUnderFrameCtrl[0].getRate()*s_run.melee_speed());
@@ -1022,6 +1034,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 #include "survivors_inventory.inc"
 #include "survivors_black_flame.inc"
 #include "survivors_status.inc"
+#include "survivors_lightning.inc"
 #include "survivors_knockback.inc"
 void new_melee_swing() { ++s_meleeSerial; }
 #include "survivors_combat_pause.inc"
@@ -1056,6 +1069,7 @@ void update_weapons(daAlink_c* link) {
     const bool jumping = update_jump_strike(link);
     if (!jumping && auto_attacks_suspended(link)) { suspend_auto_attacks(link); return; }
     for (auto& cooldown : s_cooldowns) if (cooldown) --cooldown;
+    update_lightning(link);
     update_ranged(link); // Cosmetic upper-body pose; never gates a weapon.
     update_parallel_skills(link);
     fire_items(link); // Every due ranged weapon may release in this frame.
@@ -1086,7 +1100,9 @@ void after_power(ModContext*, void* args, void*, void*) {
         return s_run.player_damage(scaled);
     };
     const auto critical_power = [&](unsigned base) {
-        bool critical=false; const auto power=s_run.critical_power(base,&critical);
+        const auto sources=hit_damage_sources(info->mpCollider);
+        bool melee=false;for(unsigned i=0;i<sources.size();++i)if(sources[i]&&melee_critical_source(DamageSource(i)))melee=true;
+        bool critical=false; const auto power=s_run.critical_power(base,&critical,melee);
         if (auto* hit=bulblin_power_hit(info)) hit->critical=critical;
         mark_damage_critical(info,critical);
         return power;
@@ -1316,6 +1332,7 @@ void after_draw(ModContext*, void*, void*, void*) {
         cXyz pos=drop.position+cXyz(0,8*cM_ssin(s16(s_run.ticks*700)),0);
         dDbVw_drawCubeOpa(pos,size,angle,GXColor{255,210,45,255});
     }
+    draw_lightning();
     draw_loot();
     draw_victory_wave();
     draw_ranged();
@@ -1384,6 +1401,10 @@ void select_upgrade(ModContext*, void* data) {
     const unsigned oldHearts=s_run.rank(Upgrade::Heart);
     const unsigned bonus = s_run.upgrade_rupees(selected, s_run.offer_rarities[choice]);
     if (!s_run.choose(choice)) return;
+    if (selected==Upgrade::MasterSword) {
+        if(auto* link=daAlink_getAlinkActorClass())apply_treasure_inventory(link,ChestReward::MasterSword,s_run,0);
+        sync_survivors_inventory();
+    }
     if (selected == Upgrade::Heart)
         dComIfGs_setMaxLife(std::min(100u,unsigned(dComIfGs_getMaxLife())+5*(s_run.rank(Upgrade::Heart)-oldHearts)));
     // Include newly gained heart containers and each queued level's choice.

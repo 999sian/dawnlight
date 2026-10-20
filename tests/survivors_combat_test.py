@@ -33,7 +33,9 @@ stubs = r'''
 #include <map>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "survivors_multistrike.hpp"
 using namespace dawnlight::survivors;
+MultiStrikeState s_multiStrike;
 using u32=unsigned; using u16=unsigned short; using BOOL=int; using fpc_ProcID=unsigned;
 constexpr BOOL FALSE=0,TRUE=1;
 constexpr int BUTTON_STATUS_PUT_AWAY=1,BUTTON_STATUS_NONE=0;
@@ -204,8 +206,9 @@ void mark_damage_critical(dCcU_AtInfo*,bool){}
 void mark_damage_split(dCcU_AtInfo*,unsigned,unsigned){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
+stubs += "\nvoid update_lightning(daAlink_c*){}\nvoid apply_treasure_inventory(daAlink_c*,ChestReward,const Run&,unsigned){}\nvoid sync_survivors_inventory(){}\nDamageAmounts hit_damage_sources(const cCcD_Obj* c){DamageAmounts d{};d[unsigned(c==&player.mGuardAtCps?DamageSource::Shield:DamageSource::Sword)]=1;return d;}\n"
 main = r'''
-void reset(){player.swordHeld=player.swordPressed=false;s_waveManual=s_manualSwing=false;player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
+void reset(){s_multiStrike={};player.swordHeld=player.swordPressed=false;s_waveManual=s_manualSwing=false;player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;
     player.field_0x3478=0;player.field_0x347c=10;player.field_0x3484=15;
     for(auto& id:player.field_0x3204)id=0;
@@ -243,7 +246,7 @@ int main(){
             for(unsigned frame=0;frame<3;++frame) {
                 after_sword_move(nullptr,spinArgs,nullptr,nullptr);
                 after_spin_effect(nullptr,spinArgs,nullptr,nullptr);
-                const float radius=current*std::sqrt(1+.075f*reach);
+                const float radius=current*(1+2*(std::sqrt(1+.075f*reach)-1));
                 assert(std::abs(player.mAtSph.radius-radius)<.001f);
                 for(unsigned i=0;i<count;++i){
                     const auto& emitter=emitters[player.field_0x3204[i]];
@@ -275,8 +278,8 @@ int main(){
         player.mAtCps[0].radius=35;player.mAtCps[1].active=false;
         for(int frame=0;frame<3;++frame) {
             after_sword_collision(nullptr,swordArgs,nullptr,nullptr);
-            assert(std::abs(player.mAtCps[0].end.z-1.3f*s_run.radius(200))<.001f);
-            assert(std::abs(player.mAtCps[2].end.z-1.3f*s_run.radius(190))<.001f);
+            assert(std::abs(player.mAtCps[0].end.z-1.3f*s_run.melee_reach(200))<.001f);
+            assert(std::abs(player.mAtCps[2].end.z-1.3f*s_run.melee_reach(190))<.001f);
             assert(player.mAtCps[0].radius==35&&!player.mAtCps[1].active);
         }
     }
@@ -562,7 +565,7 @@ int main(){
     particles.clear();particleScales.clear();s_run.ranks[unsigned(Upgrade::Reach)]=5;
     assert(before_jump_strike_effect(nullptr,args,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
     assert((particles==std::vector<u16>{0x161,0x162}));
-    assert(std::abs(particleScales[0]-2.0625f)<.01f&&particleScales[0]==particleScales[1]);
+    assert(std::abs(particleScales[0]-2.625f)<.01f&&particleScales[0]==particleScales[1]);
     for(unsigned rank:{1u,30u}){
         s_run.ranks[unsigned(Upgrade::JumpStrike)]=rank;
         info={&player.mAtSph};after_power(nullptr,powerArgs,nullptr,nullptr);
@@ -573,7 +576,7 @@ int main(){
     for(float radius:{130.f,200.f,300.f}){
         player.field_0x347c=radius;player.mUnderFrameCtrl[0].rate=1;
         after_jump_strike(nullptr,args,nullptr,nullptr);
-        assert(player.mAtSph.radius==s_run.radius(radius)&&player.mUnderFrameCtrl[0].rate==2);
+        assert(player.mAtSph.radius==s_run.melee_reach(radius)&&player.mUnderFrameCtrl[0].rate==2);
     }
     const auto jumpParticles=s_jumpEmitters;clear_jump_effects();clear_jump_effects();
     for(auto id:jumpParticles)assert(emitters[id].invalid);
@@ -660,6 +663,26 @@ int main(){
     const auto oldLevel=s_run.level;
     select_upgrade(nullptr,&choice);
     assert(life==16&&s_run.level==oldLevel+1&&s_run.phase==Phase::Upgrade);
+    // Every Multi Strike activation uses a new native cut, after the previous
+    // pose/hit window; repeats do not recursively re-arm the burst.
+    for(unsigned extra=1;extra<=3;++extra){
+        reset();s_run.dual_wield=1;s_run.ranks[unsigned(Upgrade::MultiStrike)]=extra;
+        update_sword(&player);assert(s_multiStrike.count(StrikeSeries::Sword)==extra);
+        for(unsigned n=extra;n>0;--n){
+            player.mProcID=daAlink_c::PROC_WAIT;update_sword(&player);
+            assert(s_multiStrike.count(StrikeSeries::Sword)==n-1);
+        }
+        assert(player.normals+player.finishes==1+extra);
+        player.mProcID=daAlink_c::PROC_WAIT;update_sword(&player);
+        assert(player.normals+player.finishes==1+extra);
+        // Repeat the full Sword Wave volley, including Multishot projectiles.
+        reset();s_run.dual_wield=1;s_run.ranks[unsigned(Upgrade::MultiStrike)]=extra;
+        s_run.ranks[unsigned(Upgrade::Multishot)]=2;s_run.ranks[0]=1;
+        update_sword_wave(&player);player.mUnderFrameCtrl[0].frame=player.field_0x3478;
+        update_sword_wave(&player);assert(waves==3);
+        for(unsigned frame=0;frame<extra*4;++frame)update_sword_wave(&player);
+        assert(waves==3*(1+extra)&&!s_multiStrike.count(StrikeSeries::Wave));
+    }
     std::cout<<"Survivors combat: native four-hit combos, sword movement, wave timing, particles and rewards passed\n";
 }
 '''
