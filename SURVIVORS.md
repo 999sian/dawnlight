@@ -335,14 +335,10 @@ attacks and offers three items; choose one to receive it through the native Get
 Item animation. Cancelling preserves offers. Opened chests disappear; free elite
 chests never raise the paid-chest price.
 
-When the item reward pool is empty (all remaining options capped, banished or
-unavailable), chests offer normal **level-up rewards** instead. This also works
-with fewer than four equipped items. The same availability check controls the
-HUD: **No chest rewards available** appears only if neither reward pool has an
-eligible choice. Bottle refills retain their existing availability rules.
-Fallback rewards use normal rarity, caps, rerolls, banishes and icons; they grant
-no extra XP level or full heal. Paid, fixed-price and free chests keep their prices.
-The starting-item talent remains an item-only choice.
+Once no eligible item reward remains, all existing chests despawn (including
+fixed map chests and free elite chests) and no more chests spawn for that run,
+including its Endless continuation. A live item-get finishes before cleanup.
+Chests never offer ordinary level-up rewards. This state resets with a new run.
 
 Equip up to **four chest items**; their icons (or empty slots) appear above the
 choices. Red Potion uses one shared slot for all bottles, retained even when
@@ -651,3 +647,13 @@ through Endless continuation and regardless of the current session switch. Resul
 show a Debug notice and zero XP earned. In-run XP, level-ups, rewards and combat
 still work for testing. New runs started with Debug Off progress normally. The
 compile-time release switch still hides the tab and neutralizes all Debug features.
+
+### Endless escalation at 40:00
+
+In Endless Mode, every normal and shadow archer volley contains three native
+arrows using Hard Mode's horizontal fan (center and +/-0x900 yaw).
+At **40:00 total run time**, heart and heart-piece drops stop and remaining
+healing pickups retire. Life Steal and all Life Regen (including talents) stop
+healing; those upgrades no longer appear as new rewards. Only level-up full
+healing and owned Red Potion bottles can restore health. Potion Healing ranks
+still apply, and difficulty/Endless HP, damage and movement scaling continue.

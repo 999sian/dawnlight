@@ -711,7 +711,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
-    if (s_run.rank(Upgrade::LifeSteal) && e.swordKill && dComIfGs_getLife() > 0)
+    if (s_run.life_steal_active() && e.swordKill && dComIfGs_getLife() > 0)
         dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if(e.elite) {
         if(e.eliteSlot>=0 && unsigned(e.eliteSlot)<timed_elite_count)++s_run.timed_elites;
@@ -1154,6 +1154,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (!link || fopAcM_GetID(link) != s_player) return;
     if (dComIfGs_getLife() == 0 && !s_victory) { begin_defeat(); return; }
     update_combat_feedback();
+    chest_spawning_allowed(); // Also retire exhausted chests during victory loot time.
     if (s_victory) {
         update_victory();
         update_exp_magnets(link); update_orbs(link);
@@ -1390,7 +1391,7 @@ void draw_hud(ModContext*, void* args, void*, void*) {
     graf->fillBox(JGeometry::TBox2<f32>(x - 160, 82, x - 160 + 320 * fraction, 88));
     graf->setColor(oldTL, oldTR, oldBR, oldBL);
     const float bossOffset = draw_boss_hud(mods::arg<dMeter2Draw_c*>(args, 0), x) ? 54.0f : 0.0f;
-    if (s_run.chest_rewards_available(potion_slot() >= 0))
+    if (!s_chestsExhausted && s_run.chest_rewards_left(potion_slot() >= 0))
         std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
     else std::snprintf(text, sizeof(text), "No chest rewards available");
     label(text, x, 96 + bossOffset, 14);
@@ -1481,8 +1482,8 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 }
 #include "survivors_choice_ui.inc"
 #include "survivors_choice_actions.inc"
-#include "survivors_powerups.inc"
 #include "survivors_chest_ui.inc"
+#include "survivors_powerups.inc"
 #include "survivors_talents.inc"
 #include "survivors_results.inc"
 #include "survivors_scores_ui.inc"

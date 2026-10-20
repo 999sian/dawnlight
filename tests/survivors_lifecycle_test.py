@@ -228,6 +228,10 @@ int main() {
     enemy.credited=false;enemy.retiring=true;credit_death(enemy,&actor);assert(life==5);
     enemy.retiring=false;life=12;credit_death(enemy,&actor);assert(life==12);
     enemy.credited=false;life=0;credit_death(enemy,&actor);assert(life==0);
+    s_run.endless=true;s_run.ticks=40*60*ticks_per_second-1;life=4;enemy.credited=false;
+    credit_death(enemy,&actor);assert(life==5);
+    ++s_run.ticks;enemy.credited=false;credit_death(enemy,&actor);assert(life==5);
+    s_run.endless=false;s_run.ticks=0;
     s_run.ranks[unsigned(Upgrade::LifeSteal)]=0;life=12;
     // Horde throttles only normal kill rewards; elites never consume the counter.
     s_run.options.horde=5;s_run.drop_progress=0;xp=rewards=0;

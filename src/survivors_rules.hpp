@@ -85,7 +85,7 @@ inline constexpr unsigned upgrade_units(Upgrade u, Rarity rarity) {
 }
 inline constexpr std::array rarity_names{"Common", "Uncommon", "Rare", "Epic", "Legendary"};
 inline constexpr std::array rarity_colors{"#f4d78b", "#7bdd83", "#72b7ff", "#cb91ff", "#ffad54"};
-enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, OrdonSword, Shield, DarkLink, Count, Powerup }; // Powerup is a run-local pending-choice tag, not an inventory item.
+enum class ChestReward : unsigned { Bow, Boomerang, Bombs, Ball, MasterSword, RedPotion, OrdonSword, Shield, DarkLink, Count };
 inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
@@ -308,13 +308,14 @@ struct Run {
     bool eligible(Upgrade u) const {
         if (u >= Upgrade::Count || banned_upgrades[unsigned(u)]) return false;
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && banned_items[unsigned(u)-unsigned(Upgrade::Bow)]) return false;
+        if (restricted_healing() && (u==Upgrade::LifeRegen || u==Upgrade::LifeSteal)) return false;
         if (u == Upgrade::Rupees) return true;
         if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
         if (u == Upgrade::MultiStrike && !owns(ChestReward::OrdonSword)) return false;
         if (u == Upgrade::MasterSword && (!owns(ChestReward::MasterSword) || !chest_eligible(ChestReward::MasterSword))) return false;
         if (u == Upgrade::ShieldAttack && !owns(ChestReward::Shield)) return false;
         if (u == Upgrade::DualWield && (!owns(ChestReward::OrdonSword) || banned_items[unsigned(ChestReward::OrdonSword)])) return false;
-        if (u == Upgrade::PotionHealing && (!red_potion || banned_items[unsigned(ChestReward::RedPotion)])) return false;
+        if (u == Upgrade::PotionHealing && !red_potion) return false;
         if (u == Upgrade::JumpStrike && !master_sword) return false;
         if ((u == Upgrade::FireArrows || u == Upgrade::Piercing) && !rank(Upgrade::Bow)) return false;
         if (u == Upgrade::Hurricane && !rank(Upgrade::Boomerang)) return false;
@@ -351,17 +352,15 @@ struct Run {
         if (phase != Phase::Running || xp < required_xp()) return false;
         xp -= required_xp(); ++level; roll_upgrades(); phase = Phase::Upgrade; return true;
     }
-    bool grant_upgrade(Upgrade u, Rarity rarity) {
-        if (!eligible(u) || rarity < upgrade_min_rarity(u)) return false;
-        const unsigned gain = upgrade_gain(u, rarity);
+    bool choose(unsigned choice) {
+        if (phase != Phase::Upgrade || choice >= offers.size()) return false;
+        const auto u = offers[choice];
+        if (!eligible(u) || offer_rarities[choice] < upgrade_min_rarity(u)) return false;
+        const unsigned gain = upgrade_gain(u, offer_rarities[choice]);
         if (u == Upgrade::MasterSword) master_sword += gain;
         else if (u == Upgrade::DualWield) dual_wield += gain;
         else if (u != Upgrade::Rupees) ranks[static_cast<unsigned>(u)] += gain;
         if (u == Upgrade::Heart) maximum_hearts += gain;
-        return true;
-    }
-    bool choose(unsigned choice) {
-        if (phase != Phase::Upgrade || choice >= offers.size() || !grant_upgrade(offers[choice],offer_rarities[choice])) return false;
         phase = Phase::Running;
         return true;
     }
@@ -375,7 +374,9 @@ struct Run {
     float melee_speed() const { return melee_speed_percent()/100.f; }
     unsigned melee_cooldown() const { return std::max(6u, 30*cooldown_percent()/melee_speed_percent()); }
     unsigned life_regen_interval() const { return (20-std::min(5u,talents.rank(Talent::LifeRegen))-std::min(5u,rank(Upgrade::LifeRegen)))*ticks_per_second; }
-    bool life_regen_due() const { return phase==Phase::Running && ticks && ticks%life_regen_interval()==0; }
+    bool restricted_healing() const { return endless && ticks>=40*60*ticks_per_second; }
+    bool life_steal_active() const { return !restricted_healing() && rank(Upgrade::LifeSteal); }
+    bool life_regen_due() const { return !restricted_healing() && phase==Phase::Running && ticks && ticks%life_regen_interval()==0; }
     unsigned auto_rupees() const { return ticks && ticks%(5*ticks_per_second)==0 ? talents.rank(Talent::AutoRupees) : 0; }
     unsigned jump_splash_percent() const {
         const auto level = std::min(30u, rank(Upgrade::JumpStrike));
@@ -429,32 +430,13 @@ struct Run {
         unsigned count=0;for(unsigned i=0;i<unsigned(ChestReward::Count);++i) count+=owns(ChestReward(i));
         return count;
     }
-    bool chest_powerups_enabled(bool bottles=false) const {
-        // Reuse the exact item-availability gate formerly used by the empty-chest HUD.
-        return !starting_item_pending && !chest_rewards_left(bottles);
-    }
-    bool chest_rewards_available(bool bottles=false) const {
-        if (!chest_powerups_enabled(bottles)) return chest_rewards_left(bottles);
-        for (unsigned i=0;i<unsigned(Upgrade::Count);++i) if (eligible(Upgrade(i))) return true;
-        return false;
-    }
-    bool buy_chest_powerup(unsigned& rupees, Upgrade upgrade, Rarity rarity, bool free, bool fixed, bool bottles=false) {
-        const unsigned price=chest_price(free,fixed);
-        if (phase!=Phase::Treasure || !chest_powerups_enabled(bottles) || rupees<price) return false;
-        const unsigned bonus=upgrade_rupees(upgrade,rarity);
-        if (!grant_upgrade(upgrade,rarity)) return false;
-        rupees=rupees-price+bonus;
-        if (!free && !fixed) ++chests_opened;
-        phase=Phase::Running;
-        return true;
-    }
     unsigned reroll_cost() const { return infinite_rerolls() || free_rerolls ? 0 : 50*(paid_rerolls+1); }
     bool pay_reroll(unsigned& rupees, unsigned reserved=0) {
         if ((phase!=Phase::Upgrade && phase!=Phase::TreasureChoice) || rupees<reserved || rupees-reserved<reroll_cost()) return false;
         rupees-=reroll_cost(); if(!infinite_rerolls()){if(free_rerolls)--free_rerolls;else ++paid_rerolls;}return true;
     }
-    bool banish(Upgrade u, bool bottles=false) {
-        if (!can_banish() || (phase!=Phase::Upgrade && !(phase==Phase::TreasureChoice && chest_powerups_enabled(bottles))) || u>=Upgrade::Count || !eligible(u)) return false;
+    bool banish(Upgrade u) {
+        if (!can_banish() || phase!=Phase::Upgrade || u>=Upgrade::Count || !eligible(u)) return false;
         if(!infinite_banishes()) --banishes;
         banned_upgrades[unsigned(u)]=true;
         if(u==Upgrade::MasterSword)banned_items[unsigned(ChestReward::MasterSword)]=true;
@@ -601,7 +583,7 @@ struct Run {
     enum class Drop { None, Heart, GreenRupee, BlueRupee, YellowRupee, RedRupee, PurpleRupee, OrangeRupee, SilverRupee, Count };
     Drop roll_drop() {
         const unsigned roll = next_random() % 10000;
-        if (roll < lucky_chance(250)) return Drop::Heart;
+        if (roll < lucky_chance(250)) return restricted_healing()?Drop::None:Drop::Heart;
         if (roll < lucky_chance(500) || roll >= lucky_chance(5000)) return Drop::None;
         const unsigned color = next_random() % 10000;
         unsigned threshold = 0;
@@ -615,7 +597,7 @@ struct Run {
     enum class PotDrop { HeartPiece, GreenRupee, BlueRupee, YellowRupee, RedRupee,
                          PurpleRupee, OrangeRupee, SilverRupee, Count };
     PotDrop roll_pot_drop() {
-        if (next_random()%10000 < lucky_chance(200)) return PotDrop::HeartPiece;
+        if (next_random()%10000 < lucky_chance(200)) return restricted_healing()?PotDrop::GreenRupee:PotDrop::HeartPiece;
         const unsigned color=next_random()%10000;
         constexpr std::array<unsigned,6> chances{10,40,150,600,1000,2200};
         unsigned threshold=0;

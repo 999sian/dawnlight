@@ -63,6 +63,15 @@ int main(){
   before_potion_drink(nullptr,drink,nullptr,nullptr);before_potion_heal(nullptr,heal,nullptr,nullptr);
   assert(std::any_cast<float>(heal[0])==initial);after_potion_drink(nullptr,nullptr,nullptr,nullptr);
  }
+ active=true;player={};s_run.phase=Phase::Running;s_run.red_potion=true;s_run.endless=true;
+ for(unsigned tick:{40*60*ticks_per_second-1,40*60*ticks_per_second,40*60*ticks_per_second+1}) {
+  s_run.ticks=tick;std::any heal[]={4.f,u8(0)};
+  assert(before_potion_heal(nullptr,heal,nullptr,nullptr)==(s_run.restricted_healing()?HOOK_SKIP_ORIGINAL:HOOK_CONTINUE));
+  before_potion_drink(nullptr,drink,nullptr,nullptr);
+  assert(before_potion_heal(nullptr,heal,nullptr,nullptr)==HOOK_CONTINUE&&std::any_cast<float>(heal[0])==34.f);
+  after_potion_drink(nullptr,nullptr,nullptr,nullptr);
+  heal[0]=-4.f;assert(before_potion_heal(nullptr,heal,nullptr,nullptr)==HOOK_CONTINUE);
+ }
  s_run.start(1);assert(!s_run.red_potion&&s_run.equipment_count()==0&&s_run.rank(Upgrade::PotionHealing)==0);
  s_run.phase=Phase::Treasure;for(unsigned i=0;i<4;++i)assert(s_run.buy_chest(money,ChestReward(i)));
  assert(!s_run.buy_chest(money,ChestReward::RedPotion,4));

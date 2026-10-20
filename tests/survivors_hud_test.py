@@ -141,7 +141,7 @@ bool draw_boss_health_meter(dMeter2Draw_c*,float percentage,float x,float y,floa
 }
 struct ModContext {};
 int potion_slot(){return -1;}
-Run s_run; unsigned s_spawnFailures=0;
+Run s_run;bool s_chestsExhausted=false; unsigned s_spawnFailures=0;
 bool saving=false;bool save_modal_active(){return saving;}
 bool in_arena(){return arena;} bool transitioning(){return transition;} bool ui_visible(){return window;}
 J2DGrafContext* dComIfGp_getCurrentGrafPort(){return hasGraf?&context:nullptr;}

@@ -4,6 +4,13 @@
 #include <iostream>
 using namespace dawnlight::survivors;
 int main() {
+ for(bool endless:{false,true})for(unsigned ticks:{40*60*ticks_per_second-1,40*60*ticks_per_second,40*60*ticks_per_second+1}){
+  Run run;run.start(1);run.endless=endless;run.ticks=ticks;run.ranks[unsigned(Upgrade::LifeSteal)]=1;
+  const bool restricted=endless&&ticks>=40*60*ticks_per_second;
+  assert(run.restricted_healing()==restricted&&run.life_steal_active()==!restricted);
+  if(restricted){assert(!run.life_regen_due()&&!run.eligible(Upgrade::LifeRegen));for(unsigned i=0;i<10000;++i){assert(run.roll_drop()!=Run::Drop::Heart);assert(run.roll_pot_drop()!=Run::PotDrop::HeartPiece);}}
+ }
+
     RunOptions options;
     assert(options.twilit_rank()==0 && options.score_percent()==100);
     options.enemy_hp=2;assert(options.twilit_rank()==1);

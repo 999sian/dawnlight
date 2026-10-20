@@ -49,21 +49,6 @@ std::string powerup_description_rml(Upgrade upgrade) {
     }
     return text + treasure_rml_escape(line);
 }
-std::string powerup_card_rml(Upgrade upgrade,const Run& before,const Run& preview,Rarity rarity) {
-    const auto icon = powerup_icon(upgrade, rarity, preview);
-    std::string rml = choice_rml_start(icon.c_str(), preview.upgrade_name(upgrade), rarity, "", upgrade_units(upgrade,rarity));
-    rml += "<div class=\"survivors-treasure-effect\">" + treasure_rml_escape(descriptions[unsigned(upgrade)]) + "</div>";
-    for (const auto& change : upgrade_changes(upgrade, before, preview, rarity))
-        rml += "<div class=\"survivors-treasure-change\">" + treasure_rml_escape(change.label) +
-        ": <span class=\"survivors-treasure-delta\">" + treasure_rml_escape(change.before) +
-        " -&gt; " + treasure_rml_escape(change.after) + "</span></div>";
-    const unsigned extra = before.upgrade_rupees(upgrade, rarity);
-    if (upgrade != Upgrade::Rupees && extra)
-        rml += "<div class=\"survivors-treasure-change\">Excess reward: <span class=\"survivors-treasure-delta\">+" +
-        number(extra) + " rupees</span></div>";
-    rml += "</div>";
-    return rml;
-}
 ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
     UiElementHandle row = 0;
     auto result = begin_choice_cards(left, right, "", row);
@@ -73,7 +58,18 @@ ModResult build_upgrade_choices(UiElementHandle left, UiElementHandle right) {
         if (!preview.choose(i)) continue;
         const auto upgrade = s_run.offers[i];
         const auto rarity = s_run.offer_rarities[i];
-        const auto rml=powerup_card_rml(upgrade,s_run,preview,rarity);
+        const auto icon = powerup_icon(upgrade, rarity, preview);
+        std::string rml = choice_rml_start(icon.c_str(), preview.upgrade_name(upgrade), rarity, "", upgrade_units(upgrade,rarity));
+        rml += "<div class=\"survivors-treasure-effect\">" + treasure_rml_escape(descriptions[unsigned(upgrade)]) + "</div>";
+        for (const auto& change : upgrade_changes(upgrade, s_run, preview, rarity))
+            rml += "<div class=\"survivors-treasure-change\">" + treasure_rml_escape(change.label) +
+                ": <span class=\"survivors-treasure-delta\">" + treasure_rml_escape(change.before) +
+                " -&gt; " + treasure_rml_escape(change.after) + "</span></div>";
+        const unsigned extra = s_run.upgrade_rupees(upgrade, rarity);
+        if (upgrade != Upgrade::Rupees && extra)
+            rml += "<div class=\"survivors-treasure-change\">Excess reward: <span class=\"survivors-treasure-delta\">+" +
+                number(extra) + " rupees</span></div>";
+        rml += "</div>";
         result = add_choice_card(row, rml, preview.upgrade_name(upgrade), select_upgrade, &s_choices[i]);
         if (result != MOD_OK) return result;
     }

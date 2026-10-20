@@ -8,9 +8,6 @@ struct Chest {
     s16 yaw = 0;
     unsigned age = 0;
     uint64_t spawnOrder = 0;
-    bool powerups = false;
-    Upgrade chosenPowerup = Upgrade::Count;
-    std::array<Upgrade,3> powerupOffers{Upgrade::Count,Upgrade::Count,Upgrade::Count};
     ChestReward reward = ChestReward::Count;
     std::array<ChestReward, 3> offers{ChestReward::Count, ChestReward::Count, ChestReward::Count};
     std::array<Rarity, 3> rarities{};
@@ -19,6 +16,7 @@ std::array<Chest, kChestCount> s_chests;
 std::array<bool,map_chest_capacity> s_mapChestPlaced{};
 unsigned s_chestDelay = 20 * ticks_per_second, s_selectedChest = kChestCount;
 uint64_t s_chestSequence = 0;
+bool s_chestsExhausted = false;
 struct LootModels {
     JKRSolidHeap* heap = nullptr;
     J3DModel* masterSword = nullptr;
@@ -74,7 +72,7 @@ void clear_loot() {
     dComIfG_resDelete(&s_loot.chestPhase, "Dalways");
     if (s_loot.linkArchive) dComIfG_resDelete(&s_loot.linkPhase, s_loot.linkArchive);
     s_loot = {}; s_chests = {}; s_mapChestPlaced = {}; s_selectedChest = kChestCount;
-    s_chestDelay = 20 * ticks_per_second; s_chestSequence = 0;
+    s_chestDelay = 20 * ticks_per_second; s_chestSequence = 0; s_chestsExhausted=false;
 }
 bool prepare_loot(daAlink_c* link) {
     if (s_loot.ready) return true;
@@ -152,6 +150,15 @@ bool prepare_loot(daAlink_c* link) {
     s_loot.ready = true;
     return true;
 }
+bool chest_spawning_allowed() {
+    // Latch for this run, including Endless continuation. Never erase a live
+    // item-get choice/demo; check again as soon as it returns to Running.
+    if (!s_chestsExhausted && s_run.phase==Phase::Running && !s_run.starting_item_pending &&
+        !s_run.chest_rewards_left(potion_slot()>=0)) {
+        s_chestsExhausted=true;s_chests={};s_selectedChest=kChestCount;
+    }
+    return !s_chestsExhausted;
+}
 // Small replenishing and large reward chests have separate model/slot pools.
 // Fixed map chests and the live treasure interaction are never replacement candidates.
 bool find_chest_spawn_slot(unsigned first, unsigned end, unsigned& slot) {
@@ -175,7 +182,7 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
         encounter.respawnAt=s_run.ticks+guard_respawn_interval;
     // A guard slot rewards its first confirmed kill only, including relocation.
     // Respawns still give XP and retain their respawn schedule.
-    if (encounter.rewarded) return;
+    if (encounter.rewarded || !chest_spawning_allowed()) return;
     unsigned slot;
     if (!find_chest_spawn_slot(kSmallChestCount,kChestCount,slot)) return;
     encounter.rewarded=true;
@@ -447,6 +454,7 @@ void fire_items(daAlink_c* link) {
     }
 }
 bool spawn_chest(daAlink_c* link) {
+    if (!chest_spawning_allowed()) return false;
     unsigned index;
     if (!find_chest_spawn_slot(0,kPaidChestCount,index)) return false;
     auto* slot=&s_chests[index];
@@ -483,6 +491,7 @@ bool spawn_chest(daAlink_c* link) {
 }
 // Separate, one-use map chests never consume the six replenishing slots.
 void seed_map_chests(daAlink_c* link) {
+    if (!chest_spawning_allowed()) return;
     if (!s_arenaMeshReady) return;
     const unsigned budget=map_chest_budget(s_map);
     if (!budget) return;
@@ -511,10 +520,10 @@ void seed_map_chests(daAlink_c* link) {
     }
 }
 void update_chests(daAlink_c* link) {
-    if (s_run.phase != Phase::Running || !prepare_loot(link)) return;
+    if (s_run.phase != Phase::Running || !chest_spawning_allowed() || !prepare_loot(link)) return;
     seed_map_chests(link);
     if (s_chestDelay) { --s_chestDelay; return; }
-    if (!s_run.chest_rewards_available(potion_slot() >= 0)) return;
+    if (!s_run.chest_rewards_left(potion_slot() >= 0)) return;
     s_chestDelay = spawn_chest(link) ? (25 + s_run.next_random() % 21) * ticks_per_second : 3 * ticks_per_second;
 }
 void draw_loot_model(J3DModel* model, cXyz pos, s16 yaw, s16 pitch, float scale) {

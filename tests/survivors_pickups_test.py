@@ -139,6 +139,14 @@ int main(){
  fresh();auto pendingId=create_run_pickup({},132);actors.erase(pendingId);pending.insert(pendingId);
  retire_pickups();cleanup_pickups();assert(tracked_pickup(pendingId));
  pending.erase(pendingId);actors[pendingId].id=pendingId;cleanup_pickups();cleanup_pickups();assert(s_pickups.empty());
+ // At Endless 40:00, no new hearts/pieces and no leftover healing pickups.
+ fresh();const auto heart=create_run_pickup({},dItemNo_HEART_e);
+ const auto latePiece=create_run_pickup({},dItemNo_KAKERA_HEART_e);
+ s_run.endless=true;s_run.ticks=40*60*ticks_per_second;
+ assert(create_run_pickup({},dItemNo_HEART_e)==kNone&&create_run_pickup({},dItemNo_KAKERA_HEART_e)==kNone);
+ move_pickup(*tracked_pickup(heart),&actors[heart]);move_pickup(*tracked_pickup(latePiece),&actors[latePiece]);
+ assert(tracked_pickup(heart)->retiring&&tracked_pickup(latePiece)->retiring);
+ assert(create_run_pickup({},1)!=kNone);
  // Retiring the run removes pending/active drops without granting XP.
  fresh();queue_exp_magnet(timed,&player);retire_pickups();update_exp_magnets(&player);
  assert(!s_expMagnets[0].active&&!s_expMagnets[0].pending&&s_run.xp==0);

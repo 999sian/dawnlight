@@ -1,7 +1,7 @@
 // Arrows/eggs outlive their shooter. Armor, weapons, cloaks and Phantom Zant
 // children retire with their owner; all share run pause, damage and teardown.
 struct EnemyArrow { ActorId id=kNone; bool retiring=false; ActorId parent=kNone; bool shell=false; unsigned damageFactor=1; };
-std::array<EnemyArrow, enemy_capacity*3> s_enemyArrows;
+std::array<EnemyArrow, enemy_capacity*4> s_enemyArrows;
 EnemyArrow* tracked_enemy_arrow(ActorId id) {
     for (auto& arrow:s_enemyArrows) if (arrow.id!=kNone && arrow.id==id) {
         if(arrow.shell) {
@@ -62,11 +62,33 @@ HookAction before_enemy_arrow(ModContext*, void* args, void* result, void*) {
     }
     return HOOK_CONTINUE;
 }
+bool s_spawningEndlessArrows=false;
+void spawn_endless_arrow_spread(void* args) {
+    if (s_spawningEndlessArrows || !s_run.endless || s_run.phase!=Phase::Running ||
+        mods::arg<s16>(args,0)!=fpcNm_E_ARROW_e) return;
+    const auto* owner=enemy_child_root(mods::arg<ActorId>(args,1));
+    if (!owner || owner->retiring || owner->credited) return;
+    auto* parent=actor_by_id(mods::arg<ActorId>(args,1));
+    const auto profile=parent?fopAcM_GetName(parent):owner->profile;
+    if (profile!=fpcNm_E_RD_e && profile!=fpcNm_E_RDY_e) return;
+    const auto* source=mods::arg<const csXyz*>(args,5);
+    if (!source) return;
+    struct SpreadScope { SpreadScope(){s_spawningEndlessArrows=true;} ~SpreadScope(){s_spawningEndlessArrows=false;} } scope;
+    // Same native +/-0x900 yaw fan as enemy_slow_motion/bulblin.cpp Hard Mode,
+    // for every Endless volley. Recursive child hooks retain ownership/capacity.
+    for (const s16 offset:{-0x900,0x900}) {
+        csXyz angle=*source;angle.y=static_cast<s16>(angle.y+offset);
+        fopAcM_createChild(mods::arg<s16>(args,0),mods::arg<ActorId>(args,1),mods::arg<u32>(args,2),
+            mods::arg<const cXyz*>(args,3),mods::arg<int>(args,4),&angle,
+            mods::arg<const cXyz*>(args,6),mods::arg<s8>(args,7),mods::arg<createFunc>(args,8));
+    }
+}
 void after_enemy_arrow(ModContext*, void* args, void* result, void*) {
     const auto id=*static_cast<ActorId*>(result);
     if (id==kNone || !owned_arrow_spawn(args) || tracked_enemy_arrow(id)) return;
     for (auto& arrow:s_enemyArrows) if (arrow.id==kNone) {const auto* owner=enemy_child_root(mods::arg<ActorId>(args,1));
-        arrow={id,false,owner->id,attached_enemy_child(mods::arg<s16>(args,0)),enemy_attack_factor(*owner)};return;}
+        arrow={id,false,owner->id,attached_enemy_child(mods::arg<s16>(args,0)),enemy_attack_factor(*owner)};
+        spawn_endless_arrow_spread(args);return;}
 }
 void retire_enemy_arrows() {
     for (auto& arrow:s_enemyArrows) if (arrow.id!=kNone) arrow.retiring=true;

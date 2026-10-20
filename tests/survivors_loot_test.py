@@ -128,7 +128,7 @@ unsigned dComIfGs_getRupee(){return rupees;}void dComIfGs_setRupee(unsigned r){r
 '''
 main = r'''
 void reset(){
-    s_run.start(123);s_attacks=std::deque<Attack>(initial_projectile_slots);s_cooldowns={};s_chests={};s_chestSequence=0;s_mapChestPlaced={};s_loot.ready=true;s_map=placement=0;s_arenaMeshReady=true;
+    s_run.start(123);s_attacks=std::deque<Attack>(initial_projectile_slots);s_cooldowns={};s_chests={};s_chestsExhausted=false;s_chestSequence=0;s_mapChestPlaced={};s_loot.ready=true;s_map=placement=0;s_arenaMeshReady=true;
     player={};player.current.pos={};player.id=s_player=1;s_selectedChest=kChestCount;
     arenaPresent=true;transition=blocked=invalidFloor=blockPositiveX=false;server.registrations=0;
 }
@@ -383,6 +383,17 @@ int main(){
     // Proximity alone never pauses combat or opens a purchase window.
     player.current.pos=s_chests[0].position;rupees=100;update_chests(&player);
     assert(s_run.phase==Phase::Running && !s_chests[0].opening && rupees==100);
+    // All pools disappear together when the item pool is exhausted, even during
+    // a spawn delay. Potion/slot availability later cannot restart this run's chests.
+    reset();for(auto& chest:s_chests)chest.active=true;s_chestDelay=999;
+    s_run.banned_items.fill(true);update_chests(&player);
+    assert(s_chestsExhausted&&s_selectedChest==kChestCount);
+    for(const auto& chest:s_chests)assert(!chest.active);
+    s_run.banned_items.fill(false);seed_map_chests(&player);assert(!spawn_chest(&player));
+    update_chests(&player);for(const auto& chest:s_chests)assert(!chest.active);
+    reset();s_run.phase=Phase::Treasure;s_chests[0].active=true;s_chests[0].opening=true;
+    s_run.banned_items.fill(true);assert(chest_spawning_allowed()&&s_chests[0].active);
+    s_run.phase=Phase::Running;assert(!chest_spawning_allowed()&&!s_chests[0].active);
     // Seed every map budget independently; fixed chests do not replenish after purchase.
     for(unsigned map=0;map<5;++map) {
         reset();s_map=map;invalidFloor=true;seed_map_chests(&player);
@@ -451,7 +462,7 @@ int main(){
 }
 '''
 functions = ['nearest_item_target','next_boom_target','update_boom_wind','launch_item','explode_item','detonate_bomb_arrow','update_item_attack','fire_items',
-             'find_chest_spawn_slot','spawn_chest','seed_map_chests','update_chests']
+             'chest_spawning_allowed','find_chest_spawn_slot','spawn_chest','seed_map_chests','update_chests']
 with tempfile.TemporaryDirectory() as tmp:
     cpp=Path(tmp)/'test.cpp'
     binary=Path(tmp)/'test'

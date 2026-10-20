@@ -15,7 +15,11 @@ RunPickup* tracked_pickup(ActorId id) {
     for (auto& pickup:s_pickups) if (pickup.id==id) return &pickup;
     return nullptr;
 }
+bool disabled_healing_pickup(int item) {
+    return s_run.restricted_healing() && (item==dItemNo_HEART_e || item==dItemNo_KAKERA_HEART_e);
+}
 ActorId create_run_pickup(cXyz position, int item) {
+    if (disabled_healing_pickup(item)) return kNone;
     struct Allow { bool previous=s_allowDrop; Allow(){s_allowDrop=true;} ~Allow(){s_allowDrop=previous;} } allow;
     const auto id=fopAcM_createItem(&position,item,-1,arena().room,nullptr,nullptr,
         daItem_c::TYPE_LAUNCH_e);
@@ -44,6 +48,7 @@ bool heart_or_rupee(const RunPickup& pickup) {
     return pickup.item>=dItemNo_HEART_e && pickup.item<=dItemNo_SILVER_RUPEE_e;
 }
 void move_pickup(RunPickup& pickup, fopAc_ac_c* actor) {
+    if (disabled_healing_pickup(pickup.item)) pickup.retiring=true;
     if (pickup.retiring) return;
     if (heart_or_rupee(pickup)) {
         auto* item=static_cast<daItem_c*>(actor);

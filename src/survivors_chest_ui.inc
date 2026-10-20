@@ -16,24 +16,16 @@ ModResult build_treasure_choices(UiElementHandle left, UiElementHandle right) {
     if (s_selectedChest >= s_chests.size()) return MOD_INVALID_ARGUMENT;
     UiElementHandle row = 0;
     const bool free = s_chests[s_selectedChest].free;
-    auto result = begin_choice_cards(left, right, s_run.starting_item_pending ? "Choose one free starting item." : s_chests[s_selectedChest].powerups ? "Choose a level-up reward." : "", row);
+    auto result = begin_choice_cards(left, right, s_run.starting_item_pending ? "Choose one free starting item." : "", row);
     if (result != MOD_OK) return result;
     for (unsigned i = 0; i < 3; ++i) {
         const auto reward = s_chests[s_selectedChest].offers[i];
         const auto rarity = s_chests[s_selectedChest].rarities[i];
         Run preview = s_run; preview.phase = Phase::Treasure;
         unsigned rupees = dComIfGs_getRupee();
-        const auto& chest=s_chests[s_selectedChest];
-        if (chest.powerups) {
-            const auto upgrade=chest.powerupOffers[i];
-            if (!preview.buy_chest_powerup(rupees,upgrade,rarity,free,chest.fixed,potion_capacity()>0)) continue;
-            result=add_choice_card(row,powerup_card_rml(upgrade,s_run,preview,rarity),preview.upgrade_name(upgrade),
-                                  select_treasure,&s_choices[i]);
-        } else {
-            if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity, free, chest.fixed)) continue;
-            result = add_choice_card(row, treasure_card_rml(reward, preview, rarity), reward_name(reward, preview),
-                                     select_treasure, &s_choices[i]);
-        }
+        if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity, free, s_chests[s_selectedChest].fixed)) continue;
+        result = add_choice_card(row, treasure_card_rml(reward, preview, rarity), reward_name(reward, preview),
+                                 select_treasure, &s_choices[i]);
         if (result != MOD_OK) return result;
     }
     return add_choice_actions(left,true);

@@ -11,7 +11,8 @@ void reroll_choices(ModContext*,void*) {
     dComIfGs_setRupee(rupees);
     if (chest) {
         auto& loot=s_chests[s_selectedChest];
-        roll_treasure_offers(loot,potion_slot()>=0);
+        loot.offers=s_run.roll_chest_offers(potion_slot()>=0);
+        for(auto& rarity:loot.rarities)rarity=s_run.roll_rarity();
     } else s_run.roll_upgrades();
     refresh_choices();
 }
@@ -24,17 +25,10 @@ void banish_choice(ModContext*,void* data) {
         if (!s_run.banish(u)) return;
         for(auto& offer:s_run.offers)if(offer==u)offer=Upgrade::Count;
     } else if(s_run.phase==Phase::TreasureChoice && s_selectedChest<s_chests.size() && s_chosenTreasure==ChestReward::Count) {
-        auto& chest=s_chests[s_selectedChest];
-        if (chest.powerups) {
-            const auto upgrade=chest.powerupOffers[choice];
-            if (!s_run.banish(upgrade,potion_slot()>=0)) return;
-            for(auto& offer:chest.powerupOffers)if(offer==upgrade)offer=Upgrade::Count;
-        } else {
-            const auto reward=chest.offers[choice];
-            if (!s_run.banish(reward,potion_slot()>=0)) return;
-            for(auto& offer:chest.offers)if(offer==reward)offer=ChestReward::Count;
-            if(s_run.chest_powerups_enabled(potion_slot()>=0))roll_treasure_offers(chest,potion_slot()>=0);
-        }
+        auto& offers=s_chests[s_selectedChest].offers;
+        const auto reward=offers[choice];
+        if (!s_run.banish(reward,potion_slot()>=0)) return;
+        for(auto& offer:offers)if(offer==reward)offer=ChestReward::Count;
     } else return;
     refresh_choices();
 }

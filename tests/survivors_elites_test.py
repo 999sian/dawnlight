@@ -96,6 +96,7 @@ bool spawn_enemy(daAlink_c*,bool elite,int slot=-1){if(!elite)++ordinarySpawns;r
 constexpr unsigned kPaidChestCount=2,kSmallChestCount=kPaidChestCount,kChestCount=2+elite_reward_capacity;
 struct Chest{bool active=false,free=false,fixed=false,opening=false;s16 yaw=0;cXyz position;uint64_t spawnOrder=0;};
 std::array<Chest,kChestCount>s_chests;
+bool s_chestsExhausted=false;int potion_slot(){return -1;}
 unsigned s_selectedChest=kChestCount;uint64_t s_chestSequence=0;
 bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes=0,lifeWrites=0;
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
@@ -111,13 +112,20 @@ void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c
 
 '''
 main=r'''
-void fresh(unsigned map){s_victory=false;s_victoryTicks=0;s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};s_chestSequence=0;s_selectedChest=kChestCount;clear_elite_sites();player.current.pos={};reset_elite_encounters();
+void fresh(unsigned map){s_victory=false;s_victoryTicks=0;s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};s_chestsExhausted=false;s_chestSequence=0;s_selectedChest=kChestCount;clear_elite_sites();player.current.pos={};reset_elite_encounters();
  groundMissing=wallBlocked=barrierBlocked=failCreate=false;groundRoom=-2;groundCode=0;s_spawnCooldown=s_spawnFailures=ordinarySpawns=0;}
 unsigned guards(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.dormant;return n;}
 unsigned waves(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.elite&&!e.dormant;return n;}
 void door(float x,float z){fopAcM_prm_class p;p.room_no=arena().room;p.base.parameters=unsigned(arena().room)<<13;p.base.position={x,0,z};capture_elite_site(fpcNm_DOOR20_e,p);}
 void add_floor(float size){capture_elite_floor({-size,0,-size},{size,0,-size},{-size,0,size},1,false);capture_elite_floor({size,0,-size},{size,0,size},{-size,0,size},1,false);}
 int main(){
+ fresh(0);s_run.banned_items.fill(true);s_chests[0].active=true;
+ Enemy exhausted;exhausted.elite=true;exhausted.eliteSlot=0;
+ drop_elite_chest(exhausted,&player);assert(s_chestsExhausted&&s_eliteEncounters[0].defeated);
+ for(const auto& c:s_chests)assert(!c.active);
+ s_run.banned_items.fill(false);exhausted.eliteSlot=1;drop_elite_chest(exhausted,&player);
+ for(const auto& c:s_chests)assert(!c.active);
+
  // Actual encounter scheduler follows the selected timer, including the final boss.
  for(unsigned minutes:{5u,10u,20u}){
   fresh(0);s_run.options.debug.run_minutes=minutes;
@@ -298,6 +306,11 @@ int main(){
  ++s_run.xp;after_player(nullptr,levelArgs,nullptr,nullptr);
  assert(life==12&&lifeWrites==1&&s_run.phase==Phase::Upgrade);
  after_player(nullptr,levelArgs,nullptr,nullptr);assert(lifeWrites==1);
+ // Endless 40:00 suppresses regen, but the very same frame can still fully heal a level-up.
+ fresh(0);s_run.endless=true;s_run.ticks=40*60*ticks_per_second-1;life=1;lifeWrites=0;
+ after_player(nullptr,levelArgs,nullptr,nullptr);assert(life==1&&!lifeWrites);
+ s_run.xp=s_run.required_xp();after_player(nullptr,levelArgs,nullptr,nullptr);
+ assert(life==12&&s_run.phase==Phase::Upgrade&&lifeWrites==1);
  // Quarter-heart regeneration uses active time, every rank, and preserves native max life.
  for(unsigned rank=0;rank<=5;++rank) {
   fresh(0);life=4;lifeWrites=0;s_run.talents.ranks[unsigned(Talent::LifeRegen)]=rank;
@@ -342,7 +355,7 @@ int main(){
 with tempfile.TemporaryDirectory() as temp:
     cpp=Path(temp)/'test.cpp';exe=Path(temp)/'test'
     cpp.write_text(fixture+(root/'src/survivors_elite_positions.inc').read_text()+
-        (root/'src/survivors_elites.inc').read_text()+extract(loot,'find_chest_spawn_slot')+extract(loot,'drop_elite_chest')+
+        (root/'src/survivors_elites.inc').read_text()+extract(loot,'chest_spawning_allowed')+extract(loot,'find_chest_spawn_slot')+extract(loot,'drop_elite_chest')+
         extract(runtime,'update_spawns')+extract(runtime,'after_player')+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)

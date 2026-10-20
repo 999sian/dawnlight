@@ -60,6 +60,7 @@ void update_weapons(daAlink_c*){++attacks;}void update_orbs(daAlink_c*){++orbs;}
 struct Pickup{bool retiring=false;};unsigned pickupMoves=0;
  bool pickup_waiting(Pickup&,fopAc_ac_c*){return true;}
  void move_pickup(Pickup&,fopAc_ac_c*){++pickupMoves;}
+ bool chest_spawning_allowed(){return true;}
  void update_chests(daAlink_c*){assert(false);}void update_exp_magnets(daAlink_c*){++magnets;}
 void drop_reward(fopAc_ac_c*){assert(false);}void add_orb(cXyz,unsigned){++orbs;}
 void drop_elite_chest(Enemy&,fopAc_ac_c*){++chests;}void queue_exp_magnet(Enemy&,fopAc_ac_c*){++magnets;}
