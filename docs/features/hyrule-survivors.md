@@ -853,7 +853,9 @@ remaining duration; active events multiply spawn batches by three, never by nine
 The normal population cap remains enforced. The HUD shows a warning/countdown;
 menus freeze both trials and duration, and 20:00 clears/stops random hordes.
 
-Horde difficulty multiplies population and per-wave spawns (up to 345 normal enemies);
+The normal-enemy population cap is always 345, independent of time and difficulty.
+Spawn intervals retain their original time curve (75 down to 15 ticks, decreasing
+by one every 10 seconds). Horde difficulty multiplies per-wave spawns;
 every Nth normal kill generates XP and rolls loot. Elites and pots are exempt.
 Camera distance ranges from 100–500% (default 200%), scales the rendered view
 with a wall check and restores native input before the next camera tick to avoid

@@ -172,11 +172,13 @@ int main(){
  s_spawnFailures=10;s_run.ticks=duration;s_spawnCooldown=0;update_spawns(&player);assert(s_spawnFailures==0);
  // Burst spawns are tripled but respect the current normal-enemy cap.
  fresh(0);s_run.horde_remaining=horde_duration;s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==3);
- fresh(0);s_run.options.horde=5;s_run.horde_remaining=horde_duration;s_run.ticks=duration-1;
- for(unsigned n=0;n<s_run.target_population()-1;++n)assert(create_enemy_at({},0,0,false));
- s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1);
- unsigned normal=0;for(const auto& e:s_enemies)normal+=e.id!=kNone&&!e.elite;
- assert(normal==345);s_spawnFailures=10;s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1&&s_spawnFailures==0);
+ for(unsigned density=1;density<=5;++density){
+  fresh(0);s_run.options.horde=density;s_run.horde_remaining=horde_duration;
+  for(unsigned n=0;n<s_run.target_population()-1;++n)assert(create_enemy_at({},0,0,false));
+  s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1);
+  unsigned normal=0;for(const auto& e:s_enemies)normal+=e.id!=kNone&&!e.elite;
+  assert(normal==345);s_spawnFailures=10;s_spawnCooldown=0;update_spawns(&player);assert(ordinarySpawns==1&&s_spawnFailures==0);
+ }
  // Four spread-out random guards, from the entire current room rather than Link's spawn ring.
  for(unsigned map:{1u,2u}){fresh(map);add_floor(10000);update_elite_spawns(&player);assert(guards()==4);
   for(unsigned i=0;i<4;++i)for(unsigned j=i+1;j<4;++j)assert(s_enemies[i].lootPosition.absXZ(s_enemies[j].lootPosition)>=1800);

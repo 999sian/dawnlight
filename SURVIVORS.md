@@ -297,8 +297,10 @@ Timed bosses take priority over awakened chest guards. With several candidates,
 the nearest is selected and retained until defeated or replaced by a timed boss;
 sleeping guards and ordinary enemies never occupy this bar.
 
-Normal enemy population grows from **18 to 69 × the Horde difficulty setting**
-(up to 345). Random **HORDE!** events triple spawn batches for 15 seconds, within
+Normal enemies have a fixed ceiling of **345**, from the start at every Horde
+difficulty. Spawn intervals still decrease from 2.5 seconds to 0.5 seconds over
+the first 10 minutes; Horde difficulty still controls batch size (1–5).
+Random **HORDE!** events triple spawn batches for 15 seconds, within
 that population limit. They average two events per five minutes, without a quota;
 overlaps add 15 seconds instead of stacking the multiplier. The HUD shows the
 remaining duration. Events stop at 20:00 and pause with the run.

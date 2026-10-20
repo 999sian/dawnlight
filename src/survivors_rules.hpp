@@ -534,7 +534,8 @@ struct Run {
             std::max(120*scale,32*factor) : std::clamp(base,1u,32767u)*factor;
         return unsigned(std::min<uint64_t>(32767,(hp*std::clamp(options.enemy_hp,1u,10u)+scale/2)/scale));
     }
-    unsigned target_population() const { return std::min(6u + ticks / (45 * ticks_per_second), 23u) * 3 * options.horde; }
+    // Fixed population ceiling; time and Horde difficulty only affect spawn cadence/batches.
+    unsigned target_population() const { return 345u; }
     unsigned spawn_batch() const { return options.horde * (horde_remaining ? 3 : 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
     unsigned cooldown_percent() const {
