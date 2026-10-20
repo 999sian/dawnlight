@@ -54,6 +54,7 @@ struct Enemy {
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
 std::vector<int> s_enemyHitSources,s_enemyContactFrames;
+void clear_player_contacts(){}
 Run s_run;RunOptions s_options;
 GearInventory s_gear;bool s_gearWritable=true;unsigned s_gearNoticeTicks=0,gearRolls=0;
 void restore_gear_collection(){} void close_gear_window(){}

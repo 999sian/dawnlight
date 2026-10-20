@@ -61,6 +61,8 @@ jobs:
           CXX=clang++ python3 tests/survivors_endless_runtime_test.py
           python3 tests/survivors_gear_test.py
           CXX=clang++ python3 tests/survivors_gear_test.py
+          python3 tests/survivors_contacts_test.py
+          CXX=clang++ python3 tests/survivors_contacts_test.py
           python3 tests/survivors_lightning_test.py
           CXX=clang++ python3 tests/survivors_lightning_test.py
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_maps_test.cpp -o /tmp/survivors-maps-test

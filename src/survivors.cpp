@@ -557,6 +557,7 @@ bool own_collider(const cCcD_Obj* collider) {
     for (const auto& a : s_attacks) if (collider == &a.collider) return true;
     return false;
 }
+#include "survivors_contacts.inc"
 void detach_attack_references() {
     detach_pot_attacks();
     // The collision server also keeps last-frame pointers for debug drawing.
@@ -593,6 +594,7 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    clear_player_contacts();
     restore_gear_collection();close_gear_window();s_gear={};s_gearWritable=true;s_gearNoticeTicks=0;
     s_enemyHitSources.clear(); s_enemyContactFrames.clear();
     stop_survivors_music();
@@ -1704,20 +1706,24 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsCamera, before_run_camera); POST(SurvivorsCamera, after_run_camera);
     PRE(SurvivorsArenaExit, before_arena_exit);
     PRE(SurvivorsArenaRestart, before_arena_restart);
+    PRE(SurvivorsProcess, before_contact_owner_delete);
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
+    PRE(SurvivorsPlayer, before_player_contacts);
     PRE(SurvivorsPlayer, before_player_bindings);
     PRE(SurvivorsPlayer, before_chest_action);
     PRE(SurvivorsPlayer, before_midna_call);
     PRE(SurvivorsMidnaOrder, before_midna_order);
     PRE(SurvivorsMidnaFlow, before_midna_flow);
     PRE(SurvivorsEnemyContact,before_enemy_contact);
+    PRE(SurvivorsBlock, before_player_contacts);
     PRE(SurvivorsBlock, before_shield_block); POST(SurvivorsBlock, after_player_damage); PRE(SurvivorsGuard, before_survivors_guard);
     PRE(SurvivorsBulblinHit, before_bulblin_hit); POST(SurvivorsBulblinHit, after_bulblin_hit);
     PRE(SurvivorsBulblinAggro, before_bulblin_aggro);
     PRE(SurvivorsEnemyArrow, before_enemy_arrow); POST(SurvivorsEnemyArrow, after_enemy_arrow);
     PRE(SurvivorsConcurrentHit, before_enemy_attack_contact); POST(SurvivorsConcurrentHit, after_enemy_attack_contact);
     PRE(SurvivorsConcurrentHit, before_concurrent_hit);
+    POST(SurvivorsConcurrentHit, after_player_contact);
     PRE(SurvivorsProcess, before_enemy_attack_process);
     POST(SurvivorsEnemyArrow, after_enemy_attack_spawn);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
