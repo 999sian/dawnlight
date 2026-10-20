@@ -135,9 +135,15 @@ int main(){
  assert(hub_gear_interaction(&player)&&s_gearWindow&&!mDoCPd_c::pad.mPressedButtonFlags);close_gear_window();
  chestActorPosition={0,0,500};assert(!hub_gear_interaction(&player));
  s_run.start(123);s_run.debug_run=true;auto rng=s_run.random;drop_boss_gear();assert(s_run.random==rng);
- // The explicit override awards equipment in Debug, without changing ranked gates.
+ // The override awards equipment only in a Debug-enabled build. Stale or
+ // injected Debug state must not enable it in the release configuration.
  s_run.options.debug.max_equipment_drop_rate=1;
- for(unsigned i=0;i<100;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();assert(s_gearNoticeTicks&&s_gear.items[0].kind!=GearKind::Empty);}
+ for(unsigned i=0;i<100;++i){
+  s_gear={};s_gearNoticeTicks=0;const auto beforeRandom=s_run.random,beforeWrites=writes;
+  drop_boss_gear();
+  if(debug_enabled)assert(s_gearNoticeTicks&&s_gear.items[0].kind!=GearKind::Empty);
+  else assert(!s_gearNoticeTicks&&s_gear==GearInventory{}&&s_run.random==beforeRandom&&writes==beforeWrites);
+ }
  assert(s_run.earned_meta_xp()==0);
  s_run.options.debug.max_equipment_drop_rate=0;
  unsigned drops=0,swords=0,tunics=0;std::array<unsigned,unsigned(GearKind::Count)> kinds{};
@@ -170,6 +176,7 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
  cpp.write_text(fixture.replace('// VALIDATOR',validator)+runtime+'\nbool survivors_equipment_chest_anchor(cXyz& p){p=chestActorPosition;return chestActorReady;}\n'+ui+main)
- subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
- subprocess.run([str(exe)],check=True)
-print('Survivors equipment UI: touch unequip, two pages, safe deletion confirmation, native descriptors, grid slots, equip/delete, save rollback, hub input and boss drops passed')
+ for enabled in [0,1]:
+  subprocess.run([os.environ.get('CXX','c++'),f'-DDAWNLIGHT_SURVIVORS_DEBUG={enabled}','-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
+  subprocess.run([str(exe)],check=True)
+print('Survivors equipment UI: Debug enabled/disabled, touch unequip, two pages, safe deletion confirmation, native descriptors, grid slots, equip/delete, save rollback, hub input and boss drops passed')
