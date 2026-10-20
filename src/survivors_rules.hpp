@@ -121,7 +121,7 @@ inline constexpr std::array descriptions{
     "While Dark Link is active, ignite nearby enemies with black flames. Each second deals 10% of target maximum HP; lingers 5 seconds outside the aura.",
     "Shield Attack launches a piercing shockwave for current melee damage. Level-5 Ball and Chain width scales with Reach.",
     "Melee hits can release chain lightning that jumps between enemies. Luck increases its trigger chance.",
-    "Unlock or upgrade the Master Sword. Increases sword ability damage and Lightning Strike damage; Light Sword from level 5.",
+    "Increases sword ability damage and Lightning Strike damage. Requires the Master Sword from a chest; Light Sword from level 5.",
     "Repeat Sword Attack, Spin Attack, Sword Wave and Lightning Strike. Requires Dual Wield.",
     "Receive 20 rupees."};
 
@@ -311,7 +311,7 @@ struct Run {
         if (u == Upgrade::Rupees) return true;
         if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
         if (u == Upgrade::MultiStrike && !owns(ChestReward::OrdonSword)) return false;
-        if (u == Upgrade::MasterSword && !chest_eligible(ChestReward::MasterSword)) return false;
+        if (u == Upgrade::MasterSword && (!owns(ChestReward::MasterSword) || !chest_eligible(ChestReward::MasterSword))) return false;
         if (u == Upgrade::ShieldAttack && !owns(ChestReward::Shield)) return false;
         if (u == Upgrade::DualWield && (!owns(ChestReward::OrdonSword) || banned_items[unsigned(ChestReward::OrdonSword)])) return false;
         if (u == Upgrade::PotionHealing && !red_potion) return false;

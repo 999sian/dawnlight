@@ -354,7 +354,7 @@ banish symbol at the top right of a card to remove that choice. Talents can add 
 | Boomerang | Gale throws that hop between enemies; one extra hop every three ranks (4, 7, 10…), max 10 hops / 11 targets. |
 | Bombs | Automatic throws and area explosions; upgrades improve damage, radius and frequency. |
 | Ball and Chain | Pierces outward and back, damaging and staggering enemies on both legs. |
-| Master Sword | More sword damage; rank 5 becomes the Light Sword. Unlocks Jump Strike level-ups. Also available as a level-up reward; each two sword levels add 1 Lightning Strike damage (whole completed pairs). |
+| Master Sword | More sword damage; rank 5 becomes the Light Sword. Unlocks Jump Strike level-ups. After unlocking it from a chest, further ranks are also available as level-up rewards; each two sword levels add 1 Lightning Strike damage (whole completed pairs). |
 | Ordon Sword | Dual Wield: 2/3/4/5 total targets at ranks 1/10/20/30; +2.5% melee speed per rank (whole-percent rounding), capped at rank 30. Also grants +1 percentage point melee crit chance per rank. Can coexist with a shield. |
 | Shield | 5% block chance per rank, max 50%; evolves to Ordon at 20% and Hylian at 35%. Unlocks Shield Attack level-ups. |
 | Dark Link | Starts at 1.3× damage for 5 seconds every 20 seconds. Odd ranks increase damage, even ranks increase duration; rank 30 is permanent 2× damage. |

@@ -7,7 +7,7 @@
 using namespace dawnlight::survivors;
 int main() {
     Run run;run.start(9);
-    assert(run.eligible(Upgrade::Lightning)&&run.eligible(Upgrade::MasterSword));
+    assert(run.eligible(Upgrade::Lightning)&&!run.eligible(Upgrade::MasterSword));
     assert(!run.eligible(Upgrade::MultiStrike));run.dual_wield=1;
     assert(run.eligible(Upgrade::MultiStrike));
     for(unsigned rarity=0;rarity<5;++rarity) {
@@ -49,12 +49,26 @@ int main() {
     for(auto s:{DamageSource::Shield,DamageSource::Bow,DamageSource::Bombs,DamageSource::DarkAura,DamageSource::FireEdge})assert(!sword_kill_source(s));
     DamageQueue q;q.swordPending=true;q.add(DamageSource::Sword,4);q.consume();assert(q.swordApplied&&!q.swordPending);
     q.add(DamageSource::Sword,1,true);q.consume();assert(!q.swordApplied); // Sword-attributed Fire Edge burn is not a direct sword kill.
-    // Master Sword uses the existing equipment slot and shared chest level.
+    // Level-up cannot unlock Master Sword, including stale/injected offers.
+    // Chest acquisition opens the upgrade pool without taking another slot.
+    for(unsigned seed=1;seed<=100;++seed) {
+        run.start(seed);run.roll_upgrades();
+        for(auto offer:run.offers)assert(offer!=Upgrade::MasterSword);
+    }
     run.start(1);run.phase=Phase::Upgrade;run.offers[0]=Upgrade::MasterSword;run.offer_rarities[0]=Rarity::Legendary;
-    assert(run.choose(0)&&run.master_sword==5&&run.rank(Upgrade::MasterSword)==5&&run.equipment_count()==1);
+    assert(!run.choose(0)&&!run.master_sword&&run.equipment_count()==0);
+    unsigned money=40;run.phase=Phase::Treasure;
+    assert(run.buy_chest(money,ChestReward::MasterSword,0,Rarity::Common,true));
+    assert(run.master_sword==1&&run.eligible(Upgrade::MasterSword));
+    run.phase=Phase::Upgrade;
+    assert(run.choose(0)&&run.master_sword==6&&run.rank(Upgrade::MasterSword)==6&&run.equipment_count()==1);
+    run.ranks[8]=run.ranks[9]=run.ranks[10]=1;
+    assert(run.equipment_count()==4&&run.eligible(Upgrade::MasterSword));
+    run.banned_items[unsigned(ChestReward::MasterSword)]=true;assert(!run.eligible(Upgrade::MasterSword));
+    run.banned_items[unsigned(ChestReward::MasterSword)]=false;
     run.master_sword=29;run.phase=Phase::Upgrade;assert(run.choose(0)&&run.master_sword==30&&!run.eligible(Upgrade::MasterSword));
     run.start(1);run.ranks[8]=run.ranks[9]=run.ranks[10]=run.ranks[11]=1;assert(!run.eligible(Upgrade::MasterSword));
-    run.start(1);run.phase=Phase::Upgrade;run.banishes=1;assert(run.banish(Upgrade::MasterSword)&&!run.chest_eligible(ChestReward::MasterSword));
+    run.start(1);run.master_sword=1;run.phase=Phase::Upgrade;run.banishes=1;assert(run.banish(Upgrade::MasterSword)&&!run.chest_eligible(ChestReward::MasterSword));
     // Recreate the exact v8 layout, with both integrity categories and all maps.
     Records records;run.start(1);run.phase=Phase::Victory;run.master_sword=7;run.dual_wield=12;
     for(unsigned i=0;i<30;++i)run.ranks[i]=i;

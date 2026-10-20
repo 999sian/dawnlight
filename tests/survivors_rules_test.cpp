@@ -168,7 +168,7 @@ int main() {
             if(Upgrade(u)==Upgrade::MasterSword){r.master_sword=initial;r.ranks[8]=r.ranks[9]=r.ranks[10]=0;}
             if(Upgrade(u)==Upgrade::MultiStrike)r.dual_wield=1;
             // Weapons must be chest-unlocked first.
-            if(!initial && ((u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)) || Upgrade(u)==Upgrade::DualWield))continue;
+            if(!initial && ((u>=unsigned(Upgrade::Bow)&&u<=unsigned(Upgrade::Ball)) || Upgrade(u)==Upgrade::DualWield || Upgrade(u)==Upgrade::MasterSword))continue;
             r.phase=Phase::Upgrade;r.offers[0]=Upgrade(u);r.offer_rarities[0]=Rarity(rarity);
             if (initial>=upgrade_cap(Upgrade(u)) || Rarity(rarity)<upgrade_min_rarity(Upgrade(u))) {assert(!r.choose(0));continue;}
             const unsigned units=upgrade_units(Upgrade(u),Rarity(rarity));

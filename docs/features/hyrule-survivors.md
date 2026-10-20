@@ -1374,8 +1374,9 @@ Native Link electricity is imported into private common-bank resources by the
 existing particle loader, so every arena can use it safely. Connecting cyan/white
 jagged geometry also remains visible if an optional particle import fails.
 
-Master Sword is now available at level-up, sharing its chest rank, equipment
-slot checks, banishment and native Light Sword transition at level 5.
+Master Sword must first be unlocked from a chest. Further ranks are available
+at level-up, sharing its chest rank, equipment slot checks, banishment and native
+Light Sword transition at level 5. Level-up offers cannot unlock an unowned sword.
 Multi Strike requires Dual Wield; Epic +1, Legendary +2, cap 3. It repeats normal
 melee (including splash), Spin, Wave and Lightning up to four total activations.
 Native body attacks finish their existing hit window/pose before repeating;

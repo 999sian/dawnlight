@@ -291,9 +291,9 @@ int main(){
  iconArgs[1]=u8(0x43);iconArgs[10]=-1;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
  iconArgs[1]=u8(0x92);arena=false;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==-1);
  arena=true;s_run.phase=Phase::Running;s_powerupsRequested=true;before_powerup_icon(nullptr,iconArgs.data(),nullptr,nullptr);assert(std::any_cast<int>(iconArgs[10])==0x3d);
- fresh();s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::MasterSword,Upgrade::Lightning,Upgrade::Rupees};
+ fresh();s_run.master_sword=1;s_run.phase=Phase::Upgrade;s_run.offers={Upgrade::MasterSword,Upgrade::Lightning,Upgrade::Rupees};
  s_run.offer_rarities.fill(Rarity::Legendary);unsigned choice=0;const unsigned grants=swordGrants;
- select_upgrade(nullptr,&choice);assert(s_run.master_sword==5&&swordGrants==grants+1&&s_run.equipment_count()==1);
+ select_upgrade(nullptr,&choice);assert(s_run.master_sword==6&&swordGrants==grants+1&&s_run.equipment_count()==1);
 
 }
 '''

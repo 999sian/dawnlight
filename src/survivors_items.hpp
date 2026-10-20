@@ -124,7 +124,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     switch (upgrade) {
     case Upgrade::JumpStrike: return rank ? number(run.jump_splash_percent()) + "% melee splash (" + number(run.jump_splash_power()) + " damage); 20% trigger; " + seconds(run.jump_cooldown()) + " cooldown" : "off";
     case Upgrade::DualWield: return number(run.melee_targets()) + " targets; +" + number(run.melee_speed_percent()-100) + "% melee speed; +" + decimal(run.melee_crit_bonus()/100.f) + "% melee crit";
-    case Upgrade::MasterSword: return "Level " + number(run.master_sword) + "; sword damage +" + number(run.sword_bonus()) + "; lightning +" + number(run.master_sword/2);
+    case Upgrade::MasterSword: return rank ? "+" + number(run.sword_bonus()) + " sword damage; +" + number(run.master_sword/2) + " Lightning Strike damage" : "off";
     case Upgrade::MultiStrike: return "+" + number(run.multi_strikes()) + " extra attacks per activation";
     case Upgrade::Lightning: return rank ? number(run.lightning_power()) + " damage; " + seconds(run.item_cooldown(upgrade)) + " cooldown; " + number(run.lightning_hops()) + " hops; range " + decimal(run.lightning_hop_range()) + "; " + number(run.lightning_proc_chance()) + "% on melee hit; " + number(run.ranged_shots()) + " chains" : "off";
     case Upgrade::Power: return "+" + number(rank) + " damage";
@@ -154,7 +154,6 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
 }
 inline std::string upgrade_description(Upgrade upgrade, const Run& run) {
     if (upgrade >= Upgrade::Count) return {};
-    if (upgrade == Upgrade::MasterSword) return item_description(ChestReward::MasterSword,run);
     if (upgrade == Upgrade::DualWield) return item_description(ChestReward::OrdonSword,run);
     if (upgrade >= Upgrade::Bow && upgrade <= Upgrade::Ball)
         return item_description(ChestReward(unsigned(upgrade) - unsigned(Upgrade::Bow)), run);
@@ -179,7 +178,11 @@ inline std::string upgrade_description(Upgrade upgrade, const Run& run) {
     return text;
 }
 inline std::vector<ItemChange> upgrade_changes(Upgrade upgrade, const Run& before, const Run& after, Rarity rarity = Rarity::Common) {
-    if (upgrade == Upgrade::MasterSword) return reward_changes(ChestReward::MasterSword,before,after);
+    if (upgrade == Upgrade::MasterSword) {
+        auto changes = reward_changes(ChestReward::MasterSword,before,after);
+        changes.insert(changes.begin(), {"Level", number(before.master_sword), number(after.master_sword)});
+        return changes;
+    }
     if (upgrade == Upgrade::DualWield) return reward_changes(ChestReward::OrdonSword,before,after);
     if (upgrade >= Upgrade::Bow && upgrade <= Upgrade::Ball)
         return reward_changes(ChestReward(unsigned(upgrade) - unsigned(Upgrade::Bow)), before, after);
