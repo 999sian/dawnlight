@@ -78,7 +78,6 @@ jobs:
           python3 tests/survivors_enemy_types_test.py
           python3 tests/survivors_pots_test.py
           python3 tests/survivors_ground_test.py
-          python3 tests/survivors_pickups_test.py
           python3 tests/survivors_prices_test.py
           python3 tests/survivors_minimap_test.py
           python3 tests/survivors_hook_install_test.py
@@ -334,6 +333,8 @@ jobs:
           CXX=clang++ python3 tests/survivors_bulblin_test.py
           CXX=clang++ python3 tests/survivors_pots_test.py
           CXX=clang++ python3 tests/survivors_ground_test.py
+          # Reads native key resources/matrices; Configure CMake provides the SDK.
+          python3 tests/survivors_pickups_test.py
           CXX=clang++ python3 tests/survivors_pickups_test.py
           CXX=clang++ python3 tests/survivors_prices_test.py
           CXX=clang++ python3 tests/survivors_minimap_test.py
