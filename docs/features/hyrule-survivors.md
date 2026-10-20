@@ -1525,3 +1525,12 @@ base and fill and translate the right cap to reach the requested width, retainin
 native cap dimensions and aspect ratio. Restore all pane positions, sizes,
 scales, alpha, visibility and fill colors after drawing; other combat meters keep
 their existing placement and rendering path.
+
+
+### Persistent boss equipment
+
+See `SURVIVORS.md` for drop odds, independent stat weights, rarity thresholds and bonus scope. `survivors_gear.hpp` owns the two-page, 40-slot rules and explicit 172-byte little-endian/checksummed v3 blob (with 92-byte v1/v2 migration) (`survivors-gear`). Missing blobs migrate to empty inventory; malformed blobs are preserved and cannot be overwritten through this feature. Mutations stage successfully before replacing live state; hub close uses the existing native background save. Run snapshots copy one Weapon and one Tunic once; no equipment swaps during combat. Re-selecting equipped cards unequips them on touch, mouse, controller and keyboard. Banish opens a native warning dialog with Cancel/Delete; confirmation validates the pending slot/item, stages storage before mutation and supports retry. Window close, page rebuild and runtime teardown invalidate pending confirmations. Each tab rebuild owns only its 20 visible card handles. All ten weapon variants share the 40-slot inventory. Family-local bonuses require the run weapon and stack beyond normal upgrade caps and cooldown floors; hearts remain capped at 20. The Boomerang visited-target array holds 13 entries for 12 hops. Collection and hub UI select native family icons without caching archive resources.
+
+`credit_death` rolls once after its credit latch for scheduled bosses only, before final-boss victory cleanup. Cleanup cannot award persistent equipment; Debug requires the explicit Max Equipment Drop Rate override. The hub chest uses its own actor/model heap at the fixed side-wall position. Collection reuses native Poe/Letters cursor cells and restores owned menu state on deletion/mode teardown. Draw-time textures are reacquired each frame; no native item flags or resource tables are changed. The two Collection hook targets already exist in Dawnlight's Dual Wield backend.
+
+Runtime verification remains required: visible hub chest placement, all controller/touch/mouse/keyboard inventory controls, all supported Collection layouts/languages, icon presentation, four-second HUD notices (also after the final boss), save/reload and slot switching on physical devices. Unit tests and native packaging do not certify in-game rendering.

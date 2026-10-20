@@ -94,7 +94,7 @@ inline std::string item_description(ChestReward reward, const Run& run) {
         if (weapon == Upgrade::Bow) return number(arrow_count(run)) + " arrows, " + decimal(run.bow_fan_degrees()) + " deg; " + number(run.arrow_targets()) + " targets; extra hits 25%.\n" + stats + "\nFire Lv." + number(run.rank(Upgrade::FireArrows)) + " (" + number(run.burn_damage()) + "/s, " + seconds(run.burn_duration()) + ")" + "\n" + bonuses;
         if (weapon == Upgrade::Boomerang) return number(run.ranged_shots()) + " auto Gale throws; hits out and back.\n" + stats + "\n" + number(run.boomerang_hops()) + " extra targets; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
         if (weapon == Upgrade::Bombs) return number(run.ranged_shots()) + " auto-aim bombs; area explosion, no ammo.\n" + stats + "\nBlast radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
-        return number(run.ranged_shots()) + " auto balls; pierces out/back, small push.\n" + stats + "\nRange " + number(unsigned(run.radius(900))) + "; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
+        return number(run.ranged_shots()) + " auto balls; pierces out/back, small push.\n" + stats + "\nRange " + number(unsigned(run.ball_range())) + "; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
     }
     if (reward == ChestReward::Shield) {
         const unsigned rank = run.rank(Upgrade::ShieldAttack);

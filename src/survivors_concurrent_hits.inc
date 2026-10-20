@@ -54,7 +54,7 @@ HookAction before_concurrent_hit(ModContext*,void* args,void*,void*) {
     if(!owned) return HOOK_CONTINUE;
     if(!duplicate) {
         bool critical=false;
-        queue_effect_damage(effect,source,s_run.critical_power(base,&critical,melee_critical_source(source)));
+        queue_effect_damage(effect,source,s_run.critical_power(base,&critical,melee_critical_source(source),source==DamageSource::Bow));
         effect.attribution.swordPending=effect.attribution.swordPending||sword_kill_source(source);
         effect.pendingCritical=effect.pendingCritical||critical;
         effect.pendingStagger=effect.pendingStagger||stagger;

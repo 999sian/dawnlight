@@ -15,7 +15,27 @@ HookAction before_hub_door(ModContext*,void* args,void* result,void*) {
     *static_cast<s32*>(result)=0;
     return HOOK_SKIP_ORIGINAL;
 }
+bool hub_chest_position(cXyz& position,const daAlink_c* link) {
+    // The marked wall is on the +X side of the central sword. Leave space
+    // for the chest's back instead of embedding its model in the wall trim.
+    cXyz from(0,link->current.pos.y+100,0),to(10000,from.y,0);
+    dBgS_LinChk wall;wall.Set(&from,&to,nullptr);
+    if(!dComIfG_Bgsp().LineCross(&wall))return false;
+    position=wall.GetCross();position.x-=150;
+    if(position.x<=0)return false;
+    cXyz probe(position.x,link->current.pos.y+1000,position.z);
+    dBgS_ObjGndChk ground;ground.SetPos(&probe);
+    const float height=dComIfG_Bgsp().GroundCross(&ground);
+    if(!std::isfinite(height) || height<=-1.e8f)return false;
+    position.y=height;return true;
+}
 void update_hub(daAlink_c* link) {
+    const bool enabled=s_run.phase==Phase::Ready && !s_hubDeparture;
+    if(enabled) {
+        cXyz position;
+        // Chest front is local +Z; -90 degrees points inward from the +X wall.
+        if(hub_chest_position(position,link))update_survivors_equipment_chest(true,position,-0x4000);
+    } else update_survivors_equipment_chest(false,{},0);
     update_survivors_pedestal(s_run.phase==Phase::Ready && !s_hubDeparture);
     if(!s_hubDeparture || s_hubClosingWindow || ui_visible() || s_progressSaving || s_hubSaveRequested)return;
     if(s_hubDoorStarted) {
@@ -89,6 +109,8 @@ void draw_hub_labels() {
     graf->setup2D();
     cXyz anchor;
     if(survivors_pedestal_anchor(anchor))hub_label("Talents",anchor+cXyz(0,230,0));
+    cXyz chestAnchor;
+    if(survivors_equipment_chest_anchor(chestAnchor))hub_label("Equipment",chestAnchor+cXyz(0,200,0));
     fpcM_Search(draw_hub_exit_label,nullptr);
     graf->setup2D();
     if(s_storeFailed)label("Progress save failed. Retry Save progress at the sword.",

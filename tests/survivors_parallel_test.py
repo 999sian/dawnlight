@@ -189,6 +189,16 @@ int main(){
    assert(arrow.ballVictimCount==rank+1);
   }
  }
+ // Equipment-only Bow crit reaches the concurrent contact path, with one
+ // roll per victim and no bonus on other weapon families.
+ effects={};s_attacks=std::deque<Attack>(initial_projectile_slots);s_run.start(1);
+ s_run.gear_weapon={GearKind::HerosBow,5,5,5};s_run.ranks[unsigned(Upgrade::Bow)]=1;
+ target.owner=&actors[0];auto& equippedArrow=s_attacks[0];equippedArrow.active=true;
+ equippedArrow.weapon=unsigned(Upgrade::Bow);equippedArrow.collider.power=10;
+ hit(&equippedArrow.collider,&target);assert(effects[0].pending==20&&effects[0].pendingCritical&&s_run.random==270369);
+ hit(&equippedArrow.collider,&target);assert(effects[0].pending==20&&s_run.random==270369);
+ auto& equippedBomb=s_attacks[1];equippedBomb.active=true;equippedBomb.weapon=unsigned(Upgrade::Bombs);equippedBomb.collider.power=10;
+ hit(&equippedBomb.collider,&target);assert(effects[0].pending==30&&s_run.random==270369);
  // One independently moving piercing shockwave per shield bash; direct
  // melee damage reaches every target once, without using Shield's damage rank.
  s_run.start(1);s_run.shield=1;s_run.ranks[2]=1;s_run.ranks[unsigned(Upgrade::Shockwave)]=1;

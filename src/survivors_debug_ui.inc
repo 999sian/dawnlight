@@ -3,12 +3,13 @@ struct DebugControl { const char* label; unsigned DebugOptions::*field; const ch
 constexpr const char* kDebugRarities[]{"Common","Uncommon","Rare","Epic","Legendary"};
 constexpr const char* kDebugSwitch[]{"Off","On"};
 constexpr const char* kDebugTimers[]{"20 min","10 min","5 min"};
-std::array<DebugControl,5> s_debugControls{{
+std::array<DebugControl,6> s_debugControls{{
     {"Minimum Rarity",&DebugOptions::minimum_rarity,kDebugRarities,5},
     {"Player damage",&DebugOptions::player_damage,nullptr,0},
     {"Infinite rerolls",&DebugOptions::infinite_rerolls,kDebugSwitch,2},
     {"Infinite banishes",&DebugOptions::infinite_banishes,kDebugSwitch,2},
-    {"Run timer",&DebugOptions::run_minutes,kDebugTimers,3}
+    {"Run timer",&DebugOptions::run_minutes,kDebugTimers,3},
+    {"Max Equipment Drop Rate",&DebugOptions::max_equipment_drop_rate,kDebugSwitch,2}
 }};
 ModResult build_debug(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     s_options.debug.clamp();s_run.options.debug.clamp();
@@ -39,6 +40,8 @@ ModResult build_debug(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
         UiControlDesc control=UI_CONTROL_DESC_INIT;
         control.kind=setting.choices==kDebugSwitch?UI_CONTROL_TOGGLE:setting.choices?UI_CONTROL_SELECT:UI_CONTROL_NUMBER;
         control.label=setting.label;control.user_data=&setting;
+        if(setting.field==&DebugOptions::max_equipment_drop_rate)
+            control.help_rml="100% equipment drop chance per boss, including Debug runs. Weapon/Tunic stays 50/50; all ten weapon variants and stats remain random. Equipment is saved. Scores, Survivors XP and permanent map unlocks remain disabled. Default: off.";
         control.options=control.kind==UI_CONTROL_TOGGLE?nullptr:setting.choices;control.option_count=control.kind==UI_CONTROL_TOGGLE?0:setting.count;
         control.min=1;control.max=10;control.step=1;control.prefix=setting.choices?nullptr:"x";
         control.get=[](ModContext*,void* data,UiControlValue* value) {

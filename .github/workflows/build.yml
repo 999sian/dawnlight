@@ -59,6 +59,10 @@ jobs:
           /tmp/survivors-endless-clang
           python3 tests/survivors_endless_runtime_test.py
           CXX=clang++ python3 tests/survivors_endless_runtime_test.py
+          python3 tests/survivors_gear_test.py
+          CXX=clang++ python3 tests/survivors_gear_test.py
+          python3 tests/survivors_contacts_test.py
+          CXX=clang++ python3 tests/survivors_contacts_test.py
           python3 tests/survivors_lightning_test.py
           CXX=clang++ python3 tests/survivors_lightning_test.py
           c++ -std=c++20 -Wall -Wextra -Werror tests/survivors_maps_test.cpp -o /tmp/survivors-maps-test
@@ -85,6 +89,7 @@ jobs:
           python3 tests/survivors_lifecycle_test.py
           CXX=clang++ python3 tests/survivors_lifecycle_test.py
           python3 tests/survivors_hub_test.py
+          python3 tests/survivors_hub_chest_test.py
           python3 tests/heroes_shade_pedestal_test.py
           python3 tests/survivors_defense_test.py
           python3 tests/survivors_feedback_test.py
@@ -286,6 +291,7 @@ jobs:
           python3 tests/survivors_settings_config_test.py
           CXX=clang++ python3 tests/survivors_settings_config_test.py
           CXX=clang++ python3 tests/survivors_hub_test.py
+          CXX=clang++ python3 tests/survivors_hub_chest_test.py
 
       - name: Test Survivors combat and native combo selection
         if: matrix.platform == 'linux-x86_64'
@@ -334,6 +340,10 @@ jobs:
           CXX=clang++ python3 tests/survivors_pots_test.py
           CXX=clang++ python3 tests/survivors_ground_test.py
           # Reads native key resources/matrices; Configure CMake provides the SDK.
+          python3 tests/survivors_gear_collection_test.py
+          CXX=clang++ python3 tests/survivors_gear_collection_test.py
+          python3 tests/survivors_gear_ui_test.py
+          CXX=clang++ python3 tests/survivors_gear_ui_test.py
           python3 tests/survivors_pickups_test.py
           CXX=clang++ python3 tests/survivors_pickups_test.py
           CXX=clang++ python3 tests/survivors_prices_test.py

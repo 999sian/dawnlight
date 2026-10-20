@@ -308,8 +308,8 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     cXyz direction = delta * (1.0f / distance);
     const cXyz aimed(direction.x * std::cos(spread) + direction.z * std::sin(spread), direction.y,
                      direction.z * std::cos(spread) - direction.x * std::sin(spread));
-    a.limit = weapon == Upgrade::Ball ? s_run.radius(900.0f) : std::min(distance + 80.0f, s_run.item_range(weapon));
-    a.velocity = aimed * (weapon == Upgrade::Bow ? 70.0f : weapon == Upgrade::Ball ? 40.0f : 42.0f);
+    a.limit = weapon == Upgrade::Ball ? s_run.ball_range() : std::min(distance + 80.0f, s_run.item_range(weapon));
+    a.velocity = aimed * s_run.item_flight_speed(weapon);
     const unsigned rank = s_run.rank(weapon);
     if (weapon == Upgrade::Boomerang) {
         a.hops = s_run.boomerang_hops();
@@ -402,7 +402,7 @@ void update_item_attack(Attack& a, daAlink_c* link) {
                 if (target) {
                     const cXyz delta = target->eyePos - a.position;
                     const float distance = std::max(1.0f, delta.abs());
-                    a.velocity = delta * (std::min(42.0f, distance) / distance);
+                    a.velocity = delta * (std::min(s_run.item_flight_speed(weapon), distance) / distance);
                 }
             }
         }
@@ -418,7 +418,7 @@ void update_item_attack(Attack& a, daAlink_c* link) {
             if (weapon == Upgrade::Ball && !a.manualFlight) delta.y = 0; // Keep the launch height on both passes.
             const float distance = delta.abs();
             if (distance < 65) { stop_attack(a); return; }
-            a.velocity = delta * (55.0f / distance);
+            a.velocity = delta * (s_run.item_flight_speed(weapon,true) / distance);
         }
         const cXyz next = a.position + a.velocity;
         dBgS_LinChk wall; wall.Set(&a.position, &next, link);

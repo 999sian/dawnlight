@@ -23,7 +23,7 @@ HookAction before_shield_block(ModContext*, void* args, void* result, void*) {
         auto* attacker = target.GetTgHitAc();
         auto* attack = target.GetTgHitGObj();
         if (!attacker || (!tracked(fopAcM_GetID(attacker)) && !active_enemy_arrow(fopAcM_GetID(attacker))) || !attack) continue;
-        if (s_run.roll_chance(s_run.talents.dodge_basis_points())) {
+        if (s_run.roll_chance(s_run.dodge_basis_points())) {
             for (auto& collider : link->mTgCyls) collider.ResetTgHit();
             combat_feedback(link,CombatText::Dodge);
             *static_cast<int*>(result)=1;

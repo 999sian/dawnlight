@@ -26,6 +26,7 @@ struct Enemy{bool elite=false;int profile=0;}enemy;
 struct Effect{cXyz knockStep;unsigned knockFrames=0,knockCooldown=0;}effect;
 Effect& effect_for(Enemy&){return effect;}
 Run s_run;
+void queue_knockback(Enemy&,fopAc_ac_c*,bool,DamageSource=DamageSource::Other);
 bool blocked=false,ledge=false,noFloor=false;float floorY=0,destinationY=0;
 struct dBgS_LinChk {void Set(cXyz*,cXyz*,fopAc_ac_c*){}};
 struct Background {bool LineCross(dBgS_LinChk*){return blocked;}}bg;
@@ -77,6 +78,14 @@ int main(){
  reset();enemy.profile=99;queue_knockback(enemy,&actor,true);assert(!effect.knockFrames);
  effect.knockFrames=6;effect.knockCooldown=12;update_knockback(enemy,&actor);assert(!effect.knockFrames&&!effect.knockCooldown&&actor.current.pos.z==100);
  reset();actor.health=0;queue_knockback(enemy,&actor,true);assert(!effect.knockFrames);
+ for(auto source:{DamageSource::Sword,DamageSource::Bombs,DamageSource::Ball}) {
+  reset();s_run.ranks[unsigned(Upgrade::Knockback)]=10;
+  const auto kind=source==DamageSource::Sword?GearKind::Greatsword:source==DamageSource::Bombs?GearKind::SiegeBombs:GearKind::BreakerBall;
+  s_run.gear_weapon={kind,5,5,5};s_run.ranks[unsigned(Upgrade::Bombs)]=s_run.ranks[unsigned(Upgrade::Ball)]=1;
+  queue_knockback(enemy,&actor,source==DamageSource::Ball,source);
+  for(unsigned n=0;n<6;++n)update_knockback(enemy,&actor);
+  assert(std::abs(actor.current.pos.z-(source==DamageSource::Ball?900.f:600.f))<.001f);
+ }
  std::cout<<"Survivors knockback: fixed heavy push, capped upgrades, elites, simultaneous/rapid hits, walls/ledges and flight passed\n";
 }
 '''

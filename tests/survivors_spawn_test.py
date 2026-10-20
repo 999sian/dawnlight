@@ -103,6 +103,9 @@ int main(){
    assert((params.base.parameters&0x00fe0fff)==(original&0x00fe0fff));
   }
  }
+ // Native story chests remain filtered; the hub chest uses its own actor.
+ s_map=0;params.room_no=51;info.procname=fpcNm_TBOX_e;
+ assert(before_arena_stage_actor(nullptr,spawnArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL);
  assert(native_entrance_demo(0)); // The old override entered this path.
  s_map=0;clear_arena_geometry();daAlink_c link;std::any moveArgs[]={&link};
  // Native entrance crosses an exit curtain from outside into the room. Applying

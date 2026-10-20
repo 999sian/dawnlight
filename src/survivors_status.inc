@@ -150,7 +150,7 @@ void spread_melee_hit(fopAc_ac_c* primary) {
             effect.fireEdgeSource=DamageSource::Sword;effect.burnBase[1]=s_run.melee_power();
             effect.legendaryBurns[1].ignite(s_run.dark_power(s_run.melee_power()));
         }
-        if (auto* actor=actor_by_id(best->id)) queue_knockback(*best,actor,false);
+        if (auto* actor=actor_by_id(best->id)) queue_knockback(*best,actor,false,DamageSource::DualWield);
     }
 }
 void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
@@ -164,12 +164,15 @@ void record_status_hit(fopAc_ac_c* actor, dCcU_AtInfo* info) {
     // original contacts. They must not create a second push when consumed.
     if (info->mpCollider && info->mpCollider->GetAc() == daAlink_getAlinkActorClass() &&
         !effect_collider(info->mpCollider)) {
-        bool heavy=false;
+        bool heavy=false;DamageSource knockSource=DamageSource::Other;
+        if(native_sword_collider(info->mpCollider))knockSource=s_swordAction==SwordAction::Spin?DamageSource::Spin:s_swordAction==SwordAction::Jump?DamageSource::Jump:DamageSource::Sword;
         auto* link=daAlink_getAlinkActorClass();
         if (link && info->mpCollider==&link->mGuardAtCps) heavy=true;
-        for (const auto& attack:s_attacks) if (info->mpCollider==&attack.collider)
+        for (const auto& attack:s_attacks) if (info->mpCollider==&attack.collider) {
             heavy=attack.weapon==unsigned(Upgrade::Ball) || attack.weapon==unsigned(Upgrade::ShieldAttack);
-        queue_knockback(*enemy,actor,heavy);
+            knockSource=weapon_damage_source(attack.weapon);
+        }
+        queue_knockback(*enemy,actor,heavy,knockSource);
     }
     if (s_run.burn_damage() && actor->health > 0) for (const auto& arrow : s_attacks) {
         if (info->mpCollider == &arrow.collider && arrow.weapon == unsigned(Upgrade::Bow)) {

@@ -42,6 +42,8 @@
 #include "d/d_meter_map.h"
 #include "d/d_menu_ring.h"
 #include "d/d_menu_collect.h"
+#include "d/d_pane_class.h"
+#include "JSystem/J2DGraph/J2DTextBox.h"
 #include "d/d_menu_item_explain.h"
 #include "d/d_map.h"
 #include "d/d_camera.h"
@@ -191,6 +193,8 @@ DEFINE_HOOK(&daAlink_c::checkNextActionBow, SurvivorsBowNext);
 DEFINE_HOOK(&daAlink_c::checkUpperItemActionIronBall, SurvivorsBallAction);
 DEFINE_HOOK(&daAlink_c::checkNextActionIronBall, SurvivorsBallNext);
 DEFINE_HOOK(&dMenu_Collect2D_c::isSkillIconVisible, SurvivorsScrollVisible);
+DEFINE_HOOK(&dMenu_Collect2D_c::screenSet, SurvivorsGearScreen);
+DEFINE_HOOK(&dMenu_Collect2D_c::_draw, SurvivorsGearDraw);
 DEFINE_HOOK(&dMenu_Collect2D_c::wait_proc, SurvivorsCollectionWait);
 DEFINE_HOOK(&dMenu_Collect2D_c::pointerActivateCurrent, SurvivorsCollectionClick);
 DEFINE_HOOK(&dMenu_Collect2D_c::_delete, SurvivorsCollectionDelete);
@@ -294,6 +298,7 @@ bool map_available(unsigned map) {
     return map<arenas.size() && (s_records.map_unlocked(map) || (debug_enabled && debug_session_enabled && s_options.debug.unlock_all_maps));
 }
 bool s_progressSaving=false, s_progressSaved=false;
+#include "survivors_gear_runtime.inc"
 UiWindowHandle s_refreshChoices=0;
 // Opaque host documents: no private RmlUi/Window layouts are copied.
 #if !DAWNLIGHT_IOS
@@ -372,7 +377,7 @@ unsigned treasure_message_id();
 void sync_survivors_inventory();
 bool queue_ranged(daAlink_c*, Upgrade);
 struct Enemy;
-void queue_knockback(Enemy&, fopAc_ac_c*, bool);
+void queue_knockback(Enemy&, fopAc_ac_c*, bool, DamageSource = DamageSource::Other);
 bool ranged_pose_active();
 bool boss_blocks_from(const Enemy&,fopAc_ac_c*,const cXyz&);
 void stop_survivors_music();
@@ -417,7 +422,7 @@ struct Attack {
     float effectBaseRadius = 260.f;
     ActorId target = kNone;
     unsigned hops = 0, visitedCount = 0;
-    std::array<ActorId, 11> visited{};
+    std::array<ActorId, 13> visited{};
     std::array<ActorId, enemy_capacity> ballVictims{};
     unsigned ballVictimCount = 0, arrowTargets = 1;
     JKRSolidHeap* modelHeap = nullptr;
@@ -552,6 +557,7 @@ bool own_collider(const cCcD_Obj* collider) {
     for (const auto& a : s_attacks) if (collider == &a.collider) return true;
     return false;
 }
+#include "survivors_contacts.inc"
 void detach_attack_references() {
     detach_pot_attacks();
     // The collision server also keeps last-frame pointers for debug drawing.
@@ -588,6 +594,8 @@ void detach_attack_references() {
     }
 }
 void reset_runtime() {
+    clear_player_contacts();
+    restore_gear_collection();close_gear_window();s_gear={};s_gearWritable=true;s_gearNoticeTicks=0;
     s_enemyHitSources.clear(); s_enemyContactFrames.clear();
     stop_survivors_music();
     end_survivors_integrity();
@@ -595,6 +603,7 @@ void reset_runtime() {
     s_hubMenu=HubMenu::None; s_hubSaveRequested=false; s_hubClosingWindow=0;
     s_hub=true; s_hubDeparture=s_hubDoorStarted=s_arrivingRun=s_allowHubDoor=false;
     s_hubDoor=kNone; s_hubDoorTicks=0;
+    update_survivors_equipment_chest(false,{},0);
     update_survivors_pedestal(false);
     s_options.debug.clamp();
     reset_midna_dialog();
@@ -661,6 +670,7 @@ void load_records() {
     auto bytes = s_records.encode(); size_t size = bytes.size();
     const auto result = svc_save->get_blob(mod_ctx, kBlob, bytes.data(), &size);
     if (result == MOD_OK) s_records.decode(std::span(bytes.data(), std::min(size, bytes.size())));
+    load_gear();
     s_loaded = true;
 }
 #include "survivors_progress_save.inc"
@@ -719,6 +729,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
+    if(e.elite && e.eliteSlot>=0 && unsigned(e.eliteSlot)<timed_elite_count)drop_boss_gear();
     if (s_run.life_steal_active() && e.swordKill && dComIfGs_getLife() > 0)
         dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if(e.elite) {
@@ -1122,7 +1133,8 @@ void after_power(ModContext*, void* args, void*, void*) {
     const auto critical_power = [&](unsigned base) {
         const auto sources=hit_damage_sources(info->mpCollider);
         bool melee=false;for(unsigned i=0;i<sources.size();++i)if(sources[i]&&melee_critical_source(DamageSource(i)))melee=true;
-        bool critical=false; const auto power=s_run.critical_power(base,&critical,melee);
+        const bool bow=sources[unsigned(DamageSource::Bow)]!=0;
+        bool critical=false; const auto power=s_run.critical_power(base,&critical,melee,bow);
         if (auto* hit=bulblin_power_hit(info)) hit->critical=critical;
         mark_damage_critical(info,critical);
         return power;
@@ -1163,6 +1175,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (!link || fopAcM_GetID(link) != s_player) return;
     if (dComIfGs_getLife() == 0 && !s_victory) { begin_defeat(); return; }
     update_combat_feedback();
+    if(s_gearNoticeTicks)--s_gearNoticeTicks;
     chest_spawning_allowed(); // Also retire exhausted chests during victory loot time.
     if (s_victory) {
         update_victory();
@@ -1331,6 +1344,7 @@ HookAction before_stage(ModContext*, void* args, void*, void*) {
         s_map=s_requestedMap; s_hub=false; s_arrivingRun=true;
         s_hubDeparture=s_hubDoorStarted=false; s_hubDoor=kNone;
         clear_arena_geometry();
+        update_survivors_equipment_chest(false,{},0);
         update_survivors_pedestal(false);
     } else if (in_arena() && !s_restart && s_run.phase != Phase::Loading) return HOOK_SKIP_ORIGINAL;
     dComIfGs_setRestartRoomParam(0);
@@ -1386,6 +1400,7 @@ void draw_hud(ModContext*, void* args, void*, void*) {
     if (!preview && (s_deathPending || s_run.phase==Phase::Defeat)) return;
     if(!preview) {draw_chest_prices();draw_combat_feedback();}
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
+    if(!preview && s_gearNoticeTicks)label(s_gearNotice,x,mDoGph_gInf_c::getHeightF()*.35f,22);
     if (!preview && s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
     char text[180];
     draw_run_rank_hud(x,preview);
@@ -1456,7 +1471,7 @@ void begin_run() {
     reset_elite_encounters();
     s_bossHudTarget = kNone;
     clear_combat_feedback();
-    s_run.start(seed, s_options, s_records.talents); reset_gale_charges();
+    s_run.start(seed, s_options, s_records.talents);s_run.equip_gear(s_gear);s_gearNoticeTicks=0; reset_gale_charges();
     begin_survivors_integrity(s_run.options.allow_cheats,s_run.modded);
     dComIfGs_setMaxLife(s_run.maximum_hearts*5); dComIfGs_setLife(s_run.maximum_hearts*4);
     s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
@@ -1513,6 +1528,8 @@ ModResult button(UiElementHandle pane, const char* text, UiPressedFn callback, v
 #include "survivors_maps_ui.inc"
 #include "survivors_debug_ui.inc"
 #include "survivors_settings_config.inc"
+#include "survivors_gear_ui.inc"
+#include "survivors_gear_collection.inc"
 #include "survivors_hub.inc"
 
 ModResult build_window(ModContext*, UiWindowHandle, UiElementHandle left, UiElementHandle right,
@@ -1565,6 +1582,7 @@ ModResult activated(void*, ModError*) { s_active = true; reset_runtime(); return
 ModResult deactivated(void*, ModError*) { s_active = false; reset_runtime(); return MOD_OK; }
 ModResult new_save(void*, ModError*) {
     reset_runtime(); s_records = {}; prepare_save();
+    if(!store_gear(GearInventory{}))return MOD_UNAVAILABLE;
     s_saveReady = true;
     const auto bytes = s_records.encode();
     svc_save->set_blob(mod_ctx, kBlob, bytes.data(), bytes.size());
@@ -1613,7 +1631,7 @@ void update_survivors() {
     enforce_survivors_bindings();
     if(update_hub_save())return;
     if(update_post_run_save())return;
-    if (!in_arena() || transitioning()) { reset_ending(); reset_midna_dialog(); close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
+    if (!in_arena() || transitioning()) { update_survivors_equipment_chest(false,{},0); close_gear_window(); reset_ending(); reset_midna_dialog(); close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
     if (s_restart) {
@@ -1691,20 +1709,24 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsCamera, before_run_camera); POST(SurvivorsCamera, after_run_camera);
     PRE(SurvivorsArenaExit, before_arena_exit);
     PRE(SurvivorsArenaRestart, before_arena_restart);
+    PRE(SurvivorsProcess, before_contact_owner_delete);
     PRE(SurvivorsProcess, before_process); POST(SurvivorsProcess, after_process);
     POST(SurvivorsPlayer, after_player); POST(SurvivorsDraw, after_draw);
+    PRE(SurvivorsPlayer, before_player_contacts);
     PRE(SurvivorsPlayer, before_player_bindings);
     PRE(SurvivorsPlayer, before_chest_action);
     PRE(SurvivorsPlayer, before_midna_call);
     PRE(SurvivorsMidnaOrder, before_midna_order);
     PRE(SurvivorsMidnaFlow, before_midna_flow);
     PRE(SurvivorsEnemyContact,before_enemy_contact);
+    PRE(SurvivorsBlock, before_player_contacts);
     PRE(SurvivorsBlock, before_shield_block); POST(SurvivorsBlock, after_player_damage); PRE(SurvivorsGuard, before_survivors_guard);
     PRE(SurvivorsBulblinHit, before_bulblin_hit); POST(SurvivorsBulblinHit, after_bulblin_hit);
     PRE(SurvivorsBulblinAggro, before_bulblin_aggro);
     PRE(SurvivorsEnemyArrow, before_enemy_arrow); POST(SurvivorsEnemyArrow, after_enemy_arrow);
     PRE(SurvivorsConcurrentHit, before_enemy_attack_contact); POST(SurvivorsConcurrentHit, after_enemy_attack_contact);
     PRE(SurvivorsConcurrentHit, before_concurrent_hit);
+    POST(SurvivorsConcurrentHit, after_player_contact);
     PRE(SurvivorsProcess, before_enemy_attack_process);
     POST(SurvivorsEnemyArrow, after_enemy_attack_spawn);
     PRE(SurvivorsBokoblinHit, before_enemy_hit); POST(SurvivorsBokoblinHit, after_enemy_hit);
@@ -1732,6 +1754,12 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBallAction, before_ranged_native);
     PRE(SurvivorsBallNext, before_ranged_native);
     POST(SurvivorsScrollVisible, after_powerup_scroll_visible);
+    POST(SurvivorsGearScreen, after_gear_collection_screen);
+    PRE(SurvivorsGearDraw, before_gear_collection_draw);
+    POST(SurvivorsGearDraw, after_gear_collection_draw);
+    POST(SurvivorsCollectionWait, after_gear_collection_action);
+    POST(SurvivorsCollectionClick, after_gear_collection_action);
+    PRE(SurvivorsCollectionDelete, before_gear_collection_delete);
     PRE(SurvivorsCollectionWait, before_powerup_collection_wait);
     POST(SurvivorsCollectionWait, after_powerup_collection_action);
     POST(SurvivorsCollectionClick, after_powerup_collection_action);

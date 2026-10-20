@@ -41,7 +41,8 @@ struct Trials {
     bool place(){return ready;}bool prepare_effects(){return ready;}
 };
 struct Animation {void play(){}};
-struct Pedestal {bool survivors=false;bool ready=true;Animation btk,brk;int collision=0;Trials trials;Transform current;};
+struct Pedestal {bool equipment=false;bool survivors=false;bool ready=true;Animation btk,brk;int collision=0;Trials trials;Transform current;};
+int fopAcM_GetID(Pedestal*){return 99;}void remove_actor(int id){assert(id==99);}
 struct Space {void Set(int*){}} space;
 auto dComIfG_Ccsp(){return &space;}
 struct Fighter {int id=-1;};
@@ -145,6 +146,10 @@ int main() {
     // A pending/failed wave load must not block encounter start or wind.
     check_interaction(false);
     check_interaction(true);
+    // The equipment variant leaves A for the inventory and never opens Talents.
+    Pedestal chest;chest.equipment=chest.survivors=true;hubActive=true;
+    pad.mPressedButtonFlags=PAD_BUTTON_A;const auto beforePrompts=prompts;
+    execute_pedestal(&chest);assert(!talentOpens&&prompts==beforePrompts&&pad.mPressedButtonFlags==PAD_BUTTON_A);
     // The shared Survivors visual only opens Talents; it never starts a trial.
     Pedestal p;p.survivors=true;p.trials.ready=false;
     hubActive=true;inArena=false;nextStage=event=paused=menu=false;player={};pad={};

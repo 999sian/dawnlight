@@ -14,6 +14,7 @@ fixture=r'''
 bool s_victory=false,s_deathPending=false;
 
 #include <any>
+#include <cstring>
 #include <cassert>
 #include <string>
 #include <vector>
@@ -64,7 +65,7 @@ void clear_arena_geometry(){++cleared;}
 void update_survivors_pedestal(bool enabled){if(!enabled)++pedestalRemoves;}
 void open_window(){visible=true;++opened;}
 void hub_menu_closed();void close_window(){visible=false;hub_menu_closed();}
-struct Log{void warn(ModContext*,const char*){}}logger;auto* svc_log=&logger;ModContext* mod_ctx=nullptr;
+struct Log{void warn(ModContext*,const char*){}void info(ModContext*,const char*){}}logger;auto* svc_log=&logger;ModContext* mod_ctx=nullptr;
 HookAction before_hub_door(ModContext*,void*,void*,void*);
 bool acceptOrder=true;
 int fopAcM_orderDoorEvent(fopAc_ac_c* a,fopAc_ac_c* b,u16 priority,u16 flags){
@@ -77,6 +78,14 @@ int fopAcM_orderDoorEvent(fopAc_ac_c* a,fopAc_ac_c* b,u16 priority,u16 flags){
 main=r'''
 int main(){
  s_run.phase=Phase::Ready;
+ // The wall-side hub chest waits for geometry and faces the room center.
+ wallReady=false;update_hub(&link);assert(!chestActor.active);wallReady=true;
+ floorReady=false;update_hub(&link);assert(!chestActor.active);
+ floorReady=true;update_hub(&link);
+ assert(chestActor.active&&chestActor.position.x==1650&&chestActor.position.z==0);
+ assert(chestActor.position.y==40&&chestActor.yaw==-0x4000);
+ s_hubDeparture=true;update_hub(&link);assert(!chestActor.active);s_hubDeparture=false;
+
  // Loading the save never opens a window and Ready leaves Link executable.
  assert(!visible&&s_hubMenu==HubMenu::None&&!pause_run_actor(false));
  assert(pause_run_actor(true));visible=true;assert(pause_run_actor(false));visible=false;
@@ -171,7 +180,17 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+'\n'+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
+ cpp.write_text(fixture+'''
+bool floorReady=true,wallReady=true;
+struct dBgS_LinChk{void Set(cXyz* a,cXyz* b,void*){assert(a->x==0&&b->x==10000&&a->z==0&&b->z==0);}cXyz GetCross(){return {1800,100,0};}};
+struct dBgS_ObjGndChk{void SetPos(cXyz*){}};
+struct Ground{bool LineCross(dBgS_LinChk*){return wallReady;}float GroundCross(dBgS_ObjGndChk*){return floorReady?40:-1.e9f;}}ground;
+Ground& dComIfG_Bgsp(){return ground;}
+struct GearChest {bool active=false;cXyz position;s16 yaw=0;}chestActor;
+void update_survivors_equipment_chest(bool enabled,const cXyz& p,s16 yaw){
+ chestActor.active=enabled;if(enabled){chestActor.position=p;chestActor.yaw=yaw;}
+}
+'''+'\n'.join(extract(core,n) for n in ['map_available','hub_menu_closed','start_run','before_stage','pause_run_actor'])+'\n'+'\n'.join(extract(hub,n) for n in ['before_hub_door','hub_chest_position','update_hub','hub_exit_actor','draw_hub_exit_label'])+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),'-I',str(root/'include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors hub: free movement, native door gating, save/close, cancellation, routing and recovery passed')

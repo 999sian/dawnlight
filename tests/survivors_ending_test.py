@@ -171,7 +171,7 @@ int main(){
 '''
 ending=(root/'src/survivors_ending.inc').read_text().replace('#include "survivors_victory_wave.inc"','')
 native=(root/'dusklight/src/d/d_gameover.cpp').read_text()
-code=fixture+''.join(function(native,s) for s in ['int dGameover_c::_execute()',
+code=fixture+'\nunsigned s_gearNoticeTicks=0;void drop_boss_gear(){}\n'+''.join(function(native,s) for s in ['int dGameover_c::_execute()',
  'void dGameover_c::playerAnmWait_init()','void dGameover_c::playerAnmWait_proc()',
  'void dGameover_c::dispFadeOut_init()','void dGameover_c::dispFadeOut_proc()',
  'void dGameover_c::dispWait_init()','void dGameover_c::dispWait_proc()'])+ending+''.join(

@@ -36,7 +36,7 @@ constexpr int fpcNm_E_OC_e=1, fpcNm_E_BA_e=2,fpcNm_E_RD_e=4;
 struct ModContext {};
 struct ModError {};
 using ModResult=int;
-constexpr ModResult MOD_OK=0;
+constexpr ModResult MOD_OK=0,MOD_UNAVAILABLE=1;
 enum HookAction { HOOK_CONTINUE, HOOK_SKIP_ORIGINAL };
 namespace mods {
 template<class T> T arg(void* args, int n) { return std::any_cast<T>(static_cast<std::any*>(args)[n]); }
@@ -54,12 +54,18 @@ struct Enemy {
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
 std::vector<int> s_enemyHitSources,s_enemyContactFrames;
+void clear_player_contacts(){}
 Run s_run;RunOptions s_options;
+GearInventory s_gear;bool s_gearWritable=true;unsigned s_gearNoticeTicks=0,gearRolls=0;
+void restore_gear_collection(){} void close_gear_window(){}
+bool store_gear(const GearInventory& gear){s_gear=gear;return true;}
+void drop_boss_gear(){++gearRolls;}
 enum class HubMenu{None,Talents,Run};unsigned s_hubClosingWindow=0;HubMenu s_hubMenu=HubMenu::None;
 bool s_hub=true,s_hubDeparture=false,s_hubDoorStarted=false,s_arrivingRun=false,s_allowHubDoor=false,s_hubSaveRequested=false;
 ActorId s_hubDoor=kNone;unsigned s_hubDoorTicks=0;
 unsigned s_window=0,s_refreshChoices=0;
 void load_option_config(){}void update_survivors_pedestal(bool){}
+void update_survivors_equipment_chest(bool,int,int){}
 
 void begin_starting_item_choice(){if(s_run.starting_item_pending)s_run.phase=Phase::TreasureChoice;}
 enum class SwordAction { None, Normal, Spin, Jump };
@@ -225,7 +231,7 @@ int main() {
     credit_death(enemy,&actor); assert(s_run.phase==Phase::Running && xp==33 && rewards==1 && eliteChests==1);
     assert(s_run.guard_elites==1&&s_run.timed_elites==0);
     enemy.credited=false;enemy.eliteSlot=0;credit_death(enemy,&actor);
-    assert(s_run.timed_elites==1);credit_death(enemy,&actor);assert(s_run.timed_elites==1);
+    assert(s_run.timed_elites==1&&gearRolls==1);credit_death(enemy,&actor);assert(s_run.timed_elites==1&&gearRolls==1);
     // Life Steal heals once per credited death, independent of reward drops.
     s_run.ranks[unsigned(Upgrade::LifeSteal)]=1;life=4;
     enemy.credited=false;credit_death(enemy,&actor);assert(life==4); // Non-sword death.

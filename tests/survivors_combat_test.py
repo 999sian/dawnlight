@@ -180,7 +180,7 @@ u32 dComIfGp_particle_set(u32 id,u16 effect,cXyz*,int*,const csXyz*,const cXyz* 
     if(!id){id=nextEmitter++;emitters.emplace(id,Emitter{});}return id;
 }
 void dComIfGp_particle_levelEmitterOnEventMove(u32){}
-struct Attack {bool active=true,greatSpin=false;float radius=65,effectBaseRadius=260;unsigned life=10;cXyz position,velocity;cCcD_Obj collider;std::array<u32,9>emitters{};};
+struct Attack {unsigned weapon=0;bool active=true,greatSpin=false;float radius=65,effectBaseRadius=260;unsigned life=10;cXyz position,velocity;cCcD_Obj collider;std::array<u32,9>emitters{};};
 std::array<Attack,initial_projectile_slots>s_attacks;
 struct Effect{cCcD_Obj collider;unsigned damage=0,fixedDamage=0;bool critical=false;};std::array<Effect,24>s_effects;
 void new_melee_swing(){}
@@ -214,7 +214,7 @@ void mark_damage_critical(dCcU_AtInfo*,bool){}
 void mark_damage_split(dCcU_AtInfo*,unsigned,unsigned){}
 struct BulblinPowerCache{dCcU_AtInfo* info;~BulblinPowerCache(){}};
 '''
-stubs += "\nvoid update_lightning(daAlink_c*){}\nvoid apply_treasure_inventory(daAlink_c*,ChestReward,const Run&,unsigned){}\nvoid sync_survivors_inventory(){}\nDamageAmounts hit_damage_sources(const cCcD_Obj* c){DamageAmounts d{};d[unsigned(c==&player.mGuardAtCps?DamageSource::Shield:DamageSource::Sword)]=1;return d;}\n"
+stubs += "\nvoid update_lightning(daAlink_c*){}\nvoid apply_treasure_inventory(daAlink_c*,ChestReward,const Run&,unsigned){}\nvoid sync_survivors_inventory(){}\nDamageAmounts hit_damage_sources(const cCcD_Obj* c){DamageAmounts d{};for(const auto& a:s_attacks)if(c==&a.collider){d[unsigned(weapon_damage_source(a.weapon))]=1;return d;}d[unsigned(c==&player.mGuardAtCps?DamageSource::Shield:DamageSource::Sword)]=1;return d;}\n"
 main = r'''
 void reset(){bloat={};bloat.id=91;stallord={};stallord.id=92;s_multiStrike={};player.swordHeld=player.swordPressed=false;s_waveManual=s_manualSwing=false;player.id=7;playing=arena=true;abilityBusy=false;s_pots={};potActor.id=99;potCarried=false;
     player.mProcID=daAlink_c::PROC_WAIT;player.mEquipItem=0x103;
@@ -475,6 +475,17 @@ int main(){
     assert(info.mAttackPower==200&&s_run.random==critRng);
     s_run.ranks[unsigned(Upgrade::CritChance)]=s_run.ranks[unsigned(Upgrade::CritDamage)]=0;
     s_run.dark_link=s_run.dark_remaining=0;
+    // Equipment-only Bow crit also reaches the native power fallback. A
+    // different projectile does not inherit the bow's critical chance.
+    const auto preEquipment=s_run;const auto priorWeapon=s_attacks[0].weapon;
+    s_run.gear_weapon={GearKind::HerosBow,5,5,5};s_run.ranks[unsigned(Upgrade::Bow)]=1;
+    s_attacks[0].weapon=unsigned(Upgrade::Bow);s_attacks[0].collider.power=10;
+    s_run.random=1;info={&s_attacks[0].collider};after_power(nullptr,powerArgs,nullptr,nullptr);
+    assert(info.mAttackPower==20&&s_run.random==270369);
+    s_attacks[0].weapon=unsigned(Upgrade::Bombs);s_run.random=1;info={&s_attacks[0].collider};after_power(nullptr,powerArgs,nullptr,nullptr);
+    assert(info.mAttackPower==10&&s_run.random==1);
+    s_run=preEquipment;s_attacks[0].weapon=priorWeapon;
+
     // Ranged waves start a visible normal cut even without a melee target.
     reset();s_run.ranks[0]=15;enemy.current.pos.z=900;waves=0;
     update_sword_wave(&player);assert(player.normals==1&&s_wavePending&&waves==0);

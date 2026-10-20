@@ -176,7 +176,7 @@ Run s_run;bool s_chestsExhausted=false; unsigned s_spawnFailures=0;
 bool saving=false;bool save_modal_active(){return saving;}
 bool in_arena(){return arena;} bool transitioning(){return transition;} bool ui_visible(){return window;}
 J2DGrafContext* dComIfGp_getCurrentGrafPort(){return hasGraf?&context:nullptr;}
-struct mDoGph_gInf_c {static float getMinXF(){return 0;} static float getWidthF(){return 608;}};
+struct mDoGph_gInf_c {static float getMinXF(){return 0;} static float getWidthF(){return 608;} static float getHeightF(){return 448;}};
 '''
 main = r'''
 int main(){
@@ -220,6 +220,7 @@ int main(){
     draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels);s_deathPending=false;
     s_run.phase=Phase::Running;saving=true;boxes=labels=rubyLabels=0;
     draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels&&!rubyLabels);saving=false;
+    s_gearNoticeTicks=120;
     // All native menu opening/active/closing states hide every overlay, even
     // when the UI service reports no document (Collection is native).
     for(bool inHub:{false,true})for(unsigned state:{1u,2u,3u,4u,5u,10u}) {
@@ -234,6 +235,7 @@ int main(){
         assert(!boxes&&!labels&&!prices&&!feedback);
     }
     nativePause=0;pauseFlag=scenePause=false;
+    s_gearNoticeTicks=0;
     // Preview works behind its transparent UI, in the hub and with rank 0,
     // without emitting world labels or changing run/encounter state.
     s_hudEditorWindow=1;window=hub=true;s_run.phase=Phase::Ready;
@@ -319,7 +321,7 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(prefix + stubs + '\nbool hub=false;unsigned hubLabels=0,prices=0,feedback=0;bool survivors_hub_active(){return hub;} void draw_hub_labels(){++hubLabels;} void draw_chest_prices(){++prices;} void draw_combat_feedback(){++feedback;}\n' + native + '\n' + function(source, 'void label(') + '\n' +
+    cpp.write_text(prefix + stubs + '\nunsigned s_gearNoticeTicks=0;const char* s_gearNotice="Weapon found!";\n' + '\nbool hub=false;unsigned hubLabels=0,prices=0,feedback=0;bool survivors_hub_active(){return hub;} void draw_hub_labels(){++hubLabels;} void draw_chest_prices(){++prices;} void draw_combat_feedback(){++feedback;}\n' + native + '\n' + function(source, 'void label(') + '\n' +
                    (root/'src/survivors_boss_hud.inc').read_text() + '\n' + (root/'src/survivors_chest_hud.inc').read_text() + '\n' + function(source, 'void draw_hud(') + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
