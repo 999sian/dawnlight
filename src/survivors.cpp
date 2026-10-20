@@ -179,6 +179,7 @@ DEFINE_HOOK(&daE_OC_c::searchPlayer, SurvivorsBokoblinAggro);
 DEFINE_HOOK(&daE_OC_c::executeWait, SurvivorsBokoblinWait);
 DEFINE_HOOK(&fopAcM_searchActorDistance, SurvivorsEliteDistance);
 DEFINE_HOOK(&daObjCarry_c::obj_break, SurvivorsPotBreak);
+DEFINE_HOOK(&daItem_c::itemGetNextExecute, SurvivorsKeyPickup);
 DEFINE_HOOK(&renderingAmap_c::afterDrawPath, SurvivorsEliteMinimap);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ba.cpp#pl_check", BOOL(e_ba_class*, f32, s16), SurvivorsKeeseAggro);
 DEFINE_HOOK_SYMBOL("src/d/actor/d_a_e_ms.cpp#pl_check", int(e_ms_class*, f32), SurvivorsRatAggro);
@@ -363,6 +364,8 @@ void new_melee_swing();
 void cancel_treasure_demo();
 int potion_slot();
 unsigned potion_capacity();
+unsigned chest_keys();
+void set_chest_keys(unsigned);
 void cancel_ranged();
 bool prepare_treasure_message(ChestReward, const Run&, const Run&, Rarity);
 unsigned treasure_message_id();
@@ -649,6 +652,7 @@ void prepare_save() {
     dComIfGs_setMaxLife(15); // Three hearts; max life uses fifths, gauge uses quarters.
     dComIfGs_setLife(12);
     dComIfGs_setRupee(0);
+    set_chest_keys(0); // Keys belong to this run, never a previous arena/save.
 }
 void load_records() {
     if (s_loaded) return;
@@ -1044,6 +1048,7 @@ HookAction before_large_spin(ModContext*, void*, void* result, void*) {
 }
 #include "survivors_loot.inc"
 #include "survivors_ranged.inc"
+#include "survivors_keys.inc"
 #include "survivors_treasure.inc"
 #include "survivors_inventory.inc"
 #include "survivors_black_flame.inc"
@@ -1366,6 +1371,7 @@ void label(const char* text, float x, float y, float size, float width=550) {
 #include "survivors_prices.inc"
 #include "survivors_feedback_draw.inc"
 #include "survivors_boss_hud.inc"
+#include "survivors_chest_hud.inc"
 void draw_hud(ModContext*, void* args, void*, void*) {
     // Native Collection, ring/map submenus and their opening/closing transitions
     // are not UI-service documents. Suppress every Survivors overlay together.
@@ -1402,9 +1408,11 @@ void draw_hud(ModContext*, void* args, void*, void*) {
     graf->setColor(oldTL, oldTR, oldBR, oldBL);
     const float bossOffset = draw_boss_hud(mods::arg<dMeter2Draw_c*>(args, 0), x, preview) ? 54.0f : 0.0f;
     if (preview || (!s_chestsExhausted && s_run.chest_rewards_left(potion_slot() >= 0)))
-        std::snprintf(text, sizeof(text), "Next chest: %u rupees", s_run.chest_cost());
-    else std::snprintf(text, sizeof(text), "No chest rewards available");
-    drawText(HudPart::Info,14,bossOffset);
+        draw_next_chest(mods::arg<dMeter2Draw_c*>(args, 0), x, bossOffset);
+    else {
+        std::snprintf(text, sizeof(text), "No chest rewards available");
+        drawText(HudPart::Info,14,bossOffset);
+    }
     if (s_run.horde_remaining) {
         std::snprintf(text,sizeof(text),"HORDE!  3x enemy spawns  %us",(s_run.horde_remaining+29)/30);
         drawText(HudPart::Info,17,22+bossOffset);
@@ -1705,6 +1713,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsBokoblinAggro, before_bokoblin_aggro);
     PRE(SurvivorsBokoblinWait, before_bokoblin_wait);
     PRE(SurvivorsPotBreak, before_pot_break);
+    PRE(SurvivorsKeyPickup, before_key_pickup);
     POST(SurvivorsEliteMinimap, after_elite_minimap);
     PRE(SurvivorsKeeseAggro, before_keese_aggro);
     PRE(SurvivorsRatAggro, before_rat_aggro);

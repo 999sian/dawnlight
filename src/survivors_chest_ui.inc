@@ -23,7 +23,8 @@ ModResult build_treasure_choices(UiElementHandle left, UiElementHandle right) {
         const auto rarity = s_chests[s_selectedChest].rarities[i];
         Run preview = s_run; preview.phase = Phase::Treasure;
         unsigned rupees = dComIfGs_getRupee();
-        if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity, free, s_chests[s_selectedChest].fixed)) continue;
+        if (!preview.buy_chest(rupees, reward, potion_capacity(), rarity, free, s_chests[s_selectedChest].fixed,
+                               chest_uses_key(s_chests[s_selectedChest]))) continue;
         result = add_choice_card(row, treasure_card_rml(reward, preview, rarity), reward_name(reward, preview),
                                  select_treasure, &s_choices[i]);
         if (result != MOD_OK) return result;

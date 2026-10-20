@@ -26,6 +26,14 @@ float cM_ssin(s16 a){return std::sin(float(a)*3.14159265f/32768);}
 void mDoLib_project(cXyz* world,cXyz* screen){*screen=*world;}
 namespace mDoGph_gInf_c{float getMinXF(){return 0;}float getMaxXF(){return 640;}float getHeightF(){return 480;}}
 std::vector<std::string>labels;void label(const char* text,float,float,float){labels.push_back(text);}
+
+using u8=unsigned char;
+int nativeKeys=0,pendingKeys=0;
+int dComIfGs_getKeyNum(){return nativeKeys;}
+int dComIfGp_getItemKeyNumCount(){return pendingKeys;}
+void dComIfGp_clearItemKeyNumCount(){pendingKeys=0;}
+void dComIfGs_setKeyNum(u8 n){nativeKeys=n;}
+#include "survivors_keys.inc"
 '''
 main=r'''
 int main(){
@@ -33,6 +41,9 @@ int main(){
  draw_chest_prices();assert((labels==std::vector<std::string>{"20","20"}));
  labels.clear();s_run.chests_opened=2;draw_chest_prices();assert((labels==std::vector<std::string>{"32","32"}));
  labels.clear();s_chests[1].fixed=true;draw_chest_prices();assert((labels==std::vector<std::string>{"32","40"}));
+ labels.clear();nativeKeys=1;draw_chest_prices();assert((labels==std::vector<std::string>{"1 key","1 key"}));
+ labels.clear();s_chests[0].free=true;draw_chest_prices();assert((labels==std::vector<std::string>{"0","1 key"}));
+ nativeKeys=0;s_chests[0].free=false;
  labels.clear();s_chests[0].opening=true;draw_chest_prices();assert(labels.size()==1);
  // Range follows Link, not camera depth, zoom or the hovering label's bob.
  labels.clear();s_chests[1].position={0,0,item_target_range-1};draw_chest_prices();assert(labels.size()==1);

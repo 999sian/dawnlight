@@ -50,6 +50,8 @@ bool s_victory=false,s_deathPending=false;unsigned s_victoryTicks=0;
 #include "survivors_rules.hpp"
 #include "survivors_hud_layout.hpp"
 using namespace dawnlight::survivors;
+using u8=unsigned char;
+#define MULTI_CHAR(x) 1
 using f32=float; using GXTevStageID=int; using GXBlendMode=int; using GXBlendFactor=int;
 using Mtx=float[3][4];
 void MTXIdentity(Mtx){}
@@ -96,7 +98,12 @@ struct J2DGrafContext {
     }
 } context;
 unsigned skulls=0,skullLookups=0;bool hasMapArchive=true,hasSkullTexture=true;
-struct ResTIMG{} skullTexture;
+struct ResTIMG{} skullTexture,rupeeTexture;
+struct JUTTexture{const ResTIMG* getTexInfo(){return &rupeeTexture;}unsigned getWidth(){return 12;}unsigned getHeight(){return 24;}} rupee;
+unsigned rupeeIcons=0,keys=0;unsigned chest_keys(){return keys;}
+std::array<float,4> rupeeGeometry{};
+bool hasRupeePane=true,hasRupeeTexture=true;
+
 struct MapArchive{} mapArchive;
 MapArchive* dComIfGp_getDmapResArchive(){return hasMapArchive?&mapArchive:nullptr;}
 void* JKRGetNameResource(const char* name,MapArchive* archive){
@@ -105,9 +112,15 @@ void* JKRGetNameResource(const char* name,MapArchive* archive){
 }
 std::array<float,4> skullGeometry{};
 struct J2DPicture {
- explicit J2DPicture(ResTIMG* image){assert(image==&skullTexture);}
+ const ResTIMG* image;
+ explicit J2DPicture(const ResTIMG* resource):image(resource){assert(image==&skullTexture||image==&rupeeTexture);}
+ JUtility::TColor getBlack(){return JUtility::TColor(0);}JUtility::TColor getWhite(){return JUtility::TColor(0xffffffff);}
+ void setBlackWhite(JUtility::TColor b,JUtility::TColor w){assert(unsigned(b)==0&&unsigned(w)==0xffffffff);}
+ JUTTexture* getTexture(int index){assert(index==0);return hasRupeeTexture?&rupee:nullptr;}
  void draw(float x,float y,float w,float h,bool a,bool b,bool c){
-  assert(!a&&!b&&!c);skullGeometry={x,y,w,h};++skulls;textureCoordinates=true;
+  assert(!a&&!b&&!c);
+  if(image==&rupeeTexture){rupeeGeometry={x,y,w,h};++rupeeIcons;}else{skullGeometry={x,y,w,h};++skulls;}
+  textureCoordinates=true;
  }
 };
 struct JUTResFont {void setGX();} font,ruby;
@@ -121,6 +134,10 @@ struct J2DPrint {
     JUTResFont* face;float size=0;
     J2DPrint(JUTResFont* f,JUtility::TColor c,JUtility::TColor):face(f){textColor=c;f->setGX();}
     void setFontSize(float x,float){size=x;}
+    struct TSize{float field_0x0=0,field_0x4=0;};
+    void initchar(){}
+    float parse(const u8*,int count,int,void*,TSize& bounds,int,bool draw){assert(!draw);bounds.field_0x0=count*size*.5f;return 0;}
+
     void printReturn(const char* t,float width,float,int,int,float x,float y,int){textPositions.push_back({t,x+width*.5f,y,size});printed.emplace_back(t);++labels;if(face==&ruby)++rubyLabels;}
 };
 
@@ -134,7 +151,9 @@ Actor* actor_by_id(ActorId id){return id<actors.size()?&actors[id]:nullptr;}
 struct Enemy {ActorId id=kNone;bool elite=false,initialized=true,dormant=false,retiring=false,credited=false;
  int eliteSlot=-1;unsigned species=0;};
 std::array<Enemy,8> s_enemies;
-struct dMeter2Draw_c {} meter;
+J2DPicture nativeRupee(&rupeeTexture);
+struct Screen{J2DPicture* search(int){return hasRupeePane?&nativeRupee:nullptr;}} screen;
+struct dMeter2Draw_c {Screen* mpScreen=&screen;} meter;
 namespace mods {template<class T>T arg(void*,unsigned){return &meter;}}
 unsigned bossBars=0;float bossPercentage=0;bool barAvailable=true;std::array<float,4> bossGeometry{};
 bool draw_boss_health_meter(dMeter2Draw_c*,float percentage,float x,float y,float w,float h){
@@ -275,10 +294,24 @@ int main(){
     };
     checkText(HudPart::Timer,"00:00",18);checkText(HudPart::Rank,"1",18,0,10.5f);
     checkText(HudPart::Level,"Level",14);checkText(HudPart::Score,"Score",14);checkText(HudPart::ExpText,"XP",14);
-    checkText(HudPart::Info,"Next chest:",14,54);checkText(HudPart::BossName,"Darknut",20);
+    checkText(HudPart::Info,"Next chest:",14,54,-6.5f);checkText(HudPart::BossName,"Darknut",20);
     const auto xpPos=hud_position(HudPart::ExpBar,304);
     assert(vertices.size()==8);near(vertices[0][0],xpPos.x-160*xpPos.scale);near(vertices[0][1],xpPos.y);
     near(vertices[2][0],xpPos.x+160*xpPos.scale);near(vertices[2][1],xpPos.y+6*xpPos.scale);
+    // Inline icon keeps its native 1:2 aspect and shares Info text transforms.
+    const auto info=hud_position(HudPart::Info,304);
+    near(rupeeGeometry[2],9*info.scale);near(rupeeGeometry[3],18*info.scale);
+    near(rupeeGeometry[1],info.y+52*info.scale);
+    assert(rupeeIcons>0&&!textureCoordinates);
+    auto countBefore=rupeeIcons;keys=2;printed.clear();draw_next_chest(&meter,304,0);
+    assert(rupeeIcons==countBefore&&printed.back()=="Next chest: 1 key  (Keys: 2)");keys=0;
+    for(unsigned reason=0;reason<3;++reason){
+        hasRupeePane=reason!=0;hasRupeeTexture=reason!=1;
+        draw_next_chest(reason==2?nullptr:&meter,304,0);assert(rupeeIcons==countBefore);
+    }
+    hasRupeePane=hasRupeeTexture=true;draw_next_chest(&meter,304,0);assert(rupeeIcons==countBefore+1);
+    for(bool save:{false,true}){nativeWindow=save?0:3;saving=save;countBefore=rupeeIcons;draw_hud(nullptr,nullptr,nullptr,nullptr);assert(rupeeIcons==countBefore);}
+    saving=false;nativeWindow=0;
     hudValues=hud_defaults;
     std::cout<<"Survivors HUD: native font/box vertex packets, messages and render gates passed\n";
 }
@@ -287,7 +320,7 @@ with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
     cpp.write_text(prefix + stubs + '\nbool hub=false;unsigned hubLabels=0,prices=0,feedback=0;bool survivors_hub_active(){return hub;} void draw_hub_labels(){++hubLabels;} void draw_chest_prices(){++prices;} void draw_combat_feedback(){++feedback;}\n' + native + '\n' + function(source, 'void label(') + '\n' +
-                   (root/'src/survivors_boss_hud.inc').read_text() + '\n' + function(source, 'void draw_hud(') + '\n' + main)
+                   (root/'src/survivors_boss_hud.inc').read_text() + '\n' + (root/'src/survivors_chest_hud.inc').read_text() + '\n' + function(source, 'void draw_hud(') + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

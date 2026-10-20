@@ -7,7 +7,8 @@ void draw_chest_prices() {
         const auto& chest=s_chests[i];
         if (!chest.active || chest.opening) continue;
         if ((chest.position-link->current.pos).abs2()>=item_target_range*item_target_range) continue;
-        std::snprintf(price,sizeof(price),"%u",s_run.chest_price(chest.free,chest.fixed));
+        if (chest_uses_key(chest)) std::snprintf(price,sizeof(price),"1 key");
+        else std::snprintf(price,sizeof(price),"%u",s_run.chest_price(chest.free,chest.fixed));
         cXyz world=chest.position+cXyz(0,150+8*cM_ssin(s16(s_run.ticks*700)),0);
         const auto& matrix=*dComIfGd_getProjViewMtx();
         const float w=matrix[3][0]*world.x+matrix[3][1]*world.y+matrix[3][2]*world.z+matrix[3][3];

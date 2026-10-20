@@ -29,6 +29,7 @@ struct daAlink_c:fopAc_ac_c{}player;ActorId s_player=1;
 auto* daAlink_getAlinkActorClass(){return &player;}ActorId fopAcM_GetID(fopAc_ac_c* p){return p->id;}
 struct daItem_c:fopAc_ac_c{enum{TYPE_FIXED_PLACE_e=1,TYPE_LAUNCH_e=0,STATUS_NORMAL_e=0,FLAG_NO_TIMER_e=8};
  cXyz mItemScale{1,1,1},scale{1,1,1};int status=0,mWaitTimer=0;bool hidden=false;int flags=0;int getStatus(){return status;}
+ struct Cylinder{float r=0,h=0;void SetR(float n){r=n;}void SetH(float n){h=n;}}mCcCyl;
  void setFlag(int f){flags|=f;}void hide(){hidden=true;}};
 struct daObjLife_c:daItem_c{enum{STATUS_WAIT_e=0};bool chkStatus(int s){return status==s;}};
 struct Enemy{bool elite=false;int eliteSlot=-1;cXyz lootPosition;};
@@ -36,7 +37,8 @@ struct Orb{cXyz position;unsigned value=0;bool summoned=false,merged=false;};std
 Run s_run;bool s_allowDrop=false,playing=true,failCreate=false,dry=true,path=true;
 bool playable(){return playing;}
 struct Arena{int room=6;}data;const Arena& arena(){return data;}
-enum{dItemNo_HORSE_FLUTE_e=132,dItemNo_KAKERA_HEART_e=33,dItemNo_HEART_e=0,dItemNo_SILVER_RUPEE_e=7};
+enum{dItemNo_HORSE_FLUTE_e=132,dItemNo_KAKERA_HEART_e=33,dItemNo_HEART_e=0,dItemNo_SILVER_RUPEE_e=7,dItemNo_SMALL_KEY2_e=0xee,dItemNo_SMALL_KEY_e=0x20};
+struct dItem_data{static float getR(int item){assert(item==dItemNo_SMALL_KEY_e);return 30;}static float getH(int item){assert(item==dItemNo_SMALL_KEY_e);return 40;}};
 struct ModContext{};ModContext* mod_ctx=nullptr;enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int i){return std::any_cast<T>(static_cast<std::any*>(args)[i]);}}
 std::map<ActorId,daObjLife_c>actors;std::set<ActorId>pending;unsigned nextId=2,creates=0;
@@ -60,11 +62,37 @@ std::vector<GXColor>colors;std::vector<cXyz>sizes;
 void dDbVw_drawCubeOpa(cXyz&,cXyz size,csXyz,GXColor color){colors.push_back(color);sizes.push_back(size);}
 void draw_lightning(){}
 void draw_loot(){}void draw_ranged(){}void draw_arena_barriers(){}
+struct Chest{bool free=false,fixed=false;};
+
+using u8=unsigned char;
+int nativeKeys=0,pendingKeys=0;
+int dComIfGs_getKeyNum(){return nativeKeys;}
+int dComIfGp_getItemKeyNumCount(){return pendingKeys;}
+void dComIfGp_clearItemKeyNumCount(){pendingKeys=0;}
+void dComIfGs_setKeyNum(u8 n){nativeKeys=n;}
+#include "survivors_keys.inc"
+unsigned keySounds=0;constexpr int Z2SE_CONSUMP_ITEM_GET=1;
+void mDoAud_seStart(int sound,void*,int,int){assert(sound==Z2SE_CONSUMP_ITEM_GET);++keySounds;}
 '''
 main=r'''
-void fresh(){s_run.start(123);s_orbs={};s_pickups.clear();s_expMagnets.assign(timed_elite_count,{});actors.clear();pending.clear();
+void fresh(){nativeKeys=pendingKeys=0;keySounds=0;s_run.start(123);s_orbs={};s_pickups.clear();s_expMagnets.assign(timed_elite_count,{});actors.clear();pending.clear();
  player={};player.id=1;playing=dry=path=true;failCreate=false;s_allowDrop=false;creates=0;}
 int main(){
+ fresh();
+ const auto keyId=create_run_pickup({100,0,0},dItemNo_SMALL_KEY2_e);
+ auto* keyActor=static_cast<daItem_c*>(actor_by_id(keyId));auto* key=tracked_pickup(keyId);
+ move_pickup(*key,keyActor);assert(keyActor->flags&daItem_c::FLAG_NO_TIMER_e);
+ assert(keyActor->current.pos.x<100&&keyActor->mWaitTimer>0&&keyActor->mCcCyl.r==30&&keyActor->mCcCyl.h==40);
+ std::any keyArgs[]={keyActor};playing=false;
+ assert(before_key_pickup(nullptr,keyArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL&&chest_keys()==0&&!key->retiring);
+ playing=true;pendingKeys=1;
+ assert(before_key_pickup(nullptr,keyArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL&&chest_keys()==2&&pendingKeys==0);
+ assert(key->retiring&&keyActor->hidden&&keySounds==1);
+ before_key_pickup(nullptr,keyArgs,nullptr,nullptr);assert(chest_keys()==2&&keySounds==1);
+ cleanup_pickups();cleanup_pickups();assert(!actor_by_id(keyId)&&!tracked_pickup(keyId));
+ const auto unrelatedId=create_run_pickup({0,0,0},1);
+ std::any otherArgs[]={static_cast<daItem_c*>(actor_by_id(unrelatedId))};
+ assert(before_key_pickup(nullptr,otherArgs,nullptr,nullptr)==HOOK_CONTINUE);
  fresh();
  for(unsigned i=0;i<orb_capacity;++i)add_orb({float(i*1000),0,0},i==0?20:1);
  assert(!s_orbs[0].merged); // A naturally larger reward is not a merged crystal.

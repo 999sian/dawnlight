@@ -15,6 +15,21 @@ RunPickup* tracked_pickup(ActorId id) {
     for (auto& pickup:s_pickups) if (pickup.id==id) return &pickup;
     return nullptr;
 }
+HookAction before_key_pickup(ModContext*, void* args, void*, void*) {
+    auto* item = mods::arg<daItem_c*>(args, 0);
+    auto* pickup = item ? tracked_pickup(fopAcM_GetID(item)) : nullptr;
+    if (!pickup || pickup->item != dItemNo_SMALL_KEY2_e) return HOOK_CONTINUE;
+    // The native key model supports ITEM creation, but its ordinary pickup
+    // switch only handles hearts, rupees and ammo. Collect only our keys here,
+    // without dungeon chest bits or a story Get Item event.
+    if (!pickup->retiring && in_arena() && s_run.phase == Phase::Running && playable()) {
+        pickup->retiring = true;
+        item->hide();
+        set_chest_keys(chest_keys() + 1);
+        mDoAud_seStart(Z2SE_CONSUMP_ITEM_GET, nullptr, 0, 0);
+    }
+    return HOOK_SKIP_ORIGINAL;
+}
 bool disabled_healing_pickup(int item) {
     return s_run.restricted_healing() && (item==dItemNo_HEART_e || item==dItemNo_KAKERA_HEART_e);
 }
@@ -50,11 +65,17 @@ bool heart_or_rupee(const RunPickup& pickup) {
 void move_pickup(RunPickup& pickup, fopAc_ac_c* actor) {
     if (disabled_healing_pickup(pickup.item)) pickup.retiring=true;
     if (pickup.retiring) return;
-    if (heart_or_rupee(pickup)) {
+    if (heart_or_rupee(pickup) || pickup.item == dItemNo_SMALL_KEY2_e) {
         auto* item=static_cast<daItem_c*>(actor);
         item->setFlag(daItem_c::FLAG_NO_TIMER_e);
         // Keep the wait phase nonzero too, preventing native expiry flashing.
         item->mWaitTimer=std::max<decltype(item->mWaitTimer)>(item->mWaitTimer,1);
+        if (pickup.item == dItemNo_SMALL_KEY2_e) {
+            // SMALL_KEY2 has a model but zero native pickup dimensions. Use
+            // the ordinary small key's cylinder on this instance only.
+            item->mCcCyl.SetR(dItem_data::getR(dItemNo_SMALL_KEY_e));
+            item->mCcCyl.SetH(dItem_data::getH(dItemNo_SMALL_KEY_e));
+        }
     }
     if (!playable() || s_run.phase!=Phase::Running || !pickup_waiting(pickup,actor)) return;
     auto* link=daAlink_getAlinkActorClass();

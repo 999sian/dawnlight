@@ -61,7 +61,7 @@ damage counters reset for the next run. Older saves retain their progression.
 - The HUD shows time, run level, score, XP and the next chest price. Inspect equipment
   in the item wheel and power-ups via the Hidden Skills scroll in Collection.
   Only bottles can be assigned to item buttons. Magnet also attracts rupees,
-  hearts and heart pieces; nearby pots trigger normal automatic sword swings.
+  hearts, heart pieces and small keys; nearby pots trigger normal automatic sword swings.
 - Call Midna for **Cancel**, **End Run** or **Restart Run**. Survive 20 minutes and defeat all four timed elites to win;
   **New run** resets upgrades and returns to the hub. Map exits are sealed during runs.
 
@@ -291,9 +291,9 @@ current overrides: [boss attack reference](docs/features/hyrule-survivors-boss-a
 Each timed elite and the first kill of each guard slot drops a **free large chest**. Guard respawns still give XP but no repeated chest, including after relocation. The four timed elites also drop an
 **large gold-yellow EXP crystal** nearby: walk over it to pull all currently lying XP crystals, rupees and hearts
 to Link from anywhere on the map. It is a one-time pickup, not an inventory item. Pots are scattered according to floor
-area and safe placement, drop rupees of different values or rare heart pieces,
+area and safe placement, drop rupees of different values, rare heart pieces or small keys,
 and respawn at a different safe position 20 seconds after breaking (menus pause the timer). Ordinary enemies can drop healing hearts and
-rupees; every level-up fully heals Link, including newly chosen heart containers. Dropped hearts and rupees remain until collected
+rupees; every level-up fully heals Link, including newly chosen heart containers. Dropped hearts, rupees and small keys remain until collected
 or the run ends; their native despawn timer is disabled. Ordinary enemies also
 have a 2% bonus chance to drop a gold EXP magnet, increased by Luck up to 3%.
 This follows the same Horde-difficulty reward normalization as other ordinary
@@ -335,6 +335,17 @@ attacks and offers three items; choose one to receive it through the native Get
 Item animation. Cancelling preserves offers. Opened chests disappear; free elite
 chests never raise the paid-chest price.
 
+Pots have the same chance to drop a **small key** as a heart piece: **2% base,
+up to 3% with Luck**. A key automatically pays for the next paid chest, including
+a starting 40-rupee chest, without spending rupees. Exactly one key is consumed
+when the reward finishes; cancelling or a failed reward consumes nothing.
+Free elite chests and the free starting item never consume keys. Regular chest
+prices still advance after a key purchase. Keys reset with each new run and
+remain available in Endless, including after 40:00.
+The Next Chest HUD uses the native rupee icon for the rupee price, or shows
+**1 key** and your key count when a key is available. Nearby paid chest labels
+also show **1 key** in that case.
+
 Once no eligible item reward remains, all existing chests despawn (including
 fixed map chests and free elite chests) and no more chests spawn for that run,
 including its Endless continuation. A live item-get finishes before cleanup.
@@ -347,7 +358,7 @@ slot limit. Dual Wield and Shield can coexist, each using its own equipment slot
 
 Each run shares **one free Reroll and one Banish** across both selection menus.
 Reroll refreshes all offers; further uses cost **50, 100, 150… rupees**. Paid
-chests reserve their purchase price. Banish removes the named choice from future
+chests reserve their purchase price unless a key covers it; rerolls still cost rupees. Banish removes the named choice from future
 offers without removing its current ranks or equipment; weapon bans apply to
 both menus. The top-left **Reroll** button shows **Free** or its rupee cost; the
 icons beside your equipment show remaining free rerolls and banishes. Use the red

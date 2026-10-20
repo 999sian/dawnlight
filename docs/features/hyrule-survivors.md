@@ -411,9 +411,9 @@ units), clamped to these map-specific budgets:
 Creation is staggered to avoid loading every actor in one frame. Placement checks
 floor, room, hazards, walls, exit barriers, other pots, guard landmarks and Link's
 current position. Pots use native models, carrying/throwing, collision, fragments
-and sound. Breaking one yields one native pickup: a Piece of Heart (2% base
-chance) or a green, blue, yellow, red, purple, orange or silver rupee. Higher-value
-rupees are rarer; Luck multiplies the heart-piece and better-color chances.
+and sound. Breaking one yields one native pickup: a Piece of Heart or small key (each 2% base
+chance, up to 3% with Luck) or a green, blue, yellow, red, purple, orange or silver rupee. Higher-value
+rupees are rarer; Luck multiplies the heart-piece, key and better-color chances.
 Heart pieces use the native Get Item sequence and five-piece heart progression;
 subsequent Heart Container upgrades preserve already collected pieces. Their
 capacity is reset with the rest of the run on restart.
@@ -425,11 +425,31 @@ Survivors suppression of vanilla drops. Pots and enemies pause during menus and
 native Get Item; the native reward event itself continues. Run end, mode changes
 and restart retire the pots, including actors still loading.
 
+Small keys use the native SMALL_KEY2 item model through tracked ITEM actors.
+The native generic pickup switch does not handle this item, so a scoped
+itemGetNextExecute pre-hook collects only run-owned keys, plays the native
+consumable sound and retires the pickup. This avoids dungeon treasure bits and
+story events. SMALL_KEY2 has zero pickup dimensions, so each owned instance
+receives the ordinary small key cylinder (30 radius, 40 height) before execution,
+without changing shared item data. Keys retain magnet attraction and no-expiry handling; cleanup owns
+their entire lifetime. The native key counter includes pending native changes,
+clamps to 99 and resets with run preparation. Keys still drop after Endless 40:00.
+
 ## Treasure chests
+
+Paid chests prefer one small key over rupees. Selection previews and reroll
+reservation use the same payment choice; a key does not make rerolls free.
+The Get Item transaction commits the key only with the reward, rechecks key
+availability and bottle capacity, and preserves keys on cancellation/failure.
+Free elite/starting rewards never consume keys, and regular price progression
+still advances on key purchases. The info HUD draws the native rupee texture
+from the live meter's `rupi` pane inline with Next Chest, keeping its aspect ratio
+and sharing the Info-Texts transform. With keys available, it shows the key cost
+and count; paid world labels show 1 key. Native menu/save gates still apply.
 
 At run start, seed 3/18/18/6/4 one-use small chests in Darknut/Field/Desert/Palace/
 Throne Room. Their separate 18-slot pool retains placement flags after purchase;
-they always cost 40, never advance regular prices, and share selection/Get Item.
+they cost 40 rupees or one small key, never advance regular prices, and share selection/Get Item.
 Safe-position retries are bounded to 24 candidates per update. Affordability,
 preview, payment, floating labels and paid-reroll reservations use the same price.
 Starting chests use area-weighted room-floor sampling with local dry-ground,

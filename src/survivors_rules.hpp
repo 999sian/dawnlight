@@ -508,8 +508,10 @@ struct Run {
     }
     // Apply exactly the selected reward. No reroll, payment or rank change on
     // an invalid/stale selection; presentation commits this preview only once.
-    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common, bool free = false, bool fixed = false) {
-        const unsigned price = chest_price(free, fixed);
+    // A key waives payment, not the ordinary chest's price progression. The
+    // presentation layer reserves/commits the native key with this preview.
+    bool buy_chest(unsigned& rupees, ChestReward reward, unsigned bottle_capacity = 0, Rarity rarity = Rarity::Common, bool free = false, bool fixed = false, bool key = false) {
+        const unsigned price = key ? 0 : chest_price(free, fixed);
         if (phase != Phase::Treasure || rupees < price || !chest_eligible(reward, bottle_capacity != 0)) return false;
         const unsigned gain = chest_gain(reward, rarity, bottle_capacity);
         rupees = rupees - price + chest_rupees(reward, rarity, bottle_capacity);
@@ -595,9 +597,11 @@ struct Run {
         return Drop::GreenRupee;
     }
     enum class PotDrop { HeartPiece, GreenRupee, BlueRupee, YellowRupee, RedRupee,
-                         PurpleRupee, OrangeRupee, SilverRupee, Count };
+                         PurpleRupee, OrangeRupee, SilverRupee, SmallKey, Count };
     PotDrop roll_pot_drop() {
-        if (next_random()%10000 < lucky_chance(200)) return restricted_healing()?PotDrop::GreenRupee:PotDrop::HeartPiece;
+        const unsigned rare = next_random()%10000, chance = lucky_chance(200);
+        if (rare < chance) return restricted_healing()?PotDrop::GreenRupee:PotDrop::HeartPiece;
+        if (rare < 2*chance) return PotDrop::SmallKey;
         const unsigned color=next_random()%10000;
         constexpr std::array<unsigned,6> chances{10,40,150,600,1000,2200};
         unsigned threshold=0;

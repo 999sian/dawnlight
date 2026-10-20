@@ -62,9 +62,17 @@ ModResult css(ModContext*,UiElementHandle element,const char* name,bool active){
 ModResult visible(ModContext*,UiElementHandle element,bool value){elements.at(element).visible=value;return MOD_OK;}
 UiService service{};
 extern "C" {ModContext* mod_ctx=nullptr;const UiService* svc_ui=&service;}
+
+using u8=unsigned char;
+int nativeKeys=0,pendingKeys=0;
+int dComIfGs_getKeyNum(){return nativeKeys;}
+int dComIfGp_getItemKeyNumCount(){return pendingKeys;}
+void dComIfGp_clearItemKeyNumCount(){pendingKeys=0;}
+void dComIfGs_setKeyNum(u8 n){nativeKeys=n;}
+#include "survivors_keys.inc"
 '''
 main = r'''
-void fresh(){
+void fresh(){nativeKeys=pendingKeys=0;
  elements.clear();elements[1].kind=elements[2].kind="pane";next=3;
  s_run.start(123);s_run.phase=Phase::TreasureChoice;s_selectedChest=0;selected=99;rupees=500;
  bottles.fill(dItemNo_NONE_e);failControl=false;s_chests[0]={};s_chests[0].rarities={};
@@ -118,6 +126,10 @@ int main(){
  // even with an empty wallet. Rendering does not commit any reward/payment.
  fresh();s_chests[0].fixed=true;s_run.chests_opened=20;rupees=40;
  assert(build_treasure_choices(1,2)==MOD_OK); // Preview cannot charge the regular 500-rupee price.
+ fresh();nativeKeys=1;rupees=0;
+ assert(build_treasure_choices(1,2)==MOD_OK&&chest_keys()==1&&rupees==0);
+ unsigned keyCards=0;for(const auto& [id,e]:elements)if(e.css=="survivors-treasure-card")++keyCards;
+ assert(keyCards==3);
  fresh();s_chests[0].free=true;rupees=0;
  assert(build_treasure_choices(1,2)==MOD_OK);unsigned freeCards=0;bool freeLabel=false;
  for(const auto& [id,e]:elements){

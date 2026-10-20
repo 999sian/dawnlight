@@ -125,6 +125,12 @@ void dComIfGs_setWalletSize(int){}
 int life=12;int dComIfGs_getLife(){return life;}
 int dComIfGs_getMaxLifeGauge(){return 12;}
 void dComIfGs_setLife(int n){life=n;} void dComIfGs_setRupee(int){}
+using u8=unsigned char;struct Chest{bool free=false,fixed=false;};
+int nativeKeys=0,pendingKeys=0;
+int dComIfGs_getKeyNum(){return nativeKeys;}int dComIfGp_getItemKeyNumCount(){return pendingKeys;}
+void dComIfGp_clearItemKeyNumCount(){pendingKeys=0;}void dComIfGs_setKeyNum(u8 n){nativeKeys=n;}
+#include "survivors_keys.inc"
+
 // A live third-slot hook can dereference the absent Link actor during file
 // select. Any live slot setter is forbidden in this pre-game fixture.
 constexpr int COLLECT_LIGHT_SWORD=12,dItemNo_LIGHT_SWORD_e=13,COLLECT_WOODEN_SHIELD=0,COLLECT_HYLIAN_SHIELD=2;
@@ -197,7 +203,7 @@ int main() {
     for (int pass=0;pass<2;++pass) {
         save.player.status.slots={0,4,10,23};save.player.status.mixes={4,10,23,0};
         g_dComIfG_gameInfo.play.selected.fill(40);inventory.fill(40);
-        prepare_save();
+        nativeKeys=7;pendingKeys=1;prepare_save();assert(chest_keys()==0&&pendingKeys==0);
         for (int i=0;i<MAX_SELECT_ITEM;++i) {
             assert(save.player.status.slots[i]==dItemNo_NONE_e);
             assert(save.player.status.mixes[i]==dItemNo_NONE_e);
