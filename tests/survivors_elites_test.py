@@ -94,8 +94,9 @@ bool create_enemy_at(cXyz pos,s16,unsigned kind,bool elite,int slot=-1,bool dorm
 }
 bool spawn_enemy(daAlink_c*,bool elite,int slot=-1){if(!elite)++ordinarySpawns;return create_enemy_at({0,0,500},0,0,elite,slot);}
 constexpr unsigned kPaidChestCount=2,kSmallChestCount=kPaidChestCount,kChestCount=2+elite_reward_capacity;
-struct Chest{bool active=false,free=false;s16 yaw=0;cXyz position;};
+struct Chest{bool active=false,free=false,fixed=false,opening=false;s16 yaw=0;cXyz position;uint64_t spawnOrder=0;};
 std::array<Chest,kChestCount>s_chests;
+unsigned s_selectedChest=kChestCount;uint64_t s_chestSequence=0;
 bool s_active=true,paused=false;ActorId s_player=1;int life=12;unsigned finishes=0,lifeWrites=0;
 bool playable(){return arenaPresent&&!paused;}int dComIfGs_getLife(){return life;}
 int dComIfGs_getMaxLifeGauge(){return 12;}
@@ -110,7 +111,7 @@ void clear_attacks(){}void update_chests(daAlink_c*){}void update_pots(daAlink_c
 
 '''
 main=r'''
-void fresh(unsigned map){s_victory=false;s_victoryTicks=0;s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};clear_elite_sites();player.current.pos={};reset_elite_encounters();
+void fresh(unsigned map){s_victory=false;s_victoryTicks=0;s_arenaSpawnPosition={};s_arenaSpawn=true;rejectLongPath=narrowLanding=false;s_map=map;roomData={};stageData={};keepDoors={};keepRoomDoors={};s_run.start(42);s_enemies={};s_chests={};s_chestSequence=0;s_selectedChest=kChestCount;clear_elite_sites();player.current.pos={};reset_elite_encounters();
  groundMissing=wallBlocked=barrierBlocked=failCreate=false;groundRoom=-2;groundCode=0;s_spawnCooldown=s_spawnFailures=ordinarySpawns=0;}
 unsigned guards(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.dormant;return n;}
 unsigned waves(){unsigned n=0;for(auto& e:s_enemies)n+=e.id!=kNone&&e.elite&&!e.dormant;return n;}
@@ -150,6 +151,18 @@ int main(){
  // Missing corpse ground falls back to its last validated floor.
  killed.eliteSlot=1;killed.lootPosition={100,0,200};groundMissing=true;drop_elite_chest(killed,&player);
  assert(s_chests[2].position.x==100&&s_chests[2].position.y==0&&s_chests[2].position.z==200);groundMissing=false;
+ // A full large-chest pool evicts its oldest, never a small/selected/open chest.
+ fresh(0);s_chests[0].active=true;s_chests[0].fixed=true;s_chests[0].position={99,0,99};
+ for(unsigned i=kSmallChestCount;i<kChestCount;++i) {
+  s_chests[i].active=true;s_chests[i].free=true;s_chests[i].spawnOrder=++s_chestSequence;
+ }
+ s_chests[kSmallChestCount].opening=true;s_selectedChest=kSmallChestCount+1;
+ Enemy replacement;replacement.eliteSlot=0;player.current.pos={800,0,900};
+ const auto oldSequence=s_chestSequence;drop_elite_chest(replacement,&player);
+ assert(s_eliteEncounters[0].rewarded&&s_chests[kSmallChestCount+2].spawnOrder==oldSequence+1);
+ assert(s_chests[kSmallChestCount].spawnOrder==1&&s_chests[kSmallChestCount+1].spawnOrder==2);
+ assert(s_chests[0].fixed&&s_chests[0].position.x==99&&s_chests[0].spawnOrder==0);
+ drop_elite_chest(replacement,&player);assert(s_chestSequence==oldSequence+1); // One reward per kill.
  // Exact milestone bypasses ordinary spawn cooldown, ordinary horde continues.
  fresh(0);s_run.ticks=elite_interval;s_spawnCooldown=30;update_spawns(&player);assert(waves()==1&&ordinarySpawns==1);
  // Spawn warning counts consecutive failures and clears after recovery/cap/end.
@@ -306,13 +319,13 @@ int main(){
  fresh(0);life=0;after_player(nullptr,playerArgs,nullptr,nullptr);assert(s_run.phase==Phase::Defeat&&s_run.ticks==0);
  reset_elite_encounters();for(const auto& e:s_eliteEncounters)assert(!e.placed&&!e.defeated);
  clear_elite_sites();assert(s_eliteFloors.empty()&&s_eliteDoorSites.empty());
- std::cout<<"Survivors elites: schedule, all map placements, respawns, dormancy and non-overwriting free drops passed\n";
+ std::cout<<"Survivors elites: schedule, all map placements, respawns, dormancy and oldest-chest replacement passed\n";
 }
 '''
 with tempfile.TemporaryDirectory() as temp:
     cpp=Path(temp)/'test.cpp';exe=Path(temp)/'test'
     cpp.write_text(fixture+(root/'src/survivors_elite_positions.inc').read_text()+
-        (root/'src/survivors_elites.inc').read_text()+extract(loot,'drop_elite_chest')+
+        (root/'src/survivors_elites.inc').read_text()+extract(loot,'find_chest_spawn_slot')+extract(loot,'drop_elite_chest')+
         extract(runtime,'update_spawns')+extract(runtime,'after_player')+main)
     subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
     subprocess.run([str(exe)],check=True)

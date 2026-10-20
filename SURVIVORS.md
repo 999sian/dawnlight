@@ -246,7 +246,8 @@ giant Bokoblins except in the Palace, where they are giant Shadow club Bulblins.
 elites wake only after taking damage; after a kill they respawn in three minutes,
 with new positions in Field/Desert. Timed elites do not respawn.
 
-Stalhounds emerge and fight in daylight as well as at night. Shadow Beasts do
+Stalhounds emerge and fight in daylight as well as at night. The giant elite
+uses a lower pounce arc so its bite can reach grounded Link. Shadow Beasts do
 not require simultaneous group kills. Shadow Kargaroks use independent dive attacks with their native approach, brake
 and catch animations, with the scripted
 capture sequence replaced by a talon hit. The elite Carrier also has one native
@@ -308,7 +309,11 @@ The large gold-yellow elite crystal collects existing XP globally, without givin
 
 ## Chests and equipment
 
-Up to **six replenishing small chests** can be present. These cost **20, 25, 32, 41, 52… rupees**: increases of +5, +7, +9, +11…
+Up to **six replenishing small chests** can be present. When their slots are full,
+a successful new spawn replaces the oldest unopened, unselected chest; failed
+placement keeps the existing chest. Large elite reward chests use the same rule
+in their separate pool. Starting 40-rupee map chests are never replaced.
+The replenishing chests cost **20, 25, 32, 41, 52… rupees**: increases of +5, +7, +9, +11…
 Each arena also starts with randomly placed **40-rupee small chests** (counts above),
 which never respawn or affect the replenishing chests' price. Starting chests
 are spread across safe, dry map floor, including sites around terrain obstacles;

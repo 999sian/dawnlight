@@ -155,11 +155,39 @@ int main(){
   if(exclusion==2)sh.speedF=-5; // Shield rebound
   if(exclusion==3)sh.field_0x6a4=45; // Knockback
   scope[1]=static_cast<void*>(&sh);before_elite_scale_scope(nullptr,scope,nullptr,nullptr);
+  sh.current.pos.y+=20; // Native jump displacement before CrrPos.
   std::any movement[]{&sh.mObjAcch};
   before_elite_attack_motion(nullptr,movement,nullptr,nullptr);
   before_elite_attack_motion(nullptr,movement,nullptr,nullptr);
-  assert(sh.current.pos.z==(exclusion?60:120) && sh.current.pos.y==20 && sh.speed.z==40 && sh.speed.y==20);
+  assert(sh.current.pos.z==(exclusion?60:120) && sh.current.pos.y==(exclusion?40:30) && sh.speed.z==40 && sh.speed.y==20);
   after_elite_scale_scope(nullptr,scope,nullptr,nullptr);
+ }
+ // Native leap impulse/gravity (20/-5) retain their clock and horizontal
+ // distance. At scale 2 the apex is 25 rather than 50: a raised bite sphere
+ // can intersect grounded Link instead of clearing his target capsule.
+ for(float scale:{1.5f,2.f,3.f}) {
+  sh.scale.x=scale;sh.current.pos={0,0,0};sh.speed={0,20,40};sh.speedF=40;
+  sh.field_0x676=3;sh.field_0x678=3;sh.field_0x6a4=0;
+  float apex=0;unsigned frames=0;
+  do {
+   scope[1]=static_cast<void*>(&sh);before_elite_scale_scope(nullptr,scope,nullptr,nullptr);
+   sh.current.pos.y+=sh.speed.y;sh.current.pos.z+=60;sh.speed.y-=5;
+   const auto velocity=sh.speed.y;std::any movement[]{&sh.mObjAcch};
+   before_elite_attack_motion(nullptr,movement,nullptr,nullptr);
+   const auto once=sh.current.pos.y;before_elite_attack_motion(nullptr,movement,nullptr,nullptr);
+   assert(sh.current.pos.y==once&&sh.speed.y==velocity);
+   after_elite_scale_scope(nullptr,scope,nullptr,nullptr);
+   apex=std::max(apex,sh.current.pos.y);++frames;
+  } while(sh.current.pos.y>0&&frames<20);
+  assert(frames==9&&std::abs(apex-50.f/scale)<.001f);
+  assert(std::abs(sh.current.pos.z-9*60*scale)<.001f);
+  if(scale==2.f) {
+   // Sphere/capsule vertical overlap at the apex, for an elevated animated
+   // bite center. The previous 50-unit leap clears the same target entirely.
+   const float mouthOffset=75.f*scale,radius=35.f*scale,linkTop=120;
+   assert(mouthOffset+50-radius>linkTop);
+   assert(mouthOffset+apex-radius<=linkTop);
+  }
  }
  assert(s_eliteScaleFrames.empty());
 }

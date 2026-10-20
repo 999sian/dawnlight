@@ -1123,8 +1123,12 @@ distances. Lizalfos retains its separate XZ fight-run conversion. Native attack
 animations, cooldowns and state transitions remain in charge.
 
 Bokoblin attack root translation and Stalhound horizontal leap travel also grow
-with their model, before native wall correction. Stalhound airtime and gravity
-are unchanged, and its existing elite movement bonus still applies. Lizalfos'
+with their model, before native wall correction. A scaled Stalhound's launched
+pounce compresses vertical displacement by its model scale, so its elevated bite
+sphere does not clear grounded Link. Native vertical velocity/gravity, the jump
+clock and committed horizontal travel remain intact; normal enemies, wind-up,
+landing recovery and shield recoil retain their native vertical motion. Its
+existing elite movement bonus still applies. Lizalfos'
 three weapon/tail attack radii, Kargarok's attack and body-push spheres, and
 Bulblin's melee attack sphere now scale absolutely, without compounding or
 enabling an inactive attack collider.
@@ -1330,3 +1334,15 @@ their base use. All talents together cost 99 Unlock Points. Existing saves keep
 their ranks, XP and invested points; new points can extend those ranks without
 a reset or storage-version change. UI/help, cap/refund/reset tests and old-save
 round trips cover the expanded limits.
+
+
+### Full chest pools
+
+A successful replenishing-chest spawn replaces the oldest available chest when
+all six small-chest slots are occupied. Large elite reward chests follow the
+same rule within their own model/slot pool. Initial fixed 40-rupee map chests
+are reserved separately and never replaced. Prefer an empty slot; skip any
+selected or opening chest. Chronology uses a run-local creation sequence, not
+lid-animation age, so cancellation does not change the replacement order.
+Failed small-chest placement leaves the previous chest intact, and replacement
+resets its offers/animation without granting loot, score or purchase credit.

@@ -7,6 +7,7 @@ struct Chest {
     cXyz position{};
     s16 yaw = 0;
     unsigned age = 0;
+    uint64_t spawnOrder = 0;
     ChestReward reward = ChestReward::Count;
     std::array<ChestReward, 3> offers{ChestReward::Count, ChestReward::Count, ChestReward::Count};
     std::array<Rarity, 3> rarities{};
@@ -14,6 +15,7 @@ struct Chest {
 std::array<Chest, kChestCount> s_chests;
 std::array<bool,map_chest_capacity> s_mapChestPlaced{};
 unsigned s_chestDelay = 20 * ticks_per_second, s_selectedChest = kChestCount;
+uint64_t s_chestSequence = 0;
 struct LootModels {
     JKRSolidHeap* heap = nullptr;
     J3DModel* masterSword = nullptr;
@@ -69,7 +71,7 @@ void clear_loot() {
     dComIfG_resDelete(&s_loot.chestPhase, "Dalways");
     if (s_loot.linkArchive) dComIfG_resDelete(&s_loot.linkPhase, s_loot.linkArchive);
     s_loot = {}; s_chests = {}; s_mapChestPlaced = {}; s_selectedChest = kChestCount;
-    s_chestDelay = 20 * ticks_per_second;
+    s_chestDelay = 20 * ticks_per_second; s_chestSequence = 0;
 }
 bool prepare_loot(daAlink_c* link) {
     if (s_loot.ready) return true;
@@ -147,6 +149,18 @@ bool prepare_loot(daAlink_c* link) {
     s_loot.ready = true;
     return true;
 }
+// Small replenishing and large reward chests have separate model/slot pools.
+// Fixed map chests and the live treasure interaction are never replacement candidates.
+bool find_chest_spawn_slot(unsigned first, unsigned end, unsigned& slot) {
+    slot=end;
+    for(unsigned i=first;i<end;++i) {
+        const auto& chest=s_chests[i];
+        if(chest.fixed || chest.opening || i==s_selectedChest)continue;
+        if(!chest.active) {slot=i;return true;}
+        if(slot==end || chest.spawnOrder<s_chests[slot].spawnOrder)slot=i;
+    }
+    return slot!=end;
+}
 void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
     if (enemy.eliteSlot<0 || unsigned(enemy.eliteSlot)>=elite_capacity) return;
     auto& encounter=s_eliteEncounters[enemy.eliteSlot];
@@ -157,12 +171,12 @@ void drop_elite_chest(Enemy& enemy, fopAc_ac_c* actor) {
     // A guard slot rewards its first confirmed kill only, including relocation.
     // Respawns still give XP and retain their respawn schedule.
     if (encounter.rewarded) return;
-    auto available=std::find_if(s_chests.begin()+kSmallChestCount,s_chests.end(),
-        [](const Chest& chest){return !chest.active;});
-    if (available==s_chests.end()) return;
+    unsigned slot;
+    if (!find_chest_spawn_slot(kSmallChestCount,kChestCount,slot)) return;
     encounter.rewarded=true;
-    auto& chest=*available;
+    auto& chest=s_chests[slot];
     chest={}; chest.active=true; chest.free=true; chest.yaw=actor->shape_angle.y;
+    chest.spawnOrder=++s_chestSequence;
     cXyz pos=actor->current.pos;
     if (!loot_floor_position(pos)) pos=enemy.lootPosition;
     chest.position=pos;
@@ -428,8 +442,9 @@ void fire_items(daAlink_c* link) {
     }
 }
 bool spawn_chest(daAlink_c* link) {
-    auto slot = std::find_if(s_chests.begin(), s_chests.begin() + kPaidChestCount, [](const auto& c) { return !c.active; });
-    if (slot == s_chests.begin() + kPaidChestCount) return false;
+    unsigned index;
+    if (!find_chest_spawn_slot(0,kPaidChestCount,index)) return false;
+    auto* slot=&s_chests[index];
     for (unsigned attempt = 0; attempt < 12; ++attempt) {
         const auto yaw = static_cast<s16>(s_run.next_random());
         const float radius = 350 + float(s_run.next_random() % 600);
@@ -440,7 +455,7 @@ bool spawn_chest(daAlink_c* link) {
         if (!std::isfinite(floor) || floor < -1.0e8f || std::abs(floor - link->current.pos.y) > 100) continue;
         pos.y = floor;
         bool clear = true;
-        for (const auto& c : s_chests) if (c.active && c.position.abs(pos) < 250) clear = false;
+        for (const auto& c : s_chests) if (&c!=slot && c.active && c.position.abs(pos) < 250) clear = false;
         // Require a reachable center and a flat, unobstructed chest footprint.
         cXyz from = link->current.pos + cXyz(0, 70, 0), to = pos + cXyz(0, 70, 0);
         dBgS_LinChk wall; wall.Set(&from, &to, link);
@@ -454,7 +469,9 @@ bool spawn_chest(daAlink_c* link) {
             if (!std::isfinite(corner) || std::abs(corner - floor) > 20) clear = false;
         }
         if (!clear || !walkable_spawn_path(link->current.pos,pos,85)) continue;
+        // Keep the old chest intact until a replacement position is validated.
         *slot = {}; slot->active = true; slot->position = pos; slot->yaw = yaw + 0x8000;
+        slot->spawnOrder=++s_chestSequence;
         return true;
     }
     return false;
