@@ -425,11 +425,17 @@ Survivors suppression of vanilla drops. Pots and enemies pause during menus and
 native Get Item; the native reward event itself continues. Run end, mode changes
 and restart retire the pots, including actors still loading.
 
-Small keys use the native SMALL_KEY2 item model through tracked ITEM actors.
+Small keys use the native `T_g_key` field model through tracked ITEM actors
+with the KEY_OF_FILONE display variant. SMALL_KEY2 has no field-model entry and
+is no longer used. Immediately before drawing, the existing leaf-draw hook
+applies the ordinary small key's +5 vertical offset and -90-degree X rotation,
+so the model sits above the floor with its proper orientation. Native execution
+still owns physical position, scale, animation and collision.
 The native generic pickup switch does not handle this item, so a scoped
 itemGetNextExecute pre-hook collects only run-owned keys, plays the native
 consumable sound and retires the pickup. This avoids dungeon treasure bits and
-story events. SMALL_KEY2 has zero pickup dimensions, so each owned instance
+story events (the original KEY_OF_FILONE reward handler never runs). The display
+variant has zero pickup dimensions, so each owned instance
 receives the ordinary small key cylinder (30 radius, 40 height) before execution,
 without changing shared item data. Keys retain magnet attraction and no-expiry handling; cleanup owns
 their entire lifetime. The native key counter includes pending native changes,

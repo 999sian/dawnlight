@@ -60,7 +60,7 @@ int create_standalone_actor(int profile,const ActorSpawnParams& p,ActorId& id){
  id=++creates;pending.insert(id);return MOD_OK;
 }
 enum{dItemNo_KAKERA_HEART_e,dItemNo_GREEN_RUPEE_e,dItemNo_BLUE_RUPEE_e,dItemNo_YELLOW_RUPEE_e,
- dItemNo_RED_RUPEE_e,dItemNo_PURPLE_RUPEE_e,dItemNo_ORANGE_RUPEE_e,dItemNo_SILVER_RUPEE_e,dItemNo_SMALL_KEY2_e};
+ dItemNo_RED_RUPEE_e,dItemNo_PURPLE_RUPEE_e,dItemNo_ORANGE_RUPEE_e,dItemNo_SILVER_RUPEE_e,dItemNo_KEY_OF_FILONE_e};
 std::vector<int> drops;
 ActorId fopAcM_createItem(const cXyz*,int item,int bit,int room,void*,void*,int){
  assert(s_allowDrop&&bit==-1&&room==arena().room);drops.push_back(item);return 900;

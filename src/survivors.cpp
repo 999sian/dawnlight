@@ -483,6 +483,7 @@ bool sword_kill_hit(const cCcD_Obj* collider);
 #include "survivors_feedback.inc"
 #include "survivors_ground.inc"
 #include "survivors_pickups.inc"
+#include "survivors_key_visual.inc"
 #include "survivors_player_damage.inc"
 #include "survivors_options.inc"
 #include "survivors_controls.inc"
@@ -1744,6 +1745,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsTreasureText, before_treasure_text_update);
     PRE(SurvivorsBombThrow, before_ranged_native);
     PRE(SurvivorsRangedCancel, before_ranged_native);
+    PRE(SurvivorsTreasureDraw, before_key_draw);
     PRE(SurvivorsTreasureDraw, before_treasure_draw);
     PRE(SurvivorsGetItem, before_treasure_get); POST(SurvivorsGetItem, after_treasure_get);
     PRE(SurvivorsGameOver, before_game_over);

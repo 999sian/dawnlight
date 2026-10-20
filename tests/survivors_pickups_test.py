@@ -1,10 +1,22 @@
 """Native pickup magnet, scheduled-elite EXP crystal and XP snapshot/lifecycle regression."""
 from pathlib import Path
-import os, subprocess, tempfile
+import os, re, subprocess, tempfile
 root=Path(__file__).resolve().parents[1]
 core=(root/'src/survivors.cpp').read_text()
 start=core.index('void update_orbs(')
 orbs=core[start:core.index('\nbool create_enemy_at',start)]
+# Validate the actual SDK resource mapping, not a stubbed item ID: the old
+# SMALL_KEY2 has no field archive, while the chosen alias shares the normal key.
+sdk=root/'dusklight'
+data=(sdk/'src/d/d_item_data.cpp').read_text()
+data=re.sub(r'#if TARGET_PC\n(.*?)#else\n.*?#endif',lambda m:m[1],data,flags=re.S)
+table=re.search(r'field_item_res\[\]\s*=\s*\{(.*?)\n\};',data,re.S)[1]
+rows=re.findall(r'\{([^{}]+)\}',table)
+assert rows[0xee].lstrip().startswith('NULL')
+assert rows[0xfe]==rows[0x20] and '"T_g_key"' in rows[0xfe]
+native=(sdk/'src/d/actor/d_a_obj_smallkey.cpp').read_text()
+start=native.index('void daKey_c::setBaseMtx()')
+native=native[start:native.index('\n}',start)+2].replace('daKey_c::setBaseMtx','daItem_c::nativeKeyMatrix')
 fixture=r'''
 void draw_victory_wave(){}
 
@@ -25,9 +37,24 @@ struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),
  float abs()const{return std::sqrt(x*x+y*y+z*z);}
  float abs2(cXyz p)const{auto d=*this-p;return d.x*d.x+d.y*d.y+d.z*d.z;}};
 struct fopAc_ac_c{ActorId id=0;struct{cXyz pos;}current,old;cXyz speed;float speedF=0;};
+using leafdraw_class=fopAc_ac_c;
+constexpr int fpcNm_ITEM_e=9;int profile=fpcNm_ITEM_e;int fopAcM_GetName(fopAc_ac_c*){return profile;}
+struct Angles{int x=0,y=0,z=0;};
+namespace mDoMtx_stack_c{
+ std::vector<float> matrix;
+ void transS(cXyz p){matrix={p.x,p.y,p.z};}
+ void transM(float x,float y,float z){matrix.insert(matrix.end(),{x,y,z});}
+ void ZXYrotM(Angles a){matrix.insert(matrix.end(),{float(a.z),float(a.x),float(a.y)});}
+ void XrotM(int x){matrix.push_back(float(x));}
+ const auto& get(){return matrix;}
+}
+struct Model{std::vector<float> matrix;void setBaseTRMtx(const std::vector<float>& value){matrix=value;}} keyModel;
 struct daAlink_c:fopAc_ac_c{}player;ActorId s_player=1;
 auto* daAlink_getAlinkActorClass(){return &player;}ActorId fopAcM_GetID(fopAc_ac_c* p){return p->id;}
-struct daItem_c:fopAc_ac_c{enum{TYPE_FIXED_PLACE_e=1,TYPE_LAUNCH_e=0,STATUS_NORMAL_e=0,FLAG_NO_TIMER_e=8};
+struct daItem_c:fopAc_ac_c{
+ Model* mpModel=nullptr;Angles shape_angle{};
+ void nativeKeyMatrix();bool chkDraw(){return !hidden;}
+ enum{TYPE_FIXED_PLACE_e=1,TYPE_LAUNCH_e=0,STATUS_NORMAL_e=0,FLAG_NO_TIMER_e=8};
  cXyz mItemScale{1,1,1},scale{1,1,1};int status=0,mWaitTimer=0;bool hidden=false;int flags=0;int getStatus(){return status;}
  struct Cylinder{float r=0,h=0;void SetR(float n){r=n;}void SetH(float n){h=n;}}mCcCyl;
  void setFlag(int f){flags|=f;}void hide(){hidden=true;}};
@@ -37,7 +64,7 @@ struct Orb{cXyz position;unsigned value=0;bool summoned=false,merged=false;};std
 Run s_run;bool s_allowDrop=false,playing=true,failCreate=false,dry=true,path=true;
 bool playable(){return playing;}
 struct Arena{int room=6;}data;const Arena& arena(){return data;}
-enum{dItemNo_HORSE_FLUTE_e=132,dItemNo_KAKERA_HEART_e=33,dItemNo_HEART_e=0,dItemNo_SILVER_RUPEE_e=7,dItemNo_SMALL_KEY2_e=0xee,dItemNo_SMALL_KEY_e=0x20};
+enum{dItemNo_HORSE_FLUTE_e=132,dItemNo_KAKERA_HEART_e=33,dItemNo_HEART_e=0,dItemNo_SILVER_RUPEE_e=7,dItemNo_KEY_OF_FILONE_e=0xfe,dItemNo_SMALL_KEY_e=0x20};
 struct dItem_data{static float getR(int item){assert(item==dItemNo_SMALL_KEY_e);return 30;}static float getH(int item){assert(item==dItemNo_SMALL_KEY_e);return 40;}};
 struct ModContext{};ModContext* mod_ctx=nullptr;enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int i){return std::any_cast<T>(static_cast<std::any*>(args)[i]);}}
@@ -47,7 +74,7 @@ bool fpcM_IsCreating(ActorId id){return pending.count(id);}
 ActorId fopAcM_createItem(const cXyz* pos,int item,int bit,int room,void*,void*,int type){
  assert(s_allowDrop&&bit==-1&&room==6);assert(type==0);(void)item;++creates;
  if(failCreate)return kNone;
- const auto id=nextId++;actors[id].id=id;actors[id].current.pos=*pos;return id;
+ const auto id=nextId++;actors[id].id=id;actors[id].current.pos=*pos;actors[id].mpModel=&keyModel;return id;
 }
 struct Service{void delete_actor(ModContext*,ActorId id){actors.erase(id);}}service;auto* svc_actor=&service;
 bool loot_floor_position(cXyz& p){if(!dry)return false;p.y=0;return true;}
@@ -56,7 +83,7 @@ bool walkable_spawn_path(cXyz,cXyz& pos,float){pos.y=0;return path;}
 float cM_ssin(s16 a){return std::sin(float(a)*3.14159265f/32768);}float cM_scos(s16 a){return std::cos(float(a)*3.14159265f/32768);}
 struct dBgS_ObjGndChk{void SetPos(cXyz*){}};
 struct Bg{float GroundCross(dBgS_ObjGndChk*){return 0;}}bg;Bg& dComIfG_Bgsp(){return bg;}
-bool in_arena(){return true;}bool transitioning(){return false;}
+bool activeArena=true,changingStage=false;bool in_arena(){return activeArena;}bool transitioning(){return changingStage;}
 struct csXyz{csXyz(int,int,int){}};struct GXColor{unsigned char r,g,b,a;};
 std::vector<GXColor>colors;std::vector<cXyz>sizes;
 void dDbVw_drawCubeOpa(cXyz&,cXyz size,csXyz,GXColor color){colors.push_back(color);sizes.push_back(size);}
@@ -75,14 +102,28 @@ unsigned keySounds=0;constexpr int Z2SE_CONSUMP_ITEM_GET=1;
 void mDoAud_seStart(int sound,void*,int,int){assert(sound==Z2SE_CONSUMP_ITEM_GET);++keySounds;}
 '''
 main=r'''
-void fresh(){nativeKeys=pendingKeys=0;keySounds=0;s_run.start(123);s_orbs={};s_pickups.clear();s_expMagnets.assign(timed_elite_count,{});actors.clear();pending.clear();
+void fresh(){nativeKeys=pendingKeys=0;keySounds=0;activeArena=true;changingStage=false;profile=fpcNm_ITEM_e;keyModel.matrix.clear();s_run.start(123);s_orbs={};s_pickups.clear();s_expMagnets.assign(timed_elite_count,{});actors.clear();pending.clear();
  player={};player.id=1;playing=dry=path=true;failCreate=false;s_allowDrop=false;creates=0;}
 int main(){
  fresh();
- const auto keyId=create_run_pickup({100,0,0},dItemNo_SMALL_KEY2_e);
+ const auto keyId=create_run_pickup({100,0,0},dItemNo_KEY_OF_FILONE_e);
  auto* keyActor=static_cast<daItem_c*>(actor_by_id(keyId));auto* key=tracked_pickup(keyId);
  move_pickup(*key,keyActor);assert(keyActor->flags&daItem_c::FLAG_NO_TIMER_e);
  assert(keyActor->current.pos.x<100&&keyActor->mWaitTimer>0&&keyActor->mCcCyl.r==30&&keyActor->mCcCyl.h==40);
+ // Match the real native small-key transform at arbitrary positions/rotations.
+ keyActor->shape_angle={1200,2000,3000};keyActor->nativeKeyMatrix();const auto expectedMatrix=keyModel.matrix;
+ const auto beforePos=keyActor->current.pos;const auto beforeScale=keyActor->scale;
+ std::any drawArgs[]={static_cast<leafdraw_class*>(keyActor)};keyModel.matrix.clear();
+ assert(before_key_draw(nullptr,drawArgs,nullptr,nullptr)==HOOK_CONTINUE&&keyModel.matrix==expectedMatrix);
+ assert(keyActor->current.pos.abs2(beforePos)==0&&keyActor->scale.abs2(beforeScale)==0);
+ for(unsigned reason=0;reason<7;++reason){
+  keyModel.matrix.clear();key->retiring=reason==0;keyActor->hidden=reason==1;
+  keyActor->mpModel=reason==2?nullptr:&keyModel;activeArena=reason!=3;changingStage=reason==4;
+  key->item=reason==5?1:dItemNo_KEY_OF_FILONE_e;profile=reason==6?0:fpcNm_ITEM_e;
+  before_key_draw(nullptr,drawArgs,nullptr,nullptr);assert(keyModel.matrix.empty());
+ }
+ key->retiring=keyActor->hidden=false;keyActor->mpModel=&keyModel;activeArena=true;changingStage=false;
+ key->item=dItemNo_KEY_OF_FILONE_e;profile=fpcNm_ITEM_e;
  std::any keyArgs[]={keyActor};playing=false;
  assert(before_key_pickup(nullptr,keyArgs,nullptr,nullptr)==HOOK_SKIP_ORIGINAL&&chest_keys()==0&&!key->retiring);
  playing=true;pendingKeys=1;
@@ -183,6 +224,6 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture+(root/'src/survivors_pickups.inc').read_text()+core[core.index('void add_orb('):core.index('void drop_reward(')]+orbs+core[core.index('void after_draw('):core.index('void label(')]+main)
+ cpp.write_text(fixture+native+(root/'src/survivors_pickups.inc').read_text()+(root/'src/survivors_key_visual.inc').read_text()+core[core.index('void add_orb('):core.index('void drop_reward(')]+orbs+core[core.index('void after_draw('):core.index('void label(')]+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-I',str(root/'src'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
