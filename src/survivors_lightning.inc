@@ -22,7 +22,7 @@ void stop_lightning(LightningBolt& bolt) {
 void clear_lightning() { for(auto& bolt:s_lightning)stop_lightning(bolt); }
 void trigger_lightning(fopAc_ac_c* primary) {
     if(s_run.phase!=Phase::Running || !primary || !s_run.rank(Upgrade::Lightning) || s_cooldowns[unsigned(Upgrade::Lightning)] ||
-       !s_run.roll_chance(Run::lightning_chance))return;
+       !s_run.roll_chance(s_run.lightning_proc_chance()))return;
     auto* owner=tracked(fopAcM_GetID(primary));
     if(!owner || owner->retiring || owner->credited)return;
     s_cooldowns[unsigned(Upgrade::Lightning)]=s_run.item_cooldown(Upgrade::Lightning);

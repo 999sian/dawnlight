@@ -54,6 +54,20 @@ void fresh(unsigned count=5){
 void proc(){for(unsigned i=0;i<100&&!s_cooldowns[unsigned(Upgrade::Lightning)];++i)trigger_lightning(&actors[0]);assert(s_cooldowns[unsigned(Upgrade::Lightning)]);}
 unsigned active(){return unsigned(std::count_if(s_lightning.begin(),s_lightning.end(),[](auto& b){return b.active;}));}
 int main(){
+ // Identical RNG rolls between 20% and 60% only proc with Luck; cooldown still gates them.
+ bool luckTriggered=false;
+ for(unsigned seed=1;seed<1000&&!luckTriggered;++seed){
+  fresh();s_run.start(seed);s_run.ranks[unsigned(Upgrade::Lightning)]=1;
+  auto base=s_run,boosted=s_run;
+  if(base.roll_chance(2000)||!boosted.roll_chance(6000))continue;
+  trigger_lightning(&actors[0]);assert(!active()&&!s_cooldowns[unsigned(Upgrade::Lightning)]);
+  s_run.start(seed);s_run.ranks[unsigned(Upgrade::Lightning)]=1;s_run.ranks[unsigned(Upgrade::Luck)]=20;
+  trigger_lightning(&actors[0]);assert(active()==1);
+  const auto timer=s_cooldowns[unsigned(Upgrade::Lightning)];assert(timer==s_run.item_cooldown(Upgrade::Lightning));
+  trigger_lightning(&actors[0]);assert(active()==1&&s_cooldowns[unsigned(Upgrade::Lightning)]==timer);
+  luckTriggered=true;
+ }
+ assert(luckTriggered);
  fresh();proc();assert(active()==1);const auto cooldown=s_cooldowns[unsigned(Upgrade::Lightning)];
  trigger_lightning(&actors[0]);assert(active()==1&&s_cooldowns[unsigned(Upgrade::Lightning)]==cooldown);
  update_lightning(&player);assert(effects[0].pending==3&&effects[0].attribution.swordPending);

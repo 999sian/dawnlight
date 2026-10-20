@@ -1353,7 +1353,9 @@ resets its offers/animation without granting loot, score or purchase credit.
 ### Lightning Strike and Multi Strike
 
 Lightning Strike is an independent level-up reward (cap 30), with a 20% proc
-chance per accepted melee hit while its cooldown is ready. It uses Boomerang's
+chance per accepted melee hit while its cooldown is ready. Luck adds 2 percentage
+points per rank, capped at 60% at Luck rank 20; it does not bypass the cooldown.
+It uses Boomerang's
 rank-dependent cooldown and damage curves at its own rank, twice its hop count
 (2–20), five times its hop speed (210 units/tick), and twice Reach's incremental
 range bonus. Master Sword adds `floor(rank / 2)` damage. Power, Haste, Crit,

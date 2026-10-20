@@ -172,7 +172,7 @@ you in the hub and displays a retry message. The results screen also offers **Sa
 | Crit Damage | 5 | +10 percentage points critical damage/rank, up to +50%. |
 | Legendary Chance | 5 | +0.6 percentage points base Legendary chance/rank: 1% → 4% at rank 5, before Luck. Applies to item and power-up rarities. |
 | Multi Strike | 3 | Requires Dual Wield. Epic grants 1 rank; Legendary grants 2. Each rank adds one sequential activation of Sword Attack (including its splash), Spin Attack, Sword Wave and Lightning Strike. |
-| Lightning Strike | 30 | 20% proc on an accepted melee hit, gated by its own cooldown. See below. |
+| Lightning Strike | 30 | 20% proc on an accepted melee hit, +2 percentage points per Luck rank (60% at rank 20), gated by its own cooldown. See below. |
 | Life Regen | 5 | Shortens regeneration by one second/rank: 20 → 15 seconds. |
 
 Link regenerates **1/4 heart every 20 seconds** even without Life Regen ranks.
@@ -439,7 +439,7 @@ the menu shows the effective chance including current Luck.
 | Piercing | 10 | Requires Bow. Each rank lets every arrow damage one additional distinct enemy (up to 11 total). Includes every Multishot arrow. |
 | Multishot | 3 | Epic grants 1 rank; Legendary grants 2. Each rank adds one projectile/chain to Bow, Boomerang, Bombs, Ball and Chain, Sword Wave and Lightning Strike. |
 | Multi Strike | 3 | Requires Dual Wield. Epic grants 1 rank; Legendary grants 2. Each rank adds one sequential activation of Sword Attack (including its splash), Spin Attack, Sword Wave and Lightning Strike. |
-| Lightning Strike | 30 | 20% proc on an accepted melee hit, gated by its own cooldown. See below. |
+| Lightning Strike | 30 | 20% proc on an accepted melee hit, +2 percentage points per Luck rank (60% at rank 20), gated by its own cooldown. See below. |
 | Life Regen | 5 | Rare or better. Each rank removes 1 second from passive quarter-heart regeneration; stacks with the talent (20 → 15 seconds, or 10 seconds with both maxed). |
 | Life Steal | 1 | Legendary only. Only kills by Sword Attack, Dual Wield splash, Spin, Sword Wave, Jump Strike or Lightning Strike restore a quarter heart, once per death. Includes Multishot and Multi Strike; burns and other abilities do not heal. |
 

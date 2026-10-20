@@ -30,6 +30,10 @@ int main() {
         run.master_sword=30;assert(run.lightning_power()==run.attack_power(unsigned(Upgrade::Boomerang))+15);
     }
     assert(Run::lightning_speed==210&&Run::lightning_chance==2000);
+    for(unsigned luck=0;luck<=30;++luck) {
+        run.ranks[unsigned(Upgrade::Luck)]=luck;
+        assert(run.lightning_proc_chance()==2000+200*std::min(luck,20u));
+    }
     // Dual Wield adds an absolute percentage-point bonus, only to melee sources.
     run.start(8);run.dual_wield=30;
     assert(run.crit_chance_basis_points()==0&&run.melee_crit_bonus()==3000);

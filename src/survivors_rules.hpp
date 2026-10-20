@@ -103,7 +103,7 @@ inline constexpr std::array descriptions{
     "Lob bombs at enemies. Upgrades increase blast size, damage and firing rate.",
     "Launch a heavy ball and retract its chain. Upgrades increase damage, size and firing rate.",
     "Ignite enemies for periodic damage. Hits refresh the burn; upgrades improve damage and duration.",
-    "Improve rarity weights by +5% and critical chance by +2.5% per level. Heart and rupee bonuses gain +10% per level, capped at +50%.",
+    "Improve rarity weights by +5% and critical chance by +2.5% per level. Lightning Strike gains +2 percentage points per level, up to 60%. Heart and rupee bonuses gain +10% per level, capped at +50%.",
     "Red potions restore an extra quarter heart per level.",
     "Direct hits gain +0.75% base critical chance per level. Luck multiplies this chance.",
     "Critical hits start at x2 damage. Each level adds +0.05 to the multiplier.",
@@ -120,7 +120,7 @@ inline constexpr std::array descriptions{
     "All melee hits ignite enemies for 10% normal melee damage each second for 5 seconds, including Spin, Dual Wield and Jump Strike.",
     "While Dark Link is active, ignite nearby enemies with black flames. Each second deals 10% of target maximum HP; lingers 5 seconds outside the aura.",
     "Shield Attack launches a piercing shockwave for current melee damage. Level-5 Ball and Chain width scales with Reach.",
-    "Melee hits have a 20% chance to trigger chain lightning. Boomerang damage/cooldown scaling, double hops and five times hop speed. Master Sword adds 1 damage per two sword levels. Reach has double effect.",
+    "Melee hits have a 20% chance to trigger chain lightning, increased by Luck up to 60%. Boomerang damage/cooldown scaling, double hops and five times hop speed. Master Sword adds 1 damage per two sword levels. Reach has double effect.",
     "Unlock or upgrade the Master Sword. Increases sword ability damage and Lightning Strike damage; Light Sword from level 5.",
     "Repeat Sword Attack (including Dual Wield splash), Spin Attack, Sword Wave and Lightning Strike once more per level. Requires Dual Wield. Epic grants 1 level; Legendary grants 2; maximum level 3.",
     "Receive 20 rupees."};
@@ -609,6 +609,7 @@ struct Run {
     float lightning_hop_range() const { return melee_reach(800.f); }
     static constexpr float lightning_speed=42.f*5;
     static constexpr unsigned lightning_chance=2000;
+    unsigned lightning_proc_chance() const { return lightning_chance*luck_percent()/100; }
     void end(bool won) { if (phase == Phase::Running || phase == Phase::Upgrade || phase == Phase::TreasureChoice || phase == Phase::Treasure) phase = won ? Phase::Victory : Phase::Defeat; }
 };
 
