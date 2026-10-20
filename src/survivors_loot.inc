@@ -74,29 +74,6 @@ void clear_loot() {
     s_loot = {}; s_chests = {}; s_mapChestPlaced = {}; s_selectedChest = kChestCount;
     s_chestDelay = 20 * ticks_per_second; s_chestSequence = 0; s_chestsExhausted=false;
 }
-bool prepare_hub_loot() {
-    if(s_loot.ready)return true;
-    if(s_loot.failed)return false;
-    const auto phase=dComIfG_resLoad(&s_loot.chestPhase,"Dalways");
-    if(phase==cPhs_ERROR_e){clear_loot();s_loot.failed=true;return false;}
-    if(phase!=cPhs_COMPLEATE_e)return false;
-    // The hub needs one chest, not Link's bow/ball/sword animation archives.
-    // Run startup/scene departure clears this heap before preparing run loot.
-    s_loot.heap=mDoExt_createSolidHeapFromGame(0x40000,0x20);
-    if(!s_loot.heap){clear_loot();s_loot.failed=true;return false;}
-    auto* previous=mDoExt_setCurrentHeap(s_loot.heap);
-    auto* data=static_cast<J3DModelData*>(dComIfG_getObjectRes("Dalways",13));
-    auto* animation=static_cast<J3DAnmTransform*>(dComIfG_getObjectRes("Dalways",8));
-    auto*& model=s_loot.chests[kSmallChestCount];
-    auto*& lid=s_loot.lids[kSmallChestCount];
-    model=data?mDoExt_J3DModel__create(data,0x80000,0x11000084):nullptr;
-    lid=JKR_NEW mDoExt_bckAnm();
-    const bool ready=model && animation && lid &&
-        lid->init(animation,TRUE,J3DFrameCtrl::EMode_NONE,0,0,-1,false);
-    mDoExt_setCurrentHeap(previous);
-    if(!ready){clear_loot();s_loot.failed=true;return false;}
-    mDoExt_adjustSolidHeap(s_loot.heap);s_loot.ready=true;return true;
-}
 bool prepare_loot(daAlink_c* link) {
     if (s_loot.ready) return true;
     if (s_loot.failed) return false;

@@ -112,11 +112,12 @@ void open_gear_window() {
     if(svc_ui->window_push(mod_ctx,&desc,&s_gearWindow)!=MOD_OK)s_gearWindow=0;
 }
 bool hub_gear_interaction(daAlink_c* link) {
-    if(!gear_editable() || !s_gearChestLocated || !s_loot.ready || !s_chests[kSmallChestCount].active || !playable() ||
+    if(!gear_editable() || !playable() ||
        !link || fopAcM_GetID(link)!=s_player || link->checkWolf())return false;
-    const cXyz delta=s_gearChestPosition-link->current.pos;
+    cXyz chestAnchor;if(!survivors_equipment_chest_anchor(chestAnchor))return false;
+    const cXyz delta=chestAnchor-link->current.pos;
     if(delta.absXZ()>210 || std::abs(delta.y)>110)return false;
-    cXyz from=link->current.pos+cXyz(0,60,0),to=s_gearChestPosition+cXyz(0,60,0);
+    cXyz from=link->current.pos+cXyz(0,60,0),to=chestAnchor+cXyz(0,60,0);
     dBgS_LinChk wall;wall.Set(&from,&to,link);if(dComIfG_Bgsp().LineCross(&wall))return false;
     dComIfGp_setDoStatusForce(BUTTON_STATUS_OPEN,0);
     if(mDoCPd_c::getTrigA(PAD_1)) {

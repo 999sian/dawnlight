@@ -34,8 +34,8 @@ constexpr int BUTTON_STATUS_OPEN=1,PAD_1=0,PAD_BUTTON_A=1;
 void dComIfGp_setDoStatusForce(int,int){}
 namespace mDoCPd_c{struct Pad{unsigned mPressedButtonFlags=0;}pad;bool getTrigA(int){return pad.mPressedButtonFlags&PAD_BUTTON_A;}Pad& getCpadInfo(int){return pad;}}
 Run s_run;bool s_active=true,s_gameStarted=true,s_loaded=true,s_hub=true,s_restart=false,s_hubDeparture=false,s_progressSaving=false,s_progressSaved=true,s_hubSaveRequested=false;
-constexpr unsigned kSmallChestCount=0;struct{bool active=false;}s_chests[1];
-bool modal=false,transition=false,visible=false;unsigned s_player=1;struct{bool ready=true;}s_loot;
+bool chestActorReady=false;bool survivors_equipment_chest_anchor(cXyz&);
+bool modal=false,transition=false,visible=false;unsigned s_player=1;
 bool save_modal_active(){return modal;}bool transitioning(){return transition;}bool ui_visible(){return visible;}bool playable(){return !modal&&!transition&&!visible;}
 ModContext* mod_ctx=nullptr;
 struct Log{void warn(ModContext*,const char*){}}logService;auto* svc_log=&logService;
@@ -80,7 +80,7 @@ int main(){
  onClosed(nullptr,s_gearWindow,nullptr);visible=false;assert(!s_gearWindow&&s_hubSaveRequested);
  s_hubSaveRequested=false;failPush=true;open_gear_window();assert(!s_gearWindow);failPush=false;
  s_gearChestLocated=true;s_gearChestPosition={0,0,100};mDoCPd_c::pad.mPressedButtonFlags=1;
- assert(!hub_gear_interaction(&player)&&!s_gearWindow);s_chests[0].active=true;
+ assert(!hub_gear_interaction(&player)&&!s_gearWindow);chestActorReady=true;
  wallBlocked=true;assert(!hub_gear_interaction(&player)&&!s_gearWindow);wallBlocked=false;
  assert(hub_gear_interaction(&player)&&s_gearWindow&&!mDoCPd_c::pad.mPressedButtonFlags);close_gear_window();
  s_gearChestPosition={0,0,500};assert(!hub_gear_interaction(&player));
@@ -99,7 +99,7 @@ int main(){
 '''
 with tempfile.TemporaryDirectory() as tmp:
  cpp=Path(tmp)/'test.cpp';exe=Path(tmp)/'test'
- cpp.write_text(fixture.replace('// VALIDATOR',validator)+runtime+ui+main)
+ cpp.write_text(fixture.replace('// VALIDATOR',validator)+runtime+'\nbool survivors_equipment_chest_anchor(cXyz& p){p=s_gearChestPosition;return chestActorReady;}\n'+ui+main)
  subprocess.run([os.environ.get('CXX','c++'),'-std=c++20','-Wall','-Wextra','-Werror','-Wno-misleading-indentation','-Wno-attributes','-I',str(root/'src'),'-I',str(root/'dusklight/sdk/include'),str(cpp),'-o',str(exe)],check=True)
  subprocess.run([str(exe)],check=True)
 print('Survivors equipment UI: native descriptors, grid slots, equip/delete, save rollback, hub input and boss drops passed')

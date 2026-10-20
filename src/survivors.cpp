@@ -603,6 +603,7 @@ void reset_runtime() {
     s_hubMenu=HubMenu::None; s_hubSaveRequested=false; s_hubClosingWindow=0;
     s_hub=true; s_hubDeparture=s_hubDoorStarted=s_arrivingRun=s_allowHubDoor=false;
     s_hubDoor=kNone; s_hubDoorTicks=0;
+    update_survivors_equipment_chest(false,{},0);
     update_survivors_pedestal(false);
     s_options.debug.clamp();
     reset_midna_dialog();
@@ -1342,6 +1343,7 @@ HookAction before_stage(ModContext*, void* args, void*, void*) {
         s_map=s_requestedMap; s_hub=false; s_arrivingRun=true;
         s_hubDeparture=s_hubDoorStarted=false; s_hubDoor=kNone;
         clear_arena_geometry();
+        update_survivors_equipment_chest(false,{},0);
         update_survivors_pedestal(false);
     } else if (in_arena() && !s_restart && s_run.phase != Phase::Loading) return HOOK_SKIP_ORIGINAL;
     dComIfGs_setRestartRoomParam(0);
@@ -1628,7 +1630,7 @@ void update_survivors() {
     enforce_survivors_bindings();
     if(update_hub_save())return;
     if(update_post_run_save())return;
-    if (!in_arena() || transitioning()) { close_gear_window(); reset_ending(); reset_midna_dialog(); close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
+    if (!in_arena() || transitioning()) { update_survivors_equipment_chest(false,{},0); close_gear_window(); reset_ending(); reset_midna_dialog(); close_powerup_window(); clear_attacks(); clear_loot(); clear_enemy_effects(); s_player = kNone; s_warmup = 0; return; }
     auto* link = daAlink_getAlinkActorClass();
     if (!link || !dComIfGp_getStageStagInfo()) return;
     if (s_restart) {

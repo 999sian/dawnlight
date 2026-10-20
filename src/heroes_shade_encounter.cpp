@@ -1,3 +1,4 @@
+#include "fierce_deity_equipment_scope.hpp"
 #include "heroes_shade_encounter.hpp"
 #include "survivors.hpp"
 #include "enemy_slow_motion/profile.hpp"
@@ -72,6 +73,7 @@ ProfileName sProfile = -1;
 ActorHandle sRegistration = 0;
 ActorId sPedestal = kNone;
 ActorId sSurvivorsPedestal = kNone;
+ActorId sSurvivorsChest = kNone;
 struct Fighter {
     ActorId id = kNone;
     std::unique_ptr<ShadeStrideAnimation> stride;
@@ -1363,9 +1365,25 @@ public:
     ShadeTrials trials;
     bool ready=false;
     bool survivors=false;
-    ~Pedestal() { dComIfG_resDelete(&phase,kSwordArchive); }
+    bool equipment=false;
+    mDoExt_bckAnm lid;
+    ~Pedestal() {
+        if(equipment && sword && svc_hook && svc_hook->resolve) {
+            void* address=nullptr;
+            if(svc_hook->resolve(mod_ctx,"J3DModel::forgetMtx",&address,nullptr)==MOD_OK && address)
+                reinterpret_cast<void (*)(J3DModel*)>(address)(sword);
+        }
+        dComIfG_resDelete(&phase,equipment?"Dalways":kSwordArchive);
+    }
     static int heap(fopAc_ac_c* actor) {
         auto* self=static_cast<Pedestal*>(actor);
+        if(self->equipment) {
+            auto* data=static_cast<J3DModelData*>(dComIfG_getObjectRes("Dalways",13));
+            auto* animation=static_cast<J3DAnmTransform*>(dComIfG_getObjectRes("Dalways",8));
+            self->sword=data?mDoExt_J3DModel__create(data,0x80000,0x11000084):nullptr;
+            return self->sword && animation &&
+                self->lid.init(animation,TRUE,J3DFrameCtrl::EMode_NONE,0,0,-1,false);
+        }
         auto* data=static_cast<J3DModelData*>(dComIfG_getObjectRes(kSwordArchive,dRes_INDEX_MSTRSWORD_BMD_O_AL_SWM_e));
         if (!data) return 0;
         self->sword=mDoExt_J3DModel__create(data,0x80000,0x11000284);
@@ -1380,17 +1398,26 @@ int create_pedestal(void* ptr) {
     auto* self=static_cast<Pedestal*>(ptr);
     fopAcM_ct(self,Pedestal);
     if (self->ready) return cPhs_COMPLEATE_e;
-    self->survivors=fopAcM_GetParam(self)==1;
-    const auto phase=dComIfG_resLoad(&self->phase,kSwordArchive);
+    self->equipment=fopAcM_GetParam(self)==2;
+    self->survivors=fopAcM_GetParam(self)==1 || self->equipment;
+    const auto phase=dComIfG_resLoad(&self->phase,self->equipment?"Dalways":kSwordArchive);
     if (phase!=cPhs_COMPLEATE_e) return phase;
-    if (!fopAcM_entrySolidHeap(self,Pedestal::heap,0x4000)) return cPhs_ERROR_e;
+    if (!fopAcM_entrySolidHeap(self,Pedestal::heap,self->equipment?0x10000:0x4000)) {
+        // entrySolidHeap has already released failed allocations. This model
+        // was never drawn; do not pass its stale pointer to teardown helpers.
+        self->sword=nullptr;
+        if(self->equipment)svc_log->warn(mod_ctx,"Survivors: equipment chest model/heap initialization failed");
+        return cPhs_ERROR_e;
+    }
     float minY=0;
     auto* data=self->sword->getModelData();
     if (data->getShapeNum()) {
         minY=data->getShapeNodePointer(0)->getMin()->y;
         for (u16 i=1;i<data->getShapeNum();++i) minY=std::min(minY,data->getShapeNodePointer(i)->getMin()->y);
     }
-    mDoMtx_stack_c::transS(self->current.pos.x,self->current.pos.y+34-minY,self->current.pos.z);
+    mDoMtx_stack_c::transS(self->current.pos.x,
+        self->current.pos.y+(self->equipment?0:34)-minY,self->current.pos.z);
+    if(self->equipment)mDoMtx_stack_c::YrotM(self->shape_angle.y);
     self->sword->setBaseTRMtx(mDoMtx_stack_c::get());
     fopAcM_SetMtx(self,self->sword->getBaseTRMtx());
     self->plinth.position=self->current.pos;
@@ -1400,14 +1427,17 @@ int create_pedestal(void* ptr) {
     self->collision.SetCoSPrm(0x79);
     self->collision.SetC(self->current.pos);
     self->collision.SetR(90);
-    self->collision.SetH(62);
+    self->collision.SetH(self->equipment?120:62);
     if(!self->survivors) {self->trials.init(self);sTrials=&self->trials;}
     self->ready=true;
+    if(self->equipment)svc_log->info(mod_ctx,"Survivors: equipment chest actor ready");
     return cPhs_COMPLEATE_e;
 }
 int delete_pedestal(void* ptr) {
     if(static_cast<Pedestal*>(ptr)->survivors) {
-        if(sSurvivorsPedestal==fopAcM_GetID(static_cast<Pedestal*>(ptr)))sSurvivorsPedestal=kNone;
+        const auto id=fopAcM_GetID(static_cast<Pedestal*>(ptr));
+        if(sSurvivorsPedestal==id)sSurvivorsPedestal=kNone;
+        if(sSurvivorsChest==id)sSurvivorsChest=kNone;
         static_cast<Pedestal*>(ptr)->~Pedestal();return 1;
     }
     cancel_clear_timer(timing::shade);
@@ -1424,8 +1454,12 @@ int delete_pedestal(void* ptr) {
 int execute_pedestal(void* ptr) {
     auto* self=static_cast<Pedestal*>(ptr);
     if (!self->ready) return 1;
-    self->btk.play(); self->brk.play();
+    if(!self->equipment) {self->btk.play(); self->brk.play();}
     dComIfG_Ccsp()->Set(&self->collision);
+    if(self->equipment) {
+        if(!survivors_hub_active())remove_actor(fopAcM_GetID(self));
+        return 1; // Inventory input belongs to Survivors, never the talent menu.
+    }
     auto* player=daAlink_getAlinkActorClass();
     if(self->survivors) {
         if(!survivors_hub_active() || !player || dComIfGp_isEnableNextStage() || dComIfGp_event_runCheck() ||
@@ -1488,12 +1522,22 @@ int execute_pedestal(void* ptr) {
     }
     return 1;
 }
+int draw_equipment_chest(Pedestal* self) {
+    const dark_link::WorldModelDrawScope worldModels;
+    auto* data=self->sword->getModelData();
+    auto* root=data->getJointNodePointer(0);auto* previous=root->getMtxCalc();
+    self->lid.entry(data,0);
+    mDoExt_modelUpdateDL(self->sword);
+    root->setMtxCalc(previous);
+    return 1;
+}
 int draw_pedestal(void* ptr) {
     auto* self=static_cast<Pedestal*>(ptr);
     if (!self->ready) return 1;
     g_env_light.settingTevStruct(0x10,&self->current.pos,&self->tevStr);
     g_env_light.setLightTevColorType_MAJI(self->sword,&self->tevStr);
     auto* data=self->sword->getModelData();
+    if(self->equipment)return draw_equipment_chest(self);
     self->btk.entry(data); self->brk.entry(data);
     mDoExt_modelUpdateDL(self->sword);
     self->btk.remove(data); self->brk.remove(data);
@@ -1616,6 +1660,17 @@ void update_survivors_pedestal(bool enabled) {
     if(!std::isfinite(height)||height<=-1.0e8f)return;
     spawn(sProfile,cXyz(0,height,0),0,1,sSurvivorsPedestal);
 }
+void update_survivors_equipment_chest(bool enabled,const cXyz& position,s16 yaw) {
+    if(!enabled) {remove_actor(sSurvivorsChest);return;}
+    if(!sRegistration || pending_or_live(sSurvivorsChest) || !survivors_hub_active())return;
+    if(spawn(sProfile,position,yaw,2,sSurvivorsChest)!=MOD_OK)
+        svc_log->warn(mod_ctx,"Survivors: equipment chest actor spawn failed; retrying");
+}
+bool survivors_equipment_chest_anchor(cXyz& position) {
+    auto* actor=actor_by_id(sSurvivorsChest);
+    if(!actor || !static_cast<Pedestal*>(actor)->ready)return false;
+    position=actor->current.pos;return true;
+}
 bool survivors_pedestal_anchor(cXyz& position) {
     auto* actor=actor_by_id(sSurvivorsPedestal);if(!actor)return false;
     position=actor->current.pos;return true;
@@ -1630,6 +1685,7 @@ void shutdown_heroes_shade_encounter() {
     for (const auto& entry:sFighters) if (entry.id!=kNone) owned.insert(entry.id);
     owned.insert(sPedestal);
     owned.insert(sSurvivorsPedestal);
+    owned.insert(sSurvivorsChest);
     if (sTrials) {
         cancel_trial();
         for (const auto id:sTrials->anchors) owned.insert(id);
@@ -1656,7 +1712,7 @@ void shutdown_heroes_shade_encounter() {
     }
     sFighters={};
     sProjectiles.clear();
-    sPedestal=kNone; sSurvivorsPedestal=kNone;
+    sPedestal=kNone; sSurvivorsPedestal=kNone; sSurvivorsChest=kNone;
     sShadeWolf.id=kNone;
     for (auto& line:sLines) line.reset();
     sBossTitle.reset();

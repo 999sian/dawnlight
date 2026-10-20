@@ -45,7 +45,8 @@ void locate_hub_gear_chest() {
             const bool layer=(tag[3]>='0' && tag[3]<='9') || (tag[3]>='a' && tag[3]<='e');
             const bool treasure=std::memcmp(tag,"TRE",3)==0 && (tag[3]=='S' || layer);
             const bool actor=std::memcmp(tag,"ACT",3)==0 && (tag[3]=='R' || layer);
-            if(!treasure && !actor)continue;
+            const bool object=std::memcmp(tag,"TGOB",4)==0;
+            if(!treasure && !actor && !object)continue;
             // The native loader has relocated every chunk before the hub's
             // Ready phase. Keep OffsetPtr/BE conversion (Windows/ARM included).
             const auto* entries=static_cast<const stage_tresure_data_class*>(node.m_offset);
@@ -55,24 +56,41 @@ void locate_hub_gear_chest() {
         }
     }
 }
+bool hub_chest_floor(cXyz& position,const daAlink_c* link) {
+    // Use the same static-room ground query as the working sword pedestal.
+    // Run spawn filters (water/ground codes/room ownership) are not hub rules.
+    cXyz probe(position.x,link->current.pos.y+1000,position.z);
+    dBgS_ObjGndChk ground;ground.SetPos(&probe);
+    const float height=dComIfG_Bgsp().GroundCross(&ground);
+    if(!std::isfinite(height) || height<=-1.e8f)return false;
+    position.y=height;return true;
+}
 void update_hub(daAlink_c* link) {
     locate_hub_gear_chest();
-    if(s_gearChestLocated && s_run.phase==Phase::Ready && !s_hubDeparture && prepare_hub_loot()) {
-        auto& chest=s_chests[kSmallChestCount];
-        // Native treasure may start below/above the floor for an appearance
-        // event. Our independent model never runs that event or its gravity.
-        cXyz floor=s_gearChestPosition;floor.y=link->current.pos.y;
-        if(dry_arena_floor(floor,1000,20000)) {
-            if(!chest.active) {
-                char message[128];std::snprintf(message,sizeof(message),
-                    "Survivors: hub equipment chest at %.1f, %.1f, %.1f",
-                    double(floor.x),double(floor.y),double(floor.z));
-                svc_log->info(mod_ctx,message);
-            }
-            s_gearChestPosition=floor;
-            chest.active=true;chest.free=true;chest.position=floor;chest.yaw=s_gearChestYaw;
+    const bool enabled=s_run.phase==Phase::Ready && !s_hubDeparture;
+    if(enabled) {
+        // Unlike the old loot-model path, a missing vanilla placement must not
+        // prevent creation. The pedestal is at (0,0); keep its A prompt clear.
+        if(!s_gearChestLocated) {
+            s_gearChestPosition=cXyz(500,link->current.pos.y,0);s_gearChestYaw=0;
+            s_gearChestLocated=true;
+            svc_log->warn(mod_ctx,"Survivors: no native chest placement; using hub position beside the sword");
         }
-    }
+        cXyz floor=s_gearChestPosition;
+        bool grounded=hub_chest_floor(floor,link);
+        if(!grounded && (floor.x!=500 || floor.z!=0)) {
+            floor=cXyz(500,link->current.pos.y,0);
+            grounded=hub_chest_floor(floor,link);
+            if(grounded) {
+                s_gearChestYaw=0;
+                svc_log->warn(mod_ctx,"Survivors: native chest position has no floor; using hub position beside the sword");
+            }
+        }
+        if(grounded) {
+            s_gearChestPosition=floor;
+            update_survivors_equipment_chest(true,floor,s_gearChestYaw);
+        }
+    } else update_survivors_equipment_chest(false,{},0);
     update_survivors_pedestal(s_run.phase==Phase::Ready && !s_hubDeparture);
     if(!s_hubDeparture || s_hubClosingWindow || ui_visible() || s_progressSaving || s_hubSaveRequested)return;
     if(s_hubDoorStarted) {
@@ -146,7 +164,8 @@ void draw_hub_labels() {
     graf->setup2D();
     cXyz anchor;
     if(survivors_pedestal_anchor(anchor))hub_label("Talents",anchor+cXyz(0,230,0));
-    if(s_gearChestLocated)hub_label("Equipment",s_gearChestPosition+cXyz(0,200,0));
+    cXyz chestAnchor;
+    if(survivors_equipment_chest_anchor(chestAnchor))hub_label("Equipment",chestAnchor+cXyz(0,200,0));
     fpcM_Search(draw_hub_exit_label,nullptr);
     graf->setup2D();
     if(s_storeFailed)label("Progress save failed. Retry Save progress at the sword.",

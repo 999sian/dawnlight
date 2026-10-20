@@ -89,6 +89,7 @@ jobs:
           python3 tests/survivors_lifecycle_test.py
           CXX=clang++ python3 tests/survivors_lifecycle_test.py
           python3 tests/survivors_hub_test.py
+          python3 tests/survivors_hub_chest_test.py
           python3 tests/heroes_shade_pedestal_test.py
           python3 tests/survivors_defense_test.py
           python3 tests/survivors_feedback_test.py
@@ -290,6 +291,7 @@ jobs:
           python3 tests/survivors_settings_config_test.py
           CXX=clang++ python3 tests/survivors_settings_config_test.py
           CXX=clang++ python3 tests/survivors_hub_test.py
+          CXX=clang++ python3 tests/survivors_hub_chest_test.py
 
       - name: Test Survivors combat and native combo selection
         if: matrix.platform == 'linux-x86_64'
