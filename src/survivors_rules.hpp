@@ -193,6 +193,7 @@ struct Run {
     DamageTotals damage;
     bool modded = false; // Sticky for this run, even if the extra mod is later disabled.
     bool endless=false;
+    bool debug_run=false; // Captured at start; remains excluded through Endless.
     unsigned endless_start=0, normal_score=0, rank_snapshot=0;
     RunOptions options;
     Talents talents;
@@ -216,6 +217,8 @@ struct Run {
     }
     void start(uint32_t seed, RunOptions settings = {}, Talents perks = {}) {
         *this={}; options=settings; options.clamp(); talents=perks;
+        debug_run=debug_enabled && debug_session_enabled;
+        if(!debug_run)options.debug={};
         maximum_hearts=talents.starting_hearts();
         starting_item_pending=talents.rank(Talent::StartingItem)>0;
         free_rerolls+=talents.rank(Talent::Rerolls); banishes+=talents.rank(Talent::Banishes);
@@ -246,6 +249,7 @@ struct Run {
             (phase==Phase::Victory || endless ? 3000 : 0);
         return unsigned(std::min<uint64_t>(UINT32_MAX,base*options.score_percent()/100));
     }
+    unsigned earned_meta_xp() const { return debug_run?0:score()-std::min(score(),endless?normal_score:0u); }
     unsigned required_xp() const { return 5 + level * 3; }
     unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return u == Upgrade::MasterSword ? master_sword : u == Upgrade::DualWield ? dual_wield : i < ranks.size() ? ranks[i] : 0; }
     unsigned potion_heal_quarters() const { return 4 + rank(Upgrade::PotionHealing); }
@@ -639,7 +643,7 @@ struct HighScoreRun {
     using Words=std::array<uint32_t,word_count>;
     Words encode() const {
         Words words{};
-        if(!present())return words;
+        if(!present() || run.debug_run)return words;
         unsigned i=0;const auto put=[&](uint32_t n){words[i++]=n;};
         put(run.phase==Phase::Victory?2:1);put(score);put(meta_level);put(unlock_points);
         put(unsigned(run.options.allow_cheats)|(unsigned(run.modded)<<1)|(unsigned(run.red_potion)<<2)|(unsigned(run.endless)<<3));
@@ -720,10 +724,10 @@ struct Records {
     unsigned next_level_xp() const { return 2000+500*(level()-1); }
     bool buy(Talent t) { if(!available_points() || !talents.can_buy(t))return false;++talents.ranks[unsigned(t)];return true; }
     void finish(const Run& run, unsigned map=0) {
-        if (run.phase != Phase::Victory && run.phase != Phase::Defeat) return;
+        if (run.debug_run || (run.phase != Phase::Victory && run.phase != Phase::Defeat)) return;
         if(map>=high_scores.size())return;
         if(!run.endless)high_scores[map]=std::max(high_scores[map],run.score());
-        total_xp=std::min(max_meta_xp,total_xp+run.score()-std::min(run.score(),run.endless?run.normal_score:0u));
+        total_xp=std::min(max_meta_xp,total_xp+run.earned_meta_xp());
         if(!run.endless){++runs; wins += run.phase == Phase::Victory;}
         if(run.phase==Phase::Victory)cleared_maps|=1u<<map;
         best_ticks = std::max(best_ticks, run.ticks);

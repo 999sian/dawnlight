@@ -619,3 +619,20 @@ and normal-enemy run-XP/loot opportunities by its setting; elite run XP stays x1
 The HUD shows elapsed time using the boss-name font; skull and rank appear only
 above rank 0. Four x1 settings give rank 0. Both
 Victory/Defeat results and all saved score snapshots retain the rank.
+
+
+### Session-only Debug gate
+
+When the development Debug tab is compiled in, its first control is **Enable Debug**
+(default Off). A notice appears on either transition. The switch is kept only in
+memory, never in config/export/save data, and returns to Off after a game restart.
+All other Debug controls are disabled until it is On. Infinite rerolls and infinite
+banishes use ordinary toggles. Turning Debug Off resets the debug options.
+
+A run captures Debug at startup even when every individual option is at its default.
+Debug runs do not update any normal/Endless Ranked/Cheated record, award permanent
+Survivors XP, unlock maps, or update lifetime record statistics. This remains true
+through Endless continuation and regardless of the current session switch. Results
+show a Debug notice and zero XP earned. In-run XP, level-ups, rewards and combat
+still work for testing. New runs started with Debug Off progress normally. The
+compile-time release switch still hides the tab and neutralizes all Debug features.

@@ -16,6 +16,7 @@ fixture=r'''
 #include "mods/svc/ui.h"
 #define svc_ui test_ui
 using namespace dawnlight::survivors;
+UiDialogHandle s_debugNotice=0;
 Records s_records;Run s_run;RunOptions s_options;
 bool s_restart=false,s_progressSaving=false,s_hubDeparture=false,s_arenaMeshReady=true;
 bool s_storeFailed=false,s_progressSaved=true,s_hubSaveRequested=false,failSave=false;
@@ -32,7 +33,7 @@ std::array<UiDialogAction,2> actions{};unsigned closedWindows=0,closedDialogs=0;
 struct Service {
  ModResult window_push(ModContext*,const UiWindowDesc* desc,UiWindowHandle* h){openedWindow=*desc;openedTab=desc->tabs[0];*h=90;return MOD_OK;}
  ModResult window_close(ModContext*,UiWindowHandle h){++closedWindows;if(openedWindow.on_closed)openedWindow.on_closed(nullptr,h,nullptr);return MOD_OK;}
- ModResult dialog_push(ModContext*,const UiDialogDesc* desc,UiDialogHandle* h){openedDialog=*desc;std::copy_n(desc->actions,2,actions.begin());*h=91;return MOD_OK;}
+ ModResult dialog_push(ModContext*,const UiDialogDesc* desc,UiDialogHandle* h){openedDialog=*desc;std::copy_n(desc->actions,desc->action_count,actions.begin());*h=91;return MOD_OK;}
  ModResult dialog_close(ModContext*,UiDialogHandle){++closedDialogs;return MOD_OK;}
  ModResult dialog_set_body(ModContext*,UiDialogHandle,const char* body){text[91]=body;return MOD_OK;}
  ModResult control_set_label(ModContext*,UiElementHandle h,const char* label){text[h]=label;return MOD_OK;}
@@ -83,10 +84,10 @@ int main(){
   assert(visible[s_mapLockHint]==(map!=0));
   if(map)assert(text[s_mapLockHint]=="Clear "+std::string(arenas[map-1].name)+" to unlock this map.");
   // A stale debug value cannot unlock maps in a disabled build.
-  s_options.debug.unlock_all_maps=true;update_arena_tab(nullptr,nullptr,nullptr);
+  debug_session_enabled=true;s_options.debug.unlock_all_maps=true;update_arena_tab(nullptr,nullptr,nullptr);
   assert(start.is_disabled(nullptr,nullptr)==(!debug_enabled&&map!=0));
   assert(visible[s_mapLockHint]==(!debug_enabled&&map!=0));
-  s_options.debug.unlock_all_maps=false;update_arena_tab(nullptr,nullptr,nullptr);
+  debug_session_enabled=false;s_options.debug.unlock_all_maps=false;update_arena_tab(nullptr,nullptr,nullptr);
   assert(start.is_disabled(nullptr,nullptr)==(map!=0));
   if(map){s_records.cleared_maps=1u<<(map-1);update_arena_tab(nullptr,nullptr,nullptr);}
   assert(!start.is_disabled(nullptr,nullptr)&&!visible[s_mapLockHint]);
@@ -115,11 +116,12 @@ int main(){
  }
  controls.clear();assert(build_debug(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
  if(debug_enabled){
-  assert(controls.size()==6);auto toggle=controls[5];
+  assert(controls.size()==7);debug_session_enabled=true;auto toggle=controls[6];
   assert(toggle.kind==UI_CONTROL_TOGGLE&&std::string(toggle.label)=="Unlock all maps");
   UiControlValue value=UI_CONTROL_VALUE_INIT;value.bool_value=true;toggle.set(nullptr,nullptr,&value);
   assert(s_options.debug.unlock_all_maps);value.bool_value=false;toggle.set(nullptr,nullptr,&value);
  }else assert(controls.empty());
+ debug_session_enabled=false;
  controls.clear();assert(build_run_settings(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
  auto found=std::find_if(controls.begin(),controls.end(),[](const auto& control){return std::string(control.label)=="Reset High Scores";});
  assert(found!=controls.end());auto reset=*found;assert(!reset.is_disabled(nullptr,nullptr));

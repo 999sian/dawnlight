@@ -9,6 +9,8 @@
 #endif
 namespace dawnlight::survivors {
 inline constexpr bool debug_enabled = DAWNLIGHT_SURVIVORS_DEBUG != 0;
+// Process-local only: never register with ConfigService or serialize to a save.
+inline bool debug_session_enabled = false;
 struct DebugOptions {
     unsigned minimum_rarity=0, player_damage=1, infinite_rerolls=0, infinite_banishes=0, run_minutes=20;
     bool unlock_all_maps=false;

@@ -78,6 +78,9 @@ int main(){
  assert(texts[0].find("Modded")!=std::string::npos&&texts[1].find("87,654")!=std::string::npos);
  assert(texts[1].find("<span>29</span>")!=std::string::npos&&texts[1].find("<span>28</span>")!=std::string::npos);
  assert(s_run.phase==livePhase&&s_run.damage.dealt==liveDamage&&s_records.encode()==records);
+ s_run.debug_run=true;s_run.kills=100;s_run.phase=Phase::Victory;
+ assert(results_damage_rml().find("Debug — no saved scores")!=std::string::npos);
+ assert(results_loadout_rml().find("<span>XP earned</span><span>0</span>")!=std::string::npos);
  assert(result_number(1234567890)=="1,234,567,890");
 }
 '''

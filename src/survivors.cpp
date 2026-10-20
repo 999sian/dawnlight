@@ -263,6 +263,11 @@ bool s_resultsStored = false, s_storeFailed = false, s_saveRequested = false;
 unsigned s_saveStartTicks = 0;
 Run s_run;
 RunOptions s_options;
+UiDialogHandle s_debugNotice=0;
+void close_debug_notice() {
+    const auto handle=s_debugNotice;s_debugNotice=0;
+    if(handle)svc_ui->dialog_close(mod_ctx,handle);
+}
 enum class HubMenu { None, Talents, Run };
 bool s_hub=true, s_hubDeparture=false, s_hubDoorStarted=false, s_arrivingRun=false;
 bool s_hubSaveRequested=false, s_allowHubDoor=false;
@@ -281,7 +286,7 @@ void hub_menu_closed() {
 }
 Records s_records;
 bool map_available(unsigned map) {
-    return map<arenas.size() && (s_records.map_unlocked(map) || (debug_enabled && s_options.debug.unlock_all_maps));
+    return map<arenas.size() && (s_records.map_unlocked(map) || (debug_enabled && debug_session_enabled && s_options.debug.unlock_all_maps));
 }
 bool s_progressSaving=false, s_progressSaved=false;
 UiWindowHandle s_refreshChoices=0;
@@ -498,6 +503,7 @@ void clear_attacks() {
     for (auto& a : s_attacks) stop_attack(a);
 }
 void close_window() {
+    close_debug_notice();
     close_score_windows();
     s_menuDocument = s_talentDocument = nullptr;
     const auto dialog=s_talentDialog;s_talentDialog=0;
@@ -1519,7 +1525,7 @@ void open_window() {
     if (s_run.phase == Phase::Victory || s_run.phase == Phase::Defeat) desc.rcss = kResultsStyle;
     desc.on_closed = [](ModContext*, UiWindowHandle handle, void*) {
         if(s_hubClosingWindow==handle)s_hubClosingWindow=0;
-        if (s_window == handle) { s_window = 0; s_menuDocument = nullptr; hub_menu_closed(); }
+        if (s_window == handle) { close_debug_notice(); s_window = 0; s_menuDocument = nullptr; hub_menu_closed(); }
         if (s_refreshChoices==handle) { s_refreshChoices=0; return; }
         if (s_run.phase == Phase::TreasureChoice && s_chosenTreasure == ChestReward::Count)
             dismiss_treasure_choice();

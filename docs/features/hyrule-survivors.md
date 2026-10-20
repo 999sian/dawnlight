@@ -1430,3 +1430,16 @@ Records v11 normalizes Twilit Rank to the sum of difficulty increments above x1
 four; v8/v9 snapshots derive the new rank from their stored options. Scores, XP,
 map clears and all four record categories remain unchanged. HUD rank/skull are
 hidden at rank 0 while the clock remains visible. Difficulty/results still show 0.
+
+
+### Session Debug eligibility
+
+The process-local debug_session_enabled flag is not a ConfigService variable and
+is not serialized. Run::start captures it with the compile-time availability into
+debug_run and drops stale DebugOptions when disabled. The switch is editable only
+in the Ready hub, with an owned informational dialog on both transitions. Failed
+dialog creation leaves the switch unchanged; menu teardown closes the notice.
+Records::finish rejects a debug_run before touching scores, XP, clear bits or any
+lifetime aggregate. HighScoreRun::encode also refuses debug snapshots. Endless
+continuation preserves eligibility; the results screen shows zero awarded XP and
+explicitly labels the excluded run. Existing snapshots/save format are unchanged.

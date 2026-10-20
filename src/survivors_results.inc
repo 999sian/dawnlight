@@ -91,6 +91,7 @@ std::string results_damage_rml(const Run& run=s_run,unsigned map=s_map) {
             (run.options.allow_cheats && run.modded?" \xE2\x80\xA2 ":"")+(run.modded?"Modded":"");
         rml="<div class=\"sr-integrity\">"+labels+"</div>"+rml;
     }
+    if(run.debug_run)rml="<div class=\"sr-integrity\">Debug — no saved scores, Survivors XP or map unlocks</div>"+rml;
     rml+="<div class=\"sr-subtitle\">"+std::string(run.endless?"Endless Mode · ":"")+treasure_rml_escape(arenas[map].name)+" \xE2\x80\xA2 "+result_time(run.ticks)+"</div>";
     rml+="<div class=\"sr-metrics\">";
     const auto metric=[&](const char* label,const std::string& value){
@@ -128,7 +129,7 @@ std::string results_loadout_rml(const HighScoreRun* archived=nullptr,unsigned ma
     stat("Difficulty","x"+result_decimal(run.options.score_percent()/100.0,2));
     stat("Level reached",number(run.level));stat("Timed elites",number(run.timed_elites)+(run.endless?"":" / 4"));
     stat("Other elites",number(run.guard_elites));stat("Chests opened",number(run.chests_opened));
-    stat("XP earned",result_number(run.endless?score-std::min(score,run.normal_score):score));stat("Meta level",number(archived?archived->meta_level:s_records.level()));
+    stat("XP earned",result_number(run.debug_run?0:run.endless?score-std::min(score,run.normal_score):score));stat("Meta level",number(archived?archived->meta_level:s_records.level()));
     stat("Unlock points",number(archived?archived->unlock_points:s_records.available_points()));
     rml+="<div class=\"sr-section\">Equipment</div>";
     for(unsigned i=0;i<unsigned(ChestReward::Count);++i) {

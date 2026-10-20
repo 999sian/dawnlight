@@ -45,6 +45,7 @@ bool dComIfGp_event_runCheck(){return event;}
 void* s_menuDocument=nullptr;void remember_menu_document(bool){}
 Records s_records;bool s_storeFailed=false,s_progressSaved=false,s_hubSaveRequested=false;
 struct Save{ModResult set_blob(ModContext*,const char*,const void*,size_t){return MOD_OK;}}save;auto* svc_save=&save;
+UiDialogHandle s_debugNotice=0;void close_debug_notice(){s_debugNotice=0;}
 Run s_run;RunOptions s_options;int s_player=1;bool s_restart=false;
 enum class HubMenu{None,Talents,Run};unsigned s_hubClosingWindow=0;HubMenu s_hubMenu=HubMenu::Run;
 void hub_menu_closed(){} void load_option_config(){} void store_option_config(){}
@@ -74,7 +75,10 @@ const char* kTreasureStyle="treasure";const char* kArenaStyle="arena";
 ChestReward s_chosenTreasure=ChestReward::Count;
 void dismiss_treasure_choice(){}
 struct Log{void warn(ModContext*,const char*){assert(false);}}logger;auto* svc_log=&logger;
+unsigned notices=0;bool failNotice=false;std::string noticeBody;UiDialogAction noticeAction{};
 struct Service{
+ ModResult dialog_push(ModContext*,const UiDialogDesc* d,UiDialogHandle* h){if(failNotice)return MOD_INVALID_ARGUMENT;++notices;noticeBody=d->body_rml;noticeAction=d->actions[0];*h=9;return MOD_OK;}
+
  ModResult window_push(ModContext*,const UiWindowDesc* desc,UiWindowHandle* handle){
   pushedTab=desc->tabs[0];windowClosed=desc->on_closed;
   tabNames.clear();for(size_t i=0;i<desc->tab_count;++i){assert(desc->tabs[i].build);tabNames.push_back(desc->tabs[i].title);}
@@ -209,15 +213,29 @@ int main(){
  controls.clear();s_options.debug={4,10,1,1,5};s_run.options.debug=s_options.debug;
  assert(build_debug(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
  if(debug_enabled){
-  assert(controls.size()==6&&std::string(controls[0].label)=="Minimum Rarity");
-  for(unsigned i=0;i<5;++i){auto& c=controls[i];UiControlValue value=UI_CONTROL_VALUE_INIT;
-   assert(c.kind==(i==1?UI_CONTROL_NUMBER:UI_CONTROL_SELECT));
+  assert(controls.size()==7&&std::string(controls[0].label)=="Enable Debug");
+  auto enable=controls[0];UiControlValue state=UI_CONTROL_VALUE_INIT;enable.get(nullptr,nullptr,&state);assert(!state.bool_value);
+  for(unsigned i=1;i<7;++i)assert(controls[i].is_disabled(nullptr,controls[i].user_data));
+  auto deniedDebug=s_options.debug;UiControlValue deniedValue=UI_CONTROL_VALUE_INIT;deniedValue.int_value=2;
+  controls[1].set(nullptr,controls[1].user_data,&deniedValue);assert(s_options.debug.minimum_rarity==deniedDebug.minimum_rarity);
+  deniedValue.bool_value=true;controls[6].set(nullptr,nullptr,&deniedValue);assert(!s_options.debug.unlock_all_maps);
+  state.bool_value=true;failNotice=true;enable.set(nullptr,nullptr,&state);assert(!debug_session_enabled&&!s_debugNotice);failNotice=false;
+  enable.set(nullptr,nullptr,&state);assert(debug_session_enabled&&notices==1&&s_debugNotice);
+  assert(noticeBody.find("permanently unlock maps")!=std::string::npos);
+  noticeAction.on_pressed(nullptr,s_debugNotice,nullptr);assert(!s_debugNotice);
+  for(unsigned i=0;i<5;++i){auto& c=controls[i+1];UiControlValue value=UI_CONTROL_VALUE_INIT;
+   assert(c.kind==((i==2||i==3)?UI_CONTROL_TOGGLE:i==1?UI_CONTROL_NUMBER:UI_CONTROL_SELECT));
+   if(i==2||i==3){assert(!c.options&&!c.option_count);value.bool_value=true;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.bool_value);value.bool_value=false;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(!value.bool_value);continue;}
    value.int_value=0;c.set(nullptr,c.user_data,&value);c.get(nullptr,c.user_data,&value);assert(value.int_value==(i==1?1:0));
    value.int_value=i==1?10:int64_t(c.option_count-1);c.set(nullptr,c.user_data,&value);
    s_run.phase=Phase::Running;assert(c.is_disabled(nullptr,c.user_data));
    UiControlValue denied=UI_CONTROL_VALUE_INIT;c.set(nullptr,c.user_data,&denied);c.get(nullptr,c.user_data,&denied);assert(value.int_value==denied.int_value);s_run.phase=Phase::Ready;
   }
   assert(s_options.debug.run_minutes==5&&s_options.debug.player_damage==10);
+  s_run.phase=Phase::Running;state.bool_value=false;enable.set(nullptr,nullptr,&state);assert(debug_session_enabled&&notices==1);
+  s_run.phase=Phase::Ready;enable.set(nullptr,nullptr,&state);assert(!debug_session_enabled&&notices==2&&s_options.debug.run_minutes==20);
+  assert(noticeBody.find("New runs")!=std::string::npos);noticeAction.on_pressed(nullptr,s_debugNotice,nullptr);
+  for(unsigned i=1;i<7;++i)assert(controls[i].is_disabled(nullptr,controls[i].user_data));
  }else{
   assert(controls.empty()&&s_options.debug.run_minutes==20&&s_options.debug.player_damage==1);
   assert(s_options.debug.minimum_rarity==0&&!s_options.debug.infinite_rerolls&&!s_options.debug.infinite_banishes);
