@@ -241,11 +241,11 @@ int main() {
     assert(run.level_up()); // Excess XP remains available.
     for (uint32_t seed = 1; seed < 1000; ++seed) {
         run.start(seed);
-        run.ranks.fill(30); run.ranks[unsigned(Upgrade::Luck)]=20; run.shield=1; run.ranks[2] = 29; run.xp = 100;
+        run.ranks.fill(30); run.chain_spin=1; run.ranks[unsigned(Upgrade::Luck)]=20; run.shield=1; run.ranks[2] = 29; run.xp = 100;
         assert(run.level_up());
         for (const auto offer : run.offers) assert(offer == Upgrade::ShieldAttack || offer == Upgrade::Rupees);
         assert(std::count(run.offers.begin(), run.offers.end(), Upgrade::ShieldAttack) == 1);
-        run.start(seed); run.ranks.fill(30); run.ranks[unsigned(Upgrade::Luck)]=20; run.xp = 100;
+        run.start(seed); run.ranks.fill(30); run.chain_spin=1; run.ranks[unsigned(Upgrade::Luck)]=20; run.xp = 100;
         assert(run.level_up());
         for (const auto offer : run.offers) assert(offer == Upgrade::Rupees);
         assert(run.choose(2));

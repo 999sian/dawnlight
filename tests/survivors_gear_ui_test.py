@@ -84,11 +84,11 @@ int main(){
  // Production loader accepts both 92-byte legacy formats with a larger
  // destination buffer and maps the old unequipped sentinel correctly.
  for(uint8_t version:{1,2}) {
-  std::vector<uint8_t> legacy(92);std::copy_n(stored.begin(),88,legacy.begin());legacy[4]=version;legacy[5]=legacy[6]=20;
+  std::vector<uint8_t> legacy(92);std::copy_n(stored.begin(),8,legacy.begin());for(unsigned i=0;i<20;++i)for(unsigned j=0;j<4;++j)legacy[8+4*i+j]=stored[8+5*i+j];legacy[4]=version;legacy[5]=legacy[6]=20;
   uint32_t hash=2166136261u;for(unsigned i=0;i<88;++i)hash=(hash^legacy[i])*16777619u;
   for(unsigned i=0;i<4;++i)legacy[88+i]=uint8_t(hash>>(8*i));
   blobs[kGearBlob]=legacy;load_gear();assert(s_gearWritable&&s_gear==next);
-  assert(store_gear(s_gear)&&blobs[kGearBlob].size()==172&&blobs[kGearBlob][4]==3);
+  assert(store_gear(s_gear)&&blobs[kGearBlob].size()==212&&blobs[kGearBlob][4]==4);
  }
 
  blobs[kGearBlob][3]^=1;load_gear();assert(!s_gearWritable&&!store_gear(next));assert(blobs[kGearBlob][3]!=stored[3]);
@@ -166,7 +166,7 @@ int main(){
  s_run.talents={};
  // Eight active seconds per immutable drop, FIFO when bosses die together.
  clear_gear_notices();
- const GearItem firstNotice{GearKind::Sword,5,4,3},secondNotice{GearKind::Tunic,2,1,0};
+ const GearItem firstNotice{GearKind::Sword,5,5,5,GearPerk::FireEdge},secondNotice{GearKind::Tunic,2,1,0};
  show_gear_notice({firstNotice,"Weapon acquired"});show_gear_notice({secondNotice,"Tunic acquired"});
  assert(s_gearNoticeTicks==240&&s_gearNoticeItem==firstNotice&&s_gearNoticeQueue.size()==1);
  for(unsigned i=0;i<239;++i)update_gear_notice();
@@ -187,6 +187,8 @@ int main(){
  assert(s_gear==savedGear&&s_run.gear_weapon==sword&&s_gearNoticeSlot==replacement&&s_gearNoticeQueue.size()==1);
  failSave=false;equip_gear_notice();
  assert(s_gear.weapon==replacement&&s_run.gear_weapon==firstNotice&&s_gear.items[0]==sword);
+ assert(s_run.rank(Upgrade::FireEdge)==1&&gear_description(firstNotice).find("Bonus: Fire Edge")!=std::string::npos);
+ GearInventory savedPerk;assert(savedPerk.decode(blobs[kGearBlob])&&savedPerk.items[replacement].perk==GearPerk::FireEdge);
  assert(s_gearNoticeSlot==pending&&s_gearNoticeTicks==240&&s_gearNoticeQueue.empty());
  equip_gear_notice();assert(s_gear.tunic==pending&&s_run.gear_tunic==secondNotice&&!s_gearNoticeTicks);
  assert(nativeMaxLife==25&&nativeLife==12); // More capacity, no free healing.

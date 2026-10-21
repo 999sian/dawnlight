@@ -83,9 +83,9 @@ ModResult build_powerup_overview(ModContext*, UiWindowHandle, UiElementHandle le
     result = svc_ui->pane_add_rml(mod_ctx, right, "Choose a power-up to view its current effects. Equipment upgrades are shown in the item wheel. Rupee rewards have no permanent rank.", nullptr);
     if (result != MOD_OK) return result;
     bool any = false;
-    for (unsigned i = 0; i < unsigned(Upgrade::Rupees); ++i) {
+    for (unsigned i = 0; i < unsigned(Upgrade::Count); ++i) {
         const auto upgrade = Upgrade(i);
-        if (!s_run.rank(upgrade) || powerup_item(upgrade) != ChestReward::Count) continue;
+        if (upgrade==Upgrade::Rupees || !s_run.rank(upgrade) || powerup_item(upgrade) != ChestReward::Count) continue;
         const std::string label = std::string(s_run.upgrade_name(upgrade)) + " - Level " + number(s_run.rank(upgrade));
         const auto help = powerup_description_rml(upgrade);
         UiControlDesc control = UI_CONTROL_DESC_INIT;

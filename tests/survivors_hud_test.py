@@ -213,6 +213,11 @@ int main(){
         assert(printed.size()==6&&printed.back()=="Call Midna to Equip"&&printed[1]=="Hero's Sword"&&printed[2]=="+5 sword damage");
         assert(context.mColorTL==1&&context.mColorBR==3);
     }
+    s_gearNoticeItem={GearKind::IronBall,5,5,5,GearPerk::ChainSpin};
+    s_gearNoticeTicks=120;printed.clear();vertices.clear();draw_gear_notice();
+    assert(printed[5]=="Bonus: Chain Spin"&&printed.back()=="Call Midna to Equip");
+    assert(vertices[0][1]==163&&vertices[2][1]==285);
+    s_gearNoticeItem={GearKind::Sword,5,4,3};
     hasGearTexture=false;gearIcons=0;draw_gear_notice();assert(!gearIcons);hasGearTexture=true;
     // Custom position and size apply to live drops and text-only errors too.
     hudValues[unsigned(HudPart::ItemBanner)]={-200,110,50};

@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <span>
+#include <string>
 namespace dawnlight::survivors {
 // Values 0/1/2 are the original v1 Empty/Sword/Tunic identifiers.
 enum class GearKind : uint8_t {
@@ -11,6 +12,18 @@ enum class GearKind : uint8_t {
 };
 enum class GearSlot { Weapon, Tunic };
 enum class GearFamily { None, Sword, Bow, Boomerang, Bombs, Ball, Tunic };
+enum class GearPerk : uint8_t { None, Wave, Spin, MultiStrike, FireArrows, Piercing, Multishot, Reach, Haste, FireEdge, BombArrow, Hurricane, FireBomb, ChainSpin, Count };
+inline constexpr std::array gear_perk_names{"", "Sword Wave", "Spin Attack", "Multi Strike", "Fire Arrows", "Piercing", "Multishot", "Reach", "Haste", "Fire Edge", "Bomb Arrow", "Hurricane", "Fire Bomb", "Chain Spin"};
+inline constexpr std::array<GearPerk,4> gear_perk_pool(GearFamily family) {
+    switch(family) {
+    case GearFamily::Sword:return {GearPerk::Wave,GearPerk::Spin,GearPerk::MultiStrike,GearPerk::FireEdge};
+    case GearFamily::Bow:return {GearPerk::FireArrows,GearPerk::Piercing,GearPerk::Multishot,GearPerk::BombArrow};
+    case GearFamily::Boomerang:return {GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::Hurricane};
+    case GearFamily::Bombs:return {GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::FireBomb};
+    case GearFamily::Ball:return {GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::ChainSpin};
+    default:return {};
+    }
+}
 enum class GearStat { None, Damage, Crit, Speed, Reach, Knockback, Piercing, HopReach, Hops, FlightSpeed, BlastRadius, Hearts, Dodge };
 struct GearAffix {
     GearStat stat=GearStat::None;
@@ -41,6 +54,7 @@ struct GearItem {
     GearKind kind=GearKind::Empty;
     // Ordinary affixes store tiers 1..5; count affixes store their actual 1..2.
     uint8_t first=0, second=0, third=0;
+    GearPerk perk=GearPerk::None;
     bool operator==(const GearItem&) const = default;
     const GearDefinition& definition() const {
         return gear_definitions[unsigned(kind)<gear_definitions.size()?unsigned(kind):0];
@@ -49,7 +63,12 @@ struct GearItem {
     bool is_weapon() const { return family()!=GearFamily::None && family()!=GearFamily::Tunic; }
     std::array<uint8_t,3> stats() const { return {first,second,third}; }
     bool valid() const {
-        if(unsigned(kind)>=gear_definitions.size())return false;
+        if(unsigned(kind)>=gear_definitions.size()||unsigned(perk)>=unsigned(GearPerk::Count))return false;
+        if(perk!=GearPerk::None) {
+            if(!is_weapon()||rarity()<3)return false;
+            const auto pool=gear_perk_pool(family());
+            if(std::find(pool.begin(),pool.begin()+(rarity()==4?4:3),perk)==pool.begin()+(rarity()==4?4:3))return false;
+        }
         const auto values=stats();
         for(unsigned i=0;i<values.size();++i) {
             const auto& affix=definition().affixes[i];
@@ -63,6 +82,11 @@ struct GearItem {
         for(unsigned i=0;i<values.size();++i)if(definition().affixes[i].stat==stat && stat!=GearStat::None)
             return values[i]*definition().affixes[i].scale;
         return 0;
+    }
+    unsigned perk_levels() const {return perk==GearPerk::None?0:perk>=GearPerk::FireEdge?1:rarity()==4?2:1;}
+    std::string perk_description() const {
+        if(perk==GearPerk::None||unsigned(perk)>=gear_perk_names.size())return {};
+        return std::string("Bonus: ")+(perk<GearPerk::FireEdge?"+"+std::to_string(perk_levels())+" ":"")+gear_perk_names[unsigned(perk)];
     }
     unsigned rarity() const {
         unsigned count=0,sum=0;const auto values=stats();
@@ -152,31 +176,38 @@ struct GearInventory {
             if(affix.stat!=GearStat::None)*values[i]=uint8_t(affix.count?(random(100)<90-2*rarityRank?1:2):
                 rarityRank?quality_stat(random(1000),rarityRank):stat(random(100)));
         }
+        if(item.is_weapon()&&item.rarity()>=3) {
+            const auto pool=gear_perk_pool(item.family());
+            item.perk=pool[random(item.rarity()==4?4:3)];
+        }
         return item;
     }
+    // Version 4 adds one validated perk byte per item; old items keep no perk.
     // Version 3 expands to two pages. Versions 1/2 keep their 20 slots and
     // translate the old empty equipped-slot sentinel (20) to the new one (40).
     static constexpr unsigned legacy_capacity=20, legacy_byte_count=12+legacy_capacity*4;
-    static constexpr unsigned byte_count=12+capacity*4;
+    static constexpr unsigned v3_byte_count=12+capacity*4;
+    static constexpr unsigned byte_count=12+capacity*5;
     using Bytes=std::array<uint8_t,byte_count>;
     Bytes encode() const {
-        Bytes b{'H','S','G','R',3,uint8_t(weapon),uint8_t(tunic),0};
-        for(unsigned i=0;i<capacity;++i){b[8+4*i]=uint8_t(items[i].kind);b[9+4*i]=items[i].first;b[10+4*i]=items[i].second;b[11+4*i]=items[i].third;}
+        Bytes b{'H','S','G','R',4,uint8_t(weapon),uint8_t(tunic),0};
+        for(unsigned i=0;i<capacity;++i){b[8+5*i]=uint8_t(items[i].kind);b[9+5*i]=items[i].first;b[10+5*i]=items[i].second;b[11+5*i]=items[i].third;b[12+5*i]=uint8_t(items[i].perk);}
         uint32_t hash=2166136261u;for(unsigned i=0;i<byte_count-4;++i)hash=(hash^b[i])*16777619u;
         for(unsigned i=0;i<4;++i)b[byte_count-4+i]=uint8_t(hash>>(8*i));
         return b;
     }
     bool decode(std::span<const uint8_t> b) {
-        if(b.size()!=byte_count&&b.size()!=legacy_byte_count)return false;
+        if(b.size()!=byte_count&&b.size()!=v3_byte_count&&b.size()!=legacy_byte_count)return false;
         if(b[0]!='H'||b[1]!='S'||b[2]!='G'||b[3]!='R'||b[7])return false;
         const bool legacy=b[4]==1||b[4]==2;
-        if(!legacy&&b[4]!=3)return false;
+        if(!legacy&&b[4]!=3&&b[4]!=4)return false;
+        const unsigned stride=b[4]==4?5:4;
         const unsigned storedCapacity=legacy?legacy_capacity:capacity;
-        if(b.size()!=12+storedCapacity*4||b[5]>storedCapacity||b[6]>storedCapacity)return false;
+        if(b.size()!=12+storedCapacity*stride||b[5]>storedCapacity||b[6]>storedCapacity)return false;
         uint32_t hash=2166136261u;for(unsigned i=0;i<b.size()-4;++i)hash=(hash^b[i])*16777619u;
         for(unsigned i=0;i<4;++i)if(b[b.size()-4+i]!=uint8_t(hash>>(8*i)))return false;
         GearInventory next;next.weapon=b[5]==storedCapacity?none:b[5];next.tunic=b[6]==storedCapacity?none:b[6];
-        for(unsigned i=0;i<storedCapacity;++i){next.items[i]={GearKind(b[8+4*i]),b[9+4*i],b[10+4*i],b[11+4*i]};if(!next.items[i].valid()||(b[4]==1&&b[8+4*i]>2))return false;}
+        for(unsigned i=0;i<storedCapacity;++i){const auto off=8+stride*i;next.items[i]={GearKind(b[off]),b[off+1],b[off+2],b[off+3],b[4]==4?GearPerk(b[off+4]):GearPerk::None};if(!next.items[i].valid()||(b[4]==1&&b[off]>2))return false;}
         if((next.weapon!=none&&!next.items[next.weapon].is_weapon())||(next.tunic!=none&&next.items[next.tunic].kind!=GearKind::Tunic))return false;
         *this=next;return true;
     }

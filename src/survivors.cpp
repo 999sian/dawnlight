@@ -419,6 +419,9 @@ struct Attack {
     bool returning = false, exploding = false, greatSpin = false;
     bool hurricane=false, bombArrow=false, detonated=false, aimPending=false, manualFlight=false;
     float aimSpread=0;
+    bool chainSpin=false;
+    unsigned chainSpinTick=0;
+    float chainSpinRadius=0,chainSpinAngle=0;
     J3DModel* bombModel=nullptr;
     JKRSolidHeap* bombHeap=nullptr;
     float effectBaseRadius = 260.f;

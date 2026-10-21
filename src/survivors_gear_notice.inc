@@ -10,7 +10,7 @@ void draw_gear_notice(bool preview=false) {
     const float screenWidth=mDoGph_gInf_c::getWidthF(),screenHeight=mDoGph_gInf_c::getHeightF();
     const auto position=hud_position(HudPart::ItemBanner,mDoGph_gInf_c::getMinXF()+screenWidth*.5f);
     const float scale=position.scale*std::min({1.f,screenWidth/608.f,screenHeight/448.f});
-    const float width=280*scale,height=(acquired?106:62)*scale,margin=8*scale;
+    const float width=280*scale,height=(acquired?(item.perk!=GearPerk::None?122:106):62)*scale,margin=8*scale;
     const unsigned duration=8*ticks_per_second;
     const float enter=preview?1.f:std::clamp(float(duration-s_gearNoticeTicks)/12.f,0.f,1.f);
     const float leave=preview?1.f:std::clamp(float(s_gearNoticeTicks)/12.f,0.f,1.f);
@@ -53,6 +53,7 @@ void draw_gear_notice(bool preview=false) {
             const auto line="+"+number(item.bonus(affix.stat))+(affix.percent?"% ":" ")+affix.label;
             text(line.c_str(),y,10,white);y+=16;
         }
+        if(item.perk!=GearPerk::None)text(item.perk_description().c_str(),y,10,color);
         if(preview||gear_notice_equip_available()) {
             J2DPrint prompt(font,white,white);prompt.setFontSize(11*scale,11*scale);
             prompt.printReturn("Call Midna to Equip",width,18*scale,HBIND_CENTER,VBIND_TOP,

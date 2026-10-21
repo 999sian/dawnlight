@@ -45,7 +45,7 @@ inline unsigned pot_budget(unsigned map, float floorArea) {
     return unsigned(std::clamp(density,float(minimum[map]),float(maximum[map])));
 }
 enum class Phase { Loading, Ready, Running, Upgrade, TreasureChoice, Treasure, Victory, Defeat };
-enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Hurricane, FireBomb, BombArrow, FireEdge, DarkAura, Shockwave, Lightning, MasterSword, MultiStrike, Rupees, Count };
+enum class Upgrade : unsigned { Wave, Spin, ShieldAttack, Power, Haste, Reach, Magnet, Heart, Bow, Boomerang, Bombs, Ball, FireArrows, Luck, PotionHealing, CritChance, CritDamage, JumpStrike, DualWield, Knockback, Piercing, Multishot, LifeRegen, LifeSteal, Hurricane, FireBomb, BombArrow, FireEdge, DarkAura, Shockwave, Lightning, MasterSword, MultiStrike, Rupees, ChainSpin, Count };
 inline constexpr DamageSource weapon_damage_source(unsigned weapon) {
     switch(Upgrade(weapon)) {
     case Upgrade::Lightning:return DamageSource::Lightning;
@@ -68,7 +68,7 @@ inline constexpr unsigned upgrade_cap(Upgrade u) {
     case Upgrade::Multishot: case Upgrade::MultiStrike: return 3;
     case Upgrade::LifeRegen: return 5;
     case Upgrade::LifeSteal: case Upgrade::Hurricane: case Upgrade::FireBomb: case Upgrade::BombArrow:
-    case Upgrade::FireEdge: case Upgrade::DarkAura: case Upgrade::Shockwave: return 1;
+    case Upgrade::FireEdge: case Upgrade::DarkAura: case Upgrade::Shockwave: case Upgrade::ChainSpin: return 1;
     case Upgrade::Luck: return 20;
     default: return 30;
     }
@@ -76,12 +76,12 @@ inline constexpr unsigned upgrade_cap(Upgrade u) {
 enum class Rarity : unsigned { Common, Uncommon, Rare, Epic, Legendary };
 inline constexpr unsigned reward_units(Rarity rarity) { return 1 + unsigned(rarity); }
 inline constexpr Rarity upgrade_min_rarity(Upgrade u) {
-    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? Rarity::Legendary : (u == Upgrade::Multishot || u == Upgrade::MultiStrike) ? Rarity::Epic :
+    return ((u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) || u==Upgrade::ChainSpin) ? Rarity::Legendary : (u == Upgrade::Multishot || u == Upgrade::MultiStrike) ? Rarity::Epic :
         u == Upgrade::LifeRegen ? Rarity::Rare : Rarity::Common;
 }
 inline constexpr unsigned upgrade_units(Upgrade u, Rarity rarity) {
     if (rarity < upgrade_min_rarity(u)) return 0;
-    return (u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) ? 1 : (u == Upgrade::Multishot || u == Upgrade::MultiStrike) ?
+    return ((u >= Upgrade::LifeSteal && u <= Upgrade::Shockwave) || u==Upgrade::ChainSpin) ? 1 : (u == Upgrade::Multishot || u == Upgrade::MultiStrike) ?
         (rarity == Rarity::Legendary ? 2 : 1) : reward_units(rarity);
 }
 inline constexpr std::array rarity_names{"Common", "Uncommon", "Rare", "Epic", "Legendary"};
@@ -91,7 +91,7 @@ inline constexpr Upgrade chest_weapon(ChestReward reward) {
     return reward <= ChestReward::Ball ? static_cast<Upgrade>(unsigned(Upgrade::Bow) + unsigned(reward)) : Upgrade::Count;
 }
 inline constexpr std::array names{
-    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Hurricane", "Fire Bomb", "Bomb Arrow", "Fire Edge", "Dark Aura", "Shockwave", "Lightning Strike", "Master Sword", "Multi Strike", "Rupees"};
+    "Sword Wave", "Spin Attack", "Shield Attack", "Power", "Haste", "Reach", "Magnet", "Heart Container", "Hero's Bow", "Boomerang", "Bombs", "Ball and Chain", "Fire Arrows", "Luck", "Potion Healing", "Crit Chance", "Crit Damage", "Jump Strike", "Dual Wield", "Knockback", "Piercing", "Multishot", "Life Regen", "Life Steal", "Hurricane", "Fire Bomb", "Bomb Arrow", "Fire Edge", "Dark Aura", "Shockwave", "Lightning Strike", "Master Sword", "Multi Strike", "Rupees", "Chain Spin"};
 inline constexpr std::array descriptions{
     "Piercing sword waves. Great Spin projectile with a larger radius from level 15.",
     "Automatic spin attack. Great Spin with a larger radius from level 15.",
@@ -124,7 +124,8 @@ inline constexpr std::array descriptions{
     "Melee hits can release chain lightning that jumps between enemies. Luck increases its trigger chance.",
     "Increases sword ability damage and Lightning Strike damage. Requires the Master Sword from a chest; Light Sword from level 5.",
     "Repeat Sword Attack, Spin Attack, Sword Wave and Lightning Strike. Requires Dual Wield.",
-    "Receive 20 rupees."};
+    "Receive 20 rupees.",
+    "Ball and Chain makes one full orbit around Link before retracting. Requires Ball and Chain."};
 
 // A burn refresh extends its duration without delaying the next tick or stacking.
 // Store tenths of HP so 10% effects stay proportional even below ten damage.
@@ -225,6 +226,7 @@ struct Run {
     unsigned horde_remaining = 0;
     unsigned gibdo_scream_cooldown = 0;
     std::array<unsigned, unsigned(Upgrade::Rupees)> ranks{};
+    unsigned chain_spin=0; // Appended upgrade; preserve historical rank-array offsets.
     unsigned chests_opened = 0;
     std::array<Upgrade, 3> offers{};
     std::array<Rarity, 3> offer_rarities{};
@@ -268,7 +270,32 @@ struct Run {
     }
     unsigned earned_meta_xp() const { return debug_run?0:score()-std::min(score(),endless?normal_score:0u); }
     unsigned required_xp() const { return 5 + level * 3; }
-    unsigned rank(Upgrade u) const { const auto i = static_cast<unsigned>(u); return u == Upgrade::MasterSword ? master_sword : u == Upgrade::DualWield ? dual_wield : i < ranks.size() ? ranks[i] : 0; }
+    unsigned base_rank(Upgrade u) const { const auto i=unsigned(u);return u==Upgrade::ChainSpin?chain_spin:u==Upgrade::MasterSword?master_sword:u==Upgrade::DualWield?dual_wield:i<ranks.size()?ranks[i]:0; }
+    unsigned gear_levels(Upgrade upgrade,GearFamily family) const {
+        if(gear_weapon.family()!=family)return 0;
+        const auto weapon=family==GearFamily::Bow?Upgrade::Bow:family==GearFamily::Boomerang?Upgrade::Boomerang:
+            family==GearFamily::Bombs?Upgrade::Bombs:family==GearFamily::Ball?Upgrade::Ball:Upgrade::Count;
+        if(family!=GearFamily::Sword&&!base_rank(weapon))return 0;
+        GearPerk perk=GearPerk::None;
+        switch(upgrade) {
+        case Upgrade::Wave:perk=GearPerk::Wave;break;case Upgrade::Spin:perk=GearPerk::Spin;break;
+        case Upgrade::MultiStrike:perk=GearPerk::MultiStrike;break;case Upgrade::FireArrows:perk=GearPerk::FireArrows;break;
+        case Upgrade::Piercing:perk=GearPerk::Piercing;break;case Upgrade::Multishot:perk=GearPerk::Multishot;break;
+        case Upgrade::Reach:perk=GearPerk::Reach;break;case Upgrade::Haste:perk=GearPerk::Haste;break;
+        case Upgrade::FireEdge:perk=GearPerk::FireEdge;break;case Upgrade::BombArrow:perk=GearPerk::BombArrow;break;
+        case Upgrade::Hurricane:perk=GearPerk::Hurricane;break;case Upgrade::FireBomb:perk=GearPerk::FireBomb;break;
+        case Upgrade::ChainSpin:perk=GearPerk::ChainSpin;break;default:break;
+        }
+        return perk!=GearPerk::None&&gear_weapon.perk==perk?gear_weapon.perk_levels():0;
+    }
+    unsigned rank(Upgrade u) const {
+        const auto family=u==Upgrade::Wave||u==Upgrade::Spin||u==Upgrade::MultiStrike||u==Upgrade::FireEdge?GearFamily::Sword:
+            u==Upgrade::FireArrows||u==Upgrade::Piercing||u==Upgrade::BombArrow?GearFamily::Bow:
+            u==Upgrade::Hurricane?GearFamily::Boomerang:u==Upgrade::FireBomb?GearFamily::Bombs:
+            u==Upgrade::ChainSpin?GearFamily::Ball:GearFamily::None;
+        const auto extra=family==GearFamily::None?0:gear_levels(u,family);
+        return extra?std::min(upgrade_cap(u),base_rank(u)+extra):base_rank(u);
+    }
     unsigned potion_heal_quarters() const { return 4 + rank(Upgrade::PotionHealing); }
     unsigned luck_percent() const { return 100 + 10 * std::min(20u, rank(Upgrade::Luck)); }
     unsigned crit_chance_basis_points() const { return std::min(10000u, (std::min(30u,rank(Upgrade::CritChance))*75+talents.rank(Talent::CritChance)*100)*(100+5*std::min(20u,rank(Upgrade::Luck))/2)/100); }
@@ -309,7 +336,7 @@ struct Run {
         const float base=returning?55.f:weapon==Upgrade::Bow?70.f:weapon==Upgrade::Ball?40.f:42.f;
         return base*(1.f+gear_bonus(weapon,GearStat::FlightSpeed)/100.f);
     }
-    float ball_range() const {return radius(900.f)*(1.f+gear_bonus(Upgrade::Ball,GearStat::Reach)/100.f);}
+    float ball_range() const {return radius(900.f,Upgrade::Ball)*(1.f+gear_bonus(Upgrade::Ball,GearStat::Reach)/100.f);}
     unsigned melee_crit_bonus() const { return std::min(30u,dual_wield)*100+gear_bonus(GearFamily::Sword,GearStat::Crit)*100; }
     unsigned critical_power(unsigned base, bool* critical=nullptr, bool melee=false, bool bow=false) {
         const bool hit=base && roll_chance(std::min(10000u,crit_chance_basis_points()+(melee?melee_crit_bonus():0)+(bow?gear_bonus(Upgrade::Bow,GearStat::Crit)*100:0)));
@@ -345,7 +372,7 @@ struct Run {
         return Rarity::Common;
     }
     unsigned upgrade_gain(Upgrade u, Rarity rarity) const {
-        unsigned remaining = u < Upgrade::Rupees ? upgrade_cap(u) - std::min(upgrade_cap(u), rank(u)) : 0;
+        unsigned remaining = (u < Upgrade::Rupees || u==Upgrade::ChainSpin) ? upgrade_cap(u) - std::min(upgrade_cap(u), base_rank(u)) : 0;
         if (u == Upgrade::Heart) remaining = std::min(remaining, 20 - std::min(20u, maximum_hearts));
         return std::min(upgrade_units(u, rarity), remaining);
     }
@@ -357,7 +384,7 @@ struct Run {
         if (u >= Upgrade::Bow && u <= Upgrade::Ball && banned_items[unsigned(u)-unsigned(Upgrade::Bow)]) return false;
         if (restricted_healing() && u==Upgrade::LifeSteal) return false;
         if (u == Upgrade::Rupees) return true;
-        if (u >= Upgrade::Count || rank(u) >= upgrade_cap(u)) return false;
+        if (base_rank(u) >= upgrade_cap(u) || (upgrade_cap(u)==1&&rank(u))) return false;
         if (u == Upgrade::MultiStrike && !owns(ChestReward::OrdonSword)) return false;
         if (u == Upgrade::MasterSword && (!owns(ChestReward::MasterSword) || !chest_eligible(ChestReward::MasterSword))) return false;
         if (u == Upgrade::ShieldAttack && !owns(ChestReward::Shield)) return false;
@@ -365,6 +392,7 @@ struct Run {
         if (u == Upgrade::PotionHealing && !red_potion) return false;
         if (u == Upgrade::JumpStrike && !master_sword) return false;
         if ((u == Upgrade::FireArrows || u == Upgrade::Piercing) && !rank(Upgrade::Bow)) return false;
+        if (u == Upgrade::ChainSpin && !base_rank(Upgrade::Ball)) return false;
         if (u == Upgrade::Hurricane && !rank(Upgrade::Boomerang)) return false;
         if (u == Upgrade::FireBomb && !rank(Upgrade::Bombs)) return false;
         if (u == Upgrade::BombArrow && !rank(Upgrade::Bow)) return false;
@@ -406,6 +434,7 @@ struct Run {
         const unsigned gain = upgrade_gain(u, offer_rarities[choice]);
         if (u == Upgrade::MasterSword) master_sword += gain;
         else if (u == Upgrade::DualWield) dual_wield += gain;
+        else if (u == Upgrade::ChainSpin) chain_spin += gain;
         else if (u != Upgrade::Rupees) ranks[static_cast<unsigned>(u)] += gain;
         if (u == Upgrade::Heart) maximum_hearts += gain;
         phase = Phase::Running;
@@ -439,14 +468,14 @@ struct Run {
     unsigned jump_cooldown() const { return cooldown(6 * ticks_per_second); }
     bool roll_jump_strike() { return master_sword && rank(Upgrade::JumpStrike) && next_random() % 100 < 20; }
     unsigned melee_targets() const { return dual_wield ? std::min(5u, 2 + dual_wield / 10) : 1; }
-    unsigned extra_projectiles() const { return std::min(3u,rank(Upgrade::Multishot)); }
-    unsigned ranged_shots() const { return 1 + extra_projectiles(); }
+    unsigned extra_projectiles(Upgrade weapon=Upgrade::Count) const { return std::min(3u,base_rank(Upgrade::Multishot)+gear_levels(Upgrade::Multishot,gear_family(weapon))); }
+    unsigned ranged_shots(Upgrade weapon=Upgrade::Count) const { return 1 + extra_projectiles(weapon); }
     unsigned arrow_targets() const { return 1 + std::min(10u,rank(Upgrade::Piercing))+gear_bonus(Upgrade::Bow,GearStat::Piercing); }
     float knockback_distance(bool heavy, bool elite, DamageSource source=DamageSource::Other) const {
         return ((heavy ? 240.f : 0.f) + 40.f*std::min(10u,rank(Upgrade::Knockback))) * (elite ? 0.f : 1.f) * (1.f+gear_knockback_percent(source)/100.f);
     }
     unsigned bow_base_shots() const { const auto level=rank(Upgrade::Bow); return !level ? 0 : level>=20 ? 5 : level>=10 ? 3 : 1; }
-    unsigned bow_shots() const { return bow_base_shots() ? bow_base_shots()+extra_projectiles() : 0; }
+    unsigned bow_shots() const { return bow_base_shots() ? bow_base_shots()+extra_projectiles(Upgrade::Bow) : 0; }
     float bow_fan_degrees() const { return bow_base_shots() ? (bow_base_shots()-1)*11.25f : 0.f; }
     static float projectile_spread(unsigned index, unsigned count, float degrees) {
         if (count < 2 || index >= count) return 0;
@@ -578,7 +607,7 @@ struct Run {
     unsigned item_cooldown(Upgrade weapon) const {
         const unsigned base = weapon==Upgrade::Bow?75:(weapon==Upgrade::Boomerang || weapon==Upgrade::Lightning)?85:weapon==Upgrade::Bombs?110:100;
         const unsigned floor=weapon==Upgrade::Bow?20:(weapon==Upgrade::Boomerang || weapon==Upgrade::Lightning)?30:weapon==Upgrade::Bombs?45:40;
-        const unsigned normal=std::max(floor,cooldown(base*100/(100+5*(std::max(1u,rank(weapon))-1)/2)));
+        const unsigned normal=std::max(floor,cooldown(base*100/(100+5*(std::max(1u,rank(weapon))-1)/2),weapon));
         return std::max(1u,normal*100/(100+gear_bonus(weapon,GearStat::Speed)));
     }
     bool tick(bool playable) {
@@ -623,11 +652,11 @@ struct Run {
     unsigned target_population() const { return 345u; }
     unsigned spawn_batch() const { return options.horde * (horde_remaining ? 3 : 1); }
     unsigned spawn_interval() const { return std::max(15u, 75u - std::min(60u, ticks / (10 * ticks_per_second))); }
-    unsigned cooldown_percent() const {
-        const auto rank = std::min(30u, this->rank(Upgrade::Haste));
+    unsigned cooldown_percent(Upgrade weapon=Upgrade::Count) const {
+        const auto rank = std::min(30u,base_rank(Upgrade::Haste)+gear_levels(Upgrade::Haste,gear_family(weapon)));
         return 10000/(100+5*rank/2);
     }
-    unsigned cooldown(unsigned base) const { return std::max(6u, base * cooldown_percent() / 100); }
+    unsigned cooldown(unsigned base,Upgrade weapon=Upgrade::Count) const { return std::max(6u, base * cooldown_percent(weapon) / 100); }
     unsigned shield_cooldown() const {return std::max(30u,cooldown(9000/(100+3*rank(Upgrade::ShieldAttack))));}
     bool normal_kill_drops() { if (++drop_progress < options.horde) return false; drop_progress=0; return true; }
     // Independent bonus, once per ordinary reward opportunity: 2%, up to 3% with Luck.
@@ -666,17 +695,17 @@ struct Run {
     unsigned block_chance() const { return std::min(10u, shield) * 5; }
     unsigned shield_tier() const { return shield >= 7 ? 2 : shield >= 4 ? 1 : 0; }
     unsigned sword_bonus() const { return gear_bonus(GearFamily::Sword,GearStat::Damage) + (master_sword ? 2 + master_sword : 0); }
-    unsigned attack_power(unsigned weapon) const { return 2 + ranks[weapon] + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : gear_bonus(Upgrade(weapon),GearStat::Damage)) + bonus_damage(); }
-    float area_radius(float base) const { return base*std::sqrt(radius(1.f)); }
+    unsigned attack_power(unsigned weapon) const { return 2 + rank(Upgrade(weapon)) + rank(Upgrade::Power) + (weapon < 2 ? sword_bonus() : gear_bonus(Upgrade(weapon),GearStat::Damage)) + bonus_damage(); }
+    float area_radius(float base,Upgrade weapon=Upgrade::Count) const { return base*std::sqrt(radius(1.f,weapon)); }
     float hurricane_scale() const { return rank(Upgrade::Hurricane) ? 2.f : 1.f; }
     float bomb_arrow_radius() const { return area_radius(170+12*5); }
     float shockwave_radius() const { return radius(55+8*5); }
     float dark_aura_radius() const { return radius(300.f); }
-    float bomb_radius() const { return area_radius(170+12*rank(Upgrade::Bombs))*(1.f+gear_bonus(Upgrade::Bombs,GearStat::BlastRadius)/100.f); }
+    float bomb_radius() const { return area_radius(170+12*rank(Upgrade::Bombs),Upgrade::Bombs)*(1.f+gear_bonus(Upgrade::Bombs,GearStat::BlastRadius)/100.f); }
     float shield_radius() const { return area_radius(60+3*rank(Upgrade::ShieldAttack)); }
-    float item_range(Upgrade weapon) const { return ((weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range) : item_target_range)*(1.f+gear_bonus(weapon,GearStat::Reach)/100.f); }
-    float boomerang_hop_range() const { return radius(800.f)*(1.f+gear_bonus(Upgrade::Boomerang,GearStat::HopReach)/100.f); }
-    float radius(float base) const { return base * (1.0f + 0.075f * rank(Upgrade::Reach)); }
+    float item_range(Upgrade weapon) const { return ((weapon==Upgrade::Bow || weapon==Upgrade::Boomerang) ? radius(item_target_range,weapon) : item_target_range)*(1.f+gear_bonus(weapon,GearStat::Reach)/100.f); }
+    float boomerang_hop_range() const { return radius(800.f,Upgrade::Boomerang)*(1.f+gear_bonus(Upgrade::Boomerang,GearStat::HopReach)/100.f); }
+    float radius(float base,Upgrade weapon=Upgrade::Count) const { return base * (1.0f + 0.075f * std::min(30u,base_rank(Upgrade::Reach)+gear_levels(Upgrade::Reach,gear_family(weapon)))); }
     float melee_reach(float base) const { return base * (1.f + .15f * rank(Upgrade::Reach))*(1.f+gear_bonus(GearFamily::Sword,GearStat::Reach)/100.f); }
     float melee_area_radius(float base) const { return base * (1.f + 2.f*(std::sqrt(radius(1.f))-1.f))*(1.f+gear_bonus(GearFamily::Sword,GearStat::Reach)/100.f); }
     float melee_radius(float base) const { return 1.3f * melee_reach(base); }
@@ -768,10 +797,12 @@ struct Records {
     }
     // v12 appends the two equipment talents after the unchanged v10/v11
     // header and score snapshots; legacy offsets must never consume new ranks.
+    // v13 appends one Chain Spin rank per snapshot after the v12 talent words.
     static constexpr unsigned legacy_talent_count=19;
     static constexpr unsigned v11_word_count=34+20*HighScoreRun::word_count;
     static constexpr unsigned v11_byte_count=4*v11_word_count;
-    static constexpr unsigned word_count=v11_word_count+2;
+    static constexpr unsigned v12_word_count=v11_word_count+2, v12_byte_count=4*v12_word_count;
+    static constexpr unsigned word_count=v12_word_count+20;
     static constexpr unsigned v9_byte_count=4*(34+10*HighScoreRun::legacy_word_count);
     static constexpr unsigned byte_count=4*word_count;
     static constexpr unsigned v8_score_words=20+30+2*18;
@@ -802,15 +833,16 @@ struct Records {
         if(!best.present() || run.score()>best.score)best={run,run.score(),level(),available_points()};
     }
     std::array<uint8_t,byte_count> encode() const {
-        std::array<uint32_t,word_count> words{0x56525348,12,runs,wins,best_ticks,best_kills,best_level};
+        std::array<uint32_t,word_count> words{0x56525348,13,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
         for(unsigned i=0;i<legacy_talent_count;++i)words[14+i]=talents.ranks[i];
         words[v11_word_count]=talents.rank(Talent::EquipmentDropRate);
         words[v11_word_count+1]=talents.rank(Talent::EquipmentRarity);
         words[33]=cleared_maps;
-        unsigned offset=34;
+        unsigned offset=34, extension=v12_word_count;
         for(const auto* category:{&ranked,&cheated,&endless_ranked,&endless_cheated})for(const auto& best:*category) {
+            words[extension++]=best.present()&&!best.run.debug_run?best.run.chain_spin:0;
             const auto record=best.encode();
             std::copy(record.begin(),record.end(),words.begin()+offset);offset+=record.size();
         }
@@ -819,11 +851,11 @@ struct Records {
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=v8_byte_count && bytes.size()!=v9_byte_count && bytes.size()!=v11_byte_count && bytes.size()!=byte_count)return false;
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=v8_byte_count && bytes.size()!=v9_byte_count && bytes.size()!=v11_byte_count && bytes.size()!=v12_byte_count && bytes.size()!=byte_count)return false;
         std::array<uint32_t,word_count> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==v8_byte_count)||(words[1]==9 && bytes.size()==v9_byte_count)||((words[1]==10 || words[1]==11) && bytes.size()==v11_byte_count)||(words[1]==12 && bytes.size()==byte_count)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==v8_byte_count)||(words[1]==9 && bytes.size()==v9_byte_count)||((words[1]==10 || words[1]==11) && bytes.size()==v11_byte_count)||(words[1]==12 && bytes.size()==v12_byte_count)||(words[1]==13 && bytes.size()==byte_count)))return false;
         Records next;
         // Legacy saves have aggregate wins only; scores also include defeats.
         if(words[1]>=7){
@@ -842,7 +874,7 @@ struct Records {
             if(next.total_xp>max_meta_xp || !next.talents.valid() || next.talents.spent()>meta_levels(next.total_xp))return false;
         }
         if(words[1]>=8) {
-            unsigned offset=34;
+            unsigned offset=34, extension=v12_word_count;
             for(unsigned category=0;category<(words[1]>=10?4u:2u);++category)for(auto& best:category==0?next.ranked:category==1?next.cheated:category==2?next.endless_ranked:next.endless_cheated) {
                 HighScoreRun::Words snapshot{};
                 if(words[1]==8) {
@@ -850,6 +882,7 @@ struct Records {
                     std::copy_n(words.begin()+offset+20+30,2*18,snapshot.begin()+20+unsigned(Upgrade::Rupees));
                 } else std::copy_n(words.begin()+offset,words[1]==9?HighScoreRun::legacy_word_count:snapshot.size(),snapshot.begin());
                 if(!best.decode(snapshot,words[1]) || (best.present() && (best.cheated()!=bool(category%2) || best.run.endless!=(category>=2))))return false;
+                if(words[1]>=13) {const auto spin=words[extension++];if(spin>1||(!best.present()&&spin))return false;best.run.chain_spin=spin;}
                 offset+=words[1]==8?v8_score_words:words[1]==9?HighScoreRun::legacy_word_count:HighScoreRun::word_count;
             }
         }

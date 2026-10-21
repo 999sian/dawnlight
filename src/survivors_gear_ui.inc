@@ -50,6 +50,7 @@ std::string gear_description(GearItem item) {
     std::string text=std::string(rarity_names[item.rarity()])+" "+gear_name(item);
     for(const auto& affix:item.definition().affixes)if(affix.stat!=GearStat::None)
         text+="\n+"+number(item.bonus(affix.stat))+(affix.percent?"% ":" ")+affix.label;
+    if(item.perk!=GearPerk::None)text+="\n"+item.perk_description();
     return text;
 }
 std::string gear_rml(GearItem item) {
