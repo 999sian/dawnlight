@@ -26,8 +26,6 @@ using u8=unsigned char;
 struct ModContext {};
 struct JKRHeap {};
 struct JKRArchive {unsigned serial;};
-struct request_of_phase_process_class {int id=0;};
-constexpr int cPhs_COMPLEATE_e=4;
 namespace mods {template<class T>T arg(void* a,int n){return std::any_cast<T>(static_cast<std::any*>(a)[n]);}}
 bool s_active=true,s_gameStarted=true,s_hub=false,s_restart=false,arena=true,transition=false;
 unsigned s_map=0;
@@ -71,17 +69,18 @@ void native_load(const char* name){
 '''
 
 cases = r'''
-void notify(const char* name,int status=cPhs_COMPLEATE_e,int phaseId=2,JKRHeap* heap=nullptr){
-    request_of_phase_process_class phase{phaseId};
-    std::any args[]={&phase,name,heap};
-    after_enemy_archive_heap_load(nullptr,args,&status,nullptr);
-    assert(phase.id==phaseId); // The native actor's phase is never changed.
+void notify_info(dRes_info_c* info,int status=0){
+    std::any args[]={info};
+    const auto expected=status;
+    after_enemy_archive_ready(nullptr,args,&status,nullptr);
+    assert(status==expected); // Native status is never changed.
 }
+void notify(const char* name,int status=0){notify_info(dComIfG_getObjectResInfo(name),status);}
 void fresh(unsigned map=0){
     release_enemy_archives();resources.clear();archives.clear();
     s_active=s_gameStarted=arena=true;s_hub=s_restart=transition=false;
     s_map=map;loads=pins=unloads=0;failPin=false;s_testProcessStack={{nullptr,true}};
-    begin_enemy_archives();
+    s_enemyArchivesAvailable=true;begin_enemy_archives();
 }
 int main(){
     // Representative native primary, secondary and child archives per map.
@@ -111,7 +110,7 @@ int main(){
         release_enemy_archives();assert(unloads==loads); // Idempotent reset/shutdown.
     }
     fresh();native_load("E_ba");
-    notify("E_ba",0,1);notify("E_ba",5,1);notify("E_ba",4,1);
+    notify("E_ba",1);notify("E_ba",-1);notify_info(nullptr);
     assert(!pins);notify("E_ba");assert(pins==1);
     notify("e_BA");assert(pins==1); // Engine-canonical case-insensitive identity.
     // Releasing our hold while the actor lives must leave its resources valid.
@@ -138,7 +137,6 @@ int main(){
     native_load("B_gnd");notify("B_gnd");assert(dComIfG_getObjectResInfo("B_gnd")->count==2);
     // Custom heaps cannot outlive their actor, even via a later default load.
     fresh();native_load("E_th");JKRHeap custom;
-    notify("E_th",4,2,&custom);assert(!pins);
     resources["E_TH"].heap=&custom;notify("E_th");assert(!pins);resources["E_TH"].heap=nullptr;
     resources["E_TH"].pending=&custom;notify("E_th");assert(!pins);resources["E_TH"].pending=nullptr;
     failPin=true;notify("E_th");assert(!pins&&resources["E_TH"].count==1);
@@ -146,6 +144,14 @@ int main(){
     // A host-forced teardown must not release a newly mounted same-name archive.
     resources.clear();native_load("E_th");release_enemy_archives();assert(resources["E_TH"].count==1);
     fresh();native_load("E_th");resources["E_TH"].count=0xffff;notify("E_th");assert(!pins);
+    // Same-name stage and standalone records must never retain the object entry.
+    fresh();native_load("E_ba");
+    auto stage=resources["E_BA"];notify_info(&stage);assert(!pins);
+    resources["E_BA"].count=0;notify("E_ba");assert(!pins);resources["E_BA"].count=1;
+    // A platform that cannot install this optimization still starts normal runs.
+    s_enemyArchivesAvailable=false;begin_enemy_archives();notify("E_ba");
+    assert(!s_enemyArchivesEnabled&&!pins&&resources["E_BA"].count==1);
+    dComIfG_deleteObjectResMain("E_ba");assert(resources.empty());
     // Bounded cache overflow falls back to native refcounts without leaking.
     fresh();
     for(unsigned i=0;i<s_enemyArchives.size()+2;++i){
@@ -163,8 +169,9 @@ assert 'void retire_enemies() {\n    release_enemy_archives();' in core
 assert 'if(!s_run.continue_endless())return;\n    begin_enemy_archives();' in core
 begin=core[core.index('void begin_run() {'):core.index('void start_run(')]
 assert 'begin_enemy_archives();' in begin
-assert 'POST(SurvivorsArchiveLoad, after_enemy_archive_load);' in core
-assert 'POST(SurvivorsArchiveHeapLoad, after_enemy_archive_heap_load);' in core
+assert 'hook_add_post<SurvivorsArchiveReady>(svc_hook,after_enemy_archive_ready)' in core
+assert '&dComIfG_resLoad' not in production
+assert 'static_cast<int (dRes_info_c::*)()>(&dRes_info_c::setRes)' in production
 update=core[core.index('void update_survivors() {'):core.index('ModResult initialize_survivors(')]
 assert update.index('update_enemy_archives();')<update.index('if (!s_active || !s_gameStarted) return;')
 

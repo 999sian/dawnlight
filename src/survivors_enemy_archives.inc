@@ -1,8 +1,9 @@
 // Retain only archives actually loaded by run-owned standalone actors. This
 // covers every map, boss variants and descendants without a second roster of
 // archive names. Native actors keep their own references and delete normally.
-DEFINE_HOOK(static_cast<int (*)(request_of_phase_process_class*, const char*)>(&dComIfG_resLoad), SurvivorsArchiveLoad);
-DEFINE_HOOK(static_cast<int (*)(request_of_phase_process_class*, const char*, JKRHeap*)>(&dComIfG_resLoad), SurvivorsArchiveHeapLoad);
+// Both resLoad overloads reach this resource-processing function. The two-arg
+// resLoad entry fails funchook relocation on Windows v2.0.3.
+DEFINE_HOOK(static_cast<int (dRes_info_c::*)()>(&dRes_info_c::setRes), SurvivorsArchiveReady);
 struct EnemyArchiveHold {
     std::array<char,11> name{};
     JKRArchive* archive=nullptr;
@@ -11,6 +12,7 @@ struct EnemyArchiveHold {
 // continues unchanged; no allocation, spawn failure or cross-map accumulation.
 std::array<EnemyArchiveHold,32> s_enemyArchives{};
 bool s_enemyArchivesEnabled=false;
+bool s_enemyArchivesAvailable=false;
 unsigned s_enemyArchiveMap=0;
 
 void release_enemy_archives() {
@@ -29,26 +31,27 @@ void release_enemy_archives() {
 void begin_enemy_archives() {
     release_enemy_archives();
     s_enemyArchiveMap=s_map;
-    s_enemyArchivesEnabled=true;
+    s_enemyArchivesEnabled=s_enemyArchivesAvailable;
 }
 void update_enemy_archives() {
     if(s_enemyArchivesEnabled && (!s_active || !s_gameStarted || s_hub ||
         s_restart || s_map!=s_enemyArchiveMap || !in_arena() || transitioning()))
         release_enemy_archives();
 }
-void after_enemy_archive_load(ModContext*,void* args,void* result,void*) {
+void after_enemy_archive_ready(ModContext*,void* args,void* result,void*) {
     if(!s_enemyArchivesEnabled || !s_active || !s_gameStarted || s_hub ||
        s_restart || s_map!=s_enemyArchiveMap || !in_arena() || transitioning() ||
        !enemy_spawner_process_active() || !result ||
-       *static_cast<int*>(result)!=cPhs_COMPLEATE_e)return;
-    const auto* phase=mods::arg<request_of_phase_process_class*>(args,0);
-    const auto* name=mods::arg<const char*>(args,1);
-    if(!phase || phase->id!=2 || !name || !*name)return;
-    auto* info=dComIfG_getObjectResInfo(name);
-    if(!info || !info->getArchive() || info->getDMCommand() || info->heap || info->getCount()>=0xffff)return;
+       *static_cast<int*>(result)!=0)return; // setRes: 0 ready, 1 pending, -1 error.
+    auto* info=mods::arg<dRes_info_c*>(args,0);
+    if(!info || !info->getArchive() || info->getDMCommand() || info->heap ||
+       info->getCount()<=0 || info->getCount()>=0xffff)return;
     const auto* canonical=info->getArchiveName();
     const auto length=std::strlen(canonical);
-    if(length>=s_enemyArchives.front().name.size())return;
+    if(!length || length>=s_enemyArchives.front().name.size())return;
+    // setRes also handles stage archives and other resource tables. Only retain
+    // the exact live object-table record, never a same-name stage resource.
+    if(dComIfG_getObjectResInfo(canonical)!=info)return;
     EnemyArchiveHold* available=nullptr;
     for(auto& hold:s_enemyArchives) {
         if(hold.archive==info->getArchive() && std::strcmp(hold.name.data(),canonical)==0)return;
@@ -61,8 +64,4 @@ void after_enemy_archive_load(ModContext*,void* args,void* result,void*) {
     if(!dComIfG_setObjectRes(canonical,u8(0),nullptr))return;
     std::memcpy(available->name.data(),canonical,length+1);
     available->archive=info->getArchive();
-}
-void after_enemy_archive_heap_load(ModContext* ctx,void* args,void* result,void* user) {
-    // Never extend the lifetime of an archive placed in an actor-owned heap.
-    if(mods::arg<JKRHeap*>(args,2)==nullptr)after_enemy_archive_load(ctx,args,result,user);
 }

@@ -13,7 +13,12 @@ fixture=r'''
 using ModResult=int;constexpr int MOD_OK=0,MOD_UNAVAILABLE=1;
 struct ModError{std::string message;};
 int svc_hook=0;void* mod_ctx=nullptr;bool s_registered=false;
-unsigned failAt=0,calls=0,registrations=0,initFailure=0;bool modeFailure=false;
+unsigned failAt=0,calls=0,registrations=0,initFailure=0,warnings=0;bool modeFailure=false;
+bool s_enemyArchivesAvailable=false;
+struct SurvivorsArchiveReady{static constexpr const char* name="SurvivorsArchiveReady";};
+constexpr int after_enemy_archive_ready=0;
+struct Log{void warn(void*,const char*){++warnings;}}logService;
+auto* svc_log=&logService;
 std::vector<std::string> attempted;
 namespace mods{
 int set_error(ModError* e,int result,const char* text){if(e)e->message=text;return result;}
@@ -39,9 +44,16 @@ for callback in sorted({c for _,c in hooks}):fixture+=f'constexpr int {callback}
 main=r'''
 int main(){
  ModError error;assert(initialize_survivors(&error)==MOD_OK&&s_registered&&registrations==1);
+ assert(s_enemyArchivesAvailable&&!warnings);
  const auto expected=attempted;
+ assert(expected.front()=="SurvivorsArchiveReady");
  for(unsigned i=1;i<=expected.size();++i){
   failAt=i;calls=registrations=0;attempted.clear();s_registered=false;error={};
+  if(i==1){
+   assert(initialize_survivors(&error)==MOD_OK&&s_registered&&registrations==1);
+   assert(!s_enemyArchivesAvailable&&warnings==1&&error.message.empty()&&attempted==expected);
+   continue;
+  }
   assert(initialize_survivors(&error)==MOD_UNAVAILABLE&&!s_registered&&!registrations);
   assert(calls==i&&attempted.back()==expected[i-1]&&error.message.find(expected[i-1])!=std::string::npos);
  }

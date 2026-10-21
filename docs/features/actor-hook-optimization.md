@@ -39,9 +39,11 @@ this patch's savings.
 - Retain successfully loaded native object archives used by run-owned standalone
   actors across respawns on all five Survivors maps. This includes secondary boss
   archives and child actors, using existing spawner ownership rather than another
-  roster or a map-specific archive whitelist. Two resource-load post callbacks
-  acquire one extra reference only after native loading completes; they neither
-  start asynchronous loads nor change the actor's phase state.
+  roster or a map-specific archive whitelist. A resource-processing post callback
+  on `dRes_info_c::setRes()` acquires one extra reference only after processing
+  succeeds. Both native load overloads reach this function. It neither starts
+  asynchronous loads nor changes the actor's phase state; stage-table resources
+  are excluded by checking object-table record identity.
 - Keep at most 32 encountered archives per run, with normal native behavior when
   full. Never preload other maps or retain archives in custom heaps. Release only
   our references on run end, restart, map/stage exit, mode reset and shutdown;
@@ -53,6 +55,16 @@ processing, but the log has no frame timestamps and cannot establish the cause
 of reported multi-second freezes. Retention avoids repeated processing while an
 archive is held; the first load can still stall. The 32-entry limit bounds archive
 count, not resident bytes, so peak memory must also be checked on Switch.
+
+The first cache implementation hooked both `dComIfG_resLoad` overloads. The
+supplied Windows v2.0.3 log (`dusklight-20261021-110156.log`) reports funchook
+relocation failure followed by `failed to install Hyrule Survivors post-hook
+SurvivorsArchiveLoad (1)`, aborting Dawnlight activation. Those hook targets have
+been removed. The replacement resource-processing hook is optional: if a host
+cannot install it, a single initialization warning is logged and normal native
+resource loading remains active. All gameplay-critical hook failures still fail
+initialization. Windows runtime verification of the new detour remains required;
+a successful module build alone cannot verify host instruction relocation.
 
 No callback is uninstalled or reordered. The shared-target SDK uninstall behavior,
 Apple fallbacks, gameplay limits, attack timing and equipment remain unchanged.
@@ -69,7 +81,10 @@ allocation/maintenance on spawn/removal; device profiling must include that cost
 - Archive retention tests cover all five maps with representative primary,
   secondary and child archives, repeated respawns without another native load,
   nested unrelated actors, incomplete loads, custom heaps, reference overflow,
-  cache capacity, failed acquisition, replaced resources and balanced teardown.
+  cache capacity, failed acquisition, replaced resources, same-name stage records
+  and balanced teardown. Registration tests inject a failed cache hook and verify
+  successful mode registration, a disabled cache and one warning; failures of
+  required hooks remain fatal.
 - Additional regressions cover all native-profile lookup boundaries, dedicated
   versus process hooks, nested/overflow scope balance, empty ownership during an
   outer scope, base creation admission, and unmatched post callbacks.

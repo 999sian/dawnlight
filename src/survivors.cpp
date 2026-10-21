@@ -1704,8 +1704,11 @@ ModResult initialize_survivors(ModError* error) {
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to install Hyrule Survivors pre-hook " #H); } while(false)
 #define POST(H, F) do { result = mods::hook_add_post<H>(svc_hook, F); \
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to install Hyrule Survivors post-hook " #H); } while(false)
-    POST(SurvivorsArchiveLoad, after_enemy_archive_load);
-    POST(SurvivorsArchiveHeapLoad, after_enemy_archive_heap_load);
+    // Resource retention is optional: an unsupported host detour must never
+    // prevent Dawnlight or Survivors from loading with normal native resources.
+    s_enemyArchivesAvailable=mods::hook_add_post<SurvivorsArchiveReady>(svc_hook,after_enemy_archive_ready)==MOD_OK;
+    if(!s_enemyArchivesAvailable)svc_log->warn(mod_ctx,
+        "Survivors archive retention unavailable; using native resource loading");
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
 #include "survivors_roster_hooks.inc"
     PRE(SurvivorsEnemySpeed, before_enemy_speed); POST(SurvivorsEnemySpeed, after_enemy_facing);
