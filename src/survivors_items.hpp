@@ -30,7 +30,7 @@ inline unsigned item_damage(const Run& run, Upgrade weapon) {
 inline unsigned item_radius(const Run& run, Upgrade weapon) {
     if (weapon == Upgrade::Bow) return 35;
     if (weapon == Upgrade::Bombs) return unsigned(run.bomb_radius());
-    return unsigned(run.radius(weapon == Upgrade::Boomerang ? 63 : 55 + 8 * run.rank(weapon)));
+    return unsigned(run.radius(weapon == Upgrade::Boomerang ? 63 : 55 + 8 * run.rank(weapon),weapon));
 }
 inline const char* reward_name(ChestReward reward, const Run& run) {
     if (reward <= ChestReward::Ball) return names[unsigned(chest_weapon(reward))];
@@ -87,14 +87,15 @@ inline std::vector<ItemChange> reward_changes(ChestReward reward, const Run& bef
 // Compact four-line descriptions fit the native explanation pane. Effective
 // values include collected Power/Haste/Reach and Fire Arrows upgrades.
 inline std::string item_description(ChestReward reward, const Run& run) {
-    const std::string bonuses = "Power +" + number(run.rank(Upgrade::Power)) + " | Haste -" + number(100 - run.cooldown_percent()) + "% | Reach +" + decimal(run.rank(Upgrade::Reach) * 7.5f) + "%";
+    const auto scopedWeapon=chest_weapon(reward);
+    const std::string bonuses = "Power +" + number(run.rank(Upgrade::Power)) + " | Haste -" + number(100 - run.cooldown_percent(scopedWeapon)) + "% | Reach +" + decimal((run.radius(1.f,scopedWeapon)-1.f)*100.f) + "%";
     if (reward <= ChestReward::Ball) {
         const auto weapon = chest_weapon(reward);
         const std::string stats = "Lv." + number(run.rank(weapon)) + " | Damage " + number(item_damage(run, weapon)) + " | Interval " + seconds(run.item_cooldown(weapon));
         if (weapon == Upgrade::Bow) return number(arrow_count(run)) + " arrows, " + decimal(run.bow_fan_degrees()) + " deg; " + number(run.arrow_targets()) + " targets; extra hits 25%.\n" + stats + "\nFire Lv." + number(run.rank(Upgrade::FireArrows)) + " (" + number(run.burn_damage()) + "/s, " + seconds(run.burn_duration()) + ")" + "\n" + bonuses;
-        if (weapon == Upgrade::Boomerang) return number(run.ranged_shots()) + " auto Gale throws; hits out and back.\n" + stats + "\n" + number(run.boomerang_hops()) + " extra targets; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
-        if (weapon == Upgrade::Bombs) return number(run.ranged_shots()) + " auto-aim bombs; area explosion, no ammo.\n" + stats + "\nBlast radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
-        return number(run.ranged_shots()) + " auto balls; pierces out/back, small push.\n" + stats + "\nRange " + number(unsigned(run.ball_range())) + "; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
+        if (weapon == Upgrade::Boomerang) return number(run.ranged_shots(weapon)) + " auto Gale throws; hits out and back.\n" + stats + "\n" + number(run.boomerang_hops()) + " extra targets; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
+        if (weapon == Upgrade::Bombs) return number(run.ranged_shots(weapon)) + " auto-aim bombs; area explosion, no ammo.\n" + stats + "\nBlast radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
+        return number(run.ranged_shots(weapon)) + (run.rank(Upgrade::ChainSpin)?" auto balls; full orbit before return.\n":" auto balls; pierces out/back, small push.\n") + stats + "\nRange " + number(unsigned(run.ball_range())) + "; radius " + number(item_radius(run, weapon)) + "\n" + bonuses;
     }
     if (reward == ChestReward::Shield) {
         const unsigned rank = run.rank(Upgrade::ShieldAttack);
@@ -148,6 +149,7 @@ inline std::string upgrade_value(Upgrade upgrade, const Run& run) {
     case Upgrade::FireEdge: return rank ? "10% melee damage/s for 5 seconds" : "off";
     case Upgrade::DarkAura: return rank ? "10% target max HP/s; radius " + decimal(run.dark_aura_radius()) : "off";
     case Upgrade::Shockwave: return rank ? number(run.melee_power()) + " damage; radius " + decimal(run.shockwave_radius()) : "off";
+    case Upgrade::ChainSpin: return rank ? "One full Ball and Chain orbit before retracting" : "off";
     case Upgrade::Rupees: return "+20 rupees";
     default: return "Level " + number(rank);
     }

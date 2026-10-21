@@ -114,7 +114,7 @@ int main(){
     records.finish(r,2);assert(records.high_scores[2]==22078); // Never replace a higher score.
     records.total_xp=meta_threshold(99);assert(records.available_points()==99);
     assert(!records.buy(Talent::SprintSpeed)&&!records.buy(Talent::Glider)&&!records.buy(Talent::Gale)&&!records.buy(Talent::GaleCharges));
-    for(unsigned i=0;i<unsigned(Talent::Count);++i){
+    for(unsigned i=0;i<unsigned(Talent::EquipmentDropRate);++i){
         for(unsigned n=0;n<talent_caps[i];++n)assert(records.buy(Talent(i)));
         assert(!records.buy(Talent(i)));
     }

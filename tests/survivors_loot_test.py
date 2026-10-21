@@ -81,7 +81,7 @@ struct Collider {
     bool ChkAtHit(){return hit;}bool ChkAtShieldHit(){return shield;}
     void SetC(cXyz p){pos=p;}void SetR(float r){radius=r;}void SetAtVec(cXyz v){velocity=v;}
 };
-struct Attack {bool manualFlight=false,aimPending=false;float aimSpread=0;
+struct Attack {bool chainSpin=false;unsigned chainSpinTick=0;float chainSpinRadius=0,chainSpinAngle=0;bool manualFlight=false,aimPending=false;float aimSpread=0;
     unsigned bowVolleySlot=20;uint64_t bowVolley=0;ActorId target=kNone;unsigned hops=0,visitedCount=0,ballVictimCount=0,arrowTargets=1;std::array<ActorId,enemy_capacity>ballVictims{};std::array<ActorId,13>visited{};
     bool bombArrow=false,hurricane=false,detonated=false;bool active=false;unsigned life=0,weapon=0,age=0;bool returning=false,exploding=false;
     float travel=0,limit=0;cXyz position,velocity;float radius=0;Status status;Collider collider;
@@ -197,6 +197,42 @@ int main(){
         for(unsigned i=0;i<80 && a.active;++i)update_item_attack(a,&player);
         assert(!a.active);
     }
+
+    // Chain Spin retracts throughout one complete moving-center revolution.
+    // Snapshot the launch ability so gear swaps cannot cut it short.
+    for(bool fromGear:{false,true})for(bool manual:{false,true}) {
+        reset();s_run.ranks[11]=1;
+        if(fromGear)s_run.gear_weapon={GearKind::IronBall,5,5,5,GearPerk::ChainSpin};else s_run.chain_spin=1;
+        assert(launch_item(&player,Upgrade::Ball,{0,manual?270.f:70.f,400},0,20,0,kNone,manual));auto& a=s_attacks[36];assert(a.chainSpin);
+        s_run.chain_spin=0;s_run.gear_weapon={};
+        for(unsigned ticks=0;a.travel<a.limit&&ticks<200;++ticks)update_item_attack(a,&player);
+        assert(a.active&&!a.returning&&a.chainSpinTick==0);
+        const auto start=a.position-player.current.pos;const auto radius=std::sqrt(start.x*start.x+start.z*start.z);
+        a.ballVictimCount=3;
+        for(unsigned tick=1;tick<=60;++tick) {
+            if(tick>1)player.current.pos.x+=1;
+            update_item_attack(a,&player);
+            assert(a.active&&a.returning&&a.chainSpinTick==tick);
+            const float remainingRadius=radius*(1.f-float(tick)/60.f);
+            assert(std::abs(a.position.absXZ(player.current.pos)-remainingRadius)<.01f);
+            assert(a.collider.pos.abs(a.position)<.01f);
+            const float expectedY=manual?70.f+(start.y-70.f)*(1.f-float(tick)/60.f):start.y;
+            assert(std::abs(a.position.y-expectedY)<.01f);
+            if(tick==1){assert(a.ballVictimCount==0);a.ballVictimCount=1;}
+            else assert(a.ballVictimCount==1); // No repeated hits during the orbit.
+            const auto relative=a.position-player.current.pos;
+            if(tick==15)assert(relative.x>remainingRadius*.99f);
+            if(tick==30)assert(relative.z<-remainingRadius*.99f);
+            if(tick==45)assert(relative.x<-remainingRadius*.99f);
+            if(tick==59)assert(relative.x<0&&relative.z>0); // Almost a full turn before reaching the center.
+            if(tick==60)assert(std::abs(relative.x)<.01f&&std::abs(relative.z)<.01f);
+        }
+        update_item_attack(a,&player);assert(a.returning&&a.ballVictimCount==1);
+        assert(!a.active&&a.chainSpinTick==60);
+    }
+    reset();s_run.ranks[11]=1;s_run.chain_spin=1;assert(launch_item(&player,Upgrade::Ball,{0,70,400}));
+    auto& orbit=s_attacks[36];while(!orbit.chainSpinTick)update_item_attack(orbit,&player);
+    blocked=true;update_item_attack(orbit,&player);assert(!orbit.active); // Orbit must respect walls too.
     // Hurricane ignores incidental contacts, retains its chosen hop target,
     // and doubles both geometry and native wind particle scale.
     reset();s_run.ranks[9]=1;s_run.ranks[unsigned(Upgrade::Hurricane)]=1;

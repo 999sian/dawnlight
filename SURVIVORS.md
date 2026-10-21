@@ -174,6 +174,8 @@ you in the hub and displays a retry message. The results screen also offers **Sa
 | Multi Strike | 3 | Requires Dual Wield. Epic grants 1 rank; Legendary grants 2. Each rank adds one sequential activation of Sword Attack (including its splash), Spin Attack, Sword Wave and Lightning Strike. |
 | Lightning Strike | 30 | 20% proc on an accepted melee hit, +2 percentage points per Luck rank (60% at rank 20), gated by its own cooldown. See below. |
 | Life Regen | 5 | Shortens regeneration by one second/rank: 20 → 15 seconds. |
+| Equipment Drop Rate | 10 | +5 percentage points per rank: 20% base → 70% at rank 10, for timed and stationary bosses. |
+| Equipment Rarity | 10 | Improves newly rolled equipment stats; see the equipment probability table below. |
 
 Link regenerates **1/4 heart every 20 seconds** even without Life Regen ranks.
 Regeneration pauses with the run, continues during the final fight after 20 minutes,
@@ -504,7 +506,7 @@ unit exceptions, together with the one-rank Legendary powers below. Cap overflow
 
 ## Legendary weapon powers
 
-All six powers below have **one rank**, reset each run, and appear only on
+All seven powers below have **one rank**, reset each run, and appear only on
 Legendary level-up cards. They require the corresponding weapon/family; Fire
 Edge works with the starting sword. A collected power no longer appears.
 
@@ -516,6 +518,7 @@ Edge works with the starting sword. A collected power no longer appears.
 | Fire Edge | Starting melee | Burning sword blade. Normal hits, Spin, Shield Attack, Dual Wield secondary hits and Jump Strike ignite enemies for 10% normal melee damage per second for five seconds. |
 | Dark Aura | Dark Link | While transformed, ignite visible enemies within a base radius of 300 (scaled by Reach), with black flames. Each second deals 10% of their maximum run HP, including bosses. Burns continue for five seconds after leaving range or losing the form. |
 | Shockwave | Shield + Shield Attack | Each bash also releases a straight piercing wave for current melee damage. Its radius is 95 (rank-5 Ball and Chain), scaled by Reach; travels 1,350 units and stops at walls. |
+| Chain Spin | Ball and Chain | Each launched ball retracts in a shrinking 360-degree spiral around Link over two active seconds. Each enemy can be hit once outbound and once during the spiraling return. Walls stop the projectile. |
 
 Different burn sources coexist. Reapplying the same source refreshes duration
 without stacking it or postponing ticks. Fire Bomb/Fire Edge snapshot normal
@@ -586,6 +589,8 @@ apply to the next run and are not written to save files.
 | Infinite rerolls | Off / On; free, without consuming charges | Off |
 | Infinite banishes | Off / On; no charge consumption | Off |
 | Run timer | 20 / 10 / 5 minutes | 20 minutes |
+| Max Equipment Drop Rate | Off / On; equipment from every boss | Off |
+| Always Legendary Equipment | Off / On; new equipment has Legendary rarity and maximum base stats | Off |
 
 Minimum Rarity raises lower rarity rolls to the floor for both level-ups and
 all treasure offers, including the starting item. Higher rolls remain higher.
@@ -674,12 +679,15 @@ still apply, and difficulty/Endless HP, damage and movement scaling continue.
 
 Open **Settings → HUD-Editor** from either Survivors menu or Dawnlight's
 Survivors tab. The transparent window previews the HUD while you adjust each
-of these nine elements independently: Timer, Twilit Rank, EXP-Bar, Info-Texts,
-Level-Text, Score text, EXP-text, Boss-Name and Boss-Bar. Choose an element,
+of these ten elements independently: Timer, Twilit Rank, EXP-Bar, Info-Texts,
+Level-Text, Score text, EXP-text, Boss-Name, Boss-Bar and Item Banner. Choose an element,
 then change X Position, Y Position and Scale; Reset selected element restores
 its defaults. X is relative to the screen center, Y to the top, in native HUD
 units. Info-Texts share a position and continue to leave space for a visible boss.
-The preview always includes a sample boss and a nonzero rank.
+The preview always includes sample equipment, a boss and a nonzero rank.
+Item Banner uses its center as the X/Y anchor; its background, icon, name, stats
+and Midna prompt scale together (10–400%). The preview stays visible without a
+drop and does not consume queued rewards or their eight-second timer.
 
 Changes apply immediately, persist automatically, and participate in Dawnlight's
 global settings export/import. They do not affect difficulty, scores or run
@@ -690,11 +698,39 @@ are hidden during native Collection, map/ring menus and pause transitions.
 
 ## Persistent boss equipment
 
-Every scheduled boss, including repeated Endless bosses, has a fixed 20% chance to award permanent equipment directly to the inventory. A successful drop is 50% Weapon / 50% Tunic. Weapons have five equally likely families (Sword, Bow, Boomerang, Bombs, Ball and Chain), each with two equally likely variants: each named weapon is 5% of equipment drops. Luck does not change these odds. Ordinary enemies, stationary guard elites and the victory cleanup wave do not award equipment. Debug runs award none unless **Max Equipment Drop Rate** is enabled before the run. This session-only toggle defaults to Off and guarantees an equipment award per scheduled boss, with normal type and stat rolls. These items are saved; Debug score, permanent XP and map-unlock exclusions still apply. A successful award displays **Weapon found!** or **Tunic found!** for four gameplay seconds. A full inventory displays a warning and never replaces an existing item.
+Every scheduled boss and stationary guard boss, including repeated Endless bosses and respawned guards, has a base 20% chance to award permanent equipment directly to the inventory. A successful drop is 80% Weapon / 20% Tunic. Weapons have five equally likely families (Sword, Bow, Boomerang, Bombs, Ball and Chain), each with two equally likely variants: each named weapon is 8% of equipment drops. Luck does not change these odds. Equipment Drop Rate adds 5 percentage points per rank (maximum 10), reaching 70%. Ordinary enemies and the victory cleanup wave do not award equipment. Debug runs award none unless **Max Equipment Drop Rate** or **Always Legendary Equipment** is enabled before the run. This session-only toggle defaults to Off and guarantees an equipment award per timed or stationary boss, with normal type rolls and the run's Equipment Rarity talent applied to stat rolls. **Always Legendary Equipment** also defaults to Off and applies from the next run: all new drops have maximum base stats (tier 5 or +2 for count stats), guaranteeing Legendary rarity. Weapons receive one random bonus from their full Legendary pool; Tunics have no perk. Used alone it preserves the normal talent-adjusted drop chance; combined with Max Equipment Drop Rate, every boss awards Legendary equipment. Existing items are unchanged. These items are saved; Debug score, permanent XP and map-unlock exclusions still apply. A successful award displays a small rarity-colored banner, initially centered vertically near the right screen edge; its position and size can be changed in the HUD-Editor. It slides in from the right toward the left, shows the equipment icon on the left and its name/stats on the right, and slides out after eight active gameplay seconds (including the short entrance/exit animation). Below an acquired-item banner, **Call Midna to Equip** offers immediate equipment replacement via the configured Midna input (including touch). This equips exactly the displayed drop in its Weapon/Tunic slot, preserving the replaced item in inventory. On successful storage the banner disappears immediately and the next queued drop appears. A failed equip save leaves the banner available to retry. Simultaneous awards queue in order until the current banner expires or is equipped. Menus pause the timer and hide the banner. Inventory-full and save-failure notices use the same banner without a misleading acquired item. A full inventory displays only **Inventory Full!** and never replaces an existing item.
 
 Open the large equipment chest in the Darknut Arena hub with A. It is an independent hub actor at the side wall on the +X side of the Master Sword pedestal, with its front facing the center of the room. It does not depend on story chest flags, native appearance events, Link's draw or run-loot resources. The inventory contains **40 shared slots across two tabs**, **Equipment 1 (20 slots)** and **Equipment 2 (20 slots)**. Each page has four rows of five. New items occupy the first empty slot in page order, from top left to bottom right, filling page one before page two. Controller/keyboard navigation and touch/mouse activation use native UI controls. Confirm equips **one Weapon and one Tunic**, replacing the previous item in that slot. Both equipped items remain in the inventory and are marked **Equipped**, with one Weapon and one Tunic shared across both pages. **Tap/click an equipped item again, or select it again with A/Confirm, to unequip it without deleting it.** Toggle Banish, then select an item to open **Delete Equipment?**, showing the exact item and stats. **Cancel** and B/Escape keep it; only **Delete** permanently removes it and unequips it if necessary. A failed save keeps the confirmation open for retry. Closing the inventory, switching pages or leaving the editable hub clears pending confirmations; delayed or stale confirmations cannot delete a changed slot. Closing the inventory saves progress through the existing native background-save flow. A failed storage write leaves the previous inventory intact.
 
-Equipment details and tooltips show only the English name, rarity and rolled stats. Variants share their native weapon-family icon and do not replace Link's model or story equipment.
+The toolbar at the top of each inventory page provides **Sort by Rarity**, **Sort by Type** and **Move Items**, using the same controller/keyboard, mouse and touch controls as the item cards. Sorting covers all 40 slots, places empty slots last and saves the order. Rarity sorts highest first, then by family/variant; Type groups Sword, Bow, Boomerang, Bombs, Ball and Chain, then Tunic, with variants together and highest rarity first within each variant. Equal items retain their order. To move, enable **Move Items**, select an item, then choose any destination, including on the other page. An occupied destination swaps both items. Selecting the source again cancels that selection; selecting **Move Items** again exits move mode. Sorting, Banish or closing the inventory also clears move mode. Equipped items remain equipped after either operation, including identical duplicates. Failed saves preserve the original order and allow retry.
+
+**Equipment Rarity** improves each independent stat roll, linearly per rank. These are **stat-tier probabilities**, not final item-rarity probabilities:
+
+| Stat tier | Talent rank 0 | Talent rank 5 | Talent rank 10 |
+| --- | ---: | ---: | ---: |
+| 1 | 50% | 35% | 20% |
+| 2 | 25% | 25% | 25% |
+| 3 | 15% | 20% | 25% |
+| 4 | 8% | 14% | 20% |
+| 5 | 2% | 6% | 10% |
+
+Piercing and hop-count stats remain within +1–2: the chance of +2 rises by 2 percentage points per talent rank, from 10% to 30%. Gear type/family probabilities and maximum stats are unchanged. Item rarity continues to follow its rolled stats. These equipment talents are independent of Luck and Legendary Chance, use the talent snapshot taken at run start (also in Endless), and never reroll existing inventory items. Each rank costs one Unlock Point; all talents now cost 119 points in total. Records v13 preserves existing progress and initializes both new talents at rank 0 when loading older saves.
+
+New **Epic weapons receive one random +1 upgrade level** from their family pool. New **Legendary weapons receive one random +2-level bonus or one Legendary effect**. Swords have four Epic choices (25% each) and five Legendary choices (20% each). Other families have three equally likely Epic choices and four Legendary choices (25% each). Both variants of a family share this pool. Tunics and Common/Uncommon/Rare weapons have no additional perk.
+
+| Family | Ordinary bonus pool | Legendary effect option |
+| --- | --- | --- |
+| Sword | Sword Wave, Spin Attack, Multi Strike, Lightning Strike | Fire Edge |
+| Bow | Fire Arrows, Piercing, Multishot | Bomb Arrow |
+| Boomerang | Multishot, Reach, Haste | Hurricane |
+| Bombs | Multishot, Reach, Haste | Fire Bomb |
+| Ball and Chain | Multishot, Reach, Haste | Chain Spin |
+
+The bonus is rolled once, saved with the item, and shown in its banner, inventory details/tooltips and Collection description. It does not alter the item's rarity or base stats. Effective bonus levels are separate from earned run ranks; switching equipment removes only the equipment contribution. Ordinary levels can still be earned while a bonus is equipped. Existing upgrade caps remain in effect: Multishot/Multi Strike 3, Piercing 10 and other ordinary upgrades 30. The original numeric equipment affixes remain separate and retain their existing beyond-cap behavior. Multishot, Reach and Haste equipment bonuses apply only to the matching owned weapon; they never affect other weapons or grant a chest weapon. Multi Strike still requires Dual Wield. Sword Wave, Spin and Lightning Strike bonus levels can activate those sword abilities before they are selected at level-up. Legendary effects are Boolean and never double-stack; an already effective Legendary power is excluded from level-up offers until it is no longer active.
+
+Chain Spin is also a one-rank Legendary level-up after acquiring Ball and Chain. Each launched ball snapshots whether it has Chain Spin. It reaches its normal throw distance, then retracts while making one full turn around Link with a continuously shrinking radius. The existing ball model, chain and damaging collider follow the orbit together; movement, pause and wall checks still apply. Switching equipment affects subsequent launches; a ball already in flight finishes its captured behavior. Learned Chain Spin remains active after equipment changes. Records v13 appends its earned rank for each high-score snapshot without moving older score or talent fields.
+
+Equipment details and tooltips show the English name, rarity, rolled stats and bonus. Variants share their native weapon-family icon and do not replace Link's model or story equipment.
 
 | Weapon | Stat 1 | Stat 2 | Stat 3 |
 | --- | --- | --- | --- |
@@ -711,10 +747,10 @@ Equipment details and tooltips show only the English name, rarity and rolled sta
 
 Tunics retain **+1–5 maximum hearts** and **+1–5 percentage points dodge chance**. The combined maximum remains **20 hearts**. No additional Tunic variants are introduced in this patch.
 
-Weapon and Tunic stats add to existing talent, level-up and item bonuses. Equipment does not consume upgrade levels or prevent earning normal upgrades. Except for the 20-heart maximum and probability's natural 100% bound, equipment bonuses apply beyond ordinary upgrade caps: Sharpshooter Bow permits up to **12 additional pierced targets / 13 total targets per arrow**, and Hurricane Boomerang permits **12 hops / 13 visited targets**. Equipment attack speed remains effective after the normal item cooldown floor, with intervals rounded down to simulation ticks and a minimum of one tick. Range and blast-radius multipliers apply to the already upgraded range/radius; knockback scales the matching family's existing push, preserving boss/elite immunity. A percentage knockback bonus does not create a push when the original push is zero.
+Weapon and Tunic stats add to existing talent, level-up and item bonuses. Equipment does not consume upgrade levels or prevent earning normal upgrades. For the original numeric affixes (not the new bonus levels), except for the 20-heart maximum and probability's natural 100% bound, equipment bonuses apply beyond ordinary upgrade caps: Sharpshooter Bow permits up to **12 additional pierced targets / 13 total targets per arrow**, and Hurricane Boomerang permits **12 hops / 13 visited targets**. Equipment attack speed remains effective after the normal item cooldown floor, with intervals rounded down to simulation ticks and a minimum of one tick. Range and blast-radius multipliers apply to the already upgraded range/radius; knockback scales the matching family's existing push, preserving boss/elite immunity. A percentage knockback bonus does not create a push when the original push is zero.
 
-Sword damage retains the existing scope: melee/dual-wield splash, Spin, Sword Wave, Jump Strike and Lightning Strike. Sword critical chance retains the existing melee family, including Shield Attack and Lightning Strike. Greatsword reach affects melee, dual-wield splash, Spin, Jump Strike and Lightning Strike. Other equipment strengthens only its corresponding run weapon, **after that weapon is acquired from a chest**. Equipping a ranged item does not grant that weapon, occupy a run item slot or disable sword attacks. Hurricane Boomerang does not grant the separate Legendary Hurricane upgrade; those effects can be earned normally. Bomb Arrow blasts retain their existing 50% arrow damage and fixed level-5 bomb radius; equipment bomb radius applies to ordinary bombs. Fire Bomb burn follows the boosted bomb damage.
+Sword damage retains the existing scope: melee/dual-wield splash, Spin, Sword Wave, Jump Strike and Lightning Strike. Sword critical chance retains the existing melee family, including Shield Attack and Lightning Strike. Greatsword reach affects melee, dual-wield splash, Spin, Jump Strike and Lightning Strike. Other equipment strengthens only its corresponding run weapon, **after that weapon is acquired from a chest**. Equipping a ranged item does not grant that weapon, occupy a run item slot or disable sword attacks. The Hurricane Boomerang name alone does not grant Hurricane; the Legendary effect must be rolled as its bonus or earned at level-up. Bomb Arrow blasts retain their existing 50% arrow damage and fixed level-5 bomb radius; equipment bomb radius applies to ordinary bombs. Fire Bomb burn follows the boosted bomb damage.
 
 Each ordinary stat independently rolls tiers **1 / 2 / 3 / 4 / 5** with **50 / 25 / 15 / 8 / 2%** probability. Multiply the tier by the table's step: e.g. range rolls +5/+10/+15/+20/+25%. Additional piercing and hop counts instead roll **+1 with 90% / +2 with 10%**. Rarity is derived from the mean normalized tiers, not raw units: Common below 2, Uncommon from 2, Rare from 3, Epic from 4, Legendary from 4.5. Count affixes normalize +1 to tier 1 and +2 to tier 5. Rarity is descriptive and does not multiply the rolled stats again.
 
-Bonuses are captured at run start and retained in Endless; newly found equipment cannot change an active build. Collection displays the equipped Weapon in the Poe Souls cell and the Tunic in the Letters cell, with the matching family icon, English name, rarity and stats. Story inventory flags and other modes are unchanged. The separate checksummed equipment blob is per save slot. Format v3 uses 172 bytes and accepts the original 92-byte v1/v2 data. Existing items and equipped indices remain on page one, page two starts empty, and the old unequipped sentinel is translated to the new capacity. Original Swords become Hero's Swords with identical rolls; Tunics are unchanged. High-score resets do not delete equipment, and corrupt or unsupported data remains protected from overwrites. Save records/native saving flushes boss rewards like other run progression.
+Bonuses are captured at run start and retained in Endless, with explicit live replacement through the drop banner's Midna action. The inventory chest remains hub-only. Swapping a Tunic preserves earned Heart Containers and capacity hidden by the 20-heart cap; additional capacity does not heal, while lower capacity clamps current health. With no equip banner, Midna keeps the usual Cancel / End Run / Restart Run menu. Collection displays the equipped Weapon in the Poe Souls cell and the Tunic in the Letters cell, with the matching family icon, English name, rarity and stats. Story inventory flags and other modes are unchanged. The separate checksummed equipment blob is per save slot. Format v4 uses 212 bytes and accepts both 172-byte v3 and original 92-byte v1/v2 data. Older items retain their stats and have no extra perk; they are never rerolled on load. When loading v1/v2, existing items and equipped indices remain on page one, page two starts empty, and the old unequipped sentinel is translated to the new capacity. V3 retains both pages. Original Swords become Hero's Swords with identical rolls; Tunics are unchanged. High-score resets do not delete equipment, and corrupt or unsupported data remains protected from overwrites. Save records/native saving flushes boss rewards like other run progression.

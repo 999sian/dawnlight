@@ -58,8 +58,8 @@ bool release_ranged_projectiles(daAlink_c* link, Upgrade weapon) {
         }
     } else {
         std::array<ActorId,4> chosen{};
-        const float range=weapon==Upgrade::Ball ? std::min(s_run.item_range(weapon),s_run.radius(900.f)) : s_run.item_range(weapon);
-        for (unsigned i=0; i<s_run.ranged_shots(); ++i) {
+        const float range=weapon==Upgrade::Ball ? std::min(s_run.item_range(weapon),s_run.ball_range()) : s_run.item_range(weapon);
+        for (unsigned i=0; i<s_run.ranged_shots(weapon); ++i) {
             cXyz destination=target; ActorId id=kNone;
             if (!manual && !nearest_item_target(link,destination,range,std::span<const ActorId>(chosen.data(),i),&id) &&
                 !nearest_item_target(link,destination,range,{},&id)) return false;

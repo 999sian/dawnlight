@@ -288,6 +288,8 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     a.bombArrow=weapon==Upgrade::Bow && s_run.rank(Upgrade::BombArrow);
     if (a.bombArrow && !prepare_bomb_arrow_model(a)) return false;
     a.hurricane=weapon==Upgrade::Boomerang && s_run.rank(Upgrade::Hurricane);
+    a.chainSpin=weapon==Upgrade::Ball&&s_run.rank(Upgrade::ChainSpin);
+    a.chainSpinTick=0;a.chainSpinRadius=a.chainSpinAngle=0;
     a.detonated=false;
     a.aimPending=manual;a.aimSpread=spread;a.manualFlight=manual;
     a.weapon = index; a.age = 0; a.life = 100;
@@ -314,14 +316,14 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
     if (weapon == Upgrade::Boomerang) {
         a.hops = s_run.boomerang_hops();
         // Keep enough flight time for the longer first leg, every hop and return.
-        a.life = unsigned(std::ceil(s_run.radius(float(120 + 40 * a.hops))));
+        a.life = unsigned(std::ceil(s_run.radius(float(120 + 40 * a.hops),weapon)));
         if (initialTarget != kNone) {
             a.target=initialTarget; a.visited[a.visitedCount++]=initialTarget;
         } else if (!manual && !next_boom_target(a, link, s_run.item_range(weapon))) return false;
     }
     if (weapon == Upgrade::Ball) {
         // Reach must not expire the projectile before its outbound/return legs.
-        a.life=std::max(a.life,unsigned(std::ceil(a.limit/40.f+a.limit/55.f))+30);
+        a.life=std::max(a.life,unsigned(std::ceil(a.limit/40.f+a.limit/55.f))+30)+(a.chainSpin?60:0);
     }
     if (weapon == Upgrade::Bow) {
         // Reach extends acquisition and flight, never the arrow's hit radius.
@@ -329,7 +331,7 @@ bool launch_item(daAlink_c* link, Upgrade weapon, cXyz target, float spread = 0,
         if(manual)a.limit=s_run.item_range(weapon);
         a.life = std::max(a.life, unsigned(std::ceil((manual?a.limit:distance) / 70.0f)) + 1);
     }
-    a.radius = weapon == Upgrade::Bow ? 35.0f : s_run.radius(weapon == Upgrade::Boomerang ? 63 : 55 + 8 * rank);
+    a.radius = weapon == Upgrade::Bow ? 35.0f : s_run.radius(weapon == Upgrade::Boomerang ? 63 : 55 + 8 * rank,weapon);
     if (a.hurricane) a.radius*=2.f;
     if (weapon == Upgrade::Bombs) {
         // Discrete ballistic arc reaches the target in 30 simulation ticks.
@@ -406,14 +408,30 @@ void update_item_attack(Attack& a, daAlink_c* link) {
                 }
             }
         }
-        if (weapon == Upgrade::Ball &&
-            a.travel >= a.limit && !a.returning) {
-            a.returning = true; a.collider.ResetAtHit();
-            a.ballVictimCount = 0;
-            a.status.Init(120, 0xff, link); // Fresh pass: the last outbound victim can be hit again.
+        if (weapon==Upgrade::Ball && a.travel>=a.limit && !a.returning) {
+            a.returning=true;a.collider.ResetAtHit();a.ballVictimCount=0;
+            a.status.Init(120,0xff,link);
+            if(a.chainSpin) {
+                const auto delta=a.position-link->current.pos;
+                a.chainSpinRadius=std::sqrt(delta.x*delta.x+delta.z*delta.z);
+                a.chainSpinAngle=std::atan2(delta.x,delta.z);
+            }
         }
+        const bool spinning=weapon==Upgrade::Ball && a.returning && a.chainSpin;
         if (weapon==Upgrade::Boomerang && a.hurricane) a.collider.ResetAtHit();
-        if (a.returning) {
+        if (spinning) {
+            if(a.chainSpinTick>=60) { stop_attack(a); return; }
+            // Retract throughout one full revolution, following Link's current
+            // X/Z. Model, chain and collider share this inward spiral.
+            const unsigned remaining=60-a.chainSpinTick;
+            const float progress=float(++a.chainSpinTick)/60.f;
+            const float angle=a.chainSpinAngle+6.28318530718f*progress;
+            const float radius=a.chainSpinRadius*(1.f-progress);
+            const float y=a.manualFlight?a.position.y+(link->current.pos.y+70.f-a.position.y)/float(remaining):a.position.y;
+            const cXyz next(link->current.pos.x+std::sin(angle)*radius,
+                y,link->current.pos.z+std::cos(angle)*radius);
+            a.velocity=next-a.position;
+        } else if (a.returning) {
             cXyz delta = link->current.pos + cXyz(0, 70, 0) - a.position;
             if (weapon == Upgrade::Ball && !a.manualFlight) delta.y = 0; // Keep the launch height on both passes.
             const float distance = delta.abs();
@@ -426,7 +444,7 @@ void update_item_attack(Attack& a, daAlink_c* link) {
             if (weapon == Upgrade::Bombs) explode_item(a, link);
             else { stop_attack(a); return; } // Cannot hit through walls, even on return.
         } else {
-            a.position = next; a.travel += a.velocity.abs();
+            a.position = next; if(!spinning)a.travel += a.velocity.abs();
             if (weapon == Upgrade::Bombs) {
                 a.velocity.y -= 1.4f;
                 if (a.age >= 30) explode_item(a, link);
@@ -556,7 +574,7 @@ void draw_loot() {
         const auto yaw = weapon == Upgrade::Boomerang ? s16(a.age * 7000) : cM_atan2s(a.velocity.x, a.velocity.z);
         const auto pitch = weapon == Upgrade::Bow ? s16(-cM_atan2s(a.velocity.y, a.velocity.absXZ())) : s16(0);
         draw_loot_model(a.bombArrow ? a.bombModel : a.model, a.position, yaw, pitch,
-            weapon == Upgrade::Bow ? 1 : s_run.radius(weapon == Upgrade::Boomerang ? (a.hurricane ? 2.f : 1.f) : 1 + 0.08f * (s_run.rank(weapon) - 1)));
+            weapon == Upgrade::Bow ? 1 : s_run.radius(weapon == Upgrade::Boomerang ? (a.hurricane ? 2.f : 1.f) : 1 + 0.08f * (s_run.rank(weapon) - 1),weapon));
         if (weapon == Upgrade::Boomerang && s_loot.windAnim) {
             auto* model = a.wind;
             auto* data = model->getModelData(); auto* root = data->getJointNodePointer(0);

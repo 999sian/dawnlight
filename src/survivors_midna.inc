@@ -69,12 +69,15 @@ HookAction before_midna_order(ModContext*, void*, void* result, void*) {
 HookAction before_midna_call(ModContext*, void* args, void*, void*) {
     auto* link=mods::arg<daAlink_c*>(args,0);
     auto* midna=daPy_py_c::getMidnaActor();
-    if (!link || !midna || !s_midnaStart || fopAcM_GetID(link)!=s_player ||
-        s_run.phase!=Phase::Running || s_victory || !playable() || link->checkDeadHP() ||
-        !link->mLinkAcch.ChkGroundHit() || !link->checkMidnaRide()) return HOOK_CONTINUE;
+    if (!link || fopAcM_GetID(link)!=s_player ||
+        s_run.phase!=Phase::Running || !playable() || link->checkDeadHP()) return HOOK_CONTINUE;
+    const bool equip=gear_notice_equip_available();
+    if(!equip && (!midna || !s_midnaStart || s_victory ||
+        !link->mLinkAcch.ChkGroundHit() || !link->checkMidnaRide()))return HOOK_CONTINUE;
     dMeter2Info_onUseButton(METER2_USEBUTTON_Z);
     // Preserve custom controller bindings and Dawnlight's separate touch button.
     if (!link->midnaTalkTrigger()) return HOOK_CONTINUE;
+    if(equip) {equip_gear_notice();return HOOK_CONTINUE;}
     clear_attacks();
     s_swordAction=SwordAction::None; s_wavePending=false; s_comboStep=s_comboTimeout=0;
     for (auto& collider : link->mAtCps) { collider.OffAtSetBit(); collider.ResetAtHit(); }

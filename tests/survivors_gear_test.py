@@ -6,8 +6,58 @@ source=r'''
 #include "survivors_rules.hpp"
 #include <cassert>
 #include <algorithm>
+#include <tuple>
 using namespace dawnlight::survivors;
 int main() {
+ // Every talent rank shifts cumulative stat odds upward, within native caps.
+ for(unsigned rank=0;rank<=10;++rank) {
+  Talents talents;talents.ranks[unsigned(Talent::EquipmentDropRate)]=rank;
+  assert(talents.equipment_drop_basis_points()==2000+500*rank);
+  unsigned weights[5]{};
+  for(unsigned roll=0;roll<1000;++roll) {
+   const auto stat=GearInventory::quality_stat(roll,rank);++weights[stat-1];
+   if(rank)assert(stat>=GearInventory::quality_stat(roll,rank-1));
+   else assert(stat==GearInventory::stat(roll/10));
+  }
+  assert(weights[0]==500-30*rank&&weights[1]==250&&weights[2]==150+10*rank&&
+         weights[3]==80+12*rank&&weights[4]==20+8*rank);
+  for(unsigned variant=0;variant<10;++variant)for(unsigned roll=0;roll<100;++roll) {
+   unsigned calls=0;auto item=GearInventory::roll([&](unsigned n){
+    unsigned value=calls++==0?0:calls==2?variant:calls>5?0:roll;assert(value<n);return value;
+   },rank);
+   assert(item.valid());
+   if(item.kind==GearKind::SharpshooterBow)assert(item.third==(roll<90-2*rank?1:2));
+   if(item.kind==GearKind::HurricaneBoomerang)assert(item.second==(roll<90-2*rank?1:2));
+  }
+ }
+ // v12 preserves score offsets and map clears, appending the new talent ranks.
+ Records perks;perks.total_xp=meta_threshold(119);perks.cleared_maps=31;
+ for(unsigned i=0;i<unsigned(Talent::Count);++i)while(perks.talents.can_buy(Talent(i)))assert(perks.buy(Talent(i)));
+ assert(perks.talents.spent()==119&&!perks.available_points());
+ Run scored;scored.start(42);scored.end(true);perks.finish(scored,2);
+ auto encoded=perks.encode();assert(encoded[4]==13);
+ Records read;assert(read.decode(encoded)&&read.encode()==encoded);
+ for(auto t:{Talent::EquipmentDropRate,Talent::EquipmentRarity}) {
+  auto copy=read;assert(copy.talents.refund(t)&&copy.available_points()==read.available_points()+1);
+ }
+ // v11 has no equipment ranks; clear-map bits and first score words are not ranks.
+ auto v12=encoded;v12[4]=12;assert(read.decode(std::span(v12.data(),Records::v12_byte_count)));
+ assert(!read.ranked[2].run.chain_spin&&read.talents.rank(Talent::EquipmentRarity)==10);
+ auto legacyPerks=encoded;legacyPerks[4]=11;
+ assert(read.decode(std::span(legacyPerks.data(),Records::v11_byte_count)));
+ assert(!read.talents.rank(Talent::EquipmentDropRate)&&!read.talents.rank(Talent::EquipmentRarity));
+ assert(read.cleared_maps==31&&read.ranked[2].encode()==perks.ranked[2].encode());
+ assert(read.total_xp==perks.total_xp&&read.available_points()==perks.available_points()+20);
+ assert(!read.decode(legacyPerks)); // Version/length mismatch.
+ const auto intact=read.encode();
+ for(unsigned offset:{Records::v11_byte_count,Records::v11_byte_count+4}) {
+  auto bad=encoded;bad[offset]=11;assert(!read.decode(bad)&&read.encode()==intact);
+ }
+ auto unfunded=encoded;for(unsigned i=48;i<56;++i)unfunded[i]=0;
+ assert(!read.decode(unfunded)&&read.encode()==intact);
+ Talents snapshot;snapshot.ranks[unsigned(Talent::EquipmentDropRate)]=10;
+ Run active;active.start(42,{},snapshot);snapshot={};
+ assert(active.talents.equipment_drop_basis_points()==7000);
  GearInventory gear;
  assert(gear.equipped(GearSlot::Weapon)==GearItem{});
  unsigned counts[5]{};for(unsigned i=0;i<100;++i)++counts[GearInventory::stat(i)-1];
@@ -15,7 +65,7 @@ int main() {
  unsigned rolls[]{0,0,99,75,50};unsigned pos=0;
  auto sword=GearInventory::roll([&](unsigned n){assert(rolls[pos]<n);return rolls[pos++];});
  assert(sword.kind==GearKind::Sword&&sword.first==5&&sword.second==3&&sword.third==2&&pos==5);
- unsigned tunicRolls[]{1,0,99};pos=0;
+ unsigned tunicRolls[]{4,0,99};pos=0;
  auto tunic=GearInventory::roll([&](unsigned n){assert(tunicRolls[pos]<n);return tunicRolls[pos++];});
  assert(tunic.kind==GearKind::Tunic&&tunic.first==1&&tunic.second==5&&tunic.third==0&&pos==3);
  for(auto kind:{GearKind::Sword,GearKind::Tunic}) {
@@ -71,11 +121,12 @@ int main() {
  GearInventory migrated,legacyExpected;
  std::copy_n(loaded.items.begin(),20,legacyExpected.items.begin());legacyExpected.weapon=loaded.weapon;legacyExpected.tunic=loaded.tunic;
  std::array<uint8_t,GearInventory::legacy_byte_count> legacy{};
- std::copy_n(bytes.begin(),legacy.size()-4,legacy.begin());
+ std::copy_n(bytes.begin(),8,legacy.begin());
+ for(unsigned i=0;i<20;++i)for(unsigned j=0;j<4;++j)legacy[8+4*i+j]=bytes[8+5*i+j];
  for(uint8_t version:{1,2}) {
   legacy[4]=version;checksum(legacy);assert(migrated.decode(legacy)&&migrated==legacyExpected);
   for(unsigned i=20;i<40;++i)assert(migrated.items[i]==GearItem{});
-  assert(migrated.encode()[4]==3);
+  assert(migrated.encode()[4]==4);
   auto unequipped=legacy;unequipped[5]=unequipped[6]=20;checksum(unequipped);
   assert(migrated.decode(unequipped)&&migrated.weapon==40&&migrated.tunic==40);
  }
@@ -91,7 +142,7 @@ int main() {
  assert(migrated.decode(bytes)&&migrated==loaded);
  auto invalid=bytes;invalid[8]=uint8_t(GearKind::Count);checksum(invalid);assert(!migrated.decode(invalid)&&migrated==loaded);
  invalid=bytes;invalid[5]=1;checksum(invalid);assert(!migrated.decode(invalid));
- invalid=bytes;invalid[4]=4;checksum(invalid);assert(!migrated.decode(invalid));
+ invalid=bytes;invalid[4]=5;checksum(invalid);assert(!migrated.decode(invalid));
  invalid=bytes;invalid[4]=2;checksum(invalid);assert(!migrated.decode(invalid)); // Version/size mismatch.
  invalid=bytes;invalid[8]=uint8_t(GearKind::SharpshooterBow);invalid[11]=3;checksum(invalid);assert(!migrated.decode(invalid));
  for(unsigned n=0;n<GearInventory::legacy_byte_count;++n)assert(!migrated.decode(std::span(bytes.data(),n)));
@@ -103,11 +154,15 @@ int main() {
  assert(pages.unequip(20)&&pages.tunic==40&&pages.items[20]==tunic);
  // Roll every variant deterministically; count affixes have exactly 90/10 odds.
  for(unsigned variant=0;variant<10;++variant)for(unsigned roll=0;roll<100;++roll) {
-  unsigned calls=0;auto item=GearInventory::roll([&](unsigned n){unsigned value=calls++==0?0:calls==2?variant:roll;assert(value<n);return value;});
+  unsigned calls=0;auto item=GearInventory::roll([&](unsigned n){unsigned value=calls++==0?0:calls==2?variant:calls>5?0:roll;assert(value<n);return value;});
   assert(item.valid()&&item.is_weapon());
   if(item.kind==GearKind::SharpshooterBow)assert(item.third==(roll<90?1:2));
   if(item.kind==GearKind::HurricaneBoomerang)assert(item.second==(roll<90?1:2));
  }
+ // v3 keeps both pages and equipment but never invents a random perk on load.
+ std::array<uint8_t,GearInventory::v3_byte_count> v3{};std::copy_n(bytes.begin(),8,v3.begin());v3[4]=3;
+ for(unsigned i=0;i<40;++i)for(unsigned j=0;j<4;++j)v3[8+4*i+j]=bytes[8+5*i+j];
+ checksum(v3);assert(migrated.decode(v3)&&migrated==loaded);
  Run unarmed;unarmed.start(123);
  const auto make=[&](GearKind kind,unsigned value=5){auto r=unarmed;r.gear_weapon={kind,uint8_t(value),uint8_t(value),uint8_t(value)};if(kind==GearKind::SharpshooterBow)r.gear_weapon.third=value==5?2:1;if(kind==GearKind::HurricaneBoomerang)r.gear_weapon.second=value==5?2:1;assert(r.gear_weapon.valid());return r;};
  for(auto kind:{GearKind::HerosBow,GearKind::SharpshooterBow,GearKind::StormBoomerang,GearKind::HurricaneBoomerang,GearKind::BombBag,GearKind::SiegeBombs,GearKind::IronBall,GearKind::BreakerBall}) {
@@ -182,6 +237,92 @@ int main() {
  for(auto kind:{GearKind::Sword,GearKind::HerosBow,GearKind::StormBoomerang,GearKind::BombBag,GearKind::IronBall}) {
   auto index=shared.add({kind,1,1,1});assert(shared.equip(index)&&shared.weapon==index&&shared.tunic==0);
  }
+
+ // Debug forcing supports every family/count affix and retains every Legendary perk option.
+ for(unsigned variant=0;variant<11;++variant)for(unsigned pick=0;pick<(variant<2?5u:variant<10?4u:1u);++pick) {
+  unsigned calls=0;auto item=GearInventory::roll([&](unsigned bound){
+   const auto n=calls++;const unsigned value=n==0?(variant==10?4:0):n==1?variant:pick;
+   assert(value<bound);return value;
+  },0,true);
+  assert(item.valid()&&item.rarity()==4);
+  const auto stats=item.stats();
+  for(unsigned i=0;i<stats.size();++i){const auto affix=item.definition().affixes[i];assert(stats[i]==(affix.stat==GearStat::None?0:affix.count?2:5));}
+  if(item.is_weapon())assert(item.perk==gear_perk_pool(item.family())[pick]&&calls==3);
+  else assert(item.perk==GearPerk::None&&calls==1);
+ }
+ // Exactly one family-compatible perk on new Epic/Legendary weapons; none on tunics/lower tiers.
+ for(unsigned variant=0;variant<10;++variant)for(unsigned quality:{0u,94u,99u})for(unsigned pick=0;pick<(quality==99?4u:3u)+(variant<2?1u:0u);++pick) {
+  unsigned calls=0;auto item=GearInventory::roll([&](unsigned bound){
+   const auto n=calls++;const unsigned value=n==0?0:n==1?variant:n<5?quality:pick;assert(value<bound);if(n==5)assert(bound==(quality==99?4u:3u)+(variant<2?1u:0u));return value;
+  });
+  assert(item.valid());
+  if(item.rarity()<3)assert(item.perk==GearPerk::None&&calls==5);
+  else {assert(item.perk==gear_perk_pool(item.family())[pick]);assert(item.perk_levels()==(pick==(variant<2?4u:3u)?1:item.rarity()==4?2:1));}
+  GearInventory inv;inv.add(item);inv.equip(0);GearInventory copy;assert(copy.decode(inv.encode())&&copy==inv);
+ }
+ for(auto bad:std::array{GearItem{GearKind::Sword,1,1,1,GearPerk::Wave},GearItem{GearKind::Sword,4,4,4,GearPerk::FireEdge},
+     GearItem{GearKind::Tunic,5,5,0,GearPerk::Haste},GearItem{GearKind::IronBall,5,5,5,GearPerk::BombArrow}})assert(!bad.valid());
+ // Perks are read separately from earned ranks, never mutate a build, never unlock chest weapons.
+ for(auto pair:std::array{std::pair{GearKind::HerosBow,Upgrade::Bow},std::pair{GearKind::StormBoomerang,Upgrade::Boomerang},
+     std::pair{GearKind::BombBag,Upgrade::Bombs},std::pair{GearKind::IronBall,Upgrade::Ball}}) {
+  Run r;r.start(42);r.gear_weapon={pair.first,5,5,5,GearPerk::Multishot};
+  assert(!r.base_rank(pair.second)&&r.extra_projectiles(pair.second)==0);
+  r.ranks[unsigned(pair.second)]=1;assert(r.extra_projectiles(pair.second)==2&&r.extra_projectiles()==0);
+  for(auto other:{Upgrade::Bow,Upgrade::Boomerang,Upgrade::Bombs,Upgrade::Ball})if(other!=pair.second)assert(!r.extra_projectiles(other));
+  r.ranks[unsigned(Upgrade::Multishot)]=2;assert(r.extra_projectiles(pair.second)==3); // Hard cap, no array overflow.
+  r.gear_weapon={};assert(r.extra_projectiles(pair.second)==2);
+ }
+ for(auto pair:std::array{std::pair{GearKind::StormBoomerang,Upgrade::Boomerang},std::pair{GearKind::BombBag,Upgrade::Bombs},std::pair{GearKind::IronBall,Upgrade::Ball}}) {
+  Run r;r.start(42);r.ranks[unsigned(pair.second)]=1;r.gear_weapon={pair.first,5,5,5};auto base=r;
+  r.gear_weapon.perk=GearPerk::Reach;
+  assert(r.radius(100,pair.second)>base.radius(100,pair.second)&&r.radius(100)==base.radius(100));
+  if(pair.second==Upgrade::Bombs)assert(r.bomb_radius()>base.bomb_radius());
+  if(pair.second==Upgrade::Ball)assert(r.ball_range()>base.ball_range());
+  if(pair.second==Upgrade::Boomerang)assert(r.boomerang_hop_range()>base.boomerang_hop_range());
+  r.gear_weapon.perk=GearPerk::Haste;assert(r.item_cooldown(pair.second)<base.item_cooldown(pair.second)&&r.cooldown(120)==base.cooldown(120));
+ }
+ Run swordPerk;swordPerk.start(42);swordPerk.gear_weapon={GearKind::Sword,4,4,4,GearPerk::Wave};
+ assert(swordPerk.rank(Upgrade::Wave)==1&&swordPerk.base_rank(Upgrade::Wave)==0);
+ swordPerk.phase=Phase::Upgrade;swordPerk.offers[0]=Upgrade::Wave;swordPerk.offer_rarities[0]=Rarity::Common;
+ assert(swordPerk.choose(0)&&swordPerk.base_rank(Upgrade::Wave)==1&&swordPerk.rank(Upgrade::Wave)==2);
+ swordPerk.equip_drop({GearKind::Sword,5,5,5,GearPerk::Spin});assert(swordPerk.rank(Upgrade::Wave)==1&&swordPerk.rank(Upgrade::Spin)==2);
+ swordPerk.gear_weapon.perk=GearPerk::MultiStrike;assert(!swordPerk.multi_strikes());swordPerk.dual_wield=1;assert(swordPerk.multi_strikes()==2);
+ swordPerk.ranks[unsigned(Upgrade::MultiStrike)]=2;assert(swordPerk.multi_strikes()==3);
+ // Lightning is an ordinary sword perk; its appended ID preserves every existing saved perk.
+ static_assert(unsigned(GearPerk::FireEdge)==9&&unsigned(GearPerk::ChainSpin)==13&&unsigned(GearPerk::Lightning)==14);
+ for(auto kind:{GearKind::Sword,GearKind::Greatsword})for(uint8_t tier:{4,5}) {
+  Run r;r.start(42);const unsigned bonus=tier==5?2:1;
+  r.equip_drop({kind,tier,tier,tier,GearPerk::Lightning});
+  assert(r.gear_weapon.valid()&&r.gear_weapon.perk_levels()==bonus);
+  assert(r.gear_weapon.perk_description()=="Bonus: +"+std::to_string(bonus)+" Lightning Strike");
+  assert(r.rank(Upgrade::Lightning)==bonus&&!r.base_rank(Upgrade::Lightning)&&r.lightning_hops()>0&&r.lightning_power()>0);
+  r.equip_drop({GearKind::HerosBow,4,4,4});assert(!r.rank(Upgrade::Lightning)&&!r.lightning_hops());
+  r.equip_drop({kind,tier,tier,tier,GearPerk::Lightning});
+  r.phase=Phase::Upgrade;r.offers[0]=Upgrade::Lightning;r.offer_rarities[0]=Rarity::Common;
+  assert(r.choose(0)&&r.base_rank(Upgrade::Lightning)==1&&r.rank(Upgrade::Lightning)==1+bonus);
+  r.gear_weapon={};assert(r.rank(Upgrade::Lightning)==1&&r.lightning_hops()>0);
+  r.equip_drop({kind,tier,tier,tier,GearPerk::Lightning});r.ranks[unsigned(Upgrade::Lightning)]=30;
+  assert(r.rank(Upgrade::Lightning)==30&&r.base_rank(Upgrade::Lightning)==30);
+ }
+ for(auto bad:std::array{GearItem{GearKind::Sword,3,3,3,GearPerk::Lightning},
+     GearItem{GearKind::HerosBow,5,5,5,GearPerk::Lightning},GearItem{GearKind::Tunic,5,5,0,GearPerk::Lightning}})assert(!bad.valid());
+ // Legendary effects are Boolean; acquiring the run version and later changing gear retains it.
+ for(auto tuple:std::array{std::tuple{GearKind::Sword,GearPerk::FireEdge,Upgrade::FireEdge,Upgrade::Count},
+     std::tuple{GearKind::HerosBow,GearPerk::BombArrow,Upgrade::BombArrow,Upgrade::Bow},
+     std::tuple{GearKind::StormBoomerang,GearPerk::Hurricane,Upgrade::Hurricane,Upgrade::Boomerang},
+     std::tuple{GearKind::BombBag,GearPerk::FireBomb,Upgrade::FireBomb,Upgrade::Bombs},
+     std::tuple{GearKind::IronBall,GearPerk::ChainSpin,Upgrade::ChainSpin,Upgrade::Ball}}) {
+  const auto [kind,perk,upgrade,weapon]=tuple;Run r;r.start(42);if(weapon!=Upgrade::Count)r.ranks[unsigned(weapon)]=1;
+  r.phase=Phase::Upgrade;r.offers[0]=upgrade;r.offer_rarities[0]=Rarity::Legendary;assert(r.choose(0));
+  r.gear_weapon={kind,5,5,5,perk};assert(r.rank(upgrade)==1);r.gear_weapon={};assert(r.rank(upgrade)==1);
+ }
+ Run chain;chain.start(42);assert(!chain.eligible(Upgrade::ChainSpin));chain.ranks[unsigned(Upgrade::Ball)]=1;
+ assert(chain.eligible(Upgrade::ChainSpin)&&upgrade_min_rarity(Upgrade::ChainSpin)==Rarity::Legendary);
+ chain.phase=Phase::Upgrade;chain.offers[0]=Upgrade::ChainSpin;chain.offer_rarities[0]=Rarity::Epic;assert(!chain.choose(0));
+ chain.offer_rarities[0]=Rarity::Legendary;assert(chain.choose(0)&&chain.chain_spin==1&&!chain.eligible(Upgrade::ChainSpin));
+ chain.end(true);Records spinRecord;spinRecord.finish(chain,0);auto spinBytes=spinRecord.encode();Records spinRead;
+ assert(spinRead.decode(spinBytes)&&spinRead.ranked[0].run.chain_spin==1);
+ spinBytes[4*Records::v12_word_count]=2;assert(!spinRead.decode(spinBytes));
 
 }
 '''

@@ -1,6 +1,8 @@
 constexpr const char* kGearStyle=R"(
 window { width: 96%; max-width: 1150dp; }
 window content pane { padding: 12dp; font-size: 16dp; }
+ui-row.gear-tools { flex-wrap: wrap; gap: 6dp; margin-bottom: 8dp; }
+ui-row.gear-tools button { flex: 1 1 auto; }
 ui-row.gear-row { gap: 8dp; margin-bottom: 8dp; align-items: stretch; }
 ui-row.gear-cell { display: block; position: relative; flex: 1 1 0; min-width: 0; height: 112dp; }
 .gear-copy { pointer-events: none; text-align: center; padding: 6dp; font-size: 12dp; }
@@ -19,6 +21,10 @@ std::array<unsigned,GearInventory::capacity> s_gearSlots{};
 std::array<UiElementHandle,GearInventory::capacity> s_gearCards{},s_gearButtons{};
 UiElementHandle s_gearDetails=0,s_gearHint=0;
 bool s_gearBanish=false;
+bool s_gearMove=false;
+unsigned s_gearMoveSlot=GearInventory::none;
+GearItem s_gearMoveItem{};
+void clear_gear_move() {s_gearMoveSlot=GearInventory::none;s_gearMoveItem={};}
 std::array<unsigned,GearInventory::page_count> s_gearPages{0,1};
 UiDialogHandle s_gearDeleteDialog=0;
 unsigned s_gearDeleteSlot=GearInventory::none;
@@ -44,6 +50,7 @@ std::string gear_description(GearItem item) {
     std::string text=std::string(rarity_names[item.rarity()])+" "+gear_name(item);
     for(const auto& affix:item.definition().affixes)if(affix.stat!=GearStat::None)
         text+="\n+"+number(item.bonus(affix.stat))+(affix.percent?"% ":" ")+affix.label;
+    if(item.perk!=GearPerk::None)text+="\n"+item.perk_description();
     return text;
 }
 std::string gear_rml(GearItem item) {
@@ -62,13 +69,44 @@ void refresh_gear_ui() {
         std::string rml="<div class=\"gear-copy\">";
         if(item.kind!=GearKind::Empty)rml+="<img src=\"item://item/"+std::string(gear_icon(item))+"\"/><span style=\"color: "+rarity_colors[item.rarity()]+";\">"+gear_name(item)+"</span>";
         else rml+="<br/>Empty";
-        rml+="<br/>"+std::string(equipped?"Equipped":"")+"</div>";
+        rml+="<br/>"+std::string(s_gearMove&&s_gearMoveSlot==i?"Moving":equipped?"Equipped":"")+"</div>";
         if(s_gearCards[i])svc_ui->elem_set_rml(mod_ctx,s_gearCards[i],rml.c_str());
         if(s_gearButtons[i])svc_ui->control_set_tooltip(mod_ctx,s_gearButtons[i],gear_description(item).c_str());
     }
-    if(s_gearHint)svc_ui->elem_set_rml(mod_ctx,s_gearHint,s_gearBanish?
+    std::string hint=s_gearMove?(s_gearMoveSlot==GearInventory::none?
+        "Move: select an item, then a destination slot on either page. Select Move Items again to cancel.":
+        "Moving "+treasure_rml_escape(gear_name(s_gearMoveItem))+". Select a destination on either page (occupied slots swap), or the same slot to cancel."):s_gearBanish?
         "<span style=\"color: #ff7373;\">Banish: select an item to delete.</span>":
-        "Select to equip / unequip. Banish to delete.");
+        "Select to equip / unequip. Move Items to rearrange. Banish to delete.";
+    if(s_gearHint)svc_ui->elem_set_rml(mod_ctx,s_gearHint,hint.c_str());
+}
+void sort_gear(bool byType) {
+    if(!s_gearWindow||s_gearDeleteDialog||!gear_editable())return;
+    if(!reorder_gear(s_gear.sorted_order(byType))) {
+        svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Equipment could not be saved. Order unchanged. Select Sort to retry.");return;
+    }
+    clear_gear_move();s_gearMove=s_gearBanish=false;
+    svc_ui->elem_set_rml(mod_ctx,s_gearDetails,byType?"Both pages sorted by type, then rarity (highest first).":"Both pages sorted by rarity (highest first), then type.");
+    refresh_gear_ui();
+}
+void move_gear(unsigned i) {
+    const auto item=s_gear.items[i];
+    if(s_gearMoveSlot==GearInventory::none) {
+        if(item.kind==GearKind::Empty)return;
+        s_gearMoveSlot=i;s_gearMoveItem=item;
+    } else if(i==s_gearMoveSlot)clear_gear_move();
+    else {
+        if(s_gearMoveSlot>=GearInventory::capacity||s_gear.items[s_gearMoveSlot]!=s_gearMoveItem) {
+            clear_gear_move();refresh_gear_ui();return;
+        }
+        auto order=GearInventory::slot_order();std::swap(order[i],order[s_gearMoveSlot]);
+        if(!reorder_gear(order)) {
+            svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Equipment could not be saved. Nothing moved. Select the destination to retry.");return;
+        }
+        clear_gear_move();
+        svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Items moved. Select another item to move, or select Move Items to finish.");
+    }
+    refresh_gear_ui();
 }
 bool gear_delete_valid() {
     return s_gearWindow && gear_editable() && s_gearDeleteSlot<GearInventory::capacity &&
@@ -108,6 +146,7 @@ void request_delete_gear(unsigned i) {
 void select_gear(ModContext*,void* data) {
     if(!s_gearWindow || s_gearDeleteDialog || !gear_editable())return;
     const auto i=*static_cast<unsigned*>(data);if(i>=GearInventory::capacity)return;
+    if(s_gearMove){move_gear(i);return;}
     const auto item=s_gear.items[i];
     if(item.kind==GearKind::Empty){svc_ui->elem_set_rml(mod_ctx,s_gearDetails,"Empty slot");return;}
     if(s_gearBanish){request_delete_gear(i);return;}
@@ -128,6 +167,26 @@ ModResult build_gear_window(ModContext*,UiWindowHandle,UiElementHandle left,UiEl
     s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;
     auto result=svc_ui->pane_add_rml(mod_ctx,right,"",&s_gearDetails);
     if(result!=MOD_OK)return result;
+    // Host controls share controller/keyboard navigation and mouse/touch activation.
+    UiRowDesc toolsDesc=UI_ROW_DESC_INIT;UiElementHandle tools=0;
+    result=svc_ui->pane_add_row(mod_ctx,left,&toolsDesc,&tools);if(result!=MOD_OK)return result;
+    svc_ui->elem_set_class(mod_ctx,tools,"gear-tools",true);
+    for(unsigned action=0;action<3;++action) {
+        UiControlDesc control=UI_CONTROL_DESC_INIT;
+        control.is_disabled=[](ModContext*,void*){return !gear_editable()||s_gearDeleteDialog;};
+        if(action<2) {
+            control.label=action==0?"Sort by Rarity":"Sort by Type";
+            control.on_pressed=action==0?+[](ModContext*,void*){sort_gear(false);}: +[](ModContext*,void*){sort_gear(true);};
+        } else {
+            control.label="Move Items";
+            control.is_selected=[](ModContext*,void*){return s_gearMove;};
+            control.on_pressed=[](ModContext*,void*){
+                if(!s_gearWindow||!gear_editable()||s_gearDeleteDialog)return;
+                s_gearMove=!s_gearMove;s_gearBanish=false;clear_gear_move();refresh_gear_ui();
+            };
+        }
+        result=svc_ui->pane_add_control(mod_ctx,tools,&control,nullptr);if(result!=MOD_OK)return result;
+    }
     result=svc_ui->pane_add_rml(mod_ctx,left,"",&s_gearHint);if(result!=MOD_OK)return result;
     for(unsigned row=0;row<4;++row) {
         UiRowDesc desc=UI_ROW_DESC_INIT;UiElementHandle group=0;
@@ -147,7 +206,7 @@ ModResult build_gear_window(ModContext*,UiWindowHandle,UiElementHandle left,UiEl
         }
     }
     UiControlDesc banish=UI_CONTROL_DESC_INIT;banish.label="\uE14B";banish.tooltip="Banish: delete an item";
-    banish.on_pressed=[](ModContext*,void*){if(gear_editable()&&!s_gearDeleteDialog){s_gearBanish=!s_gearBanish;refresh_gear_ui();}};
+    banish.on_pressed=[](ModContext*,void*){if(gear_editable()&&!s_gearDeleteDialog){s_gearBanish=!s_gearBanish;s_gearMove=false;clear_gear_move();refresh_gear_ui();}};
     banish.is_selected=[](ModContext*,void*){return s_gearBanish;};
     UiElementHandle handle=0;result=svc_ui->pane_add_control(mod_ctx,left,&banish,&handle);if(result!=MOD_OK)return result;
     svc_ui->elem_set_class(mod_ctx,handle,"gear-banish",true);
@@ -157,11 +216,11 @@ void close_gear_window() {
     close_gear_delete_dialog();
     const auto window=s_gearWindow;s_gearWindow=0;
     if(window)svc_ui->window_close(mod_ctx,window);
-    s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;s_gearBanish=false;
+    s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;s_gearBanish=s_gearMove=false;clear_gear_move();
 }
 void open_gear_window() {
     if(s_gearWindow || !gear_editable() || ui_visible())return;
-    s_gearBanish=false;
+    s_gearBanish=s_gearMove=false;clear_gear_move();
     std::array<UiTabDesc,GearInventory::page_count> tabs{{UI_TAB_DESC_INIT,UI_TAB_DESC_INIT}};
     tabs[0].title="Equipment 1 (20 slots)";tabs[1].title="Equipment 2 (20 slots)";
     for(unsigned i=0;i<tabs.size();++i){tabs[i].build=build_gear_window;tabs[i].user_data=&s_gearPages[i];}
@@ -169,7 +228,7 @@ void open_gear_window() {
     desc.on_closed=[](ModContext*,UiWindowHandle handle,void*) {
         if(s_gearWindow!=handle)return;
         close_gear_delete_dialog();
-        s_gearWindow=0;s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;s_gearBanish=false;
+        s_gearWindow=0;s_gearCards={};s_gearButtons={};s_gearDetails=s_gearHint=0;s_gearBanish=s_gearMove=false;clear_gear_move();
         if(s_active&&s_gameStarted&&s_hub&&s_run.phase==Phase::Ready)s_hubSaveRequested=true;
     };
     if(svc_ui->window_push(mod_ctx,&desc,&s_gearWindow)!=MOD_OK)s_gearWindow=0;

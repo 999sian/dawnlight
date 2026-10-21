@@ -1506,9 +1506,9 @@ as well as save-modal and transition state; native Collection is not a UI-servic
 document. This gate precedes hub labels, chest prices, combat feedback, victory
 and normal run HUD drawing.
 
-Register 27 presentation-only ConfigService integers under survivors-hud-*:
+Register 30 presentation-only ConfigService integers under survivors-hud-*:
 X/Y/scale for Timer, Rank, EXP bar, Info, Level, Score, EXP text, Boss name and
-Boss bar. Defaults retain the previous anchors; Level/Score/XP become independent
+Boss bar and Item Banner. Defaults retain the previous anchors; Level/Score/XP become independent
 labels. Read persisted values with bounded X/Y and 10–400% scale, including after
 settings import. These preferences never enter RunOptions or high-score records.
 
@@ -1529,8 +1529,127 @@ their existing placement and rendering path.
 
 ### Persistent boss equipment
 
-See `SURVIVORS.md` for drop odds, independent stat weights, rarity thresholds and bonus scope. `survivors_gear.hpp` owns the two-page, 40-slot rules and explicit 172-byte little-endian/checksummed v3 blob (with 92-byte v1/v2 migration) (`survivors-gear`). Missing blobs migrate to empty inventory; malformed blobs are preserved and cannot be overwritten through this feature. Mutations stage successfully before replacing live state; hub close uses the existing native background save. Run snapshots copy one Weapon and one Tunic once; no equipment swaps during combat. Re-selecting equipped cards unequips them on touch, mouse, controller and keyboard. Banish opens a native warning dialog with Cancel/Delete; confirmation validates the pending slot/item, stages storage before mutation and supports retry. Window close, page rebuild and runtime teardown invalidate pending confirmations. Each tab rebuild owns only its 20 visible card handles. All ten weapon variants share the 40-slot inventory. Family-local bonuses require the run weapon and stack beyond normal upgrade caps and cooldown floors; hearts remain capped at 20. The Boomerang visited-target array holds 13 entries for 12 hops. Collection and hub UI select native family icons without caching archive resources.
+See `SURVIVORS.md` for drop odds, independent stat weights, rarity thresholds and bonus scope. `survivors_gear.hpp` owns the two-page, 40-slot rules and explicit 212-byte little-endian/checksummed v4 blob (with v1/v2/v3 migration) (`survivors-gear`). Missing blobs migrate to empty inventory; malformed blobs are preserved and cannot be overwritten through this feature. Mutations stage successfully before replacing live state; hub close uses the existing native background save. Run snapshots copy one Weapon and one Tunic at start; the active drop banner can explicitly replace its matching slot through Midna during combat. Re-selecting equipped cards unequips them on touch, mouse, controller and keyboard. Banish opens a native warning dialog with Cancel/Delete; confirmation validates the pending slot/item, stages storage before mutation and supports retry. Window close, page rebuild and runtime teardown invalidate pending confirmations. Each tab rebuild owns only its 20 visible card handles. All ten weapon variants share the 40-slot inventory. Family-local numeric affixes require the run weapon and stack beyond normal upgrade caps and cooldown floors; the additional perk levels respect normal upgrade caps; hearts remain capped at 20. The Boomerang visited-target array holds 13 entries for 12 hops. Collection and hub UI select native family icons without caching archive resources.
 
-`credit_death` rolls once after its credit latch for scheduled bosses only, before final-boss victory cleanup. Cleanup cannot award persistent equipment; Debug requires the explicit Max Equipment Drop Rate override. The hub chest uses its own actor/model heap at the fixed side-wall position. Collection reuses native Poe/Letters cursor cells and restores owned menu state on deletion/mode teardown. Draw-time textures are reacquired each frame; no native item flags or resource tables are changed. The two Collection hook targets already exist in Dawnlight's Dual Wield backend.
+`credit_death` rolls once after its credit latch for scheduled and stationary guard bosses, before final-boss victory cleanup. Cleanup cannot award persistent equipment; Debug requires the explicit Max Equipment Drop Rate override. The hub chest uses its own actor/model heap at the fixed side-wall position. Collection reuses native Poe/Letters cursor cells and restores owned menu state on deletion/mode teardown. Draw-time textures are reacquired each frame; no native item flags or resource tables are changed. The two Collection hook targets already exist in Dawnlight's Dual Wield backend.
 
-Runtime verification remains required: visible hub chest placement, all controller/touch/mouse/keyboard inventory controls, all supported Collection layouts/languages, icon presentation, four-second HUD notices (also after the final boss), save/reload and slot switching on physical devices. Unit tests and native packaging do not certify in-game rendering.
+Runtime verification remains required: visible hub chest placement, all controller/touch/mouse/keyboard inventory controls, all supported Collection layouts/languages, icon presentation, eight-second HUD notices (also after the final boss), save/reload and slot switching on physical devices. Unit tests and native packaging do not certify in-game rendering.
+
+
+### Equipment talents and stationary boss drops (PR #146)
+
+Equipment Drop Rate and Equipment Rarity are appended talent IDs, each capped at
+10 ranks. Drop chance uses the run snapshot: 2,000 + 500 basis points per drop
+rank, capped at 7,000. Rarity shifts independent stat weights linearly from
+50/25/15/8/2% to 20/25/25/20/10%; count-affix +2 odds rise from 10% to 30%.
+Rank-zero stat rolls retain their probabilities; new Epic/Legendary weapons make one additional family-perk roll after all stats.
+See `SURVIVORS.md` for the midpoint and the distinction between stat tiers and
+final item rarity. Luck and Legendary Chance do not modify these gear rolls.
+
+All credited elite deaths now use the same equipment path, including stationary
+guard respawns. The death-credit latch still prevents duplicates; retiring,
+uninitialized and cleanup actors cannot award equipment. Debug exclusions and
+the explicit maximum-drop override remain unchanged.
+
+Records v12 appends two words after the v10/v11 score snapshots. Existing header,
+map-clear and score offsets are preserved, and v1–v11 decode with new ranks zero.
+The subsequent equipment-perk extension uses v4; existing items remain untouched.
+Tests cover all rank distributions, native stat caps, legacy-save migration,
+invalid/unfunded talent ranks, run snapshots, purchasing/refunding, 70% production
+drop odds and single-credit drops for timed and stationary bosses.
+
+
+Equipment notifications copy the awarded GearItem only after storage succeeds.
+The native J2D banner defaults near the right edge at vertical center, uses the existing
+rarity palette, reacquires its ItemIcon texture each draw, and lists the item name
+plus each actual affix. It enters from offscreen right and exits to the right over
+12 ticks at each end of an eight-active-second lifetime. Overlapping awards queue
+FIFO; run start/reset clears pending notifications. The normal HUD visibility and
+playable-state gates hide and pause notifications in menus. Rendering restores
+GX state and graph colors; no inventory pane or archive resource is retained.
+Below a successful drop, `Call Midna to Equip` routes the existing native Midna
+trigger to the displayed inventory slot instead of opening the run menu. Each
+notice carries an immutable GearItem and slot; the slot/item pair is validated
+before saving equipment selection, then updating live stats and dismissing the
+notice. The replaced item remains in inventory. Failure preserves live/stored
+selection and the notice for retry. Expiration and successful equip advance the
+same FIFO queue. Final-boss loot time supports equipping too. Tunic swaps track
+capacity above the 20-heart cap, preserve earned hearts and never grant healing.
+HUD tests exercise slide bounds, prompt/text/icon contents, missing textures and
+native vertex packet correctness; storage/UI tests cover FIFO lifetime, immediate
+replacement, save failure, stale slot identity, tunic health caps and reset.
+Midna routing tests verify equip priority, no dialogue and normal-menu fallback.
+
+
+### Equipment layout and inventory ordering (PR #146)
+
+Item Banner is the tenth HUD editor element, with persistent X/Y/scale settings
+under `survivors-hud-item-banner-*`. The anchor is the banner center. The editor
+renders a stationary sample item, stats and Midna prompt without touching the
+real notification state. Live notices still enter from beyond the right edge
+and expire after eight active seconds, at the configured position and scale.
+
+Top-of-page host buttons sort the entire inventory by descending rarity or by
+family/variant, and toggle a source/destination move mode. It supports empty
+slots, occupied-slot swaps and cross-page moves on all host input paths. Move
+selection survives a tab rebuild but ends on window close, sorting or Banish.
+A new-slot-to-old-slot permutation preserves equipped indices and active/queued
+notice identities even for duplicate items. Validate the entire permutation,
+serialize the staged inventory, then update live inventory and notice indices;
+a failed save leaves both unchanged. Perk-bearing v4 items use the same slot mapping.
+
+Targeted tests cover native toolbar descriptors/callbacks, cross-page moves,
+sorting ties, equipped duplicate identity, queued notices, invalid permutations,
+save rollback/retry and persisted order. HUD tests exercise all ten settings,
+sample rendering, native geometry/text scale, animation and render gates.
+Device verification remains necessary for visual readability and host input feel.
+
+
+### Equipment perks and Chain Spin (PR #146)
+
+New Epic/Legendary weapons roll one GearPerk from the family pools documented in
+SURVIVORS.md. Epic rolls uniformly among ordinary +1-level choices (four for
+swords, three for other families); Legendary rolls uniformly among the same
++2-level choices and its one-rank Legendary power. Lightning Strike is appended
+to the persisted perk IDs and joins both sword variants without shifting old
+IDs. Its effective level activates the existing lightning ability and disappears
+on unequip unless earned independently. Gear v4 stores a fifth byte per item
+(212 bytes total). Decode v1/v2/v3 without inventing perks; validate perk ID, family and rarity before
+accepting v4 data. Rarity remains derived from the original stat tiers.
+
+Run::base_rank retains earned levels. Effective weapon-specific ranks and scoped
+Multishot/Reach/Haste queries add the current equipped perk up to existing caps.
+Learning an ordinary upgrade uses base rank for room below its cap. Perks never
+grant chest weapons; Multi Strike retains its Dual Wield prerequisite. UI cards,
+native Collection descriptions and the expanded drop banner show the saved perk.
+
+Append Upgrade::ChainSpin after Rupees, preserving all previous IDs and rank-array
+layout. A dedicated earned-rank field participates in eligibility, Legendary-only
+choice, overview and effective equipment checks. Records v13 adds twenty earned
+Chain Spin words after the existing v12 layout, one per high-score snapshot, with
+0/1 validation; older records initialize them to zero. Existing score headers,
+rarity talents, damage arrays and snapshot offsets are unchanged.
+
+Ball launches snapshot Chain Spin and extend lifetime by 60 simulation ticks.
+At the outbound limit, begin a 60-tick spiraling return around Link's current
+X/Z position. The radius shrinks linearly to zero over one revolution, using the
+visible ball/chain and collider together. Manually aimed balls also converge to
+Link's return height; automatic shots retain their launch height. Victim identity
+resets only at return start, allowing one hit outbound and one on the spiral. The same
+world collision segment check terminates blocked orbits. Normal balls retain
+their original outbound/return path. Tests cover both upgrade/equipment sources,
+one complete shrinking revolution, moving Link, manual aim height, phase hit
+guards, walls and gear swaps.
+On-device visual validation of the orbit and enlarged bonus banner remains open.
+
+
+### Always Legendary Equipment debug option (PR #146)
+
+Session-only, Off by default, captured at run start and neutralized in Debug-off
+builds. New boss equipment uses maximum valid base stats (5, or 2 for count
+affixes), then rolls one ordinary +2-level or Legendary effect perk from the
+family pool. Equipment selection is 80% Weapon / 20% Tunic, with all ten weapon variants
+equally likely (8% each of all drops); old items are untouched.
+This explicit override allows saved equipment in Debug at the normal talent
+drop chance; combining Max Equipment Drop Rate guarantees one per boss.
+Debug score, permanent XP and map-unlock exclusions remain in effect.

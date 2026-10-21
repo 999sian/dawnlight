@@ -66,6 +66,7 @@ GearInventory s_gear;bool s_gearWritable=true;unsigned s_gearNoticeTicks=0,gearR
 void restore_gear_collection(){} void close_gear_window(){}
 bool store_gear(const GearInventory& gear){s_gear=gear;return true;}
 void drop_boss_gear(){++gearRolls;}
+void clear_gear_notices(){s_gearNoticeTicks=0;}
 enum class HubMenu{None,Talents,Run};unsigned s_hubClosingWindow=0;HubMenu s_hubMenu=HubMenu::None;
 bool s_hub=true,s_hubDeparture=false,s_hubDoorStarted=false,s_arrivingRun=false,s_allowHubDoor=false,s_hubSaveRequested=false;
 ActorId s_hubDoor=kNone;unsigned s_hubDoorTicks=0;
@@ -231,13 +232,14 @@ int main() {
     enemy.retiring=false; enemy.initialized=false; credit_death(enemy,&actor); assert(xp==0);
     enemy.initialized=true; actor.health=10; credit_death(enemy,&actor); assert(xp==0);
     assert(rewards==0);
-    actor.health=0; credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1);
-    credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1);
-    enemy={8,fpcNm_E_OC_e,true,false,false,true,0}; actor.health=1; actor.action=9;
+    actor.health=0; credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1 && gearRolls==0);
+    credit_death(enemy,&actor); assert(xp==3 && s_run.kills==1 && rewards==1 && gearRolls==0);
+    enemy={8,fpcNm_E_OC_e,true,false,false,true,0};enemy.eliteSlot=int(timed_elite_count); actor.health=1; actor.action=9;
     credit_death(enemy,&actor); assert(s_run.phase==Phase::Running && xp==33 && rewards==1 && eliteChests==1);
-    assert(s_run.guard_elites==1&&s_run.timed_elites==0);
+    assert(s_run.guard_elites==1&&s_run.timed_elites==0&&gearRolls==1);
+    credit_death(enemy,&actor);assert(gearRolls==1); // Stationary boss gets one roll per genuine death.
     enemy.credited=false;enemy.eliteSlot=0;credit_death(enemy,&actor);
-    assert(s_run.timed_elites==1&&gearRolls==1);credit_death(enemy,&actor);assert(s_run.timed_elites==1&&gearRolls==1);
+    assert(s_run.timed_elites==1&&gearRolls==2);credit_death(enemy,&actor);assert(s_run.timed_elites==1&&gearRolls==2);
     // Life Steal heals once per credited death, independent of reward drops.
     s_run.ranks[unsigned(Upgrade::LifeSteal)]=1;life=4;
     enemy.credited=false;credit_death(enemy,&actor);assert(life==4); // Non-sword death.

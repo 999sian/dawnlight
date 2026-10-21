@@ -3,13 +3,14 @@ struct DebugControl { const char* label; unsigned DebugOptions::*field; const ch
 constexpr const char* kDebugRarities[]{"Common","Uncommon","Rare","Epic","Legendary"};
 constexpr const char* kDebugSwitch[]{"Off","On"};
 constexpr const char* kDebugTimers[]{"20 min","10 min","5 min"};
-std::array<DebugControl,6> s_debugControls{{
+std::array<DebugControl,7> s_debugControls{{
     {"Minimum Rarity",&DebugOptions::minimum_rarity,kDebugRarities,5},
     {"Player damage",&DebugOptions::player_damage,nullptr,0},
     {"Infinite rerolls",&DebugOptions::infinite_rerolls,kDebugSwitch,2},
     {"Infinite banishes",&DebugOptions::infinite_banishes,kDebugSwitch,2},
     {"Run timer",&DebugOptions::run_minutes,kDebugTimers,3},
-    {"Max Equipment Drop Rate",&DebugOptions::max_equipment_drop_rate,kDebugSwitch,2}
+    {"Max Equipment Drop Rate",&DebugOptions::max_equipment_drop_rate,kDebugSwitch,2},
+    {"Always Legendary Equipment",&DebugOptions::always_legendary_equipment,kDebugSwitch,2}
 }};
 ModResult build_debug(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     s_options.debug.clamp();s_run.options.debug.clamp();
@@ -41,7 +42,9 @@ ModResult build_debug(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
         control.kind=setting.choices==kDebugSwitch?UI_CONTROL_TOGGLE:setting.choices?UI_CONTROL_SELECT:UI_CONTROL_NUMBER;
         control.label=setting.label;control.user_data=&setting;
         if(setting.field==&DebugOptions::max_equipment_drop_rate)
-            control.help_rml="100% equipment drop chance per boss, including Debug runs. Weapon/Tunic stays 50/50; all ten weapon variants and stats remain random. Equipment is saved. Scores, Survivors XP and permanent map unlocks remain disabled. Default: off.";
+            control.help_rml="100% equipment drop chance per boss, including Debug runs. Weapon/Tunic stays 80/20; all ten weapon variants remain random. Stats follow Equipment Rarity unless Always Legendary Equipment is enabled. Equipment is saved. Scores, Survivors XP and permanent map unlocks remain disabled. Default: off.";
+        if(setting.field==&DebugOptions::always_legendary_equipment)
+            control.help_rml="New equipment drops are always Legendary with maximum base stats and a random Legendary-tier weapon bonus. Weapon/Tunic and weapon variants stay random. Allows saved drops in Debug at the normal talent-adjusted chance; combine with Max Equipment Drop Rate for a drop from every boss. Applies to the next run; existing items are unchanged. Default: off.";
         control.options=control.kind==UI_CONTROL_TOGGLE?nullptr:setting.choices;control.option_count=control.kind==UI_CONTROL_TOGGLE?0:setting.count;
         control.min=1;control.max=10;control.step=1;control.prefix=setting.choices?nullptr:"x";
         control.get=[](ModContext*,void* data,UiControlValue* value) {

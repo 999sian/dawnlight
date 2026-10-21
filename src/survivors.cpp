@@ -419,6 +419,9 @@ struct Attack {
     bool returning = false, exploding = false, greatSpin = false;
     bool hurricane=false, bombArrow=false, detonated=false, aimPending=false, manualFlight=false;
     float aimSpread=0;
+    bool chainSpin=false;
+    unsigned chainSpinTick=0;
+    float chainSpinRadius=0,chainSpinAngle=0;
     J3DModel* bombModel=nullptr;
     JKRSolidHeap* bombHeap=nullptr;
     float effectBaseRadius = 260.f;
@@ -599,7 +602,7 @@ void detach_attack_references() {
 }
 void reset_runtime() {
     clear_player_contacts();
-    restore_gear_collection();close_gear_window();s_gear={};s_gearWritable=true;s_gearNoticeTicks=0;
+    restore_gear_collection();close_gear_window();s_gear={};s_gearWritable=true;clear_gear_notices();
     s_enemyHitSources.clear(); s_enemyContactFrames.clear();
     stop_survivors_music();
     end_survivors_integrity();
@@ -733,7 +736,7 @@ void credit_death(Enemy& e, fopAc_ac_c* actor) {
         dead = dead || static_cast<daE_OC_c*>(actor)->getActionMode() == 9;
     if (!dead) return;
     e.credited = true; ++s_run.kills;
-    if(e.elite && e.eliteSlot>=0 && unsigned(e.eliteSlot)<timed_elite_count)drop_boss_gear();
+    if(e.elite)drop_boss_gear();
     if (s_run.life_steal_active() && e.swordKill && dComIfGs_getLife() > 0)
         dComIfGs_setLife(std::min<unsigned>(dComIfGs_getMaxLifeGauge(),dComIfGs_getLife()+1));
     if(e.elite) {
@@ -1180,7 +1183,7 @@ void after_player(ModContext*, void* args, void*, void*) {
     if (!link || fopAcM_GetID(link) != s_player) return;
     if (dComIfGs_getLife() == 0 && !s_victory) { begin_defeat(); return; }
     update_combat_feedback();
-    if(s_gearNoticeTicks)--s_gearNoticeTicks;
+    update_gear_notice();
     chest_spawning_allowed(); // Also retire exhausted chests during victory loot time.
     if (s_victory) {
         update_victory();
@@ -1394,6 +1397,7 @@ void label(const char* text, float x, float y, float size, float width=550) {
 #include "survivors_feedback_draw.inc"
 #include "survivors_boss_hud.inc"
 #include "survivors_chest_hud.inc"
+#include "survivors_gear_notice.inc"
 void draw_hud(ModContext*, void* args, void*, void*) {
     // Native Collection, ring/map submenus and their opening/closing transitions
     // are not UI-service documents. Suppress every Survivors overlay together.
@@ -1407,7 +1411,7 @@ void draw_hud(ModContext*, void* args, void*, void*) {
     if (!preview && (s_deathPending || s_run.phase==Phase::Defeat)) return;
     if(!preview) {draw_chest_prices();draw_combat_feedback();}
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
-    if(!preview && s_gearNoticeTicks)label(s_gearNotice,x,mDoGph_gInf_c::getHeightF()*.35f,22);
+    if(preview || s_gearNoticeTicks)draw_gear_notice(preview);
     if (!preview && s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
     char text[180];
     draw_run_rank_hud(x,preview);
@@ -1479,7 +1483,7 @@ void begin_run() {
     reset_elite_encounters();
     s_bossHudTarget = kNone;
     clear_combat_feedback();
-    s_run.start(seed, s_options, s_records.talents);s_run.equip_gear(s_gear);s_gearNoticeTicks=0; reset_gale_charges();
+    s_run.start(seed, s_options, s_records.talents);s_run.equip_gear(s_gear);clear_gear_notices(); reset_gale_charges();
     begin_survivors_integrity(s_run.options.allow_cheats,s_run.modded);
     dComIfGs_setMaxLife(s_run.maximum_hearts*5); dComIfGs_setLife(s_run.maximum_hearts*4);
     s_chestDelay += s_run.next_random() % (10 * ticks_per_second + 1);
