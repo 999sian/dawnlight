@@ -173,9 +173,7 @@ void update_arena_safety(daAlink_c* link) {
     if (s_deathPending || fpcM_IsCreating(fopAcM_GetID(link)) || (s_hub&&s_hubDoorStarted)) return;
     const int room=fopAcM_GetRoomNo(link);
     const bool palace=s_map==3 && s_arenaSpawn && s_run.phase==Phase::Running;
-    // Only the Palace replaces native falls with a local rescue. Other maps
-    // must retain native falling and landing, even with no valid floor below.
-    const bool fallen=s_map==3 && s_arenaSafe && (arena_fallen(link) ||
+    const bool fallen=s_arenaSafe && (arena_fallen(link) ||
         (palace && link->mLinkAcch.ChkGroundHit() &&
          (link->mGroundCode==4 || link->mGroundCode==5 || link->mGroundCode==10)));
     if (palace && fallen) {
@@ -194,7 +192,7 @@ void update_arena_safety(daAlink_c* link) {
         const int life=std::max(s_victory ? 1 : 0,int(dComIfGs_getLife())-4);
         dComIfGs_setLife(life);
         if (!life) begin_defeat();
-    } else if (s_map==3 && s_arenaSafe && (room!=arena().room || fallen)) {
+    } else if (s_arenaSafe && (room!=arena().room || fallen)) {
         // Last safe floor position, not a scene reload that would discard a run.
         link->current.pos=link->old.pos=s_arenaSafePosition;
         link->speed.set(0,0,0);

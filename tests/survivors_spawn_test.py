@@ -145,10 +145,10 @@ int main(){
  // Capture native floor contact even if the derived barrier mesh is not ready.
  assert(s_arenaSafe&&!s_arenaMeshReady);
  load_frame(&link);assert(s_run.phase==Phase::Ready&&recordsLoaded==1);
- // Outside the Palace, loading must also leave native falling untouched.
+ // Falling during loading must restore the recorded floor, not freeze below it.
  s_run.phase=Phase::Loading;link.current.pos.y=-600;link.mLinkAcch.hit=false;
  link.mLinkAcch.floor=-1e9f;link.speed.y=-50;load_frame(&link);
- assert(link.current.pos.y==-600&&link.speed.y==-50);
+ assert(link.current.pos.y==0&&link.old.pos.y==0&&link.speed.y==0);
  assert(s_run.phase==Phase::Loading);
  // Replacement players cannot inherit the previous player's rescue position.
  link.id=8;link.current.pos.y=-100;creating=true;load_frame(&link);
@@ -189,9 +189,9 @@ int main(){
  // Victory remains settled if Link falls while collecting the boss rewards.
  s_victory=true;life=1;link.current.pos.y=-501;link.mLinkAcch.hit=false;update_arena_safety(&link);
  assert(life==1&&finished==1&&damageWrites==4);s_victory=false;
- // Other arenas must not apply the custom last-safe-position return.
+ // Other arenas retain their existing free return to the last safe floor.
  s_map=0;link.room=arena().room;life=12;link.current.pos.y=-501;update_arena_safety(&link);
- assert(life==12&&damageWrites==4&&link.current.pos.y==-501);
+ assert(life==12&&damageWrites==4);
 
  // High and low cliff jumps must keep falling toward valid lower floors on
  // every map, even with stale actor collision data. Preserve native velocity
@@ -215,8 +215,8 @@ int main(){
   update_arena_safety(&link);
   assert(link.current.pos.y==-4000&&s_arenaSafePosition.y==-4000);
   assert(damageWrites==writes&&link.teleports==teleports);
-  // Invalid surfaces trigger custom recovery only in the Palace. Elsewhere
-  // even void falls and native restart checks are left to the game.
+  // Invalid landing surfaces must still recover. A valid floor seen on the
+  // preceding frame cannot mask a later move out over the void.
   for(int bad=0;bad<8;++bad){
    link.current.pos={10,2000,20};link.mLinkAcch.hit=true;link.mLinkAcch.floor=2000;
    landingCode=0;landingRoom=arena().room;wet=false;landingFloor=0;
@@ -231,13 +231,7 @@ int main(){
    if(bad==7)landingFloor=1600; // A floor above Link cannot rescue a fall below it.
    life=12;const int before=damageWrites;
    update_arena_safety(&link);
-   if(map==3)assert(link.current.pos.y==2000&&link.current.pos.x==10);
-   else {
-    assert(link.current.pos.y==1400&&link.current.pos.x==100&&link.speed.y==-50);
-    assert(link.teleports==teleports&&groundProbes==0);
-    restart=TRUE;
-    assert(before_arena_restart(nullptr,moveArgs,&restart,nullptr)==HOOK_CONTINUE&&restart);
-   }
+   assert(link.current.pos.y==2000&&link.current.pos.x==10);
    assert(damageWrites==before+(map==3?1:0)&&life==(map==3?8:12));
   }
   // Bridges are safe even when water exists below their floor.
@@ -245,12 +239,6 @@ int main(){
   link.mLinkAcch.hit=false;link.current.pos={100,1400,200};
   update_arena_safety(&link);assert(link.current.pos.y==1400);
   wet=false;
-  if(map!=3){
-   // Room-boundary fallback must not become another non-Palace fall rescue.
-   ++link.room;link.current.pos.y=-6000;link.speed.y=-50;
-   update_arena_safety(&link);
-   assert(link.current.pos.y==-6000&&link.speed.y==-50&&link.room!=arena().room);
-  }
  }
  clear_arena_geometry();assert(!s_arenaSpawn&&!s_arenaSafe);
  std::cout<<"Survivors spawn: native entry, barrier timing, grounding, recovery and actor replacement passed\n";

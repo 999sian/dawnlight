@@ -55,12 +55,11 @@ native scene exits are disabled during runs. The hub retains its usable exit doo
 Enemy and chest placement reject other rooms and paths across these barriers.
 If collision is not ready, combat does not begin. Story mode and Boss Rush retain their own rules.
 
-Only the Palace of Twilight uses a custom fall rescue: falls into a void return
-Link to the entrance and cost one heart during a run. Drops exceeding 500 units
-first check for valid dry ground below, allowing natural landings on lower floors.
-All other maps leave falling and landing to vanilla, with no custom height-based
-or last-safe-position teleport. Safe-ground tracking still supports arena startup
-and exit-barrier activation on every map.
+On every arena, falling more than 500 units below the last safe position checks
+for dry, valid ground beneath Link before triggering recovery. Tall cliff jumps
+can land naturally on lower floors; missing ground, void/exit floor codes, water
+and floors in another room still trigger recovery. The Palace retains its entrance
+respawn and one-heart penalty; other arenas return to the last safe position.
 
 ## Run
 
