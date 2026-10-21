@@ -1129,7 +1129,15 @@ void apply_intro_skip_preset(dSv_save_c* save) {
         return;
     }
 
+    // The reference contains story progress, not the names entered for this slot.
+    auto& info = save->getPlayer().getPlayerInfo();
+    std::array<char, sizeof(info.mPlayerName)> playerName;
+    std::array<char, sizeof(info.mHorseName)> horseName;
+    std::memcpy(playerName.data(), info.mPlayerName, playerName.size());
+    std::memcpy(horseName.data(), info.mHorseName, horseName.size());
     std::memcpy(save, kIntroSkipReferenceSave.data(), kIntroSkipReferenceSave.size());
+    std::memcpy(info.mPlayerName, playerName.data(), playerName.size());
+    std::memcpy(info.mHorseName, horseName.data(), horseName.size());
     save->getPlayer().getPlayerInfo().setTotalTime(0);
     save->getPlayer().getPlayerStatusA().setRupee(150);
     set_intro_skipped(true);

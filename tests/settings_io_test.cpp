@@ -66,6 +66,9 @@ int main(int argc,char** argv) {
     HostService host{};host.data_dir=data_dir;svc_host=&host;
     UiService ui{};ui.push_toast=toast;svc_ui=&ui;
     assert(register_config(nullptr)==MOD_OK);
+    assert(boss_rush_enabled()&&survivors_enabled());
+    assert(names.at("survivors-enabled")==survivors_config_var());
+    set_bool(nullptr,survivors_config_var(),false);assert(!survivors_enabled()&&boss_rush_enabled());
     assert(!dark_link_free_transform());
     set_bool(nullptr,dark_link_free_transform_config_var(),true);
     assert(dark_link_free_transform());

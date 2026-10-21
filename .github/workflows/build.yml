@@ -414,6 +414,8 @@ jobs:
           c++ -std=c++20 -Wall -Wextra -Werror tests/settings_snapshot_test.cpp -o /tmp/settings-snapshot-test
           /tmp/settings-snapshot-test
           python3 tests/settings_io_test.py build
+          python3 tests/intro_skip_names_test.py build
+          CXX=clang++ python3 tests/intro_skip_names_test.py build
 
       - name: Test slow-motion stereo and surround audio
         if: matrix.platform == 'linux-x86_64'
