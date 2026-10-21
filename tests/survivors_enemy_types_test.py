@@ -18,6 +18,8 @@ fixture=r'''
 #include <set>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "actor_slot_index.hpp"
+using dawnlight::ActorSlotIndex;
 #include "survivors_roster.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned;using ProfileName=int;using u32=unsigned;using s16=short;using s8=signed char;
@@ -47,6 +49,7 @@ struct e_rd_class{fopAc_ac_c enemy;Sphere cc_sph[3];};
 struct Enemy{ActorId id=kNone;ProfileName profile=0;bool initialized=false,credited=false,retiring=false,elite=false;
  unsigned age=0,endlessMinute=0;int eliteSlot=-1;bool dormant=false;cXyz lootPosition{},spawnPosition{};unsigned species=0;};
 std::array<Enemy,enemy_capacity>s_enemies;
+ActorSlotIndex<ActorId> s_enemyIndex;
 Enemy* tracked(ActorId id){for(auto& e:s_enemies)if(e.id!=kNone&&e.id==id)return &e;return nullptr;}
 Run s_run;bool arenaPresent=true;bool in_arena(){return arenaPresent;}
 struct ActorSpawnParams{u32 parameters;int argument,room_num;cXyz position;csXyz angle;cXyz scale;void* create_function;};
@@ -77,6 +80,7 @@ int main(){
  s_run.start(42);s_run.ticks=18000;daAlink_c player;
  for(s_map=0;s_map<5;++s_map){std::set<unsigned>variants;
   for(unsigned i=0;i<1000;++i){s_enemies={};assert(spawn_enemy(&player,false));
+   assert(s_enemyIndex.find(s_enemies,s_enemies[0].id)==&s_enemies[0]);
    variants.insert(s_enemies[0].species);
    assert(s_enemies[0].lootPosition.y==30&&s_enemies[0].spawnPosition.y==lastParams.position.y);
    assert(lastParams.scale.x==1&&lastParams.position.y==30+native_roster[s_enemies[0].species].height);

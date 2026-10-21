@@ -206,8 +206,8 @@ HookAction before_enemy_attack_process(ModContext*,void* args,void*,void*) {
     const auto method=mods::arg<process_method_func>(args,0);
     const auto id=fopAcM_GetID(actor);
     if(method==methods->delete_method)s_enemyHitSources.erase(id);
-    else if(method==methods->execute_method&&in_arena()&&s_run.phase==Phase::Running&&playable()) {
-        if(auto* enemy=tracked(id);enemy&&enemy->initialized&&!enemy->retiring&&!enemy->credited)
+    else if(method==methods->execute_method&&in_arena()&&s_run.phase==Phase::Running) {
+        if(auto* enemy=tracked(id);enemy&&enemy->initialized&&!enemy->retiring&&!enemy->credited&&playable())
             observe_enemy_attack(*enemy,actor);
     }
     return HOOK_CONTINUE;

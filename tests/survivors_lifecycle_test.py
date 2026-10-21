@@ -18,6 +18,9 @@ def extract(name):
     raise AssertionError(name)
 stubs = r'''
 void stop_survivors_music(){}
+unsigned archiveBegins=0,archiveReleases=0;
+void begin_enemy_archives(){++archiveBegins;}
+void release_enemy_archives(){++archiveReleases;}
 bool s_victory=false;void reset_ending(){s_victory=false;}void begin_victory(int){s_victory=true;}
 
 #include <cassert>
@@ -28,6 +31,8 @@ bool s_victory=false;void reset_ending(){s_victory=false;}void begin_victory(int
 #include <set>
 #include <unordered_map>
 #include "survivors_rules.hpp"
+#include "actor_slot_index.hpp"
+using dawnlight::ActorSlotIndex;
 #include "../include/survivors_maps.hpp"
 using namespace dawnlight::survivors;
 using u16=unsigned short;using ActorId=unsigned; using ProfileName=int; using s8=signed char; using s16=short;
@@ -53,6 +58,7 @@ struct Enemy {
 };
 unsigned eliteChests=0;void drop_elite_chest(Enemy&,fopAc_ac_c*){++eliteChests;}
 std::array<Enemy,enemy_capacity> s_enemies;
+ActorSlotIndex<ActorId> s_enemyIndex;
 std::vector<int> s_enemyHitSources,s_enemyContactFrames;
 void clear_player_contacts(){}
 Run s_run;RunOptions s_options;
@@ -252,12 +258,14 @@ int main() {
     enemy.credited=false;enemy.elite=true;credit_death(enemy,&actor);
     assert(xp==36&&rewards==2&&s_run.drop_progress==0);
     s_run.start(2);
-    s_enemies[0]={9,fpcNm_E_OC_e,false,false,true,false,0}; pending.insert(9);
+    s_enemies[0]={9,fpcNm_E_OC_e,false,false,true,false,0}; pending.insert(9);s_enemyIndex.add(9,0);
     cleanup_enemies(); assert(s_enemies[0].id==9 && service.attempts==0);
+    assert(s_enemyIndex.find(s_enemies,9)==&s_enemies[0]);
     pending.clear(); actors[9]=&actor;
     cleanup_enemies(); assert(service.attempts==1 && s_enemies[0].id==9);
     cleanup_enemies(); assert(service.attempts==2); // Retry refused/asynchronous deletes.
     actors.clear(); cleanup_enemies(); assert(s_enemies[0].id==kNone && s_run.kills==0);
+    assert(!s_enemyIndex.find(s_enemies,9));
     s_enemies[0]={10,fpcNm_E_OC_e,true,false,false,true,0};
     cleanup_enemies(); assert(s_enemies[0].id==kNone && s_run.phase==Phase::Running);
     std::any args[]={static_cast<const char*>("F_SP102"),s16(100),s8(0),s8(10)};

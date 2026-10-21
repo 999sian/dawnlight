@@ -11,6 +11,7 @@
 #include "combat_meter.hpp"
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
+#include "actor_slot_index.hpp"
 #include "survivors_rules.hpp"
 #include "survivors_hud_layout.hpp"
 #include "survivors_multistrike.hpp"
@@ -409,6 +410,7 @@ struct Enemy {
     cXyz encounterTarget{};
 };
 std::array<Enemy, enemy_capacity> s_enemies;
+ActorSlotIndex<ActorId> s_enemyIndex;
 struct Orb { cXyz position{}; unsigned value = 0; bool summoned = false, merged = false; };
 std::array<Orb, orb_capacity> s_orbs;
 struct Attack {
@@ -469,8 +471,7 @@ fopAc_ac_c* actor_by_id(ActorId id) {
     return actor;
 }
 Enemy* tracked(ActorId id) {
-    for (auto& e : s_enemies) if (e.id != kNone && e.id == id) return &e;
-    return nullptr;
+    return id == kNone ? nullptr : s_enemyIndex.find(s_enemies, id);
 }
 #include "survivors_enemy_types.inc"
 #include "survivors_enemy_balance.inc"
@@ -533,7 +534,9 @@ void close_window() {
 void retire_pots();
 void cleanup_pots();
 void detach_pot_attacks();
+#include "survivors_enemy_archives.inc"
 void retire_enemies() {
+    release_enemy_archives();
     retire_pots(); retire_pickups(); retire_enemy_arrows();
     clear_enemy_effects();
     for (auto& e : s_enemies) if (e.id != kNone) e.retiring = true;
@@ -544,6 +547,7 @@ void cleanup_enemies() {
         if (e.id == kNone) continue;
         auto* actor = actor_by_id(e.id);
         if (!actor && !fpcM_IsCreating(e.id)) {
+            s_enemyIndex.erase(e.id);
             e = {}; continue;
         }
         // Pending creation is not completion or a kill. Keep its ID until the scene
@@ -777,6 +781,7 @@ bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot
     };
     if (create_standalone_actor(native.profile, params, id) != MOD_OK) return false;
     *slot = {id, native.profile, false, false, false, elite, 0};
+    s_enemyIndex.add(id, std::size_t(slot - s_enemies.begin()));
     slot->species=type;
     slot->eliteSlot = eliteSlot; slot->dormant = dormant; slot->spawnPosition = slot->lootPosition = pos;
     // Callers add flight height before creation; never cache that altitude as loot ground.
@@ -1254,13 +1259,15 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     if (!methods) return HOOK_CONTINUE;
     const auto method = mods::arg<process_method_func>(args, 0);
     if (method == methods->delete_method) {
-        if (pickup) pickup->id=kNone;
-        if (arrow) arrow->id=kNone;
+        if (pickup) { s_pickupIndex.erase(id); pickup->id=kNone; }
+        if (arrow) { s_enemyArrowIndex.erase(id); arrow->id=kNone; }
         // Never award XP here: cancellation, unloading and despawning also delete.
         if (enemy) {
+            s_enemyIndex.erase(id);
             *enemy = {};
         }
         if (pot) {
+            s_potIndex.erase(id);
             pot->id=kNone; pot->initialized=false;
             if (pot->retiring) *pot={};
         }
@@ -1468,6 +1475,7 @@ void begin_run() {
     close_window(); clear_attacks(); clear_loot(); prepare_save();
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+    begin_enemy_archives();
     reset_elite_encounters();
     s_bossHudTarget = kNone;
     clear_combat_feedback();
@@ -1494,6 +1502,7 @@ void continue_endless(ModContext*,void*) {
     s_storeFailed=svc_save->set_blob(mod_ctx,kBlob,bytes.data(),bytes.size())!=MOD_OK;
     if(s_storeFailed){s_refreshChoices=s_window;close_window();return;} // Rebuild with the save-error message.
     if(!s_run.continue_endless())return;
+    begin_enemy_archives();
     close_window();reset_ending();
     s_resultsStored=false;s_spawnCooldown=0;s_spawnFailures=0;
     reset_elite_encounters();
@@ -1624,6 +1633,7 @@ bool survivors_dark_link_active() {
 void update_survivors() {
     update_survivors_music();
     update_survivors_integrity(s_run.modded);
+    update_enemy_archives();
     cleanup_enemies();
     cleanup_pots(); cleanup_pickups();
     if (s_treasure.retiring) retire_treasure_actor();
@@ -1694,6 +1704,11 @@ ModResult initialize_survivors(ModError* error) {
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to install Hyrule Survivors pre-hook " #H); } while(false)
 #define POST(H, F) do { result = mods::hook_add_post<H>(svc_hook, F); \
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to install Hyrule Survivors post-hook " #H); } while(false)
+    // Resource retention is optional: an unsupported host detour must never
+    // prevent Dawnlight or Survivors from loading with normal native resources.
+    s_enemyArchivesAvailable=mods::hook_add_post<SurvivorsArchiveReady>(svc_hook,after_enemy_archive_ready)==MOD_OK;
+    if(!s_enemyArchivesAvailable)svc_log->warn(mod_ctx,
+        "Survivors archive retention unavailable; using native resource loading");
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
 #include "survivors_roster_hooks.inc"
     PRE(SurvivorsEnemySpeed, before_enemy_speed); POST(SurvivorsEnemySpeed, after_enemy_facing);

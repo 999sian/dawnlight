@@ -178,7 +178,7 @@ HookAction before_roster_time(ModContext*,void* args,void*,void*) {
     auto* process=mods::arg<void*>(args,1);bool owned=false;
     if(process&&is_actor_process(process)&&in_arena()) {
         auto* actor=static_cast<fopAc_ac_c*>(process);
-        const auto* enemy=tracked(fopAcM_GetID(actor));
+        const auto* enemy=fopAcM_GetName(actor)==fpcNm_E_SH_e?tracked(fopAcM_GetID(actor)):nullptr;
         const auto* methods=reinterpret_cast<const process_method_class*>(actor->sub_method);
         owned=enemy&&enemy->profile==fpcNm_E_SH_e&&methods&&
             mods::arg<process_method_func>(args,0)==methods->execute_method;

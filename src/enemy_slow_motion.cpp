@@ -11,6 +11,7 @@
 #include "SSystem/SComponent/c_lib.h"
 
 namespace dawnlight {
+static HookAction begin_enemy_slow_execute(fopAc_ac_c* actor, const EnemySlowProfile* profile);
 namespace {
 DEFINE_HOOK(&fopAcM_posMoveF, MoveHook);
 DEFINE_HOOK(&fopAcM_posMove, DirectMoveHook);
@@ -59,10 +60,18 @@ const std::array<const EnemySlowProfile*, 64> s_profiles{
 const EnemySlowProfile* find_profile(fopAc_ac_c* actor) {
     if (actor == nullptr) return nullptr;
     const auto name = fopAcM_GetName(actor);
-    for (const auto* profile : s_profiles) {
-        if (profile->name == name) return profile;
-    }
-    return nullptr;
+    // The native profile enum is dense and immutable. Build once, including
+    // null entries for unrelated profiles; misses never scan the profile list.
+    static const auto byName = [] {
+        std::array<const EnemySlowProfile*, fpcNm_MAX_NUM> table{};
+        for (const auto* profile : s_profiles) {
+            const auto index = static_cast<std::size_t>(profile->name);
+            if (index < table.size() && !table[index]) table[index] = profile;
+        }
+        return table;
+    }();
+    const auto index = static_cast<std::size_t>(name);
+    return index < byName.size() ? byName[index] : nullptr;
 }
 
 struct ActorClock {
@@ -269,19 +278,18 @@ HookAction before_chase_short(ModContext*, void* args, void*, void*) {
     return HOOK_CONTINUE;
 }
 
-HookAction before_process_method(ModContext* ctx, void* args, void* retval, void*) {
+HookAction before_process_method(ModContext*, void* args, void*, void*) {
     bool entered = false;
     void* process = mods::arg<void*>(args, 1);
     if (s_processDepth < s_processFrames.size() && process != nullptr && is_actor_process(process)) {
         auto* actor = static_cast<fopAc_ac_c*>(process);
-        const auto* profile = find_profile(actor);
         const auto* methods = reinterpret_cast<const process_method_class*>(actor->sub_method);
-        if (profile != nullptr && profile->processExecute && methods != nullptr &&
-            mods::arg<process_method_func>(args, 0) == methods->execute_method) {
-            void* actorArgument = actor;
-            void* executeArgs[]{&actorArgument};
-            before_enemy_slow_execute(ctx, executeArgs, retval, nullptr);
-            entered = true;
+        if (methods != nullptr && mods::arg<process_method_func>(args, 0) == methods->execute_method) {
+            const auto* profile = find_profile(actor);
+            if (profile != nullptr && profile->processExecute) {
+                begin_enemy_slow_execute(actor, profile);
+                entered = true;
+            }
         }
     }
     if (s_processDepth < s_processFrames.size()) s_processFrames[s_processDepth] = entered;
@@ -439,15 +447,19 @@ bool enemy_uses_continuous_slow(fopAc_ac_c* actor) {
 
 HookAction before_enemy_slow_execute(ModContext*, void* args, void*, void*) {
     auto* actor = mods::arg<fopAc_ac_c*>(args, 0);
-    const auto* profile = find_profile(actor);
+    return begin_enemy_slow_execute(actor, find_profile(actor));
+}
+
+static HookAction begin_enemy_slow_execute(fopAc_ac_c* actor, const EnemySlowProfile* profile) {
     EnemySlowStep step{};
-    const bool usesSlowMotion = enemy_uses_continuous_slow(actor);
+    const float scale = profile != nullptr ? enemy_slow_motion_scale(actor) : 1.0f;
+    const bool usesSlowMotion = profile != nullptr && scale < 0.999f && profile->eligible(actor);
     const bool usesHardMode = profile != nullptr && enemy_hard_mode_applies(profile->name) &&
         profile->eligible(actor);
     if ((usesSlowMotion || usesHardMode) && s_depth < s_steps.size()) {
         step.actor = actor;
         step.profile = profile;
-        step.scale = usesSlowMotion ? enemy_slow_motion_scale(actor) : 1.0f;
+        step.scale = usesSlowMotion ? scale : 1.0f;
         step.facing = actor->shape_angle.y;
         step.speed = actor->speedF;
         step.originalPosition = actor->current.pos;

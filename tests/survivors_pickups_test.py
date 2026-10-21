@@ -28,6 +28,8 @@ void draw_victory_wave(){}
 #include <set>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "actor_slot_index.hpp"
+using dawnlight::ActorSlotIndex;
 using namespace dawnlight::survivors;
 using s16=short;using ActorId=unsigned;constexpr ActorId kNone=~0u;
 struct cXyz{float x=0,y=0,z=0;cXyz()=default;cXyz(float a,float b,float c):x(a),y(b),z(c){}

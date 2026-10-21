@@ -19,6 +19,7 @@ bool transition=false,failSave=false,newMod=false;unsigned writes=0,closed=0,res
 bool transitioning(){return transition;}
 struct Encounter{unsigned respawnAt=0;};std::array<Encounter,elite_capacity>s_eliteEncounters;
 void reset_elite_encounters(){s_eliteEncounters={};}
+unsigned archiveBegins=0;void begin_enemy_archives(){++archiveBegins;}
 void close_window(){++closed;}void reset_ending(){++resets;}
 void begin_survivors_integrity(bool,bool& modded){modded=newMod;}
 struct Save{int set_blob(ModContext*,const char*,const void*,size_t){++writes;return failSave?1:0;}}save;
@@ -44,7 +45,7 @@ int main(){
  assert(s_run.master_sword==19&&s_run.dual_wield==25&&s_run.rank(Upgrade::Lightning)==20&&s_run.xp==18);
  assert(s_run.random==random&&s_run.modded&&s_run.options.allow_cheats&&s_records.encode()==records);
  for(unsigned i=0;i<4;++i)assert(s_eliteEncounters[i].respawnAt==duration+(i+1)*elite_interval);
- continue_endless(nullptr,nullptr);assert(writes==2&&closed==2);
+ continue_endless(nullptr,nullptr);assert(writes==2&&closed==2&&archiveBegins==1);
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:
