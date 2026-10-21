@@ -1608,10 +1608,13 @@ Device verification remains necessary for visual readability and host input feel
 ### Equipment perks and Chain Spin (PR #146)
 
 New Epic/Legendary weapons roll one GearPerk from the family pools documented in
-SURVIVORS.md. Epic rolls uniformly among three ordinary +1-level choices;
-Legendary rolls uniformly among those three +2-level choices and its one-rank
-Legendary power. Gear v4 stores a fifth byte per item (212 bytes total). Decode
-v1/v2/v3 without inventing perks; validate perk ID, family and rarity before
+SURVIVORS.md. Epic rolls uniformly among ordinary +1-level choices (four for
+swords, three for other families); Legendary rolls uniformly among the same
++2-level choices and its one-rank Legendary power. Lightning Strike is appended
+to the persisted perk IDs and joins both sword variants without shifting old
+IDs. Its effective level activates the existing lightning ability and disappears
+on unequip unless earned independently. Gear v4 stores a fifth byte per item
+(212 bytes total). Decode v1/v2/v3 without inventing perks; validate perk ID, family and rarity before
 accepting v4 data. Rarity remains derived from the original stat tiers.
 
 Run::base_rank retains earned levels. Effective weapon-specific ranks and scoped

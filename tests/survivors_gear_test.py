@@ -239,13 +239,13 @@ int main() {
  }
 
  // Exactly one family-compatible perk on new Epic/Legendary weapons; none on tunics/lower tiers.
- for(unsigned variant=0;variant<10;++variant)for(unsigned quality:{0u,94u,99u})for(unsigned pick=0;pick<(quality==99?4u:3u);++pick) {
+ for(unsigned variant=0;variant<10;++variant)for(unsigned quality:{0u,94u,99u})for(unsigned pick=0;pick<(quality==99?4u:3u)+(variant<2?1u:0u);++pick) {
   unsigned calls=0;auto item=GearInventory::roll([&](unsigned bound){
-   const auto n=calls++;const unsigned value=n==0?0:n==1?variant:n<5?quality:pick;assert(value<bound);return value;
+   const auto n=calls++;const unsigned value=n==0?0:n==1?variant:n<5?quality:pick;assert(value<bound);if(n==5)assert(bound==(quality==99?4u:3u)+(variant<2?1u:0u));return value;
   });
   assert(item.valid());
   if(item.rarity()<3)assert(item.perk==GearPerk::None&&calls==5);
-  else {assert(item.perk==gear_perk_pool(item.family())[pick]);assert(item.perk_levels()==(pick==3?1:item.rarity()==4?2:1));}
+  else {assert(item.perk==gear_perk_pool(item.family())[pick]);assert(item.perk_levels()==(pick==(variant<2?4u:3u)?1:item.rarity()==4?2:1));}
   GearInventory inv;inv.add(item);inv.equip(0);GearInventory copy;assert(copy.decode(inv.encode())&&copy==inv);
  }
  for(auto bad:std::array{GearItem{GearKind::Sword,1,1,1,GearPerk::Wave},GearItem{GearKind::Sword,4,4,4,GearPerk::FireEdge},
@@ -276,6 +276,24 @@ int main() {
  swordPerk.equip_drop({GearKind::Sword,5,5,5,GearPerk::Spin});assert(swordPerk.rank(Upgrade::Wave)==1&&swordPerk.rank(Upgrade::Spin)==2);
  swordPerk.gear_weapon.perk=GearPerk::MultiStrike;assert(!swordPerk.multi_strikes());swordPerk.dual_wield=1;assert(swordPerk.multi_strikes()==2);
  swordPerk.ranks[unsigned(Upgrade::MultiStrike)]=2;assert(swordPerk.multi_strikes()==3);
+ // Lightning is an ordinary sword perk; its appended ID preserves every existing saved perk.
+ static_assert(unsigned(GearPerk::FireEdge)==9&&unsigned(GearPerk::ChainSpin)==13&&unsigned(GearPerk::Lightning)==14);
+ for(auto kind:{GearKind::Sword,GearKind::Greatsword})for(uint8_t tier:{4,5}) {
+  Run r;r.start(42);const unsigned bonus=tier==5?2:1;
+  r.equip_drop({kind,tier,tier,tier,GearPerk::Lightning});
+  assert(r.gear_weapon.valid()&&r.gear_weapon.perk_levels()==bonus);
+  assert(r.gear_weapon.perk_description()=="Bonus: +"+std::to_string(bonus)+" Lightning Strike");
+  assert(r.rank(Upgrade::Lightning)==bonus&&!r.base_rank(Upgrade::Lightning)&&r.lightning_hops()>0&&r.lightning_power()>0);
+  r.equip_drop({GearKind::HerosBow,4,4,4});assert(!r.rank(Upgrade::Lightning)&&!r.lightning_hops());
+  r.equip_drop({kind,tier,tier,tier,GearPerk::Lightning});
+  r.phase=Phase::Upgrade;r.offers[0]=Upgrade::Lightning;r.offer_rarities[0]=Rarity::Common;
+  assert(r.choose(0)&&r.base_rank(Upgrade::Lightning)==1&&r.rank(Upgrade::Lightning)==1+bonus);
+  r.gear_weapon={};assert(r.rank(Upgrade::Lightning)==1&&r.lightning_hops()>0);
+  r.equip_drop({kind,tier,tier,tier,GearPerk::Lightning});r.ranks[unsigned(Upgrade::Lightning)]=30;
+  assert(r.rank(Upgrade::Lightning)==30&&r.base_rank(Upgrade::Lightning)==30);
+ }
+ for(auto bad:std::array{GearItem{GearKind::Sword,3,3,3,GearPerk::Lightning},
+     GearItem{GearKind::HerosBow,5,5,5,GearPerk::Lightning},GearItem{GearKind::Tunic,5,5,0,GearPerk::Lightning}})assert(!bad.valid());
  // Legendary effects are Boolean; acquiring the run version and later changing gear retains it.
  for(auto tuple:std::array{std::tuple{GearKind::Sword,GearPerk::FireEdge,Upgrade::FireEdge,Upgrade::Count},
      std::tuple{GearKind::HerosBow,GearPerk::BombArrow,Upgrade::BombArrow,Upgrade::Bow},

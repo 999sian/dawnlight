@@ -278,6 +278,7 @@ struct Run {
         if(family!=GearFamily::Sword&&!base_rank(weapon))return 0;
         GearPerk perk=GearPerk::None;
         switch(upgrade) {
+        case Upgrade::Lightning:perk=GearPerk::Lightning;break;
         case Upgrade::Wave:perk=GearPerk::Wave;break;case Upgrade::Spin:perk=GearPerk::Spin;break;
         case Upgrade::MultiStrike:perk=GearPerk::MultiStrike;break;case Upgrade::FireArrows:perk=GearPerk::FireArrows;break;
         case Upgrade::Piercing:perk=GearPerk::Piercing;break;case Upgrade::Multishot:perk=GearPerk::Multishot;break;
@@ -289,7 +290,7 @@ struct Run {
         return perk!=GearPerk::None&&gear_weapon.perk==perk?gear_weapon.perk_levels():0;
     }
     unsigned rank(Upgrade u) const {
-        const auto family=u==Upgrade::Wave||u==Upgrade::Spin||u==Upgrade::MultiStrike||u==Upgrade::FireEdge?GearFamily::Sword:
+        const auto family=u==Upgrade::Wave||u==Upgrade::Spin||u==Upgrade::MultiStrike||u==Upgrade::Lightning||u==Upgrade::FireEdge?GearFamily::Sword:
             u==Upgrade::FireArrows||u==Upgrade::Piercing||u==Upgrade::BombArrow?GearFamily::Bow:
             u==Upgrade::Hurricane?GearFamily::Boomerang:u==Upgrade::FireBomb?GearFamily::Bombs:
             u==Upgrade::ChainSpin?GearFamily::Ball:GearFamily::None;

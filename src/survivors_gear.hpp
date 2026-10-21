@@ -12,15 +12,25 @@ enum class GearKind : uint8_t {
 };
 enum class GearSlot { Weapon, Tunic };
 enum class GearFamily { None, Sword, Bow, Boomerang, Bombs, Ball, Tunic };
-enum class GearPerk : uint8_t { None, Wave, Spin, MultiStrike, FireArrows, Piercing, Multishot, Reach, Haste, FireEdge, BombArrow, Hurricane, FireBomb, ChainSpin, Count };
-inline constexpr std::array gear_perk_names{"", "Sword Wave", "Spin Attack", "Multi Strike", "Fire Arrows", "Piercing", "Multishot", "Reach", "Haste", "Fire Edge", "Bomb Arrow", "Hurricane", "Fire Bomb", "Chain Spin"};
-inline constexpr std::array<GearPerk,4> gear_perk_pool(GearFamily family) {
+// Perk IDs are persisted: append new entries without shifting existing saves.
+enum class GearPerk : uint8_t { None, Wave, Spin, MultiStrike, FireArrows, Piercing, Multishot, Reach, Haste, FireEdge, BombArrow, Hurricane, FireBomb, ChainSpin, Lightning, Count };
+inline constexpr std::array gear_perk_names{"", "Sword Wave", "Spin Attack", "Multi Strike", "Fire Arrows", "Piercing", "Multishot", "Reach", "Haste", "Fire Edge", "Bomb Arrow", "Hurricane", "Fire Bomb", "Chain Spin", "Lightning Strike"};
+inline constexpr bool gear_perk_legendary(GearPerk perk) {
+    return perk>=GearPerk::FireEdge && perk<=GearPerk::ChainSpin;
+}
+// The last option in each family is its Legendary-only effect.
+inline constexpr std::array sword_perks{GearPerk::Wave,GearPerk::Spin,GearPerk::MultiStrike,GearPerk::Lightning,GearPerk::FireEdge};
+inline constexpr std::array bow_perks{GearPerk::FireArrows,GearPerk::Piercing,GearPerk::Multishot,GearPerk::BombArrow};
+inline constexpr std::array boomerang_perks{GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::Hurricane};
+inline constexpr std::array bomb_perks{GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::FireBomb};
+inline constexpr std::array ball_perks{GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::ChainSpin};
+inline constexpr std::span<const GearPerk> gear_perk_pool(GearFamily family) {
     switch(family) {
-    case GearFamily::Sword:return {GearPerk::Wave,GearPerk::Spin,GearPerk::MultiStrike,GearPerk::FireEdge};
-    case GearFamily::Bow:return {GearPerk::FireArrows,GearPerk::Piercing,GearPerk::Multishot,GearPerk::BombArrow};
-    case GearFamily::Boomerang:return {GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::Hurricane};
-    case GearFamily::Bombs:return {GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::FireBomb};
-    case GearFamily::Ball:return {GearPerk::Multishot,GearPerk::Reach,GearPerk::Haste,GearPerk::ChainSpin};
+    case GearFamily::Sword:return sword_perks;
+    case GearFamily::Bow:return bow_perks;
+    case GearFamily::Boomerang:return boomerang_perks;
+    case GearFamily::Bombs:return bomb_perks;
+    case GearFamily::Ball:return ball_perks;
     default:return {};
     }
 }
@@ -67,7 +77,8 @@ struct GearItem {
         if(perk!=GearPerk::None) {
             if(!is_weapon()||rarity()<3)return false;
             const auto pool=gear_perk_pool(family());
-            if(std::find(pool.begin(),pool.begin()+(rarity()==4?4:3),perk)==pool.begin()+(rarity()==4?4:3))return false;
+            const auto end=pool.end()-(rarity()==4?0:1);
+            if(std::find(pool.begin(),end,perk)==end)return false;
         }
         const auto values=stats();
         for(unsigned i=0;i<values.size();++i) {
@@ -83,10 +94,10 @@ struct GearItem {
             return values[i]*definition().affixes[i].scale;
         return 0;
     }
-    unsigned perk_levels() const {return perk==GearPerk::None?0:perk>=GearPerk::FireEdge?1:rarity()==4?2:1;}
+    unsigned perk_levels() const {return perk==GearPerk::None?0:gear_perk_legendary(perk)?1:rarity()==4?2:1;}
     std::string perk_description() const {
         if(perk==GearPerk::None||unsigned(perk)>=gear_perk_names.size())return {};
-        return std::string("Bonus: ")+(perk<GearPerk::FireEdge?"+"+std::to_string(perk_levels())+" ":"")+gear_perk_names[unsigned(perk)];
+        return std::string("Bonus: ")+(!gear_perk_legendary(perk)?"+"+std::to_string(perk_levels())+" ":"")+gear_perk_names[unsigned(perk)];
     }
     unsigned rarity() const {
         unsigned count=0,sum=0;const auto values=stats();
@@ -178,7 +189,7 @@ struct GearInventory {
         }
         if(item.is_weapon()&&item.rarity()>=3) {
             const auto pool=gear_perk_pool(item.family());
-            item.perk=pool[random(item.rarity()==4?4:3)];
+            item.perk=pool[random(unsigned(pool.size())-(item.rarity()==4?0:1))];
         }
         return item;
     }
