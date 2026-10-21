@@ -606,6 +606,16 @@ ModResult build_general_tab(
             "Show Progression System unlock and Gale capacity notifications. Off by default. "
             "Does not affect ability unlocks, item-acquisition scenes or other Dawnlight messages.")
         != MOD_OK) return MOD_ERROR;
+    if (add_section(ctx, left, "GAME MODES") != MOD_OK) return MOD_ERROR;
+    if (add_toggle(ctx, left, "Boss Rush", boss_rush_config_var(),
+            "Enable the Boss Rush game mode. Turning it off while active returns to the "
+            "mode selection; save your progress first. Existing saves are kept.") != MOD_OK)
+        return MOD_ERROR;
+    if (add_toggle(ctx, left, "HYRULE SURVIVORS", survivors_config_var(),
+            "Enable the Hyrule Survivors game mode. Turning it off removes it from mode selection "
+            "and returns an active game to that selection; save your progress first. "
+            "Existing saves and equipment are kept.") != MOD_OK)
+        return MOD_ERROR;
     if (add_section(ctx, left, "New Saves") != MOD_OK) return MOD_ERROR;
     if (add_select(ctx, left, "New Save Mode", new_save_mode_config_var(),
             kNewSaveModeOptions, std::size(kNewSaveModeOptions),
@@ -1159,10 +1169,6 @@ ModResult build_gameplay_tab(
 ModResult build_boss_rush_tab(
     ModContext* ctx, UiWindowHandle, UiElementHandle left, UiElementHandle, void*, ModError*) {
     if (add_section(ctx, left, "Boss Rush") != MOD_OK) return MOD_ERROR;
-    if (add_toggle(ctx, left, "Boss Rush", boss_rush_config_var(),
-            "Enable the Boss Rush game mode. Turning it off while active returns to the "
-            "mode selection; save your progress first. Existing saves are kept.") != MOD_OK)
-        return MOD_ERROR;
     if (add_toggle(ctx, left, "Cave Fairy Boss Warps", cave_boss_visits_config_var(),
             "In Boss Rush's Cave of Ordeals, fairy mist sends you to a random boss instead "
             "of summoning the fairy. Defeat it to return to the same room and open the way "
