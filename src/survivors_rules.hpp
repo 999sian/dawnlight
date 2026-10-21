@@ -125,7 +125,7 @@ inline constexpr std::array descriptions{
     "Increases sword ability damage and Lightning Strike damage. Requires the Master Sword from a chest; Light Sword from level 5.",
     "Repeat Sword Attack, Spin Attack, Sword Wave and Lightning Strike. Requires Dual Wield.",
     "Receive 20 rupees.",
-    "Ball and Chain makes one full orbit around Link before retracting. Requires Ball and Chain."};
+    "Ball and Chain spirals once around Link while retracting. Requires Ball and Chain."};
 
 // A burn refresh extends its duration without delaying the next tick or stacking.
 // Store tenths of HP so 10% effects stay proportional even below ten damage.

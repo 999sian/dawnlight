@@ -1631,10 +1631,13 @@ Chain Spin words after the existing v12 layout, one per high-score snapshot, wit
 rarity talents, damage arrays and snapshot offsets are unchanged.
 
 Ball launches snapshot Chain Spin and extend lifetime by 60 simulation ticks.
-At the outbound limit, track a 60-tick orbit around Link's current X/Z position,
-using the visible ball/chain and collider together. Victim identity resets only
-at orbit start and return start, allowing one hit per enemy per phase. The same
+At the outbound limit, begin a 60-tick spiraling return around Link's current
+X/Z position. The radius shrinks linearly to zero over one revolution, using the
+visible ball/chain and collider together. Manually aimed balls also converge to
+Link's return height; automatic shots retain their launch height. Victim identity
+resets only at return start, allowing one hit outbound and one on the spiral. The same
 world collision segment check terminates blocked orbits. Normal balls retain
 their original outbound/return path. Tests cover both upgrade/equipment sources,
-one complete revolution, moving Link, phase hit guards, walls and gear swaps.
+one complete shrinking revolution, moving Link, manual aim height, phase hit
+guards, walls and gear swaps.
 On-device visual validation of the orbit and enlarged bonus banner remains open.

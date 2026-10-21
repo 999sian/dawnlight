@@ -198,12 +198,12 @@ int main(){
         assert(!a.active);
     }
 
-    // Chain Spin adds exactly one complete moving-center orbit, then a fresh
-    // return pass. Snapshot the launch ability so gear swaps cannot cut it short.
-    for(bool fromGear:{false,true}) {
+    // Chain Spin retracts throughout one complete moving-center revolution.
+    // Snapshot the launch ability so gear swaps cannot cut it short.
+    for(bool fromGear:{false,true})for(bool manual:{false,true}) {
         reset();s_run.ranks[11]=1;
         if(fromGear)s_run.gear_weapon={GearKind::IronBall,5,5,5,GearPerk::ChainSpin};else s_run.chain_spin=1;
-        assert(launch_item(&player,Upgrade::Ball,{0,70,400}));auto& a=s_attacks[36];assert(a.chainSpin);
+        assert(launch_item(&player,Upgrade::Ball,{0,manual?270.f:70.f,400},0,20,0,kNone,manual));auto& a=s_attacks[36];assert(a.chainSpin);
         s_run.chain_spin=0;s_run.gear_weapon={};
         for(unsigned ticks=0;a.travel<a.limit&&ticks<200;++ticks)update_item_attack(a,&player);
         assert(a.active&&!a.returning&&a.chainSpinTick==0);
@@ -212,18 +212,22 @@ int main(){
         for(unsigned tick=1;tick<=60;++tick) {
             if(tick>1)player.current.pos.x+=1;
             update_item_attack(a,&player);
-            assert(a.active&&!a.returning&&a.chainSpinTick==tick);
-            assert(std::abs(a.position.absXZ(player.current.pos)-radius)<.01f);
+            assert(a.active&&a.returning&&a.chainSpinTick==tick);
+            const float remainingRadius=radius*(1.f-float(tick)/60.f);
+            assert(std::abs(a.position.absXZ(player.current.pos)-remainingRadius)<.01f);
+            assert(a.collider.pos.abs(a.position)<.01f);
+            const float expectedY=manual?70.f+(start.y-70.f)*(1.f-float(tick)/60.f):start.y;
+            assert(std::abs(a.position.y-expectedY)<.01f);
             if(tick==1){assert(a.ballVictimCount==0);a.ballVictimCount=1;}
             else assert(a.ballVictimCount==1); // No repeated hits during the orbit.
             const auto relative=a.position-player.current.pos;
-            if(tick==15)assert(relative.x>radius*.99f);
-            if(tick==30)assert(relative.z<-radius*.99f);
-            if(tick==45)assert(relative.x<-radius*.99f);
-            if(tick==60)assert(std::abs(relative.x-start.x)<.01f&&std::abs(relative.z-start.z)<.01f);
+            if(tick==15)assert(relative.x>remainingRadius*.99f);
+            if(tick==30)assert(relative.z<-remainingRadius*.99f);
+            if(tick==45)assert(relative.x<-remainingRadius*.99f);
+            if(tick==59)assert(relative.x<0&&relative.z>0); // Almost a full turn before reaching the center.
+            if(tick==60)assert(std::abs(relative.x)<.01f&&std::abs(relative.z)<.01f);
         }
-        update_item_attack(a,&player);assert(a.returning&&a.ballVictimCount==0);
-        for(unsigned ticks=0;a.active&&ticks<200;++ticks)update_item_attack(a,&player);
+        update_item_attack(a,&player);assert(a.returning&&a.ballVictimCount==1);
         assert(!a.active&&a.chainSpinTick==60);
     }
     reset();s_run.ranks[11]=1;s_run.chain_spin=1;assert(launch_item(&player,Upgrade::Ball,{0,70,400}));

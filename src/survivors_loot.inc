@@ -408,28 +408,30 @@ void update_item_attack(Attack& a, daAlink_c* link) {
                 }
             }
         }
-        bool spinning=false;
         if (weapon==Upgrade::Ball && a.travel>=a.limit && !a.returning) {
-            if(a.chainSpin && a.chainSpinTick<60) {
-                if(!a.chainSpinTick) {
-                    const auto delta=a.position-link->current.pos;
-                    a.chainSpinRadius=std::sqrt(delta.x*delta.x+delta.z*delta.z);
-                    a.chainSpinAngle=std::atan2(delta.x,delta.z);
-                    a.ballVictimCount=0;a.collider.ResetAtHit();a.status.Init(120,0xff,link);
-                }
-                // Exactly one revolution. The existing model/chain and collider
-                // follow the same position; each enemy can be hit once per pass.
-                const float angle=a.chainSpinAngle+6.28318530718f*float(++a.chainSpinTick)/60.f;
-                const cXyz next(link->current.pos.x+std::sin(angle)*a.chainSpinRadius,
-                    a.position.y,link->current.pos.z+std::cos(angle)*a.chainSpinRadius);
-                a.velocity=next-a.position;spinning=true;
-            } else {
-                a.returning=true;a.collider.ResetAtHit();a.ballVictimCount=0;
-                a.status.Init(120,0xff,link);
+            a.returning=true;a.collider.ResetAtHit();a.ballVictimCount=0;
+            a.status.Init(120,0xff,link);
+            if(a.chainSpin) {
+                const auto delta=a.position-link->current.pos;
+                a.chainSpinRadius=std::sqrt(delta.x*delta.x+delta.z*delta.z);
+                a.chainSpinAngle=std::atan2(delta.x,delta.z);
             }
         }
+        const bool spinning=weapon==Upgrade::Ball && a.returning && a.chainSpin;
         if (weapon==Upgrade::Boomerang && a.hurricane) a.collider.ResetAtHit();
-        if (a.returning) {
+        if (spinning) {
+            if(a.chainSpinTick>=60) { stop_attack(a); return; }
+            // Retract throughout one full revolution, following Link's current
+            // X/Z. Model, chain and collider share this inward spiral.
+            const unsigned remaining=60-a.chainSpinTick;
+            const float progress=float(++a.chainSpinTick)/60.f;
+            const float angle=a.chainSpinAngle+6.28318530718f*progress;
+            const float radius=a.chainSpinRadius*(1.f-progress);
+            const float y=a.manualFlight?a.position.y+(link->current.pos.y+70.f-a.position.y)/float(remaining):a.position.y;
+            const cXyz next(link->current.pos.x+std::sin(angle)*radius,
+                y,link->current.pos.z+std::cos(angle)*radius);
+            a.velocity=next-a.position;
+        } else if (a.returning) {
             cXyz delta = link->current.pos + cXyz(0, 70, 0) - a.position;
             if (weapon == Upgrade::Ball && !a.manualFlight) delta.y = 0; // Keep the launch height on both passes.
             const float distance = delta.abs();
