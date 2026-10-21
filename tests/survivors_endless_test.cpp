@@ -73,10 +73,10 @@ int main() {
         const unsigned begin=136+n*HighScoreRun::word_count*4;
         if(v10[begin])v10[begin+HighScoreRun::legacy_word_count*4]+=4;
     }
-    Records migrated;assert(migrated.decode(v10));
+    Records migrated;assert(migrated.decode(std::span(v10.data(),Records::v11_byte_count)));
     assert(migrated.encode()==restored.encode());
     v10[136+HighScoreRun::legacy_word_count*4]=99;
-    assert(!migrated.decode(v10)&&migrated.encode()==restored.encode());
+    assert(!migrated.decode(std::span(v10.data(),Records::v11_byte_count))&&migrated.encode()==restored.encode());
     auto bad=restored.encode();bad[136+HighScoreRun::legacy_word_count*4]=99;
     assert(!records.decode(bad)); // Invalid rank does not mutate existing records.
     assert(records.encode()==restored.encode());

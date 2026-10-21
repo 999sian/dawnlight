@@ -344,6 +344,21 @@ int main() {
     after_process(nullptr,processArgs,nullptr,nullptr);
     checkRoom(1);
     assert(!enemy_spawner_process_active() && s_testProcessStack.empty());
+    // Empty ownership skips only at top level. Losing the last owned ID in an
+    // outer scope must still mask that scope for an unrelated nested callback.
+    const auto savedOwners=s_testActors;
+    s_testActors.clear();
+    before_process(nullptr,skippedArgs,nullptr,nullptr);
+    assert(s_testProcessStack.empty());
+    after_process(nullptr,skippedArgs,nullptr,nullptr);
+    s_testProcessStack.push_back({processArgs,true});
+    before_process(nullptr,skippedArgs,nullptr,nullptr);
+    assert(s_testProcessStack.size()==2&&!enemy_spawner_process_active());
+    after_process(nullptr,skippedArgs,nullptr,nullptr);
+    assert(enemy_spawner_process_active());
+    after_process(nullptr,processArgs,nullptr,nullptr);
+    assert(s_testProcessStack.empty());
+    s_testActors=savedOwners;
     // The spawner exemption follows asynchronously created eggs/other children.
     // Registration happens before the base actor is initialized or admitted.
     fpc_ProcID childId=44;

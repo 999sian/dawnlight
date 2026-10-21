@@ -4,9 +4,9 @@
 #include <algorithm>
 
 namespace dawnlight::survivors {
-enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, StartingItem, AutoRupees, BonusDamage, MeleeHaste, CritDamage, LegendaryChance, LifeRegen, Count };
-inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge", "Starting Item", "Auto Rupees", "Bonus Damage", "Melee Haste", "Crit Damage", "Legendary Chance", "Life Regen"};
-inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{10,10,1,2,20,1,1,1,2,5,5,5,1,5,10,5,5,5,5};
+enum class Talent : unsigned { MaxHealth, CritChance, Sprint, SprintSpeed, Magnet, ManualJump, Glider, Gale, GaleCharges, Rerolls, Banishes, Dodge, StartingItem, AutoRupees, BonusDamage, MeleeHaste, CritDamage, LegendaryChance, LifeRegen, EquipmentDropRate, EquipmentRarity, Count };
+inline constexpr std::array talent_names{"Max Health", "Crit Chance", "Sprint", "Sprint Speed", "Magnet", "Manual Jump", "Glider", "Revali's Gale", "Gale Charges", "Rerolls", "Banishes", "Dodge", "Starting Item", "Auto Rupees", "Bonus Damage", "Melee Haste", "Crit Damage", "Legendary Chance", "Life Regen", "Equipment Drop Rate", "Equipment Rarity"};
+inline constexpr std::array<unsigned,unsigned(Talent::Count)> talent_caps{10,10,1,2,20,1,1,1,2,5,5,5,1,5,10,5,5,5,5,10,10};
 inline constexpr std::array talent_help{
     "+1 starting heart per rank (up to 13). Run Heart Containers remain separate.",
     "+1 percentage point base critical chance per rank, up to +10. Luck multiplies it; final chance caps at 100%.",
@@ -26,7 +26,9 @@ inline constexpr std::array talent_help{
     "+5% normal sword attack speed per rank, up to +25%. Adds to Dual Wield speed; combines with Haste cooldowns.",
     "+10 percentage points critical damage per rank, up to +50%. Base x2 becomes x2.5; stacks with run Crit Damage upgrades.",
     "+0.6 percentage points base Legendary rarity chance per rank, up to +3 (1% to 4%) before Luck. Applies to item and power-up rarities.",
-    "Regenerate 1/4 heart every 20 seconds of active play. Each rank shortens the interval by 1 second, down to 15 seconds. Pauses with the run."};
+    "Regenerate 1/4 heart every 20 seconds of active play. Each rank shortens the interval by 1 second, down to 15 seconds. Pauses with the run.",
+    "+5 percentage points equipment drop chance per rank from timed and stationary bosses: 20% base, up to 70%. Independent of Luck. Applies from the next run.",
+    "Improves newly dropped equipment stats each rank. At rank 10, stat tiers 1/2/3/4/5 have 20%/25%/25%/20%/10% chances (base 50%/25%/15%/8%/2%). +2 piercing/hop rolls rise from 10% to 30%. Item rarity follows its stats; existing gear is unchanged. Independent of Luck and Legendary Chance."};
 inline constexpr Talent talent_parent(Talent t) {
     switch(t) {
     case Talent::SprintSpeed: return Talent::Sprint;
@@ -62,6 +64,7 @@ struct Talents {
         return true;
     }
     unsigned dodge_basis_points() const { const auto r=rank(Talent::Dodge); return r ? 500+125*(std::min(5u,r)-1) : 0; }
+    unsigned equipment_drop_basis_points() const { return 2000+500*std::min(10u,rank(Talent::EquipmentDropRate)); }
     unsigned starting_hearts() const { return 3+rank(Talent::MaxHealth); }
     float sprint_multiplier() const { return rank(Talent::Sprint) ? 1.25f+0.125f*rank(Talent::SprintSpeed) : 1.f; }
 };

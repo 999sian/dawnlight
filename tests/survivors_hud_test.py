@@ -98,7 +98,13 @@ struct J2DGrafContext {
     }
 } context;
 unsigned skulls=0,skullLookups=0;bool hasMapArchive=true,hasSkullTexture=true;
-struct ResTIMG{} skullTexture,rupeeTexture;
+struct ResTIMG{} skullTexture,rupeeTexture,gearTexture;
+unsigned gearIcons=0;std::array<float,4> gearGeometry{};
+bool hasGearTexture=true;
+struct ItemArchive{void* getIdxResource(unsigned){return hasGearTexture?&gearTexture:nullptr;}} itemArchive;
+ItemArchive* dComIfGp_getItemIconArchive(){return &itemArchive;}
+unsigned gear_collection_texture(GearItem){return 0x70;}
+std::string number(unsigned n){return std::to_string(n);}
 struct JUTTexture{const ResTIMG* getTexInfo(){return &rupeeTexture;}unsigned getWidth(){return 12;}unsigned getHeight(){return 24;}} rupee;
 unsigned rupeeIcons=0,keys=0;unsigned chest_keys(){return keys;}
 std::array<float,4> rupeeGeometry{};
@@ -113,13 +119,14 @@ void* JKRGetNameResource(const char* name,MapArchive* archive){
 std::array<float,4> skullGeometry{};
 struct J2DPicture {
  const ResTIMG* image;
- explicit J2DPicture(const ResTIMG* resource):image(resource){assert(image==&skullTexture||image==&rupeeTexture);}
+ explicit J2DPicture(const ResTIMG* resource):image(resource){assert(image==&skullTexture||image==&rupeeTexture||image==&gearTexture);}
  JUtility::TColor getBlack(){return JUtility::TColor(0);}JUtility::TColor getWhite(){return JUtility::TColor(0xffffffff);}
+ void setAlpha(u8){}
  void setBlackWhite(JUtility::TColor b,JUtility::TColor w){assert(unsigned(b)==0&&unsigned(w)==0xffffffff);}
  JUTTexture* getTexture(int index){assert(index==0);return hasRupeeTexture?&rupee:nullptr;}
  void draw(float x,float y,float w,float h,bool a,bool b,bool c){
   assert(!a&&!b&&!c);
-  if(image==&rupeeTexture){rupeeGeometry={x,y,w,h};++rupeeIcons;}else{skullGeometry={x,y,w,h};++skulls;}
+  if(image==&gearTexture){gearGeometry={x,y,w,h};++gearIcons;}else if(image==&rupeeTexture){rupeeGeometry={x,y,w,h};++rupeeIcons;}else{skullGeometry={x,y,w,h};++skulls;}
   textureCoordinates=true;
  }
 };
@@ -128,7 +135,7 @@ unsigned rubyLabels=0;std::vector<std::string> printed;unsigned textColor=0;
 bool hasFont=true, arena=true, transition=false, window=false, hasGraf=true;
 JUTResFont* mDoExt_getMesgFont(){return hasFont?&font:nullptr;}
 JUTResFont* mDoExt_getRubyFont(){return hasFont?&ruby:nullptr;}
-enum {HBIND_CENTER,VBIND_TOP};
+enum {HBIND_CENTER,HBIND_LEFT,VBIND_TOP};
 struct DrawText {std::string text;float x,y,size;};std::vector<DrawText> textPositions;
 struct J2DPrint {
     JUTResFont* face;float size=0;
@@ -192,6 +199,22 @@ int main(){
         }
     }
 
+    // Banner starts outside the right edge, arrives at the right margin and
+    // exits right during its final 12 ticks. Icon/stats use the saved item copy.
+    s_gearNoticeItem={GearKind::Sword,5,4,3};hasFont=true;
+    for(unsigned remain:{240u,234u,228u,120u,12u,6u,1u}) {
+        s_gearNoticeTicks=remain;vertices.clear();printed.clear();gearIcons=0;
+        draw_gear_notice();assert(gearIcons==1&&vertices.size()==8&&!textureCoordinates);
+        const float left=vertices[0][0];
+        if(remain==240)assert(left==608);
+        if(remain==228||remain==120||remain==12)assert(left==320);
+        assert(left>=320&&left<=608&&vertices[0][1]==171);
+        assert(gearGeometry[0]==left+10&&gearGeometry[2]==44);
+        assert(printed.size()==6&&printed.back()=="Call Midna to Equip"&&printed[1]=="Hero's Sword"&&printed[2]=="+5 sword damage");
+        assert(context.mColorTL==1&&context.mColorBR==3);
+    }
+    hasGearTexture=false;gearIcons=0;draw_gear_notice();assert(!gearIcons);hasGearTexture=true;
+    s_gearNoticeTicks=0;
     // Baseline displays only the clock; the first difficulty step adds skull/rank.
     s_run.start(42);hasFont=true;printed.clear();rubyLabels=boxes=0;
     draw_run_rank_hud(304);assert(rubyLabels==1&&boxes==0&&skulls==0&&skullLookups==0);
@@ -321,8 +344,8 @@ int main(){
 with tempfile.TemporaryDirectory() as tmp:
     cpp = Path(tmp) / 'test.cpp'
     binary = Path(tmp) / 'test'
-    cpp.write_text(prefix + stubs + '\nunsigned s_gearNoticeTicks=0;const char* s_gearNotice="Weapon found!";\n' + '\nbool hub=false;unsigned hubLabels=0,prices=0,feedback=0;bool survivors_hub_active(){return hub;} void draw_hub_labels(){++hubLabels;} void draw_chest_prices(){++prices;} void draw_combat_feedback(){++feedback;}\n' + native + '\n' + function(source, 'void label(') + '\n' +
-                   (root/'src/survivors_boss_hud.inc').read_text() + '\n' + (root/'src/survivors_chest_hud.inc').read_text() + '\n' + function(source, 'void draw_hud(') + '\n' + main)
+    cpp.write_text(prefix + stubs + '\nunsigned s_gearNoticeTicks=0;const char* s_gearNotice="Weapon acquired";GearItem s_gearNoticeItem{};bool gear_notice_equip_available(){return s_gearNoticeTicks&&s_gearNoticeItem.kind!=GearKind::Empty;}\n' + '\nbool hub=false;unsigned hubLabels=0,prices=0,feedback=0;bool survivors_hub_active(){return hub;} void draw_hub_labels(){++hubLabels;} void draw_chest_prices(){++prices;} void draw_combat_feedback(){++feedback;}\n' + native + '\n' + function(source, 'void label(') + '\n' +
+                   (root/'src/survivors_boss_hud.inc').read_text() + '\n' + (root/'src/survivors_chest_hud.inc').read_text() + '\n' + (root/'src/survivors_gear_notice.inc').read_text() + '\n' + function(source, 'void draw_hud(') + '\n' + main)
     subprocess.run([os.environ.get('CXX','c++'), '-std=c++20', '-Wall', '-Wextra', '-Werror', '-I', str(root/'src'),
                     str(cpp), '-o', str(binary)], check=True)
     subprocess.run([str(binary)], check=True)

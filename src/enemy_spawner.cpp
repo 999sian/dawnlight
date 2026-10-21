@@ -158,6 +158,7 @@ void after_create_child(ModContext*, void* args, void* retval, void*) {
 }
 
 HookAction before_process(ModContext*, void* args, void*, void*) {
+    if (s_testActors.empty() && s_testProcessStack.empty()) return HOOK_CONTINUE;
     auto* process = mods::arg<void*>(args, 1);
     // The room's enemy-appearance switch is read in base creation, before the
     // first fopAcM_IsActor check can succeed. Process IDs already exist here.

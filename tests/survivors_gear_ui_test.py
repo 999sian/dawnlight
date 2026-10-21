@@ -33,6 +33,9 @@ bool wallBlocked=false;struct Bg{bool LineCross(dBgS_LinChk*){return wallBlocked
 constexpr int BUTTON_STATUS_OPEN=1,PAD_1=0,PAD_BUTTON_A=1;
 void dComIfGp_setDoStatusForce(int,int){}
 namespace mDoCPd_c{struct Pad{unsigned mPressedButtonFlags=0;}pad;bool getTrigA(int){return pad.mPressedButtonFlags&PAD_BUTTON_A;}Pad& getCpadInfo(int){return pad;}}
+unsigned nativeMaxLife=15,nativeLife=12;
+unsigned dComIfGs_getMaxLife(){return nativeMaxLife;}unsigned dComIfGs_getLife(){return nativeLife;}
+void dComIfGs_setMaxLife(unsigned value){nativeMaxLife=value;}void dComIfGs_setLife(unsigned value){nativeLife=value;}
 Run s_run;bool s_active=true,s_gameStarted=true,s_loaded=true,s_hub=true,s_restart=false,s_hubDeparture=false,s_progressSaving=false,s_progressSaved=true,s_hubSaveRequested=false;
 cXyz chestActorPosition;bool chestActorReady=false;bool survivors_equipment_chest_anchor(cXyz&);
 bool modal=false,transition=false,visible=false;unsigned s_player=1;
@@ -147,9 +150,57 @@ int main(){
  assert(s_run.earned_meta_xp()==0);
  s_run.options.debug.max_equipment_drop_rate=0;
  unsigned drops=0,swords=0,tunics=0;std::array<unsigned,unsigned(GearKind::Count)> kinds{};
- s_run.debug_run=false;s_run.options.debug.max_equipment_drop_rate=1;for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){++drops;assert(s_gearNoticeTicks==120);++kinds[unsigned(s_gear.items[0].kind)];if(s_gear.items[0].is_weapon())++swords;else ++tunics;}}
+ s_run.debug_run=false;s_run.options.debug.max_equipment_drop_rate=1;for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){++drops;assert(s_gearNoticeTicks==240);++kinds[unsigned(s_gear.items[0].kind)];if(s_gear.items[0].is_weapon())++swords;else ++tunics;}}
  assert(drops>5600&&drops<6400&&swords>2700&&swords<3300&&tunics>2700&&tunics<3300);
  for(unsigned k=1;k<unsigned(GearKind::Count);++k)assert(kinds[k]>0);
+ // The production drop path uses the immutable run talents, including rarity.
+ s_run.talents.ranks[unsigned(Talent::EquipmentDropRate)]=10;
+ s_run.talents.ranks[unsigned(Talent::EquipmentRarity)]=10;
+ unsigned boosted=0,topStats=0,allStats=0;
+ for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){
+  ++boosted;const auto item=s_gear.items[0];const auto values=item.stats();
+  for(unsigned j=0;j<values.size();++j)if(item.definition().affixes[j].stat!=GearStat::None&&!item.definition().affixes[j].count){++allStats;topStats+=values[j]==5;}
+ }}
+ assert(boosted>20500&&boosted<21500);
+ assert(topStats*100>allStats*9&&topStats*100<allStats*11);
+ s_run.talents={};
+ // Eight active seconds per immutable drop, FIFO when bosses die together.
+ clear_gear_notices();
+ const GearItem firstNotice{GearKind::Sword,5,4,3},secondNotice{GearKind::Tunic,2,1,0};
+ show_gear_notice({firstNotice,"Weapon acquired"});show_gear_notice({secondNotice,"Tunic acquired"});
+ assert(s_gearNoticeTicks==240&&s_gearNoticeItem==firstNotice&&s_gearNoticeQueue.size()==1);
+ for(unsigned i=0;i<239;++i)update_gear_notice();
+ assert(s_gearNoticeTicks==1&&s_gearNoticeItem==firstNotice);
+ update_gear_notice();assert(s_gearNoticeTicks==240&&s_gearNoticeItem==secondNotice&&s_gearNoticeQueue.empty());
+ for(unsigned i=0;i<240;++i)update_gear_notice();assert(!s_gearNoticeTicks);
+ show_gear_notice({{},"Equipment inventory full!"});assert(s_gearNoticeItem.kind==GearKind::Empty);
+ show_gear_notice({secondNotice,"Tunic acquired"});clear_gear_notices();
+ assert(!s_gearNoticeTicks&&s_gearNoticeQueue.empty()&&s_gearNoticeItem.kind==GearKind::Empty);
+ // Equip exactly the visible item/slot; persist first and leave the replaced
+ // item in inventory. Identical queued items still have distinct slot identities.
+ s_gear={};s_run.start(123);nativeMaxLife=15;nativeLife=12;
+ s_gear.add(sword);s_gear.equip(0);s_run.equip_gear(s_gear);
+ const auto replacement=s_gear.add(firstNotice),pending=s_gear.add(secondNotice);
+ show_gear_notice({firstNotice,"Weapon acquired",replacement});
+ show_gear_notice({secondNotice,"Tunic acquired",pending});
+ const auto savedGear=s_gear;failSave=true;equip_gear_notice();
+ assert(s_gear==savedGear&&s_run.gear_weapon==sword&&s_gearNoticeSlot==replacement&&s_gearNoticeQueue.size()==1);
+ failSave=false;equip_gear_notice();
+ assert(s_gear.weapon==replacement&&s_run.gear_weapon==firstNotice&&s_gear.items[0]==sword);
+ assert(s_gearNoticeSlot==pending&&s_gearNoticeTicks==240&&s_gearNoticeQueue.empty());
+ equip_gear_notice();assert(s_gear.tunic==pending&&s_run.gear_tunic==secondNotice&&!s_gearNoticeTicks);
+ assert(nativeMaxLife==25&&nativeLife==12); // More capacity, no free healing.
+ const auto untouched=s_gear;
+ show_gear_notice({firstNotice,"Weapon acquired",pending});
+ assert(!gear_notice_equip_available());equip_gear_notice();assert(s_gear==untouched);clear_gear_notices();
+ // Preserve earned hearts when swapping at the cap; lower capacity clamps life.
+ s_run.maximum_hearts=20;s_run.gear_hidden_hearts=0;s_run.gear_tunic={};
+ const GearItem bigTunic{GearKind::Tunic,5,5,0},smallTunic{GearKind::Tunic,1,1,0};
+ s_run.equip_drop(bigTunic);assert(s_run.maximum_hearts==20&&s_run.gear_hidden_hearts==5);
+ s_run.equip_drop(smallTunic);assert(s_run.maximum_hearts==20&&s_run.gear_hidden_hearts==1);
+ s_run.gear_tunic=bigTunic;s_run.maximum_hearts=10;s_run.gear_hidden_hearts=0;nativeMaxLife=50;nativeLife=40;
+ const auto smallSlot=s_gear.add(smallTunic);show_gear_notice({smallTunic,"Tunic acquired",smallSlot});
+ equip_gear_notice();assert(s_run.maximum_hearts==6&&nativeMaxLife==30&&nativeLife==24&&!s_gearNoticeTicks);
  // Every weapon has its English variant name, family icon and translated
  // numeric values in the actual rendered grid and detail text.
  const std::array<std::pair<GearKind,const char*>,10> named{{

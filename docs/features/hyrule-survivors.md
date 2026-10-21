@@ -1529,8 +1529,53 @@ their existing placement and rendering path.
 
 ### Persistent boss equipment
 
-See `SURVIVORS.md` for drop odds, independent stat weights, rarity thresholds and bonus scope. `survivors_gear.hpp` owns the two-page, 40-slot rules and explicit 172-byte little-endian/checksummed v3 blob (with 92-byte v1/v2 migration) (`survivors-gear`). Missing blobs migrate to empty inventory; malformed blobs are preserved and cannot be overwritten through this feature. Mutations stage successfully before replacing live state; hub close uses the existing native background save. Run snapshots copy one Weapon and one Tunic once; no equipment swaps during combat. Re-selecting equipped cards unequips them on touch, mouse, controller and keyboard. Banish opens a native warning dialog with Cancel/Delete; confirmation validates the pending slot/item, stages storage before mutation and supports retry. Window close, page rebuild and runtime teardown invalidate pending confirmations. Each tab rebuild owns only its 20 visible card handles. All ten weapon variants share the 40-slot inventory. Family-local bonuses require the run weapon and stack beyond normal upgrade caps and cooldown floors; hearts remain capped at 20. The Boomerang visited-target array holds 13 entries for 12 hops. Collection and hub UI select native family icons without caching archive resources.
+See `SURVIVORS.md` for drop odds, independent stat weights, rarity thresholds and bonus scope. `survivors_gear.hpp` owns the two-page, 40-slot rules and explicit 172-byte little-endian/checksummed v3 blob (with 92-byte v1/v2 migration) (`survivors-gear`). Missing blobs migrate to empty inventory; malformed blobs are preserved and cannot be overwritten through this feature. Mutations stage successfully before replacing live state; hub close uses the existing native background save. Run snapshots copy one Weapon and one Tunic at start; the active drop banner can explicitly replace its matching slot through Midna during combat. Re-selecting equipped cards unequips them on touch, mouse, controller and keyboard. Banish opens a native warning dialog with Cancel/Delete; confirmation validates the pending slot/item, stages storage before mutation and supports retry. Window close, page rebuild and runtime teardown invalidate pending confirmations. Each tab rebuild owns only its 20 visible card handles. All ten weapon variants share the 40-slot inventory. Family-local bonuses require the run weapon and stack beyond normal upgrade caps and cooldown floors; hearts remain capped at 20. The Boomerang visited-target array holds 13 entries for 12 hops. Collection and hub UI select native family icons without caching archive resources.
 
-`credit_death` rolls once after its credit latch for scheduled bosses only, before final-boss victory cleanup. Cleanup cannot award persistent equipment; Debug requires the explicit Max Equipment Drop Rate override. The hub chest uses its own actor/model heap at the fixed side-wall position. Collection reuses native Poe/Letters cursor cells and restores owned menu state on deletion/mode teardown. Draw-time textures are reacquired each frame; no native item flags or resource tables are changed. The two Collection hook targets already exist in Dawnlight's Dual Wield backend.
+`credit_death` rolls once after its credit latch for scheduled and stationary guard bosses, before final-boss victory cleanup. Cleanup cannot award persistent equipment; Debug requires the explicit Max Equipment Drop Rate override. The hub chest uses its own actor/model heap at the fixed side-wall position. Collection reuses native Poe/Letters cursor cells and restores owned menu state on deletion/mode teardown. Draw-time textures are reacquired each frame; no native item flags or resource tables are changed. The two Collection hook targets already exist in Dawnlight's Dual Wield backend.
 
 Runtime verification remains required: visible hub chest placement, all controller/touch/mouse/keyboard inventory controls, all supported Collection layouts/languages, icon presentation, four-second HUD notices (also after the final boss), save/reload and slot switching on physical devices. Unit tests and native packaging do not certify in-game rendering.
+
+
+### Equipment talents and stationary boss drops (PR #146)
+
+Equipment Drop Rate and Equipment Rarity are appended talent IDs, each capped at
+10 ranks. Drop chance uses the run snapshot: 2,000 + 500 basis points per drop
+rank, capped at 7,000. Rarity shifts independent stat weights linearly from
+50/25/15/8/2% to 20/25/25/20/10%; count-affix +2 odds rise from 10% to 30%.
+Rank-zero rolls retain the previous random call sequence and probabilities.
+See `SURVIVORS.md` for the midpoint and the distinction between stat tiers and
+final item rarity. Luck and Legendary Chance do not modify these gear rolls.
+
+All credited elite deaths now use the same equipment path, including stationary
+guard respawns. The death-credit latch still prevents duplicates; retiring,
+uninitialized and cleanup actors cannot award equipment. Debug exclusions and
+the explicit maximum-drop override remain unchanged.
+
+Records v12 appends two words after the v10/v11 score snapshots. Existing header,
+map-clear and score offsets are preserved, and v1–v11 decode with new ranks zero.
+The separate equipment inventory format stays v3; existing items are untouched.
+Tests cover all rank distributions, native stat caps, legacy-save migration,
+invalid/unfunded talent ranks, run snapshots, purchasing/refunding, 70% production
+drop odds and single-credit drops for timed and stationary bosses.
+
+
+Equipment notifications copy the awarded GearItem only after storage succeeds.
+The native J2D banner is centered vertically at the right edge, uses the existing
+rarity palette, reacquires its ItemIcon texture each draw, and lists the item name
+plus each actual affix. It enters from offscreen right and exits to the right over
+12 ticks at each end of an eight-active-second lifetime. Overlapping awards queue
+FIFO; run start/reset clears pending notifications. The normal HUD visibility and
+playable-state gates hide and pause notifications in menus. Rendering restores
+GX state and graph colors; no inventory pane or archive resource is retained.
+Below a successful drop, `Call Midna to Equip` routes the existing native Midna
+trigger to the displayed inventory slot instead of opening the run menu. Each
+notice carries an immutable GearItem and slot; the slot/item pair is validated
+before saving equipment selection, then updating live stats and dismissing the
+notice. The replaced item remains in inventory. Failure preserves live/stored
+selection and the notice for retry. Expiration and successful equip advance the
+same FIFO queue. Final-boss loot time supports equipping too. Tunic swaps track
+capacity above the 20-heart cap, preserve earned hearts and never grant healing.
+HUD tests exercise slide bounds, prompt/text/icon contents, missing textures and
+native vertex packet correctness; storage/UI tests cover FIFO lifetime, immediate
+replacement, save failure, stale slot identity, tunic health caps and reset.
+Midna routing tests verify equip priority, no dialogue and normal-menu fallback.

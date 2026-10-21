@@ -20,6 +20,8 @@ bool s_victory=false,s_deathPending=false;
 #include <set>
 #include <vector>
 #include "survivors_rules.hpp"
+#include "actor_slot_index.hpp"
+using dawnlight::ActorSlotIndex;
 using namespace dawnlight::survivors;
 using ActorId=unsigned;using s16=short;constexpr ActorId kNone=~0u;
 struct ModContext{};ModContext* mod_ctx=nullptr;enum HookAction{HOOK_CONTINUE};

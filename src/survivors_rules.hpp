@@ -198,10 +198,20 @@ struct Run {
     unsigned endless_start=0, normal_score=0, rank_snapshot=0;
     RunOptions options;
     Talents talents;
-    GearItem gear_weapon{}, gear_tunic{}; // Frozen at run start; inventory edits are hub-only.
+    GearItem gear_weapon{}, gear_tunic{}; // Midna can equip the currently advertised drop.
+    unsigned gear_hidden_hearts=0; // Tunic capacity above the 20-heart cap, for reversible swaps.
     void equip_gear(const GearInventory& gear) {
         gear_weapon=gear.equipped(GearSlot::Weapon);gear_tunic=gear.equipped(GearSlot::Tunic);
         maximum_hearts=std::min(20u,talents.starting_hearts()+gear_tunic.bonus(GearStat::Hearts));
+        gear_hidden_hearts=0;
+    }
+    void equip_drop(GearItem item) {
+        if(!item.valid() || item.kind==GearKind::Empty)return;
+        if(item.is_weapon()) {gear_weapon=item;return;}
+        const unsigned total=maximum_hearts+gear_hidden_hearts;
+        const unsigned next=total-std::min(total,gear_tunic.bonus(GearStat::Hearts))+item.bonus(GearStat::Hearts);
+        maximum_hearts=std::min(20u,next);gear_hidden_hearts=next-maximum_hearts;
+        gear_tunic=item;
     }
     unsigned dodge_basis_points() const { return std::min(10000u,talents.dodge_basis_points()+gear_tunic.second*100u); }
     unsigned timed_elites = 0, guard_elites = 0;
@@ -756,7 +766,12 @@ struct Records {
         (endless?(assisted?endless_cheated:endless_ranked):(assisted?cheated:ranked))[map]={};
         if(!endless)high_scores[map]=std::max(ranked[map].score,cheated[map].score);
     }
-    static constexpr unsigned word_count=34+20*HighScoreRun::word_count;
+    // v12 appends the two equipment talents after the unchanged v10/v11
+    // header and score snapshots; legacy offsets must never consume new ranks.
+    static constexpr unsigned legacy_talent_count=19;
+    static constexpr unsigned v11_word_count=34+20*HighScoreRun::word_count;
+    static constexpr unsigned v11_byte_count=4*v11_word_count;
+    static constexpr unsigned word_count=v11_word_count+2;
     static constexpr unsigned v9_byte_count=4*(34+10*HighScoreRun::legacy_word_count);
     static constexpr unsigned byte_count=4*word_count;
     static constexpr unsigned v8_score_words=20+30+2*18;
@@ -787,10 +802,12 @@ struct Records {
         if(!best.present() || run.score()>best.score)best={run,run.score(),level(),available_points()};
     }
     std::array<uint8_t,byte_count> encode() const {
-        std::array<uint32_t,word_count> words{0x56525348,11,runs,wins,best_ticks,best_kills,best_level};
+        std::array<uint32_t,word_count> words{0x56525348,12,runs,wins,best_ticks,best_kills,best_level};
         for(unsigned i=0;i<5;++i)words[7+i]=high_scores[i];
         words[12]=uint32_t(total_xp);words[13]=uint32_t(total_xp>>32);
-        for(unsigned i=0;i<talents.ranks.size();++i)words[14+i]=talents.ranks[i];
+        for(unsigned i=0;i<legacy_talent_count;++i)words[14+i]=talents.ranks[i];
+        words[v11_word_count]=talents.rank(Talent::EquipmentDropRate);
+        words[v11_word_count+1]=talents.rank(Talent::EquipmentRarity);
         words[33]=cleared_maps;
         unsigned offset=34;
         for(const auto* category:{&ranked,&cheated,&endless_ranked,&endless_cheated})for(const auto& best:*category) {
@@ -802,11 +819,11 @@ struct Records {
         return bytes;
     }
     bool decode(std::span<const uint8_t> bytes) {
-        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=v8_byte_count && bytes.size()!=v9_byte_count && bytes.size()!=byte_count)return false;
+        if(bytes.size()!=28 && bytes.size()!=100 && bytes.size()!=104 && bytes.size()!=108 && bytes.size()!=124 && bytes.size()!=132 && bytes.size()!=136 && bytes.size()!=v8_byte_count && bytes.size()!=v9_byte_count && bytes.size()!=v11_byte_count && bytes.size()!=byte_count)return false;
         std::array<uint32_t,word_count> words{};
         for(unsigned i=0;i<bytes.size()/4;++i)for(unsigned b=0;b<4;++b)words[i]|=uint32_t(bytes[i*4+b])<<(8*b);
         if(words[0]!=0x56525348 || words[3]>words[2])return false;
-        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==v8_byte_count)||(words[1]==9 && bytes.size()==v9_byte_count)||((words[1]==10 || words[1]==11) && bytes.size()==byte_count)))return false;
+        if(!((words[1]==1 && bytes.size()==28)||(words[1]==2 && bytes.size()==100)||(words[1]==3 && bytes.size()==104)||(words[1]==4 && bytes.size()==108)||(words[1]==5 && bytes.size()==124)||(words[1]==6 && bytes.size()==132)||(words[1]==7 && bytes.size()==136)||(words[1]==8 && bytes.size()==v8_byte_count)||(words[1]==9 && bytes.size()==v9_byte_count)||((words[1]==10 || words[1]==11) && bytes.size()==v11_byte_count)||(words[1]==12 && bytes.size()==byte_count)))return false;
         Records next;
         // Legacy saves have aggregate wins only; scores also include defeats.
         if(words[1]>=7){
@@ -817,7 +834,11 @@ struct Records {
         if(words[1]>=2){
             for(unsigned i=0;i<5;++i)next.high_scores[i]=words[7+i];
             next.total_xp=uint64_t(words[12])|(uint64_t(words[13])<<32);
-            for(unsigned i=0;i<next.talents.ranks.size();++i)next.talents.ranks[i]=words[14+i];
+            for(unsigned i=0;i<legacy_talent_count;++i)next.talents.ranks[i]=words[14+i];
+            if(words[1]>=12) {
+                next.talents.ranks[unsigned(Talent::EquipmentDropRate)]=words[v11_word_count];
+                next.talents.ranks[unsigned(Talent::EquipmentRarity)]=words[v11_word_count+1];
+            }
             if(next.total_xp>max_meta_xp || !next.talents.valid() || next.talents.spent()>meta_levels(next.total_xp))return false;
         }
         if(words[1]>=8) {

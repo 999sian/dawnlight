@@ -65,6 +65,9 @@ struct daMidna_c{dMsgFlow_c mMsgFlow;struct{bool talk=false;bool checkCommandTal
 struct daPy_py_c{static daMidna_c* getMidnaActor(){return &midna;}};
 enum HookAction{HOOK_CONTINUE,HOOK_SKIP_ORIGINAL};
 namespace mods{template<class T>T arg(void* args,int n){return std::any_cast<T>(static_cast<std::any*>(args)[n]);}}
+bool gearOffer=false;unsigned gearEquips=0;
+bool gear_notice_equip_available(){return gearOffer;}
+void equip_gear_notice(){++gearEquips;gearOffer=false;}
 unsigned fopAcM_GetID(daAlink_c* a){return a->id;}
 unsigned s_player=7,s_midnaRequestFrames=0;bool s_midnaTalking=false,s_midnaEndPending=false,s_midnaRestartPending=false;
 bool s_hub=false,s_hubDeparture=false,s_hubDoorStarted=false;Run s_run;bool arena=true,transition=false,pause=false,event=false,message=false,ui=false;
@@ -117,6 +120,14 @@ int main(){
   midna.eventInfo.talk=false;update_midna_dialog();assert(!midna_dialog_busy()&&s_run.phase==Phase::Running&&ended==0);
  }
  map=0;stage=arenas[0].stage;room=51;s_run.start(1);
+ // Midna equips the advertised drop without opening a dialogue, including
+ // final-boss loot time and airborne players. One trigger handles one banner.
+ reset_midna_dialog();s_victory=true;link.mLinkAcch.hit=false;gearOffer=true;
+ const auto ordersBeforeGear=ordered;before_midna_call(nullptr,input,nullptr,nullptr);
+ assert(gearEquips==1&&!gearOffer&&ordered==ordersBeforeGear&&!midna_dialog_busy());
+ before_midna_call(nullptr,input,nullptr,nullptr);assert(gearEquips==1);
+ gearOffer=true;ui=true;before_midna_call(nullptr,input,nullptr,nullptr);assert(gearEquips==1&&gearOffer);
+ ui=false;gearOffer=false;s_victory=false;link.mLinkAcch.hit=true;
  // End Run commits only once, after native closure; no re-entry during messages.
  u16 node=0;before_midna_flow(nullptr,flowArgs,&node,nullptr);event=message=true;
  endEvent(nullptr,nullptr,nullptr);update_midna_dialog();assert(ended==0&&s_midnaEndPending);

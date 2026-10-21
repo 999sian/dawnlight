@@ -8,6 +8,53 @@ source=r'''
 #include <algorithm>
 using namespace dawnlight::survivors;
 int main() {
+ // Every talent rank shifts cumulative stat odds upward, within native caps.
+ for(unsigned rank=0;rank<=10;++rank) {
+  Talents talents;talents.ranks[unsigned(Talent::EquipmentDropRate)]=rank;
+  assert(talents.equipment_drop_basis_points()==2000+500*rank);
+  unsigned weights[5]{};
+  for(unsigned roll=0;roll<1000;++roll) {
+   const auto stat=GearInventory::quality_stat(roll,rank);++weights[stat-1];
+   if(rank)assert(stat>=GearInventory::quality_stat(roll,rank-1));
+   else assert(stat==GearInventory::stat(roll/10));
+  }
+  assert(weights[0]==500-30*rank&&weights[1]==250&&weights[2]==150+10*rank&&
+         weights[3]==80+12*rank&&weights[4]==20+8*rank);
+  for(unsigned variant=0;variant<10;++variant)for(unsigned roll=0;roll<100;++roll) {
+   unsigned calls=0;auto item=GearInventory::roll([&](unsigned n){
+    unsigned value=calls++==0?0:calls==2?variant:roll;assert(value<n);return value;
+   },rank);
+   assert(item.valid());
+   if(item.kind==GearKind::SharpshooterBow)assert(item.third==(roll<90-2*rank?1:2));
+   if(item.kind==GearKind::HurricaneBoomerang)assert(item.second==(roll<90-2*rank?1:2));
+  }
+ }
+ // v12 preserves score offsets and map clears, appending the new talent ranks.
+ Records perks;perks.total_xp=meta_threshold(119);perks.cleared_maps=31;
+ for(unsigned i=0;i<unsigned(Talent::Count);++i)while(perks.talents.can_buy(Talent(i)))assert(perks.buy(Talent(i)));
+ assert(perks.talents.spent()==119&&!perks.available_points());
+ Run scored;scored.start(42);scored.end(true);perks.finish(scored,2);
+ auto encoded=perks.encode();assert(encoded[4]==12);
+ Records read;assert(read.decode(encoded)&&read.encode()==encoded);
+ for(auto t:{Talent::EquipmentDropRate,Talent::EquipmentRarity}) {
+  auto copy=read;assert(copy.talents.refund(t)&&copy.available_points()==read.available_points()+1);
+ }
+ // v11 has no equipment ranks; clear-map bits and first score words are not ranks.
+ auto legacyPerks=encoded;legacyPerks[4]=11;
+ assert(read.decode(std::span(legacyPerks.data(),Records::v11_byte_count)));
+ assert(!read.talents.rank(Talent::EquipmentDropRate)&&!read.talents.rank(Talent::EquipmentRarity));
+ assert(read.cleared_maps==31&&read.ranked[2].encode()==perks.ranked[2].encode());
+ assert(read.total_xp==perks.total_xp&&read.available_points()==perks.available_points()+20);
+ assert(!read.decode(legacyPerks)); // Version/length mismatch.
+ const auto intact=read.encode();
+ for(unsigned offset:{Records::v11_byte_count,Records::v11_byte_count+4}) {
+  auto bad=encoded;bad[offset]=11;assert(!read.decode(bad)&&read.encode()==intact);
+ }
+ auto unfunded=encoded;for(unsigned i=48;i<56;++i)unfunded[i]=0;
+ assert(!read.decode(unfunded)&&read.encode()==intact);
+ Talents snapshot;snapshot.ranks[unsigned(Talent::EquipmentDropRate)]=10;
+ Run active;active.start(42,{},snapshot);snapshot={};
+ assert(active.talents.equipment_drop_basis_points()==7000);
  GearInventory gear;
  assert(gear.equipped(GearSlot::Weapon)==GearItem{});
  unsigned counts[5]{};for(unsigned i=0;i<100;++i)++counts[GearInventory::stat(i)-1];
