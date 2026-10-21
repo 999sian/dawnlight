@@ -18,6 +18,9 @@ def extract(name):
     raise AssertionError(name)
 stubs = r'''
 void stop_survivors_music(){}
+unsigned archiveBegins=0,archiveReleases=0;
+void begin_enemy_archives(){++archiveBegins;}
+void release_enemy_archives(){++archiveReleases;}
 bool s_victory=false;void reset_ending(){s_victory=false;}void begin_victory(int){s_victory=true;}
 
 #include <cassert>

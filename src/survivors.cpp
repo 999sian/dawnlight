@@ -534,7 +534,9 @@ void close_window() {
 void retire_pots();
 void cleanup_pots();
 void detach_pot_attacks();
+#include "survivors_enemy_archives.inc"
 void retire_enemies() {
+    release_enemy_archives();
     retire_pots(); retire_pickups(); retire_enemy_arrows();
     clear_enemy_effects();
     for (auto& e : s_enemies) if (e.id != kNone) e.retiring = true;
@@ -1473,6 +1475,7 @@ void begin_run() {
     close_window(); clear_attacks(); clear_loot(); prepare_save();
     dMeter2Info_setSword(dItemNo_SWORD_e, false); // Refresh live equipment after a previous run.
     const auto seed = static_cast<uint32_t>(std::chrono::steady_clock::now().time_since_epoch().count());
+    begin_enemy_archives();
     reset_elite_encounters();
     s_bossHudTarget = kNone;
     clear_combat_feedback();
@@ -1499,6 +1502,7 @@ void continue_endless(ModContext*,void*) {
     s_storeFailed=svc_save->set_blob(mod_ctx,kBlob,bytes.data(),bytes.size())!=MOD_OK;
     if(s_storeFailed){s_refreshChoices=s_window;close_window();return;} // Rebuild with the save-error message.
     if(!s_run.continue_endless())return;
+    begin_enemy_archives();
     close_window();reset_ending();
     s_resultsStored=false;s_spawnCooldown=0;s_spawnFailures=0;
     reset_elite_encounters();
@@ -1629,6 +1633,7 @@ bool survivors_dark_link_active() {
 void update_survivors() {
     update_survivors_music();
     update_survivors_integrity(s_run.modded);
+    update_enemy_archives();
     cleanup_enemies();
     cleanup_pots(); cleanup_pickups();
     if (s_treasure.retiring) retire_treasure_actor();
@@ -1699,6 +1704,8 @@ ModResult initialize_survivors(ModError* error) {
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to install Hyrule Survivors pre-hook " #H); } while(false)
 #define POST(H, F) do { result = mods::hook_add_post<H>(svc_hook, F); \
     if(result!=MOD_OK)return mods::set_error(error,result,"failed to install Hyrule Survivors post-hook " #H); } while(false)
+    POST(SurvivorsArchiveLoad, after_enemy_archive_load);
+    POST(SurvivorsArchiveHeapLoad, after_enemy_archive_heap_load);
     PRE(SurvivorsArenaActor, before_arena_stage_actor);
 #include "survivors_roster_hooks.inc"
     PRE(SurvivorsEnemySpeed, before_enemy_speed); POST(SurvivorsEnemySpeed, after_enemy_facing);
