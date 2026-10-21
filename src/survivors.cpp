@@ -1605,6 +1605,7 @@ ModResult loaded(void*, ModError*) {
     reset_runtime(); prepare_save(); s_saveReady = true; return MOD_OK;
 }
 ModResult reset(void*, ModError*) { reset_runtime(); return MOD_OK; }
+#include "survivors_mode.inc"
 #include "survivors_music.inc"
 } // namespace
 
@@ -1635,6 +1636,7 @@ bool survivors_dark_link_active() {
         s_run.phase == Phase::Upgrade || s_run.phase == Phase::TreasureChoice || s_run.phase == Phase::Treasure);
 }
 void update_survivors() {
+    update_survivors_registration();
     update_survivors_music();
     update_survivors_integrity(s_run.modded);
     update_enemy_archives();
@@ -1816,17 +1818,7 @@ ModResult initialize_survivors(ModError* error) {
     PRE(SurvivorsDrops, before_drop); PRE(SurvivorsDirectDrops, before_drop);
 #undef PRE
 #undef POST
-    const GameModeDesc mode{
-        .struct_size = sizeof(GameModeDesc), .game_mode_id = kMode,
-        .full_name = "Hyrule Survivors", .save_name = "gczelda2-survivors", .user_data = nullptr,
-        .on_activated = activated, .on_deactivated = deactivated, .on_play = activated,
-        .on_save_loaded = loaded, .on_new_save = new_save, .on_new_save_select = nullptr,
-        .on_game_reset = reset, .on_tick = nullptr,
-    };
-    result = svc_game_mode->register_game_mode(mod_ctx, &mode);
-    if (result != MOD_OK) return mods::set_error(error, result, "failed to register Hyrule Survivors");
-    s_registered = true;
-    return MOD_OK;
+    return survivors_enabled()?register_survivors_mode(error):MOD_OK;
 }
 void shutdown_survivors() {
     stop_survivors_music();

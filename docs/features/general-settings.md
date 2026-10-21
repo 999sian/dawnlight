@@ -84,8 +84,20 @@ unaffected. It remains editable independently of Dawnlight Mode. Muting these
 notifications does not pause progression or the Glider acquisition sequence;
 missed progression toasts are not replayed when notifications are enabled.
 
+## Game modes
+
+General → **GAME MODES** contains **Boss Rush** and **HYRULE SURVIVORS**.
+Both default to On and are saved independently of Dawnlight Mode and Progression.
+Turning one Off removes it from the game's mode selection. If that mode is active,
+Dusklight returns to mode selection; save progress before switching it off.
+Existing mode saves, equipment and progression remain available when re-enabled.
+The Boss Rush tab retains its Cave Fairy Boss Warps and Clear Timer settings.
+
 ## New saves and save compatibility
 
-**New Save Mode** includes Intro Skip and Boss Rush. Dawnlight also includes
-save compatibility and item integrity repairs. See [Boss Rush](boss-rush.md)
+**New Save Mode** offers Vanilla and Intro Skip. Intro Skip preserves both the
+player and horse names entered for the new slot while applying its story preset.
+It does not rename existing saves retroactively. Boss Rush and Hyrule Survivors
+are separate game modes. Dawnlight also includes save compatibility and item
+integrity repairs. See [Boss Rush](boss-rush.md)
 for its hub, portals and save/resume features.
