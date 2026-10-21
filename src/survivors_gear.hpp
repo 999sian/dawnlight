@@ -175,7 +175,7 @@ struct GearInventory {
         return roll<500-30*rank?1:roll<750-30*rank?2:
             roll<900-20*rank?3:roll<980-8*rank?4:5;
     }
-    template<class Random> static GearItem roll(Random&& random,unsigned rarityRank=0) {
+    template<class Random> static GearItem roll(Random&& random,unsigned rarityRank=0,bool legendary=false) {
         rarityRank=rarityRank>10?10:rarityRank;
         // 50% Tunic / 50% Weapon; five equally likely families, two variants each.
         static constexpr std::array kinds{GearKind::Sword,GearKind::Greatsword,GearKind::HerosBow,GearKind::SharpshooterBow,
@@ -184,7 +184,7 @@ struct GearInventory {
         GearItem item{kind};std::array<uint8_t*,3> values{&item.first,&item.second,&item.third};
         for(unsigned i=0;i<values.size();++i) {
             const auto& affix=item.definition().affixes[i];
-            if(affix.stat!=GearStat::None)*values[i]=uint8_t(affix.count?(random(100)<90-2*rarityRank?1:2):
+            if(affix.stat!=GearStat::None)*values[i]=uint8_t(legendary?(affix.count?2:5):affix.count?(random(100)<90-2*rarityRank?1:2):
                 rarityRank?quality_stat(random(1000),rarityRank):stat(random(100)));
         }
         if(item.is_weapon()&&item.rarity()>=3) {

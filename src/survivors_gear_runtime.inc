@@ -82,14 +82,16 @@ void drop_boss_gear() {
     // Called only after the kill credit latch. Cleanup/victory-wave kills and
     // ordinary debug runs never create equipment. The explicit test override
     // permits saved equipment, but never restores scores/XP/map unlocks.
-    const bool maximum=s_run.debug_run && s_run.debug_options().max_equipment_drop_rate;
-    if((s_run.debug_run && !maximum) || (!maximum && !s_run.roll_chance(s_run.talents.equipment_drop_basis_points())))return;
+    const auto debug=s_run.debug_options();
+    const bool maximum=s_run.debug_run && debug.max_equipment_drop_rate;
+    const bool legendary=s_run.debug_run && debug.always_legendary_equipment;
+    if((s_run.debug_run && !maximum && !legendary) || (!maximum && !s_run.roll_chance(s_run.talents.equipment_drop_basis_points())))return;
     auto random=[](unsigned n){
         const uint32_t limit=UINT32_MAX-UINT32_MAX%n;
         uint32_t value;do{value=s_run.next_random()-1;}while(value>=limit);
         return value%n;
     };
-    const auto item=GearInventory::roll(random,s_run.talents.rank(Talent::EquipmentRarity));
+    const auto item=GearInventory::roll(random,s_run.talents.rank(Talent::EquipmentRarity),legendary);
     auto next=s_gear;
     const auto slot=next.add(item);
     if(slot==GearInventory::none)show_gear_notice({{},"Inventory Full!"});

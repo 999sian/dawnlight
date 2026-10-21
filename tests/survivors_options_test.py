@@ -214,12 +214,12 @@ int main(){
  controls.clear();s_options.debug={4,10,1,1,5};s_run.options.debug=s_options.debug;
  assert(build_debug(nullptr,0,1,2,nullptr,nullptr)==MOD_OK);
  if(debug_enabled){
-  assert(controls.size()==8&&std::string(controls[0].label)=="Enable Debug");
+  assert(controls.size()==9&&std::string(controls[0].label)=="Enable Debug");
   auto enable=controls[0];UiControlValue state=UI_CONTROL_VALUE_INIT;enable.get(nullptr,nullptr,&state);assert(!state.bool_value);
-  for(unsigned i=1;i<8;++i)assert(controls[i].is_disabled(nullptr,controls[i].user_data));
+  for(unsigned i=1;i<9;++i)assert(controls[i].is_disabled(nullptr,controls[i].user_data));
   auto deniedDebug=s_options.debug;UiControlValue deniedValue=UI_CONTROL_VALUE_INIT;deniedValue.int_value=2;
   controls[1].set(nullptr,controls[1].user_data,&deniedValue);assert(s_options.debug.minimum_rarity==deniedDebug.minimum_rarity);
-  deniedValue.bool_value=true;controls[7].set(nullptr,nullptr,&deniedValue);assert(!s_options.debug.unlock_all_maps);
+  deniedValue.bool_value=true;controls[8].set(nullptr,nullptr,&deniedValue);assert(!s_options.debug.unlock_all_maps);
   state.bool_value=true;failNotice=true;enable.set(nullptr,nullptr,&state);assert(!debug_session_enabled&&!s_debugNotice);failNotice=false;
   enable.set(nullptr,nullptr,&state);assert(debug_session_enabled&&notices==1&&s_debugNotice);
   assert(noticeBody.find("permanently unlock maps")!=std::string::npos);
@@ -235,12 +235,17 @@ int main(){
   auto maximum=controls[6];assert(maximum.kind==UI_CONTROL_TOGGLE&&std::string(maximum.label)=="Max Equipment Drop Rate");
   UiControlValue maximumValue=UI_CONTROL_VALUE_INIT;maximumValue.bool_value=true;
   maximum.set(nullptr,maximum.user_data,&maximumValue);assert(s_options.debug.max_equipment_drop_rate==1);
-  Run probe;probe.start(42,s_options);assert(probe.debug_run&&probe.debug_options().max_equipment_drop_rate==1);
+  auto legendary=controls[7];assert(legendary.kind==UI_CONTROL_TOGGLE&&std::string(legendary.label)=="Always Legendary Equipment");
+  UiControlValue legendaryValue=UI_CONTROL_VALUE_INIT;legendary.get(nullptr,legendary.user_data,&legendaryValue);assert(!legendaryValue.bool_value);
+  legendaryValue.bool_value=true;legendary.set(nullptr,legendary.user_data,&legendaryValue);assert(s_options.debug.always_legendary_equipment==1);
+  s_run.phase=Phase::Running;legendaryValue.bool_value=false;legendary.set(nullptr,legendary.user_data,&legendaryValue);
+  assert(legendary.is_disabled(nullptr,legendary.user_data)&&s_options.debug.always_legendary_equipment==1);s_run.phase=Phase::Ready;
+  Run probe;probe.start(42,s_options);assert(probe.debug_run&&probe.debug_options().max_equipment_drop_rate==1&&probe.debug_options().always_legendary_equipment==1);
   assert(s_options.debug.run_minutes==5&&s_options.debug.player_damage==10);
   s_run.phase=Phase::Running;state.bool_value=false;enable.set(nullptr,nullptr,&state);assert(debug_session_enabled&&notices==1);
-  s_run.phase=Phase::Ready;enable.set(nullptr,nullptr,&state);assert(!debug_session_enabled&&notices==2&&s_options.debug.run_minutes==20);
+  s_run.phase=Phase::Ready;enable.set(nullptr,nullptr,&state);assert(!debug_session_enabled&&notices==2&&s_options.debug.run_minutes==20&&!s_options.debug.always_legendary_equipment);
   assert(noticeBody.find("New runs")!=std::string::npos);noticeAction.on_pressed(nullptr,s_debugNotice,nullptr);
-  for(unsigned i=1;i<8;++i)assert(controls[i].is_disabled(nullptr,controls[i].user_data));
+  for(unsigned i=1;i<9;++i)assert(controls[i].is_disabled(nullptr,controls[i].user_data));
  }else{
   assert(controls.empty()&&s_options.debug.run_minutes==20&&s_options.debug.player_damage==1);
   assert(s_options.debug.minimum_rarity==0&&!s_options.debug.infinite_rerolls&&!s_options.debug.infinite_banishes);

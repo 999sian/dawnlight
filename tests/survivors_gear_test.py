@@ -238,6 +238,18 @@ int main() {
   auto index=shared.add({kind,1,1,1});assert(shared.equip(index)&&shared.weapon==index&&shared.tunic==0);
  }
 
+ // Debug forcing supports every family/count affix and retains every Legendary perk option.
+ for(unsigned variant=0;variant<11;++variant)for(unsigned pick=0;pick<(variant<2?5u:variant<10?4u:1u);++pick) {
+  unsigned calls=0;auto item=GearInventory::roll([&](unsigned bound){
+   const auto n=calls++;const unsigned value=n==0?(variant==10?1:0):n==1?variant:pick;
+   assert(value<bound);return value;
+  },0,true);
+  assert(item.valid()&&item.rarity()==4);
+  const auto stats=item.stats();
+  for(unsigned i=0;i<stats.size();++i){const auto affix=item.definition().affixes[i];assert(stats[i]==(affix.stat==GearStat::None?0:affix.count?2:5));}
+  if(item.is_weapon())assert(item.perk==gear_perk_pool(item.family())[pick]&&calls==3);
+  else assert(item.perk==GearPerk::None&&calls==1);
+ }
  // Exactly one family-compatible perk on new Epic/Legendary weapons; none on tunics/lower tiers.
  for(unsigned variant=0;variant<10;++variant)for(unsigned quality:{0u,94u,99u})for(unsigned pick=0;pick<(quality==99?4u:3u)+(variant<2?1u:0u);++pick) {
   unsigned calls=0;auto item=GearInventory::roll([&](unsigned bound){

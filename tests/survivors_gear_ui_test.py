@@ -149,6 +149,22 @@ int main(){
  }
  assert(s_run.earned_meta_xp()==0);
  s_run.options.debug.max_equipment_drop_rate=0;
+ // Legendary-only preserves the drop chance; together both overrides guarantee a Legendary.
+ s_run.options.debug.always_legendary_equipment=1;
+ for(bool maximum:{false,true}) {
+  s_run.options.debug.max_equipment_drop_rate=maximum;unsigned legendaryDrops=0;bool sawWeapon=false,sawTunic=false;
+  for(unsigned i=0;i<2000;++i) {
+   s_gear={};s_gearNoticeTicks=0;drop_boss_gear();
+   if(s_gearNoticeTicks) {
+    ++legendaryDrops;const auto item=s_gear.items[0];assert(item.valid()&&item.rarity()==4);
+    sawWeapon|=item.is_weapon();sawTunic|=!item.is_weapon();
+    if(item.is_weapon())assert(item.perk!=GearPerk::None);
+    GearInventory savedDrop;assert(savedDrop.decode(blobs[kGearBlob])&&savedDrop.items[0]==item);
+   }
+  }
+  if(debug_enabled){assert(sawWeapon&&sawTunic);assert(maximum?legendaryDrops==2000:legendaryDrops>300&&legendaryDrops<500);}
+  else assert(!legendaryDrops);
+ }
  unsigned drops=0,swords=0,tunics=0;std::array<unsigned,unsigned(GearKind::Count)> kinds{};
  s_run.debug_run=false;s_run.options.debug.max_equipment_drop_rate=1;for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){++drops;assert(s_gearNoticeTicks==240);++kinds[unsigned(s_gear.items[0].kind)];if(s_gear.items[0].is_weapon())++swords;else ++tunics;}}
  assert(drops>5600&&drops<6400&&swords>2700&&swords<3300&&tunics>2700&&tunics<3300);
