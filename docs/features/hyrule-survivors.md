@@ -55,6 +55,12 @@ native scene exits are disabled during runs. The hub retains its usable exit doo
 Enemy and chest placement reject other rooms and paths across these barriers.
 If collision is not ready, combat does not begin. Story mode and Boss Rush retain their own rules.
 
+On every arena, falling more than 500 units below the last safe position checks
+for dry, valid ground beneath Link before triggering recovery. Tall cliff jumps
+can land naturally on lower floors; missing ground, void/exit floor codes, water
+and floors in another room still trigger recovery. The Palace retains its entrance
+respawn and one-heart penalty; other arenas return to the last safe position.
+
 ## Run
 
 Call Midna during a run on any arena, including the throne room, using the usual

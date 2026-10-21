@@ -42,7 +42,7 @@ bool s_victory=false,s_deathPending=false,s_resultsStored=false;void prepare_vic
 #include "../include/survivors_barriers.hpp"
 using namespace dawnlight::survivors;
 using ActorId=unsigned; using s16=short;using BOOL=int;constexpr BOOL TRUE=1,FALSE=0;
-struct cXyz {float x=0,y=0,z=0; cXyz()=default; cXyz(float a,float b,float c):x(a),y(b),z(c){} void set(float a,float b,float c){x=a;y=b;z=c;}};
+struct cXyz {float x=0,y=0,z=0; cXyz()=default; cXyz(float a,float b,float c):x(a),y(b),z(c){} void set(float a,float b,float c){x=a;y=b;z=c;} cXyz operator+(cXyz b)const{return{x+b.x,y+b.y,z+b.z};}};
 struct csXyz {short x=0,y=0,z=0;};
 struct fopAc_ac_c {unsigned id=7; int room=51; struct{cXyz pos;}current,old;cXyz speed;csXyz shape_angle;float speedF=0;};
 struct daAlink_c:fopAc_ac_c {struct{int m_gnd=0;bool hit=false;float floor=-1e9f;bool ChkGroundHit(){return hit;}float GetGroundH(){return floor;}void CrrPos(int){hit=true;floor=0;}}mLinkAcch;
@@ -52,7 +52,16 @@ struct daAlink_c:fopAc_ac_c {struct{int m_gnd=0;bool hit=false;float floor=-1e9f
  void procWaitInit(){++waits;}
 };
 int life=12,damageWrites=0,finished=0,cleared=0,interrupted=0,cancelled=0;
-struct BG{operator int()const{return 0;}int GetGroundCode(int){return 0;}}background;
+struct dBgS_ObjGndChk{cXyz pos;void SetPos(cXyz* p){pos=*p;}};
+struct dBgS_WtrChk{float bottom=0,top=0,height=0;void Set(cXyz p,float y){bottom=p.y;top=y;}float GetHeight(){return height;}};
+float landingFloor=-1.e9f,waterY=0;int landingRoom=0,landingCode=0,groundProbes=0;bool wet=false;
+struct BG{
+ operator int()const{return 0;}int GetGroundCode(int){return 0;}
+ float GroundCross(dBgS_ObjGndChk* q){++groundProbes;return !std::isfinite(landingFloor)||landingFloor<=q->pos.y?landingFloor:-1.e9f;}
+ int GetRoomId(dBgS_ObjGndChk&){return landingRoom;}
+ int GetGroundCode(dBgS_ObjGndChk&){return landingCode;}
+ bool WaterChk(dBgS_WtrChk* q){q->height=waterY;return wet&&waterY>=q->bottom&&waterY<=q->top;}
+}background;
 BG& dComIfG_Bgsp(){return background;}int dComIfGs_getLife(){return life;}
 void dComIfGs_setLife(int n){life=n;++damageWrites;}
 void clear_attacks(){++cleared;}void interrupt_auto_actions(daAlink_c*){++interrupted;}
@@ -183,12 +192,63 @@ int main(){
  // Other arenas retain their existing free return to the last safe floor.
  s_map=0;link.room=arena().room;life=12;link.current.pos.y=-501;update_arena_safety(&link);
  assert(life==12&&damageWrites==4);
+
+ // High and low cliff jumps must keep falling toward valid lower floors on
+ // every map, even with stale actor collision data. Preserve native velocity
+ // and fall bookkeeping so landing/fall damage remain native.
+ for(unsigned map=0;map<arenas.size();++map){
+  s_map=map;clear_arena_geometry();link.room=landingRoom=arena().room;
+  s_run.phase=Phase::Running;link.current.pos={10,2000,20};
+  link.mLinkAcch.hit=true;link.mLinkAcch.floor=2000;link.mGroundCode=0;
+  update_arena_safety(&link);assert(s_arenaSafePosition.y==2000);
+  const int writes=damageWrites;const auto teleports=link.teleports;
+  landingFloor=-4000;link.mLinkAcch.hit=false;link.mLinkAcch.floor=-1.e9f;
+  link.speed={3,-50,4};link.mFallHeight=2000;groundProbes=0;
+  link.current.pos.y=1500;update_arena_safety(&link);
+  assert(link.current.pos.y==1500&&!groundProbes); // No query for short drops.
+  for(float y:{1499.f,0.f,-3990.f}){
+   link.current.pos.y=y;update_arena_safety(&link);
+   assert(link.current.pos.y==y&&link.speed.y==-50&&link.mFallHeight==2000);
+   assert(s_arenaSafePosition.y==2000&&damageWrites==writes&&link.teleports==teleports);
+  }
+  link.current.pos.y=-4000;link.mLinkAcch.hit=true;link.mLinkAcch.floor=-4000;
+  update_arena_safety(&link);
+  assert(link.current.pos.y==-4000&&s_arenaSafePosition.y==-4000);
+  assert(damageWrites==writes&&link.teleports==teleports);
+  // Invalid landing surfaces must still recover. A valid floor seen on the
+  // preceding frame cannot mask a later move out over the void.
+  for(int bad=0;bad<8;++bad){
+   link.current.pos={10,2000,20};link.mLinkAcch.hit=true;link.mLinkAcch.floor=2000;
+   landingCode=0;landingRoom=arena().room;wet=false;landingFloor=0;
+   update_arena_safety(&link);
+   link.mLinkAcch.hit=false;link.current.pos={100,1400,200};
+   update_arena_safety(&link);assert(link.current.pos.y==1400);
+   if(bad==0)landingFloor=-1.e9f;
+   if(bad==1)landingFloor=NAN;
+   if(bad>=2&&bad<=4)landingCode=bad==2?4:bad==3?5:10;
+   if(bad==5)++landingRoom;
+   if(bad==6){wet=true;waterY=50;}
+   if(bad==7)landingFloor=1600; // A floor above Link cannot rescue a fall below it.
+   life=12;const int before=damageWrites;
+   update_arena_safety(&link);
+   assert(link.current.pos.y==2000&&link.current.pos.x==10);
+   assert(damageWrites==before+(map==3?1:0)&&life==(map==3?8:12));
+  }
+  // Bridges are safe even when water exists below their floor.
+  landingCode=0;landingRoom=arena().room;landingFloor=0;wet=true;waterY=-100;
+  link.mLinkAcch.hit=false;link.current.pos={100,1400,200};
+  update_arena_safety(&link);assert(link.current.pos.y==1400);
+  wet=false;
+ }
  clear_arena_geometry();assert(!s_arenaSpawn&&!s_arenaSafe);
  std::cout<<"Survivors spawn: native entry, barrier timing, grounding, recovery and actor replacement passed\n";
 }
 '''
-functions = '\n'.join(extract(n) for n in ['add_exit_box','arena_story_actor','before_arena_stage_actor',
-    'confine_arena_actor','after_arena_position','before_arena_restart','arena_grounded','update_arena_safety'])
+# Exercise the real floor policy together with the rescue hooks.
+ground = (root/'src/survivors_ground.inc').read_text()
+dry_floor = ground[:ground.index('bool walkable_spawn_path')]
+functions = dry_floor+'\n'+'\n'.join(extract(n) for n in ['add_exit_box','arena_story_actor','before_arena_stage_actor',
+    'confine_arena_actor','after_arena_position','before_arena_restart','arena_grounded','arena_fallen','update_arena_safety'])
 globals = source[source.index('std::vector<barriers::Wall>'):source.index('void add_exit_box')]
 with tempfile.TemporaryDirectory() as tmp:
     cpp,binary=Path(tmp)/'test.cpp',Path(tmp)/'test'

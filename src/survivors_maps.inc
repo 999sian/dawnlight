@@ -158,13 +158,22 @@ bool arena_grounded(daAlink_c* link) {
         link->mLinkAcch.ChkGroundHit() && std::isfinite(floor) && floor>-1.0e8f &&
         std::abs(link->current.pos.y-floor)<20 && fopAcM_GetRoomNo(link)==arena().room;
 }
+bool dry_arena_floor(cXyz& pos, float rise, float drop);
+bool arena_fallen(daAlink_c* link) {
+    if (!s_arenaSafe || link->current.pos.y>=s_arenaSafePosition.y-500) return false;
+    // Height lost alone cannot distinguish a cliff from a void. Probe beneath
+    // Link's current XZ, including the landing frame, before rescuing him.
+    // Use the native valid-ground range, not another maximum jump height.
+    cXyz landing=link->current.pos;
+    return !dry_arena_floor(landing,20,1.e8f);
+}
 void update_arena_safety(daAlink_c* link) {
     // Native ground contact is available before our derived barrier mesh. Keep
     // the first safe position during Loading as well, not just after warmup.
     if (s_deathPending || fpcM_IsCreating(fopAcM_GetID(link)) || (s_hub&&s_hubDoorStarted)) return;
     const int room=fopAcM_GetRoomNo(link);
     const bool palace=s_map==3 && s_arenaSpawn && s_run.phase==Phase::Running;
-    const bool fallen=s_arenaSafe && (link->current.pos.y<s_arenaSafePosition.y-500 ||
+    const bool fallen=s_arenaSafe && (arena_fallen(link) ||
         (palace && link->mLinkAcch.ChkGroundHit() &&
          (link->mGroundCode==4 || link->mGroundCode==5 || link->mGroundCode==10)));
     if (palace && fallen) {
