@@ -65,7 +65,7 @@ int main() {
  unsigned rolls[]{0,0,99,75,50};unsigned pos=0;
  auto sword=GearInventory::roll([&](unsigned n){assert(rolls[pos]<n);return rolls[pos++];});
  assert(sword.kind==GearKind::Sword&&sword.first==5&&sword.second==3&&sword.third==2&&pos==5);
- unsigned tunicRolls[]{1,0,99};pos=0;
+ unsigned tunicRolls[]{4,0,99};pos=0;
  auto tunic=GearInventory::roll([&](unsigned n){assert(tunicRolls[pos]<n);return tunicRolls[pos++];});
  assert(tunic.kind==GearKind::Tunic&&tunic.first==1&&tunic.second==5&&tunic.third==0&&pos==3);
  for(auto kind:{GearKind::Sword,GearKind::Tunic}) {
@@ -241,7 +241,7 @@ int main() {
  // Debug forcing supports every family/count affix and retains every Legendary perk option.
  for(unsigned variant=0;variant<11;++variant)for(unsigned pick=0;pick<(variant<2?5u:variant<10?4u:1u);++pick) {
   unsigned calls=0;auto item=GearInventory::roll([&](unsigned bound){
-   const auto n=calls++;const unsigned value=n==0?(variant==10?1:0):n==1?variant:pick;
+   const auto n=calls++;const unsigned value=n==0?(variant==10?4:0):n==1?variant:pick;
    assert(value<bound);return value;
   },0,true);
   assert(item.valid()&&item.rarity()==4);

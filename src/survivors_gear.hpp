@@ -177,10 +177,10 @@ struct GearInventory {
     }
     template<class Random> static GearItem roll(Random&& random,unsigned rarityRank=0,bool legendary=false) {
         rarityRank=rarityRank>10?10:rarityRank;
-        // 50% Tunic / 50% Weapon; five equally likely families, two variants each.
+        // 80% Weapon / 20% Tunic; five equally likely families, two variants each.
         static constexpr std::array kinds{GearKind::Sword,GearKind::Greatsword,GearKind::HerosBow,GearKind::SharpshooterBow,
             GearKind::StormBoomerang,GearKind::HurricaneBoomerang,GearKind::BombBag,GearKind::SiegeBombs,GearKind::IronBall,GearKind::BreakerBall};
-        const auto kind=random(2)==0?kinds[random(kinds.size())]:GearKind::Tunic;
+        const auto kind=random(5)<4?kinds[random(kinds.size())]:GearKind::Tunic;
         GearItem item{kind};std::array<uint8_t*,3> values{&item.first,&item.second,&item.third};
         for(unsigned i=0;i<values.size();++i) {
             const auto& affix=item.definition().affixes[i];

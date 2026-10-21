@@ -42,7 +42,7 @@ ModResult build_debug(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
         control.kind=setting.choices==kDebugSwitch?UI_CONTROL_TOGGLE:setting.choices?UI_CONTROL_SELECT:UI_CONTROL_NUMBER;
         control.label=setting.label;control.user_data=&setting;
         if(setting.field==&DebugOptions::max_equipment_drop_rate)
-            control.help_rml="100% equipment drop chance per boss, including Debug runs. Weapon/Tunic stays 50/50; all ten weapon variants remain random. Stats follow Equipment Rarity unless Always Legendary Equipment is enabled. Equipment is saved. Scores, Survivors XP and permanent map unlocks remain disabled. Default: off.";
+            control.help_rml="100% equipment drop chance per boss, including Debug runs. Weapon/Tunic stays 80/20; all ten weapon variants remain random. Stats follow Equipment Rarity unless Always Legendary Equipment is enabled. Equipment is saved. Scores, Survivors XP and permanent map unlocks remain disabled. Default: off.";
         if(setting.field==&DebugOptions::always_legendary_equipment)
             control.help_rml="New equipment drops are always Legendary with maximum base stats and a random Legendary-tier weapon bonus. Weapon/Tunic and weapon variants stay random. Allows saved drops in Debug at the normal talent-adjusted chance; combine with Max Equipment Drop Rate for a drop from every boss. Applies to the next run; existing items are unchanged. Default: off.";
         control.options=control.kind==UI_CONTROL_TOGGLE?nullptr:setting.choices;control.option_count=control.kind==UI_CONTROL_TOGGLE?0:setting.count;

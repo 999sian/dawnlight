@@ -167,7 +167,7 @@ int main(){
  }
  unsigned drops=0,swords=0,tunics=0;std::array<unsigned,unsigned(GearKind::Count)> kinds{};
  s_run.debug_run=false;s_run.options.debug.max_equipment_drop_rate=1;for(unsigned i=0;i<30000;++i){s_gear={};s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks){++drops;assert(s_gearNoticeTicks==240);++kinds[unsigned(s_gear.items[0].kind)];if(s_gear.items[0].is_weapon())++swords;else ++tunics;}}
- assert(drops>5600&&drops<6400&&swords>2700&&swords<3300&&tunics>2700&&tunics<3300);
+ assert(drops>5600&&drops<6400&&swords>4500&&swords<5100&&tunics>1000&&tunics<1400);
  for(unsigned k=1;k<unsigned(GearKind::Count);++k)assert(kinds[k]>0);
  // The production drop path uses the immutable run talents, including rarity.
  s_run.talents.ranks[unsigned(Talent::EquipmentDropRate)]=10;

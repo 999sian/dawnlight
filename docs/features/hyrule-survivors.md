@@ -1648,7 +1648,8 @@ On-device visual validation of the orbit and enlarged bonus banner remains open.
 Session-only, Off by default, captured at run start and neutralized in Debug-off
 builds. New boss equipment uses maximum valid base stats (5, or 2 for count
 affixes), then rolls one ordinary +2-level or Legendary effect perk from the
-family pool. Type/variant selection stays random and old items are untouched.
+family pool. Equipment selection is 80% Weapon / 20% Tunic, with all ten weapon variants
+equally likely (8% each of all drops); old items are untouched.
 This explicit override allows saved equipment in Debug at the normal talent
 drop chance; combining Max Equipment Drop Rate guarantees one per boss.
 Debug score, permanent XP and map-unlock exclusions remain in effect.
