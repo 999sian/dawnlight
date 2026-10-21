@@ -63,8 +63,11 @@ SurvivorsArchiveLoad (1)`, aborting Dawnlight activation. Those hook targets hav
 been removed. The replacement resource-processing hook is optional: if a host
 cannot install it, a single initialization warning is logged and normal native
 resource loading remains active. All gameplay-critical hook failures still fail
-initialization. Windows runtime verification of the new detour remains required;
-a successful module build alone cannot verify host instruction relocation.
+initialization. The subsequent Windows log (`dusklight-20261021-111445.log`)
+reaches `Dawnlight portable feature pack initialized` without the cache fallback
+warning, supporting successful installation of the replacement hook. It records
+one load each of `ba.bmd` and `ms.bmd`; this short run does not prove cache reuse
+across repeated respawns or a reduction in freezes.
 
 No callback is uninstalled or reordered. The shared-target SDK uninstall behavior,
 Apple fallbacks, gameplay limits, attack timing and equipment remain unchanged.
@@ -100,3 +103,39 @@ scene, enemy/pickup density and feature state before/after, including spawn-heav
 moments and teardown. Report callback totals plus frame-time median and p95/p99.
 The planned story/Hyrule Field feature-on/off comparison remains useful for idle
 costs. This patch does not promise stable 30 FPS in late waves.
+
+## Follow-up optimization TODOs
+
+PR #147 closes this optimization pass. Any later optimization work must start
+from current `main` on a **new branch with a new pull request**; do not reuse
+`perf/actor-hook-lookups` or append further optimization work to PR #147.
+The following items are investigations, not established bugs or promised gains:
+
+- Symbolicate the original Switch callback offsets against the exact profiled
+  `linux-aarch64/mod.so` and its matching symbols (reported SHA-256 prefix
+  `f77ab0846f5b56ce`). Start with `+0x114840` (3.26 ms), `+0xca140` (0.95 ms)
+  and `+0xcf9a0` (0.59 ms). Obtain per-callback call counts and distinguish
+  inclusive from exclusive timings before choosing the next code changes.
+- Capture comparable before/after Switch runs at stock handheld clocks,
+  including dense late waves and all five maps. Record actor/pickup counts,
+  Dawnlight game-thread time, callback costs, frame-time median/p95/p99 and
+  multi-second stalls. Keep build options, enabled mods and feature settings
+  matched; separately measure the planned Hyrule Field story-mode feature-on/off
+  test for Bullet Time, Flurry Rush, Hard Mode and Cave Randomizer idle costs.
+- Verify archive reuse over sustained respawns, boss secondary resources and
+  child actors, plus restart, Endless, map changes and teardown. Check Windows,
+  Android and Switch. Installation success alone does not establish callback
+  coverage or cache hits. If needed, add temporary bounded counters for acquired
+  references, capacity misses and releases; avoid per-frame/per-actor log spam.
+- Measure peak resident/heap memory and cache occupancy on Switch. The current
+  32-entry cap is not a byte budget. Consider a byte budget or different retention
+  policy only if measurements show pressure or capacity misses.
+- If freezes remain, correlate timestamped stalls with first archive loads,
+  model/texture processing, allocations and other mods. Consider staged warm-up
+  only if first-load stalls are confirmed and memory/loading-time costs are
+  acceptable; the current implementation intentionally does not preload maps.
+- Reprofile remaining actor-hook work after these changes, including index
+  maintenance/allocation at spawn and cleanup. Optimize measured hotspots while
+  preserving pending/retiring actor tracking, nested ownership masking and
+  cleanup outside an active run. Do not introduce blanket inactive returns or
+  shared-target hook uninstalls that bypass other features.
