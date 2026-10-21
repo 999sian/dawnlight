@@ -6,14 +6,14 @@ struct RunPickup {
     bool retiring=false, summoned=false;
 };
 std::vector<RunPickup> s_pickups;
+ActorSlotIndex<ActorId> s_pickupIndex;
 struct ExpMagnet { bool pending=false, active=false, collected=false; cXyz position{}; };
 // The first slots belong to timed bosses; reusable extra slots hold rare drops.
 std::vector<ExpMagnet> s_expMagnets(timed_elite_count);
 float magnet_range() { return float(s_run.magnet_range()); }
 RunPickup* tracked_pickup(ActorId id) {
     if (id==kNone) return nullptr;
-    for (auto& pickup:s_pickups) if (pickup.id==id) return &pickup;
-    return nullptr;
+    return s_pickupIndex.find(s_pickups,id);
 }
 HookAction before_key_pickup(ModContext*, void* args, void*, void*) {
     auto* item = mods::arg<daItem_c*>(args, 0);
@@ -38,7 +38,10 @@ ActorId create_run_pickup(cXyz position, int item) {
     struct Allow { bool previous=s_allowDrop; Allow(){s_allowDrop=true;} ~Allow(){s_allowDrop=previous;} } allow;
     const auto id=fopAcM_createItem(&position,item,-1,arena().room,nullptr,nullptr,
         daItem_c::TYPE_LAUNCH_e);
-    if (id!=kNone) s_pickups.push_back({id,item});
+    if (id!=kNone) {
+        s_pickups.push_back({id,item});
+        s_pickupIndex.add(id,s_pickups.size()-1);
+    }
     return id;
 }
 void retire_pickups() {
@@ -52,7 +55,8 @@ void cleanup_pickups() {
         if (!actor && !fpcM_IsCreating(pickup.id)) pickup.id=kNone;
         else if (actor && pickup.retiring) svc_actor->delete_actor(mod_ctx,pickup.id);
     }
-    std::erase_if(s_pickups,[](const RunPickup& p){return p.id==kNone;});
+    if (std::erase_if(s_pickups,[](const RunPickup& p){return p.id==kNone;}) != 0)
+        s_pickupIndex.rebuild(s_pickups,kNone);
 }
 bool pickup_waiting(const RunPickup& pickup, fopAc_ac_c* actor) {
     if (pickup.item==dItemNo_KAKERA_HEART_e)

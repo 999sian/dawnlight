@@ -2,16 +2,16 @@
 // children retire with their owner; all share run pause, damage and teardown.
 struct EnemyArrow { ActorId id=kNone; bool retiring=false; ActorId parent=kNone; bool shell=false; unsigned damageFactor=1; };
 std::array<EnemyArrow, enemy_capacity*4> s_enemyArrows;
+ActorSlotIndex<ActorId> s_enemyArrowIndex;
 EnemyArrow* tracked_enemy_arrow(ActorId id) {
-    for (auto& arrow:s_enemyArrows) if (arrow.id!=kNone && arrow.id==id) {
-        if(arrow.shell) {
-            const auto* parent=tracked(arrow.parent);
-            if(!parent||parent->retiring||parent->credited)arrow.retiring=true;
-        }
-        return &arrow;
+    auto* arrow=id==kNone?nullptr:s_enemyArrowIndex.find(s_enemyArrows,id);
+    if(arrow && arrow->shell) {
+        const auto* parent=tracked(arrow->parent);
+        if(!parent||parent->retiring||parent->credited)arrow->retiring=true;
     }
-    return nullptr;
+    return arrow;
 }
+
 bool active_enemy_arrow(ActorId id) {
     const auto* arrow=tracked_enemy_arrow(id);
     return arrow && !arrow->retiring;
@@ -88,6 +88,7 @@ void after_enemy_arrow(ModContext*, void* args, void* result, void*) {
     if (id==kNone || !owned_arrow_spawn(args) || tracked_enemy_arrow(id)) return;
     for (auto& arrow:s_enemyArrows) if (arrow.id==kNone) {const auto* owner=enemy_child_root(mods::arg<ActorId>(args,1));
         arrow={id,false,owner->id,attached_enemy_child(mods::arg<s16>(args,0)),enemy_attack_factor(*owner)};
+        s_enemyArrowIndex.add(id,std::size_t(&arrow-s_enemyArrows.data()));
         spawn_endless_arrow_spread(args);return;}
 }
 void retire_enemy_arrows() {
@@ -101,7 +102,9 @@ void cleanup_enemy_arrows() {
             if(!parent||parent->retiring||parent->credited)arrow.retiring=true;
         }
         auto* actor=actor_by_id(arrow.id);
-        if (!actor && !fpcM_IsCreating(arrow.id)) arrow={};
+        if (!actor && !fpcM_IsCreating(arrow.id)) {
+            s_enemyArrowIndex.erase(arrow.id); arrow={};
+        }
         else if (actor && arrow.retiring) svc_actor->delete_actor(mod_ctx,arrow.id);
     }
 }

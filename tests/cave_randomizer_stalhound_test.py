@@ -107,6 +107,22 @@ int main() {
     method = execute; replacement.name = fpcNm_E_SH_e;
     replacement.sub_method = &methods; replacement.isActor = true; owned = &replacement;
 
+    // Empty ownership only skips work when no outer clock scope needs masking.
+    s_stalhounds.clear();
+    before_stalhound_process(nullptr, ownedArgs, nullptr, nullptr);
+    assert(s_stalhoundTimeFrames.empty() && environment.daytime==180);
+    after_stalhound_process(nullptr, ownedArgs, nullptr, nullptr);
+    s_stalhounds.insert(1);
+    before_stalhound_process(nullptr, ownedArgs, nullptr, nullptr);
+    s_stalhounds.clear();
+    before_stalhound_process(nullptr, otherArgs, nullptr, nullptr);
+    assert(environment.daytime==180);
+    after_stalhound_process(nullptr, otherArgs, nullptr, nullptr);
+    assert(environment.daytime==0);
+    after_stalhound_process(nullptr, ownedArgs, nullptr, nullptr);
+    assert(environment.daytime==180 && s_stalhoundTimeFrames.empty());
+    s_stalhounds.insert(1);
+
     // Failed/pending creation, actor deletion, room unload and stage exit.
     s_stalhounds.insert(3); creating.insert(3);
     update_cave_randomizer();

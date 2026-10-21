@@ -127,6 +127,7 @@ bool in_cave() {
 }
 
 HookAction before_stalhound_process(ModContext*, void* args, void*, void*) {
+    if (s_stalhounds.empty() && s_stalhoundTimeFrames.empty()) return HOOK_CONTINUE;
     auto* process = mods::arg<void*>(args, 1);
     bool owned = false;
     if (process != nullptr && is_actor_process(process) && in_cave()) {

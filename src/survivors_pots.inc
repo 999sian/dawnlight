@@ -7,11 +7,11 @@ struct ArenaPot {
     unsigned respawnAt=0;
 };
 std::array<ArenaPot,pot_capacity> s_pots;
+ActorSlotIndex<ActorId> s_potIndex;
 unsigned s_potTarget=0, s_potDelay=0;
 ArenaPot* tracked_pot(ActorId id) {
     if (id==kNone) return nullptr;
-    for (auto& pot:s_pots) if (pot.id==id) return &pot;
-    return nullptr;
+    return s_potIndex.find(s_pots,id);
 }
 void detach_pot_attacks() {
     for (const auto& pot:s_pots) {
@@ -33,6 +33,7 @@ void cleanup_pots() {
         if (pot.id==kNone) continue;
         auto* actor=actor_by_id(pot.id);
         if (!actor && !fpcM_IsCreating(pot.id)) {
+            s_potIndex.erase(pot.id);
             pot.id=kNone; pot.initialized=false;
             if (pot.retiring) pot={};
         } else if (actor && pot.retiring) svc_actor->delete_actor(mod_ctx,pot.id);
@@ -67,6 +68,7 @@ void update_pots(daAlink_c* link) {
         ActorId id=kNone;
         if (create_standalone_actor(fpcNm_Obj_Carry_e,params,id)==MOD_OK && id!=kNone) {
             pot={};pot.id=id;pot.position=pos;
+            s_potIndex.add(id,i);
         } else s_potDelay=30;
         return; // Stagger resource loading; at most one native creation per pass.
     }

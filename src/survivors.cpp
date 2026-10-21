@@ -11,6 +11,7 @@
 #include "combat_meter.hpp"
 #include "c/c_damagereaction.h"
 #include "process_actor.hpp"
+#include "actor_slot_index.hpp"
 #include "survivors_rules.hpp"
 #include "survivors_hud_layout.hpp"
 #include "survivors_multistrike.hpp"
@@ -409,6 +410,7 @@ struct Enemy {
     cXyz encounterTarget{};
 };
 std::array<Enemy, enemy_capacity> s_enemies;
+ActorSlotIndex<ActorId> s_enemyIndex;
 struct Orb { cXyz position{}; unsigned value = 0; bool summoned = false, merged = false; };
 std::array<Orb, orb_capacity> s_orbs;
 struct Attack {
@@ -469,8 +471,7 @@ fopAc_ac_c* actor_by_id(ActorId id) {
     return actor;
 }
 Enemy* tracked(ActorId id) {
-    for (auto& e : s_enemies) if (e.id != kNone && e.id == id) return &e;
-    return nullptr;
+    return id == kNone ? nullptr : s_enemyIndex.find(s_enemies, id);
 }
 #include "survivors_enemy_types.inc"
 #include "survivors_enemy_balance.inc"
@@ -544,6 +545,7 @@ void cleanup_enemies() {
         if (e.id == kNone) continue;
         auto* actor = actor_by_id(e.id);
         if (!actor && !fpcM_IsCreating(e.id)) {
+            s_enemyIndex.erase(e.id);
             e = {}; continue;
         }
         // Pending creation is not completion or a kill. Keep its ID until the scene
@@ -777,6 +779,7 @@ bool create_enemy_at(cXyz pos, s16 yaw, unsigned type, bool elite, int eliteSlot
     };
     if (create_standalone_actor(native.profile, params, id) != MOD_OK) return false;
     *slot = {id, native.profile, false, false, false, elite, 0};
+    s_enemyIndex.add(id, std::size_t(slot - s_enemies.begin()));
     slot->species=type;
     slot->eliteSlot = eliteSlot; slot->dormant = dormant; slot->spawnPosition = slot->lootPosition = pos;
     // Callers add flight height before creation; never cache that altitude as loot ground.
@@ -1254,13 +1257,15 @@ HookAction before_process(ModContext*, void* args, void* result, void*) {
     if (!methods) return HOOK_CONTINUE;
     const auto method = mods::arg<process_method_func>(args, 0);
     if (method == methods->delete_method) {
-        if (pickup) pickup->id=kNone;
-        if (arrow) arrow->id=kNone;
+        if (pickup) { s_pickupIndex.erase(id); pickup->id=kNone; }
+        if (arrow) { s_enemyArrowIndex.erase(id); arrow->id=kNone; }
         // Never award XP here: cancellation, unloading and despawning also delete.
         if (enemy) {
+            s_enemyIndex.erase(id);
             *enemy = {};
         }
         if (pot) {
+            s_potIndex.erase(id);
             pot->id=kNone; pot->initialized=false;
             if (pot->retiring) *pot={};
         }
