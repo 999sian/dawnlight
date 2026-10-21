@@ -173,7 +173,7 @@ int main(){
  assert(s_gearNoticeTicks==1&&s_gearNoticeItem==firstNotice);
  update_gear_notice();assert(s_gearNoticeTicks==240&&s_gearNoticeItem==secondNotice&&s_gearNoticeQueue.empty());
  for(unsigned i=0;i<240;++i)update_gear_notice();assert(!s_gearNoticeTicks);
- show_gear_notice({{},"Equipment inventory full!"});assert(s_gearNoticeItem.kind==GearKind::Empty);
+ show_gear_notice({{},"Inventory Full!"});assert(s_gearNoticeItem.kind==GearKind::Empty);
  show_gear_notice({secondNotice,"Tunic acquired"});clear_gear_notices();
  assert(!s_gearNoticeTicks&&s_gearNoticeQueue.empty()&&s_gearNoticeItem.kind==GearKind::Empty);
  // Equip exactly the visible item/slot; persist first and leave the replaced
@@ -221,7 +221,7 @@ int main(){
  }
  close_gear_window();
  for(auto& item:s_gear.items)item=sword;auto full=s_gear;while(true){s_gearNoticeTicks=0;drop_boss_gear();if(s_gearNoticeTicks)break;}
- assert(s_gear==full&&std::string(s_gearNotice)=="Equipment inventory full!");
+ assert(s_gear==full&&std::string(s_gearNotice)=="Inventory Full!");
 }
 '''
 with tempfile.TemporaryDirectory() as tmp:

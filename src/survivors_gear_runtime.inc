@@ -81,7 +81,7 @@ void drop_boss_gear() {
     const auto item=GearInventory::roll(random,s_run.talents.rank(Talent::EquipmentRarity));
     auto next=s_gear;
     const auto slot=next.add(item);
-    if(slot==GearInventory::none)show_gear_notice({{},"Equipment inventory full!"});
+    if(slot==GearInventory::none)show_gear_notice({{},"Inventory Full!"});
     else if(!store_gear(next))show_gear_notice({{},"Equipment save failed!"});
     else show_gear_notice({item,item.is_weapon()?"Weapon acquired":"Tunic acquired",slot});
 }
