@@ -51,6 +51,17 @@ bool store_gear(const GearInventory& next) {
     if(svc_save->set_blob(mod_ctx,kGearBlob,bytes.data(),bytes.size())!=MOD_OK)return false;
     s_gear=next;s_progressSaved=false;return true;
 }
+bool reorder_gear(const GearInventory::SlotOrder& order) {
+    auto next=s_gear;
+    if(!next.reorder(order)||!store_gear(next))return false;
+    const auto remap=[&](unsigned old){
+        for(unsigned i=0;i<order.size();++i)if(order[i]==old)return i;
+        return GearInventory::none;
+    };
+    s_gearNoticeSlot=remap(s_gearNoticeSlot);
+    for(auto& notice:s_gearNoticeQueue)notice.slot=remap(notice.slot);
+    return true;
+}
 void equip_gear_notice() {
     if(!gear_notice_equip_available())return;
     auto next=s_gear;

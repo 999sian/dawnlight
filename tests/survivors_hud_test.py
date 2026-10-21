@@ -145,7 +145,7 @@ struct J2DPrint {
     void initchar(){}
     float parse(const u8*,int count,int,void*,TSize& bounds,int,bool draw){assert(!draw);bounds.field_0x0=count*size*.5f;return 0;}
 
-    void printReturn(const char* t,float width,float,int,int,float x,float y,int){textPositions.push_back({t,x+width*.5f,y,size});printed.emplace_back(t);++labels;if(face==&ruby)++rubyLabels;}
+    void printReturn(const char* t,float width,float,int align,int,float x,float y,int){textPositions.push_back({t,x+(align==HBIND_CENTER?width*.5f:0),y,size});printed.emplace_back(t);++labels;if(face==&ruby)++rubyLabels;}
 };
 
 using ActorId=unsigned;constexpr ActorId kNone=~0u;
@@ -214,6 +214,17 @@ int main(){
         assert(context.mColorTL==1&&context.mColorBR==3);
     }
     hasGearTexture=false;gearIcons=0;draw_gear_notice();assert(!gearIcons);hasGearTexture=true;
+    // Custom position and size apply to live drops and text-only errors too.
+    hudValues[unsigned(HudPart::ItemBanner)]={-200,110,50};
+    s_gearNoticeTicks=240;vertices.clear();draw_gear_notice();assert(vertices[0][0]>=608);
+    s_gearNoticeTicks=120;vertices.clear();draw_gear_notice();
+    assert(vertices[0][0]==34&&vertices[0][1]==83.5f&&gearGeometry[2]==22);
+    const auto noticeBefore=s_gearNoticeItem;
+    vertices.clear();draw_gear_notice(true);assert(s_gearNoticeTicks==120&&s_gearNoticeItem==noticeBefore);
+    assert(vertices[0][0]==34&&vertices[0][1]==83.5f);
+    s_gearNoticeItem={};s_gearNotice="Inventory Full!";printed.clear();gearIcons=0;
+    draw_gear_notice();assert(!gearIcons&&printed.size()==1&&printed[0]=="Inventory Full!");
+    s_gearNoticeItem=noticeBefore;s_gearNotice="Weapon acquired";hudValues=hud_defaults;
     s_gearNoticeTicks=0;
     // Baseline displays only the clock; the first difficulty step adds skull/rank.
     s_run.start(42);hasFont=true;printed.clear();rubyLabels=boxes=0;
@@ -264,7 +275,7 @@ int main(){
     s_hudEditorWindow=1;window=hub=true;s_run.phase=Phase::Ready;
     const auto ticksBefore=s_run.ticks;const auto targetBefore=s_bossHudTarget;
     boxes=labels=prices=feedback=0;draw_hud(nullptr,nullptr,nullptr,nullptr);
-    assert(boxes==2&&labels&&bossPercentage==65&&!prices&&!feedback);
+    assert(boxes==4&&labels&&bossPercentage==65&&!prices&&!feedback);
     assert(s_run.phase==Phase::Ready&&s_run.ticks==ticksBefore&&s_bossHudTarget==targetBefore);
     nativeWindow=3;boxes=labels=0;draw_hud(nullptr,nullptr,nullptr,nullptr);assert(!boxes&&!labels);nativeWindow=0;
     s_hudEditorWindow=0;window=hub=false;s_run.phase=Phase::Running;
@@ -321,8 +332,14 @@ int main(){
     checkText(HudPart::Level,"Level",14);checkText(HudPart::Score,"Score",14);checkText(HudPart::ExpText,"XP",14);
     checkText(HudPart::Info,"Next chest:",14,54,-6.5f);checkText(HudPart::BossName,"Darknut",20);
     const auto xpPos=hud_position(HudPart::ExpBar,304);
-    assert(vertices.size()==8);near(vertices[0][0],xpPos.x-160*xpPos.scale);near(vertices[0][1],xpPos.y);
-    near(vertices[2][0],xpPos.x+160*xpPos.scale);near(vertices[2][1],xpPos.y+6*xpPos.scale);
+    assert(vertices.size()==16);near(vertices[8][0],xpPos.x-160*xpPos.scale);near(vertices[8][1],xpPos.y);
+    near(vertices[10][0],xpPos.x+160*xpPos.scale);near(vertices[10][1],xpPos.y+6*xpPos.scale);
+    const auto banner=hud_position(HudPart::ItemBanner,304);
+    near(vertices[0][0],banner.x-140*banner.scale);near(vertices[0][1],banner.y-53*banner.scale);
+    near(vertices[2][0],banner.x+140*banner.scale);near(vertices[2][1],banner.y+53*banner.scale);
+    near(gearGeometry[2],44*banner.scale);
+    checkText(HudPart::ItemBanner,"Hero's Sword",13,-28,-76);
+    checkText(HudPart::ItemBanner,"Call Midna to Equip",11,58);
     // Inline icon keeps its native 1:2 aspect and shares Info text transforms.
     const auto info=hud_position(HudPart::Info,304);
     near(rupeeGeometry[2],9*info.scale);near(rupeeGeometry[3],18*info.scale);

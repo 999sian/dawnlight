@@ -1408,7 +1408,7 @@ void draw_hud(ModContext*, void* args, void*, void*) {
     if (!preview && (s_deathPending || s_run.phase==Phase::Defeat)) return;
     if(!preview) {draw_chest_prices();draw_combat_feedback();}
     const float x = mDoGph_gInf_c::getMinXF() + mDoGph_gInf_c::getWidthF() * 0.5f;
-    if(!preview && s_gearNoticeTicks)draw_gear_notice();
+    if(preview || s_gearNoticeTicks)draw_gear_notice(preview);
     if (!preview && s_victory) { draw_victory_hud(x); graf->setup2D(); return; }
     char text[180];
     draw_run_rank_hud(x,preview);

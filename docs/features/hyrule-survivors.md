@@ -1506,9 +1506,9 @@ as well as save-modal and transition state; native Collection is not a UI-servic
 document. This gate precedes hub labels, chest prices, combat feedback, victory
 and normal run HUD drawing.
 
-Register 27 presentation-only ConfigService integers under survivors-hud-*:
+Register 30 presentation-only ConfigService integers under survivors-hud-*:
 X/Y/scale for Timer, Rank, EXP bar, Info, Level, Score, EXP text, Boss name and
-Boss bar. Defaults retain the previous anchors; Level/Score/XP become independent
+Boss bar and Item Banner. Defaults retain the previous anchors; Level/Score/XP become independent
 labels. Read persisted values with bounded X/Y and 10–400% scale, including after
 settings import. These preferences never enter RunOptions or high-score records.
 
@@ -1533,7 +1533,7 @@ See `SURVIVORS.md` for drop odds, independent stat weights, rarity thresholds an
 
 `credit_death` rolls once after its credit latch for scheduled and stationary guard bosses, before final-boss victory cleanup. Cleanup cannot award persistent equipment; Debug requires the explicit Max Equipment Drop Rate override. The hub chest uses its own actor/model heap at the fixed side-wall position. Collection reuses native Poe/Letters cursor cells and restores owned menu state on deletion/mode teardown. Draw-time textures are reacquired each frame; no native item flags or resource tables are changed. The two Collection hook targets already exist in Dawnlight's Dual Wield backend.
 
-Runtime verification remains required: visible hub chest placement, all controller/touch/mouse/keyboard inventory controls, all supported Collection layouts/languages, icon presentation, four-second HUD notices (also after the final boss), save/reload and slot switching on physical devices. Unit tests and native packaging do not certify in-game rendering.
+Runtime verification remains required: visible hub chest placement, all controller/touch/mouse/keyboard inventory controls, all supported Collection layouts/languages, icon presentation, eight-second HUD notices (also after the final boss), save/reload and slot switching on physical devices. Unit tests and native packaging do not certify in-game rendering.
 
 
 ### Equipment talents and stationary boss drops (PR #146)
@@ -1560,7 +1560,7 @@ drop odds and single-credit drops for timed and stationary bosses.
 
 
 Equipment notifications copy the awarded GearItem only after storage succeeds.
-The native J2D banner is centered vertically at the right edge, uses the existing
+The native J2D banner defaults near the right edge at vertical center, uses the existing
 rarity palette, reacquires its ItemIcon texture each draw, and lists the item name
 plus each actual affix. It enters from offscreen right and exits to the right over
 12 ticks at each end of an eight-active-second lifetime. Overlapping awards queue
@@ -1579,3 +1579,27 @@ HUD tests exercise slide bounds, prompt/text/icon contents, missing textures and
 native vertex packet correctness; storage/UI tests cover FIFO lifetime, immediate
 replacement, save failure, stale slot identity, tunic health caps and reset.
 Midna routing tests verify equip priority, no dialogue and normal-menu fallback.
+
+
+### Equipment layout and inventory ordering (PR #146)
+
+Item Banner is the tenth HUD editor element, with persistent X/Y/scale settings
+under `survivors-hud-item-banner-*`. The anchor is the banner center. The editor
+renders a stationary sample item, stats and Midna prompt without touching the
+real notification state. Live notices still enter from beyond the right edge
+and expire after eight active seconds, at the configured position and scale.
+
+Top-of-page host buttons sort the entire inventory by descending rarity or by
+family/variant, and toggle a source/destination move mode. It supports empty
+slots, occupied-slot swaps and cross-page moves on all host input paths. Move
+selection survives a tab rebuild but ends on window close, sorting or Banish.
+A new-slot-to-old-slot permutation preserves equipped indices and active/queued
+notice identities even for duplicate items. Validate the entire permutation,
+serialize the staged inventory, then update live inventory and notice indices;
+a failed save leaves both unchanged. The v3 blob format is unchanged.
+
+Targeted tests cover native toolbar descriptors/callbacks, cross-page moves,
+sorting ties, equipped duplicate identity, queued notices, invalid permutations,
+save rollback/retry and persisted order. HUD tests exercise all ten settings,
+sample rendering, native geometry/text scale, animation and render gates.
+Device verification remains necessary for visual readability and host input feel.

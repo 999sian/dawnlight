@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <span>
@@ -76,6 +77,34 @@ struct GearInventory {
     std::array<GearItem,capacity> items{};
     unsigned weapon=none,tunic=none;
     bool operator==(const GearInventory&) const = default;
+    // New slot -> old slot. Keep identities even when two items are identical.
+    using SlotOrder=std::array<unsigned,capacity>;
+    static SlotOrder slot_order() {
+        SlotOrder order{};for(unsigned i=0;i<capacity;++i)order[i]=i;return order;
+    }
+    SlotOrder sorted_order(bool byType) const {
+        auto order=slot_order();
+        std::stable_sort(order.begin(),order.end(),[&](unsigned a,unsigned b){
+            const auto& x=items[a];const auto& y=items[b];
+            if(x.kind==GearKind::Empty||y.kind==GearKind::Empty)
+                return x.kind!=GearKind::Empty&&y.kind==GearKind::Empty;
+            if(!byType&&x.rarity()!=y.rarity())return x.rarity()>y.rarity();
+            if(x.family()!=y.family())return x.family()<y.family();
+            if(x.kind!=y.kind)return x.kind<y.kind;
+            return x.rarity()>y.rarity();
+        });
+        return order;
+    }
+    bool reorder(const SlotOrder& order) {
+        std::array<bool,capacity> seen{};auto next=*this;
+        for(unsigned i=0;i<capacity;++i) {
+            const auto old=order[i];if(old>=capacity||seen[old])return false;
+            seen[old]=true;next.items[i]=items[old];
+            if(weapon==old)next.weapon=i;
+            if(tunic==old)next.tunic=i;
+        }
+        *this=next;return true;
+    }
     GearItem equipped(GearSlot slot) const {
         const auto i=slot==GearSlot::Weapon?weapon:tunic;
         if(i>=capacity)return {};
