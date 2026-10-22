@@ -206,3 +206,9 @@ endif()
 if (DUSK_UWP)
     target_compile_definitions(dawnlight_mod PRIVATE DAWNLIGHT_UWP=1)
 endif ()
+
+if (MSVC)
+    # Keep upstream's UTF-8 path conversion when deprecations are errors in the host build.
+    set_property(SOURCE src/config.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+        _SILENCE_CXX20_U8PATH_DEPRECATION_WARNING)
+endif ()
