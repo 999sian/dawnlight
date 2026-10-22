@@ -1,7 +1,7 @@
 #include "update_service.hpp"
 #include "service_imports.hpp"
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(DAWNLIGHT_UWP)
 #include <windows.h>
 #include <wininet.h>
 #pragma comment(lib, "wininet.lib")
@@ -59,7 +59,7 @@ static void log_update_error(const std::string& message) {
 
 static std::string http_get(const std::string& url) {
     std::string response;
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(DAWNLIGHT_UWP)
     HINTERNET hInternet = InternetOpenA("DawnlightUpdater", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (!hInternet) {
         return response;
@@ -88,7 +88,7 @@ static std::string http_get(const std::string& url) {
         InternetCloseHandle(hConnect);
     }
     InternetCloseHandle(hInternet);
-#elif defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+#elif defined(DAWNLIGHT_UWP) || (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
     (void)url;
 #else
     std::string cmd = "curl -s -L -H \"User-Agent: DawnlightModUpdater\" -H \"Accept: application/vnd.github.v3+json\" \"" + url + "\"";
@@ -107,7 +107,7 @@ static std::string http_get(const std::string& url) {
 }
 
 static bool download_file(const std::string& url, const std::string& destPath) {
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(DAWNLIGHT_UWP)
     HINTERNET hInternet = InternetOpenA("DawnlightUpdater", INTERNET_OPEN_TYPE_PRECONFIG, NULL, NULL, 0);
     if (!hInternet) {
         return false;
@@ -152,7 +152,7 @@ static bool download_file(const std::string& url, const std::string& destPath) {
     InternetCloseHandle(hConnect);
     InternetCloseHandle(hInternet);
     return success;
-#elif defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+#elif defined(DAWNLIGHT_UWP) || (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
     (void)url;
     (void)destPath;
     return false;
@@ -277,7 +277,7 @@ static bool is_version_newer(const std::string& latestTag, const std::string& cu
 static std::vector<std::string> get_target_mod_paths() {
     std::vector<std::string> paths;
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(DAWNLIGHT_UWP)
     char appData[MAX_PATH];
     if (GetEnvironmentVariableA("APPDATA", appData, MAX_PATH) > 0) {
         std::string modPath = std::string(appData) + "\\TwilitRealm\\Dusklight\\mods\\dawnlight_mod.dusk";

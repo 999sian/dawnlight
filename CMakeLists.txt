@@ -8,13 +8,17 @@ endif ()
 
 # Fetches the Dusklight sources into ./dusklight and provides DUSKLIGHT_DIR.
 # Use -DDUSKLIGHT_DIR= to point at an existing Dusklight checkout.
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchDusklight.cmake")
-add_subdirectory("${DUSKLIGHT_DIR}/sdk" dusklight-sdk EXCLUDE_FROM_ALL)
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/FetchDusklight.cmake")
+    add_subdirectory("${DUSKLIGHT_DIR}/sdk" dusklight-sdk EXCLUDE_FROM_ALL)
+else ()
+    set(DUSKLIGHT_DIR "${CMAKE_SOURCE_DIR}")
+endif ()
 
 # Dawnlight's touch aim compatibility hooks mirror Dusklight's private touch-control ABI.
 # Desktop Linux has no touch UI, so keep the private host headers out of that build.
 set(DAWNLIGHT_PRIVATE_TOUCH_UI_HEADERS ON)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
+if(DUSK_UWP OR CMAKE_SYSTEM_NAME STREQUAL "Linux" OR
    (APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "iOS" AND CMAKE_OSX_ARCHITECTURES STREQUAL "arm64") OR
    (WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(ARM64|arm64|aarch64)$"))
     set(DAWNLIGHT_PRIVATE_TOUCH_UI_HEADERS OFF)
@@ -164,6 +168,7 @@ add_mod(dawnlight_mod
         src/touch_buttons.cpp
         src/ui.cpp
         src/update_service.cpp
+    BUNDLE
     MOD_JSON mod.json
     RES_DIR res
 )
@@ -197,3 +202,7 @@ if(DAWNLIGHT_PRIVATE_TOUCH_UI_HEADERS)
         "${dawnlight_sdl3_headers_SOURCE_DIR}/include"
     )
 endif()
+
+if (DUSK_UWP)
+    target_compile_definitions(dawnlight_mod PRIVATE DAWNLIGHT_UWP=1)
+endif ()
